@@ -158,7 +158,7 @@ src/
 │  ├─ page.tsx                       # /          总览
 │  ├─ plan/page.tsx                  # /plan      接下来做什么
 │  ├─ tasks/page.tsx                 # /tasks     滚动 7 天清单
-│  ├─ calendar/page.tsx              # /calendar  周视图
+│  ├─ calendar/page.tsx              # /calendar  再加一个日历
 │  ├─ insights/page.tsx              # /insights  负担分析
 │  ├─ globals.css
 │  └─ icon.tsx

@@ -1,4 +1,4 @@
-import type { CalendarTask } from "./calendar-types.ts";
+import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import { startOfLocalDay, taskDate } from "./date-utils.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -38,8 +38,10 @@ function dayOffsetFrom(now: Date, task: CalendarTask): number | null {
  * Derive workload insights from the tasks currently on screen.
  *
  * Pure and locale-free: the caller owns all formatting, which keeps the maths
- * easy to test. Every task contributes to `total`, `completed`, and `byCourse`;
- * only tasks dated today or later contribute to the time buckets, so past
+ * easy to test. Only deadlines count — a lecture is not work you complete, so
+ * including one would drag the completion rate down and inflate its course's
+ * workload. Every deadline contributes to `total`, `completed`, and `byCourse`;
+ * only those dated today or later contribute to the time buckets, so past
  * deadlines never distort the upcoming workload.
  */
 export function computeInsights(
@@ -51,8 +53,12 @@ export function computeInsights(
   const nextSevenDays = new Array<number>(DAYS_PER_WEEK).fill(0);
   const courseTotals = new Map<string | null, CourseInsight>();
   let completed = 0;
+  let total = 0;
 
   for (const task of tasks) {
+    if (!isDeadline(task)) continue;
+    total += 1;
+
     const isCompleted = completedIds.has(task.id);
     if (isCompleted) completed += 1;
 
@@ -86,9 +92,9 @@ export function computeInsights(
   });
 
   return {
-    total: tasks.length,
+    total,
     completed,
-    completionRate: tasks.length === 0 ? 0 : completed / tasks.length,
+    completionRate: total === 0 ? 0 : completed / total,
     byCourse,
     byWeek,
     nextSevenDays,

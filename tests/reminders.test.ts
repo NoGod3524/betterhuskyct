@@ -96,6 +96,19 @@ test("dueSoonTasks keeps only tasks inside the 24h window, soonest first", () =>
   );
 });
 
+test("dueSoonTasks leaves a class meeting out of the due count", () => {
+  const tasks = [
+    makeTask({ id: "lecture", kind: "class", start: localIso(2026, 8, 8, 12, 0) }),
+    makeTask({ id: "quiz", kind: "assignment", start: localIso(2026, 8, 8, 12, 0) }),
+    makeTask({ id: "plain", start: localIso(2026, 8, 8, 12, 0) }),
+  ];
+
+  assert.deepEqual(
+    dueSoonTasks(tasks, NOW).map((task) => task.id).sort(),
+    ["plain", "quiz"],
+  );
+});
+
 test("dueSoonTasks treats an all-day task dated today as due today", () => {
   const tasks = [
     makeTask({

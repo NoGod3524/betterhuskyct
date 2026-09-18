@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { isDeadline } from "@/lib/calendar-types";
 import type { CalendarImportResult, CalendarTask, TaskGroup } from "@/lib/calendar-types";
 import {
   addSubscription,
@@ -675,8 +676,10 @@ export function CalendarProvider({
   }, [remindersEnabled, notificationPermission, dueSoon, locale]);
 
   const groups = useMemo(() => groupTasks(tasks, now, locale), [tasks, now, locale]);
+  // The groups keep class meetings — seeing your day is useful — but the
+  // headline says "due", so it counts only the things actually due.
   const visibleCount = groups.reduce(
-    (total, group) => total + group.tasks.length,
+    (total, group) => total + group.tasks.filter(isDeadline).length,
     0,
   );
 

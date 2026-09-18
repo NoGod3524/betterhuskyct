@@ -137,6 +137,23 @@ test("buildPlan ignores completed tasks", () => {
   assert.deepEqual(plan.atRisk.map((item) => item.task.id), ["todo"]);
 });
 
+test("buildPlan leaves class meetings out: a lecture is not work you owe", () => {
+  const tasks = [
+    makeTask({ id: "lecture", kind: "class", start: localIso(2026, 8, 8, 23, 0) }),
+    makeTask({ id: "quiz", kind: "assignment", start: localIso(2026, 8, 8, 23, 0) }),
+    // A feed that is not Blackboard leaves `kind` unset, and those count.
+    makeTask({ id: "unknown" }),
+  ];
+
+  const plan = buildPlan(tasks, new Set(), {}, NOW);
+  const ids = [...plan.overdue, ...plan.atRisk, ...plan.upcoming].map((item) => item.task.id);
+
+  assert.deepEqual(ids.sort(), ["quiz", "unknown"]);
+  // Two deadlines at the default medium (45 each). The lecture would have made
+  // it 135, so this also proves it never reached the focus total.
+  assert.equal(plan.focusMinutes, 90);
+});
+
 test("buildPlan limits the upcoming list but never the urgent ones", () => {
   const tasks = Array.from({ length: 9 }, (_, index) =>
     makeTask({ id: `t${index}`, start: localIso(2026, 8, 20 + index, 9, 0) }),
