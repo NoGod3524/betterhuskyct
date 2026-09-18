@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.4.0
+// @version      0.5.0
 // @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -631,6 +631,102 @@
     return lines.join("\n");
   }
 
+  // ------------------------------------------------- reading the course API
+
+  /**
+   * Blackboard Ultra's own front end talks to `/learn/api/v1/...`, and the
+   * session cookie already authenticates those calls — so this reads them the
+   * same way the page does. No token is handled and nothing extra is sent.
+   *
+   * They are internal endpoints, not the documented public API, so they can
+   * change without notice. Everything here checks its own shape and says what
+   * it found rather than assuming.
+   */
+  function currentCourseId() {
+    const match = window.location.pathname.match(/\/ultra\/courses\/([^/]+)/);
+    return match ? match[1] : null;
+  }
+
+  async function apiGet(path) {
+    const response = await fetch(path, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    });
+    const text = await response.text();
+
+    let body = null;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      /* the caller reports the text instead */
+    }
+
+    return { status: response.status, ok: response.ok, body, text };
+  }
+
+  /** Ultra wraps lists in `results` on some endpoints and not others. */
+  function listOf(body) {
+    if (Array.isArray(body)) return body;
+    if (body && Array.isArray(body.results)) return body.results;
+    return null;
+  }
+
+  async function exploreReport() {
+    const lines = [];
+    const courseId = currentCourseId();
+
+    lines.push("# " + window.location.pathname);
+    lines.push("courseId: " + (courseId || "(this URL is not inside a course)"));
+    lines.push("");
+
+    if (!courseId) {
+      lines.push("Open a course first — the URL needs /ultra/courses/<id>/ in it.");
+      return lines.join("\n");
+    }
+
+    const endpoints = [
+      ["announcements", "/learn/api/v1/courses/" + courseId + "/announcements"],
+      ["contents/ROOT/children", "/learn/api/v1/courses/" + courseId + "/contents/ROOT/children"],
+      ["course", "/learn/api/v1/courses/" + courseId],
+    ];
+
+    for (const [label, path] of endpoints) {
+      lines.push("=== " + label + " ===");
+      try {
+        const result = await apiGet(path);
+        lines.push("status: " + result.status);
+
+        const list = listOf(result.body);
+        if (list) {
+          lines.push("count: " + list.length);
+          const handlers = [
+            ...new Set(list.map((item) => item && (item.contentHandler || item.handler))),
+          ].filter(Boolean);
+          if (handlers.length) lines.push("handlers: " + handlers.join(", "));
+
+          for (const item of list.slice(0, 3)) {
+            lines.push("");
+            lines.push("  keys: " + Object.keys(item || {}).sort().join(", "));
+            lines.push("  " + safeJson(item, 2));
+          }
+        } else if (result.body) {
+          lines.push("keys: " + Object.keys(result.body).sort().join(", "));
+          lines.push(safeJson(result.body, 2));
+        } else {
+          lines.push("not JSON: " + result.text.slice(0, 200));
+        }
+      } catch (error) {
+        lines.push("threw: " + error.message);
+      }
+      lines.push("");
+      // Slow on purpose: this is someone else's server.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+
+    lines.push("# Long strings were cut at 80 characters.");
+    return lines.join("\n");
+  }
+
   // -------------------------------------------------------------------- panel
 
   const style = `
@@ -700,6 +796,7 @@
         <button class="act" data-act="structure">Report: page structure</button>
         <button class="act" data-act="data">Report: where the calendar data lives</button>
         <button class="act" data-act="requests">Report: what this page asks the server</button>
+        <button class="act" data-act="explore">Report: what this course's API returns</button>
         <button class="act" data-act="forget">Clear recorded requests</button>
         <textarea data-role="out" hidden></textarea>
         <button class="act" data-act="copy" hidden>Copy to clipboard</button>
@@ -824,6 +921,16 @@
         return;
       }
 
+      if (act === "explore") {
+        status.className = "note";
+        status.textContent = "Asking the course API…";
+        show(await exploreReport(), "ok");
+        status.textContent = "Course API report below — long text cut at 80 characters.";
+        hint.textContent =
+          "Copy it and send it back. It is a description of the response, not the announcements themselves.";
+        return;
+      }
+
       if (act === "forget") {
         const total = recorded.size;
         recorded.clear();
@@ -919,6 +1026,8 @@
       recordRequest,
       requestReport,
       recorded,
+      currentCourseId,
+      listOf,
       collect: harvest,
       collected,
       VERSION,

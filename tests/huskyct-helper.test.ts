@@ -33,6 +33,8 @@ type HelperSurface = {
   recordRequest: (method: string, url: string) => void;
   requestReport: () => string;
   recorded: Set<string>;
+  currentCourseId: () => string | null;
+  listOf: (body: unknown) => unknown[] | null;
   VERSION: string;
 };
 
@@ -56,6 +58,24 @@ sandbox.window = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(SOURCE, sandbox);
 
+/** A fresh copy of the script, running at a given URL. */
+function helperAt(href: string, pathname: string, origin: string): HelperSurface {
+  const box: Record<string, unknown> = {
+    console,
+    URL,
+    Blob: class {},
+    setTimeout,
+    clearTimeout,
+    navigator: {},
+    location: { href, origin, pathname },
+  };
+  box.window = box;
+  vm.createContext(box);
+  vm.runInContext(SOURCE, box);
+
+  return box.__huskyctHelper as HelperSurface;
+}
+
 import { parseCalendar } from "../src/lib/parse-calendar.ts";
 
 const {
@@ -67,6 +87,8 @@ const {
   recordsToIcs,
   recordRequest,
   requestReport,
+  currentCourseId,
+  listOf,
 } = sandbox.__huskyctHelper as HelperSurface;
 
 test("the userscript parses and exposes its helpers", () => {
@@ -330,24 +352,39 @@ test("the same endpoint is listed once, whatever the query", () => {
 
 test("the report says so when nothing has been recorded", () => {
   // A fresh sandbox, so the set is empty.
-  const fresh: Record<string, unknown> = {
-    console,
-    URL,
-    Blob: class {},
-    setTimeout,
-    clearTimeout,
-    navigator: {},
-    location: {
-      href: "https://lms.uconn.edu/ultra/course",
-      origin: "https://lms.uconn.edu",
-      pathname: "/ultra/course",
-    },
-  };
-  fresh.window = fresh;
-  vm.createContext(fresh);
-  vm.runInContext(SOURCE, fresh);
+  const fresh = helperAt(
+    "https://lms.uconn.edu/ultra/course",
+    "/ultra/course",
+    "https://lms.uconn.edu",
+  );
 
-  const report = (fresh.__huskyctHelper as HelperSurface).requestReport();
+  assert.match(fresh.requestReport(), /nothing recorded yet/);
+});
 
-  assert.match(report, /nothing recorded yet/);
+test("the course id is read out of a course URL", () => {
+  assert.equal(
+    helperAt(
+      "https://lms.uconn.edu/ultra/courses/_198430_1/file/_14781043_1",
+      "/ultra/courses/_198430_1/file/_14781043_1",
+      "https://lms.uconn.edu",
+    ).currentCourseId(),
+    "_198430_1",
+  );
+
+  assert.equal(
+    helperAt(
+      "https://lms.uconn.edu/ultra/course",
+      "/ultra/course",
+      "https://lms.uconn.edu",
+    ).currentCourseId(),
+    null,
+  );
+});
+
+test("listOf reads both shapes Ultra returns", () => {
+  assert.deepEqual(listOf([1, 2]), [1, 2]);
+  assert.deepEqual(listOf({ results: [1, 2] }), [1, 2]);
+  assert.equal(listOf({ items: [] }), null);
+  assert.equal(listOf(null), null);
+  assert.equal(listOf("nope"), null);
 });
