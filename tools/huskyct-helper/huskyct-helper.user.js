@@ -688,6 +688,10 @@
       ["announcements", "/learn/api/v1/courses/" + courseId + "/announcements"],
       ["contents/ROOT/children", "/learn/api/v1/courses/" + courseId + "/contents/ROOT/children"],
       ["course", "/learn/api/v1/courses/" + courseId],
+      // Worth checking: if this takes a date range, the calendar export stops
+      // needing the user to page through the term by hand.
+      ["calendars/calendarItems", "/learn/api/v1/calendars/calendarItems"],
+      ["users/me/memberships", "/learn/api/v1/users/me/memberships"],
     ];
 
     for (const [label, path] of endpoints) {
