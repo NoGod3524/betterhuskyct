@@ -9,6 +9,34 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.2.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.2.0) — The calendar names its own courses
+
+*Minor bump: the app no longer has to ask which course a class meeting is.*
+
+### Added
+
+- **Course codes, filled in automatically.** A Blackboard feed titles a class
+  meeting `Environmental Science` and never says which course that is, so the
+  app used to ask the user to type it. It now reads UConn's public class search
+  and resolves the title itself — the real export labels all of its lectures
+  with **zero setup**: no course list, no picker, nothing typed. ([#28])
+- `npm run course-map`, which regenerates that snapshot from
+  `classes.uconn.edu/api/?page=fose`. The endpoint is public: no login, no
+  token, and one request returns a whole term. The snapshot here covers three
+  terms and 5,321 courses.
+
+### Notes
+
+- A title belonging to more than one course is **never guessed**. Cross-listed
+  courses share titles all the time — `Asian Theatre and Performance` is both
+  AAAS 2136 and DRAM 2136 — so those rows are left blank instead. The user's own
+  label always outranks anything found here.
+- Assignments still carry no course in the feed, so those rows fall through to
+  the course their feed was filed under, or the default course, exactly as
+  before. The catalogue only fills in what it can prove.
+- The snapshot is 255 KB of JSON, about **65 KB gzipped**, added to the client
+  bundle and cached by the service worker after the first load.
+
 ## [1.1.1](https://github.com/NoGod3524/huskypilot/releases/tag/v1.1.1) — A lecture is not a deadline
 
 *Patch: the Plan route was treating class meetings as work you owe.*
@@ -309,3 +337,5 @@ saying what to work on next.*
 [#21]: https://github.com/NoGod3524/huskypilot/pull/21
 [#22]: https://github.com/NoGod3524/huskypilot/pull/22
 [#27]: https://github.com/NoGod3524/huskypilot/pull/27
+[#28]: https://github.com/NoGod3524/huskypilot/pull/28
+

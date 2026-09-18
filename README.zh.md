@@ -37,6 +37,7 @@ HuskyPilot 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好是�
 ## 功能
 
 - **导入任意 ICS 日历** —— 把下载好的 `.ics` 文件拖到页面任何位置，或者粘贴私人订阅链接；一次多个也行
+- **自动填上课程号** —— Blackboard 的订阅只写「Environmental Science」不写课号，所以 App 会去 UConn 公开的课程目录里查，自己填上 `NRE 1000E`。不用任何配置
 - **计划** —— 给每件事标个工作量大中小，剩下的天数不够时 HuskyPilot 会诚实地提醒你，并把已过期的任务重新捞出来
 - **多个日历、多门课** —— HuskyCT 是每门课一条订阅，你有几条就加几条；每条订阅归到一门课（课程代码 + LEC / DIS / LAB / SEM），任务行就会显示它属于哪门课、是「上课」还是「作业」、在哪个教室、精确到分钟的截止时间；默认不对的那条可以单独改
 - **滚动 7 天视图** —— 今天 / 明天 / 本周，分组并按时间排序
@@ -208,7 +209,10 @@ npm run dev      # http://localhost:3000
 npm test         # 解析、分组、URL 拦截、存储
 npm run lint
 npm run build
+npm run course-map   # 重新抓取 UConn 课程目录（每学期一次）
 ```
+
+`npm run course-map` 读的是 UConn 公开的选课搜索——不需要登录、不需要 token——重写 `src/lib/ucc-courses.json`。这张表就是「Environmental Science 自动认出 NRE 1000E」的依据。课号和课名几年才变一次，每学期跑一次足够。也可以只抓某个学期：`npm run course-map -- 1268`。
 
 ## 设计取舍
 

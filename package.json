@@ -1,6 +1,6 @@
 {
   "name": "huskypilot",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "course-map": "node scripts/build-course-map.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.38.0",

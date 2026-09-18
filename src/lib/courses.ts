@@ -1,4 +1,5 @@
 import type { CalendarTask } from "./calendar-types.ts";
+import { courseCodeForTitle } from "./course-catalogue.ts";
 
 export const COURSES_STORAGE_KEY = "huskypilot.courses.v1";
 
@@ -337,8 +338,14 @@ export function clearTaskCourse(book: CourseBook, taskId: string): CourseBook {
 
 /**
  * What one row should print: the user's pick, else the course named by the feed
- * itself, else the course the feed was filed under, else the default course.
- * Never an invented name.
+ * itself, else the course UConn's catalogue says owns that title, else the
+ * course the feed was filed under, else the default course. Never an invented
+ * name.
+ *
+ * The catalogue step is what makes a Blackboard feed usable without setup: a
+ * class meeting is titled "Environmental Science" and carries no code, and only
+ * one course owns that title. An assignment titled "Take-home Quiz 1" matches
+ * nothing, and falls through to the course its feed was filed under.
  */
 export function labelForTask(
   book: CourseBook,
@@ -355,9 +362,21 @@ export function labelForTask(
   if (!course) {
     const fromFeed = (task.course ?? "").trim();
     if (fromFeed) return { code: fromFeed, component: null };
-    course = book.courses.find((entry) => entry.id === feedCourseId) ?? null;
+
+    const fromCatalogue = courseCodeForTitle(task.title);
+    if (fromCatalogue) {
+      return {
+        code: fromCatalogue,
+        // A catalogue match arrives bare; if the user already named this course
+        // with a component, reuse it rather than dropping it.
+        component:
+          task.kind === "class" ? componentForCode(book, fromCatalogue) : null,
+      };
+    }
+
+    course =
+      book.courses.find((entry) => entry.id === feedCourseId) ?? defaultCourse(book);
   }
-  if (!course) course = defaultCourse(book);
   if (!course) return null;
 
   const code = normaliseCourseCode(course.code);
@@ -368,4 +387,12 @@ export function labelForTask(
     code,
     component: task.kind === "class" ? course.component : null,
   };
+}
+
+function componentForCode(book: CourseBook, code: string): CourseComponent | null {
+  const wanted = code.toUpperCase();
+  const match = book.courses.find(
+    (entry) => normaliseCourseCode(entry.code).toUpperCase() === wanted,
+  );
+  return match?.component ?? null;
 }

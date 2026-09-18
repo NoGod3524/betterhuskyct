@@ -37,6 +37,7 @@ HuskyPilot was built at UConn against HuskyCT (Blackboard), which is the awkward
 ## Features
 
 - **Import any ICS calendar** — drop a downloaded `.ics` file anywhere on the page, or paste a private feed URL; several at once is fine
+- **Courses named for you** — a Blackboard feed titles a class meeting `Environmental Science` and never says which course it is, so the app looks the title up in UConn's public course catalogue and fills in `NRE 1000E` itself. Nothing to configure
 - **Plan** — set how big each task is (quick / medium / long) and HuskyPilot warns you honestly when the days left no longer fit the work, and resurfaces anything already overdue
 - **Several calendars, several courses** — HuskyCT issues one feed per course, so add as many as you have; file each under a course (code plus LEC / DIS / LAB / SEM), and every task shows its course, whether it is a class meeting or an assignment, its room, and the exact due time — with a per-task picker for the rows the default gets wrong
 - **Rolling 7-day view** — Today / Tomorrow / This week, grouped and time-sorted
@@ -208,7 +209,14 @@ npm run dev      # http://localhost:3000
 npm test         # parsing, grouping, URL blocking, storage
 npm run lint
 npm run build
+npm run course-map   # rebuild the UConn course catalogue (once a semester)
 ```
+
+`npm run course-map` reads UConn's public class search — no login, no token — and
+rewrites `src/lib/ucc-courses.json`, which is what lets a class meeting named
+"Environmental Science" find its own course code. Course numbers and titles move
+slowly, so running it once a semester is plenty. Pass a term to limit it:
+`npm run course-map -- 1268`.
 
 ## Design decisions
 
