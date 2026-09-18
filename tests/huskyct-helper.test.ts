@@ -25,6 +25,11 @@ type HelperSurface = {
   pathOnly: (href: string) => string;
   describe: (element: unknown) => string;
   calendarLinks: () => Array<[string, string]>;
+  courseCodeFrom: (name: string | null) => string | null;
+  kindFromSourceType: (type: string) => string | null;
+  eventToRecord: (raw: Record<string, unknown>, event: Record<string, unknown>) => Record<string, unknown> | null;
+  recordsToIcs: (records: Array<Record<string, unknown>>) => string;
+  utcStamp: (iso: string) => string | null;
   VERSION: string;
 };
 
@@ -47,7 +52,10 @@ sandbox.window = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(SOURCE, sandbox);
 
-const { mergeCalendars, pathOnly, VERSION } = sandbox.__huskyctHelper as HelperSurface;
+import { parseCalendar } from "../src/lib/parse-calendar.ts";
+
+const { mergeCalendars, pathOnly, VERSION, courseCodeFrom, eventToRecord, recordsToIcs } =
+  sandbox.__huskyctHelper as HelperSurface;
 
 test("the userscript parses and exposes its helpers", () => {
   assert.equal(typeof mergeCalendars, "function");
@@ -174,4 +182,103 @@ test("every line ends CRLF, as the format requires", () => {
   const merged = mergeCalendars("Merged", [CALENDAR_A]);
 
   assert.ok(!/[^\r]\n/.test(merged), "found a bare LF");
+});
+
+// ---------------------------------------------------------- the Blackboard side
+
+// These are the real calendar names and records HuskyCT produces, copied from a
+// report of the Calendar page with the payload left as it was.
+const MATH_NAME =
+  "1268-UCONN-MATH-1070Q-SEC100-1191: MATH-1070Q-Mathematics for Business and Economics-SEC100-1268";
+const NRE_NAME =
+  "1268-UCONN-NRE-1000E-SEC002-3874: NRE-1000E-Environmental Science-SEC002-1268";
+
+const HOMEWORK_RAW = {
+  itemSourceType: "blackboard.platform.gradebook2.GradableItem",
+  itemSourceId: "_3867211_1",
+  calendarNameLocalizable: { rawValue: MATH_NAME },
+  title: "Section 4.4 Homework",
+  location: null,
+  startDate: "2026-09-19T03:59:00.000Z",
+  endDate: "2026-09-19T03:59:00.000Z",
+};
+
+const LECTURE_RAW = {
+  itemSourceType: "blackboard.data.calendar.CalendarEntry",
+  itemSourceId: "_1019037_1",
+  calendarNameLocalizable: { rawValue: NRE_NAME },
+  title: "Environmental Science",
+  location: "ARJ 105",
+  startDate: "2026-09-14T16:30:00.000Z",
+  endDate: "2026-09-14T17:45:00.000Z",
+};
+
+test("the course code is read out of the calendar name", () => {
+  assert.equal(courseCodeFrom(MATH_NAME), "MATH 1070Q");
+  assert.equal(courseCodeFrom(NRE_NAME), "NRE 1000E");
+  assert.equal(courseCodeFrom(null), null);
+  assert.equal(courseCodeFrom("nothing useful"), null);
+});
+
+test("the record carries the kind HuskyPilot already understands", () => {
+  const homework = eventToRecord(HOMEWORK_RAW, { allDay: false })!;
+  const lecture = eventToRecord(LECTURE_RAW, { allDay: false })!;
+
+  assert.equal(homework.kind, "assignment");
+  assert.equal(lecture.kind, "class");
+  assert.equal(homework.course, "MATH 1070Q");
+  assert.equal(lecture.course, "NRE 1000E");
+  assert.equal(lecture.location, "ARJ 105");
+  assert.equal(homework.start, "2026-09-19T03:59:00.000Z");
+
+  // The UID has to keep the source type: that substring is how HuskyPilot tells
+  // a class meeting from a graded item, exactly as it does for a real feed.
+  assert.match(homework.uid as string, /\.gradebook2\.GradableItem-/);
+  assert.match(lecture.uid as string, /\.calendar\.CalendarEntry-/);
+});
+
+test("the exported calendar parses back through HuskyPilot's own parser", async () => {
+  const records = [
+    eventToRecord(HOMEWORK_RAW, { allDay: false })!,
+    eventToRecord(LECTURE_RAW, { allDay: false })!,
+  ];
+
+  const parsed = await parseCalendar(recordsToIcs(records), new Date("2026-09-13T12:00:00Z"));
+
+  assert.equal(parsed.events.length, 2);
+
+  const homework = parsed.events.find((event) => event.title === "Section 4.4 Homework");
+  const lecture = parsed.events.find((event) => event.title === "Environmental Science");
+
+  // The whole point: an assignment arrives with its course attached, which the
+  // ICS feed itself never manages.
+  assert.equal(homework?.course, "MATH 1070Q");
+  assert.equal(homework?.kind, "assignment");
+  assert.equal(homework?.start, "2026-09-19T03:59:00.000Z");
+
+  assert.equal(lecture?.course, "NRE 1000E");
+  assert.equal(lecture?.kind, "class");
+  assert.equal(lecture?.location, "ARJ 105");
+});
+
+test("the exported file is a well-formed calendar", () => {
+  const ics = recordsToIcs([eventToRecord(HOMEWORK_RAW, { allDay: false })!]);
+
+  assert.match(ics, /^BEGIN:VCALENDAR/);
+  assert.match(ics, /END:VCALENDAR$/);
+  assert.match(ics, /DTSTART:20260919T035900Z/);
+  assert.match(ics, /CATEGORIES:MATH 1070Q/);
+  assert.ok(!/[^\r]\n/.test(ics), "found a bare LF");
+  for (const line of ics.split("\r\n")) {
+    assert.ok(line.length <= 75, `line too long: ${line.slice(0, 40)}…`);
+  }
+});
+
+test("a comma or semicolon in a title cannot break the calendar", () => {
+  const ics = recordsToIcs([
+    eventToRecord({ ...HOMEWORK_RAW, title: "Reading; chapters 1, 2 & 3" }, { allDay: false })!,
+  ]);
+
+  assert.match(ics, /SUMMARY:Reading\\; chapters 1\\, 2 & 3/);
+  assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 1);
 });

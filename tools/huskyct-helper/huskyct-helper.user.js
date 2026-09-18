@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.2.0
+// @version      0.3.0
 // @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -390,6 +390,159 @@
     return lines.join("\n");
   }
 
+  // ------------------------------------------------------- collecting events
+
+  /**
+   * Pull the course code out of a Blackboard calendar name.
+   *
+   * `1268-UCONN-MATH-1070Q-SEC100-1191: MATH-1070Q-Mathematics for Business…`
+   * is term, school, subject, number, section, id. Only the subject and number
+   * are wanted, and the ICS feed never carries them at all.
+   */
+  function courseCodeFrom(name) {
+    if (!name) return null;
+    const head = String(name).split(":")[0];
+    const parts = head.split("-");
+    if (parts.length < 4) return null;
+
+    const subject = parts[2];
+    const number = parts[3];
+    if (!/^[A-Z]{2,6}$/.test(subject)) return null;
+    if (!/^\d{2,4}[A-Z]?$/.test(number)) return null;
+
+    return subject + " " + number;
+  }
+
+  function kindFromSourceType(type) {
+    if (/GradableItem/.test(type || "")) return "assignment";
+    if (/CalendarEntry/.test(type || "")) return "class";
+    return null;
+  }
+
+  /** `2026-09-16T16:30:00.000Z` -> `20260916T163000Z` */
+  function utcStamp(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.valueOf())) return null;
+    return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  }
+
+  /** `2026-09-16T16:30:00.000Z` -> `20260916` */
+  function dateOnly(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.valueOf())) return null;
+    return date.toISOString().slice(0, 10).replace(/-/g, "");
+  }
+
+  function escapeIcs(text) {
+    return String(text)
+      .replace(/\\/g, "\\\\")
+      .replace(/;/g, "\\;")
+      .replace(/,/g, "\\,")
+      .replace(/\r?\n/g, "\\n");
+  }
+
+  /** RFC 5545 folds long lines at 75 octets with a leading space. */
+  function fold(line) {
+    if (line.length <= 73) return line;
+    const parts = [line.slice(0, 73)];
+    for (let index = 73; index < line.length; index += 72) {
+      parts.push(" " + line.slice(index, index + 72));
+    }
+    return parts.join("\r\n");
+  }
+
+  function eventToRecord(raw, event) {
+    const start = raw.startDate || event.start;
+    if (!start) return null;
+
+    const type = raw.itemSourceType || "";
+    const sourceId = raw.itemSourceId || event.id || "unknown";
+    const name =
+      (raw.calendarNameLocalizable && raw.calendarNameLocalizable.rawValue) ||
+      (raw.ui && raw.ui.calendarName) ||
+      null;
+
+    return {
+      // The type stays in the UID on purpose: HuskyPilot reads it back to tell
+      // a class meeting from an assignment, exactly as it does for a real feed.
+      uid: type + "-" + sourceId + "-" + (utcStamp(start) || ""),
+      title: raw.title || event.title || "Untitled",
+      course: courseCodeFrom(name),
+      start,
+      end: raw.endDate || event.end || null,
+      location: raw.location || null,
+      allDay: Boolean(event.allDay),
+      kind: kindFromSourceType(type),
+    };
+  }
+
+  function recordsToIcs(records) {
+    const lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//HuskyPilot//HuskyCT Helper " + VERSION + "//EN",
+      "CALSCALE:GREGORIAN",
+      "X-WR-CALNAME:HuskyCT",
+    ];
+    const stamp = utcStamp(new Date().toISOString());
+
+    for (const record of records) {
+      lines.push("BEGIN:VEVENT");
+      lines.push("UID:" + escapeIcs(record.uid));
+      lines.push("DTSTAMP:" + stamp);
+      if (record.allDay) {
+        lines.push("DTSTART;VALUE=DATE:" + dateOnly(record.start));
+      } else {
+        lines.push("DTSTART:" + utcStamp(record.start));
+        if (record.end) lines.push("DTEND:" + utcStamp(record.end));
+      }
+      lines.push("SUMMARY:" + escapeIcs(record.title));
+      if (record.course) lines.push("CATEGORIES:" + escapeIcs(record.course));
+      if (record.location) lines.push("LOCATION:" + escapeIcs(record.location));
+      lines.push("END:VEVENT");
+    }
+
+    lines.push("END:VCALENDAR");
+    return lines.map(fold).join("\r\n");
+  }
+
+  // ------------------------------------------------------------- the harvest
+
+  /**
+   * FullCalendar only holds the events for the range it has loaded, so this
+   * accumulates everything ever seen rather than exporting one view's worth.
+   * Navigating the calendar is what fills it up; the count in the panel is how
+   * the user knows when to stop.
+   */
+  const collected = new Map();
+
+  function clientEvents() {
+    const jq = window.jQuery || window.$;
+    if (!jq) return null;
+    const containers = jq("#fullCalendar, .fullcalendar-container");
+    if (!containers.length) return null;
+    try {
+      return jq(containers[0]).fullCalendar("clientEvents") || [];
+    } catch {
+      return null;
+    }
+  }
+
+  function harvest() {
+    const events = clientEvents();
+    if (!events) return { total: collected.size, added: 0, available: false };
+
+    let added = 0;
+    for (const event of events) {
+      const record = eventToRecord(event.raw || {}, event);
+      if (!record || collected.has(record.uid)) continue;
+      collected.set(record.uid, record);
+      added += 1;
+    }
+
+    return { total: collected.size, added, available: true };
+  }
+
   // -------------------------------------------------------------------- panel
 
   const style = `
@@ -449,13 +602,18 @@
         <button class="close" title="Hide">×</button>
       </header>
       <div class="body">
-        <button class="act primary" data-act="merge">Merge this page's calendars into one .ics</button>
-        <div class="note" data-role="status">Nothing is uploaded. Everything stays in this browser.</div>
+        <div class="note" data-role="count">Collected 0 events.</div>
+        <button class="act primary" data-act="export">Export .ics</button>
+        <div class="note">Stay on the Calendar page and move through the term — every view you open is added as you go. Then export and drop the file into HuskyPilot.</div>
+        <button class="act" data-act="clear">Clear collected</button>
+        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
+        <button class="act" data-act="merge">Merge .ics links on this page</button>
         <button class="act" data-act="links">Report: links on this page (tokens stripped)</button>
         <button class="act" data-act="structure">Report: page structure</button>
         <button class="act" data-act="data">Report: where the calendar data lives</button>
         <textarea data-role="out" hidden></textarea>
         <button class="act" data-act="copy" hidden>Copy to clipboard</button>
+        <div class="note" data-role="status">Nothing is uploaded. Everything stays in this browser.</div>
         <div class="note" data-role="hint"></div>
       </div>
     `;
@@ -466,7 +624,24 @@
     const out = wrap.querySelector('[data-role="out"]');
     const status = wrap.querySelector('[data-role="status"]');
     const hint = wrap.querySelector('[data-role="hint"]');
+    const count = wrap.querySelector('[data-role="count"]');
     const copyButton = wrap.querySelector('[data-act="copy"]');
+
+    function refreshCount() {
+      const total = collected.size;
+      count.textContent =
+        total === 0
+          ? "Collected 0 events."
+          : "Collected " + total + " event" + (total === 1 ? "" : "s") + ".";
+      count.className = total === 0 ? "note" : "note ok";
+    }
+
+    // Cheap: `clientEvents` reads an in-memory list, it does not make a request.
+    window.setInterval(() => {
+      if (harvest().added > 0) refreshCount();
+    }, 1500);
+    harvest();
+    refreshCount();
 
     wrap.querySelector(".close").addEventListener("click", () => {
       host.remove();
@@ -492,6 +667,46 @@
         setTimeout(() => {
           button.textContent = "Copy to clipboard";
         }, 2000);
+        return;
+      }
+
+      if (act === "export") {
+        const result = harvest();
+        refreshCount();
+
+        if (collected.size === 0) {
+          status.className = "note warn";
+          status.textContent = result.available
+            ? "This page has a calendar but no events loaded yet — move through it first."
+            : "No calendar on this page. Open the Calendar page and try again.";
+          return;
+        }
+
+        const records = [...collected.values()];
+        const withCourse = records.filter((record) => record.course).length;
+        download(
+          "huskyct-deadlines.ics",
+          recordsToIcs(records),
+          "text/calendar;charset=utf-8",
+        );
+
+        status.className = "note ok";
+        status.textContent =
+          "Exported " + records.length + " events, " + withCourse + " with a course code.";
+        hint.textContent =
+          (result.added ? "Picked up " + result.added + " more just now. " : "") +
+          "Drop huskyct-deadlines.ics into HuskyPilot.";
+        return;
+      }
+
+      if (act === "clear") {
+        const total = collected.size;
+        collected.clear();
+        refreshCount();
+        out.hidden = true;
+        copyButton.hidden = true;
+        status.className = "note";
+        status.textContent = "Cleared " + total + " collected event(s).";
         return;
       }
 
@@ -578,7 +793,20 @@
   // harmless in the page, and it is how the merge is checked against real
   // calendar text rather than trusted because it looks right.
   if (typeof window !== "undefined") {
-    window.__huskyctHelper = { mergeCalendars, pathOnly, describe, calendarLinks, VERSION };
+    window.__huskyctHelper = {
+      mergeCalendars,
+      pathOnly,
+      describe,
+      calendarLinks,
+      courseCodeFrom,
+      kindFromSourceType,
+      eventToRecord,
+      recordsToIcs,
+      utcStamp,
+      collect: harvest,
+      collected,
+      VERSION,
+    };
   }
 
   if (typeof document !== "undefined" && document.documentElement) mountPanel();
