@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.1.1
+// @version      0.2.0
 // @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
 // @match        https://huskyct.uconn.edu/*
+// @updateURL    https://raw.githubusercontent.com/NoGod3524/huskypilot/feat/huskyct-helper/tools/huskyct-helper/huskyct-helper.user.js
+// @downloadURL  https://raw.githubusercontent.com/NoGod3524/huskypilot/feat/huskyct-helper/tools/huskyct-helper/huskyct-helper.user.js
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
@@ -232,6 +234,162 @@
     return [...found.entries()];
   }
 
+  // ------------------------------------------------- finding the data model
+
+  /** JSON with long strings cut and functions dropped, so a report stays small. */
+  function safeJson(value, indent) {
+    const seen = new WeakSet();
+    return JSON.stringify(
+      value,
+      function (key, item) {
+        if (typeof item === "function") return "[function]";
+        if (typeof item === "string") {
+          return item.length > 80 ? item.slice(0, 80) + "…" : item;
+        }
+        if (item && typeof item === "object") {
+          if (seen.has(item)) return "[seen]";
+          seen.add(item);
+        }
+        return item;
+      },
+      indent,
+    );
+  }
+
+  function attributeChain(element, levels) {
+    const out = [];
+    let node = element;
+    let depth = 0;
+    while (node && node.nodeType === 1 && depth < (levels || 4)) {
+      const attrs = [...node.attributes]
+        .map((a) => a.name + "=" + (a.value.length > 50 ? a.value.slice(0, 50) + "…" : a.value))
+        .join("  ");
+      out.push("  ".repeat(depth) + node.tagName.toLowerCase() + (attrs ? "  [" + attrs + "]" : ""));
+      node = node.parentElement;
+      depth += 1;
+    }
+    return out.join("\n");
+  }
+
+  /**
+   * Where does this page actually keep its calendar?
+   *
+   * The calendar is an AngularJS + FullCalendar app, so the events are almost
+   * certainly already in a JavaScript model on the page. Reading that is both
+   * more complete and far less brittle than scraping the rendered DOM — and it
+   * is the only way to get the course code that the ICS feed leaves out.
+   */
+  function dataReport() {
+    const lines = [];
+    lines.push("# " + window.location.pathname);
+    lines.push("");
+
+    const jq = window.jQuery || window.$;
+    lines.push("jQuery:  " + (jq ? "present " + (jq.fn && jq.fn.jquery) : "absent"));
+    lines.push("angular: " + (window.angular ? "present" : "absent"));
+    lines.push("");
+
+    // 1. FullCalendar keeps its own event list.
+    if (jq) {
+      const containers = jq("#fullCalendar, .fullcalendar-container");
+      lines.push("fullcalendar containers: " + containers.length);
+      if (containers.length) {
+        try {
+          const events = jq(containers[0]).fullCalendar("clientEvents");
+          lines.push("clientEvents: " + (events ? events.length : "returned nothing"));
+          if (events && events.length) {
+            lines.push("event keys: " + Object.keys(events[0]).sort().join(", "));
+            lines.push("first event (strings cut at 80):");
+            lines.push(safeJson(events[0], 2));
+          }
+        } catch (error) {
+          lines.push("clientEvents threw: " + error.message);
+        }
+      }
+      lines.push("");
+    }
+
+    // 2. The AngularJS scope, walked carefully and with a hard budget.
+    if (window.angular) {
+      lines.push("--- angular models ---");
+      let visited = 0;
+      const seen = new WeakSet();
+      const found = [];
+
+      function walk(scope, path, depth) {
+        if (!scope || typeof scope !== "object") return;
+        if (visited++ > 2000 || depth > 8) return;
+        if (seen.has(scope)) return;
+        seen.add(scope);
+
+        let keys = [];
+        try {
+          keys = Object.keys(scope);
+        } catch {
+          return;
+        }
+
+        for (const key of keys) {
+          if (key.charAt(0) === "$") continue;
+          let value;
+          try {
+            value = scope[key];
+          } catch {
+            continue;
+          }
+          if (Array.isArray(value) && value.length && value[0] && typeof value[0] === "object") {
+            found.push({
+              path: path + "." + key,
+              length: value.length,
+              keys: Object.keys(value[0]).sort().join(", "),
+              sample: safeJson(value[0], 0),
+            });
+          } else if (value && typeof value === "object" && !Array.isArray(value)) {
+            walk(value, path + "." + key, depth + 1);
+          }
+        }
+
+        walk(scope.$$childHead, path + ">child", depth + 1);
+        walk(scope.$$nextSibling, path + ">sibling", depth);
+      }
+
+      const roots = document.querySelectorAll(
+        ".page-base-calendar, #fullCalendar, [ng-controller], body",
+      );
+      for (const node of roots) {
+        try {
+          walk(window.angular.element(node).scope(), describe(node), 0);
+        } catch {
+          /* no scope on that node */
+        }
+        if (found.length > 40) break;
+      }
+
+      lines.push("scopes visited: " + visited + ", arrays found: " + found.length);
+      for (const entry of found.slice(0, 25)) {
+        lines.push("");
+        lines.push("  " + entry.path + "   [" + entry.length + " items]");
+        lines.push("    keys: " + entry.keys);
+        lines.push("    first: " + entry.sample);
+      }
+      lines.push("");
+    }
+
+    // 3. The rendered elements, with their attributes and their parents'.
+    lines.push("--- calendar event elements ---");
+    const samples = document.querySelectorAll(
+      ".fc-event, .month-scroll-content li, .calendar-week .event-dot",
+    );
+    lines.push("matched: " + samples.length);
+    for (const node of [...samples].slice(0, 4)) {
+      lines.push("");
+      lines.push(attributeChain(node, 5));
+      lines.push("  text: " + label(node));
+    }
+
+    return lines.join("\n");
+  }
+
   // -------------------------------------------------------------------- panel
 
   const style = `
@@ -295,6 +453,7 @@
         <div class="note" data-role="status">Nothing is uploaded. Everything stays in this browser.</div>
         <button class="act" data-act="links">Report: links on this page (tokens stripped)</button>
         <button class="act" data-act="structure">Report: page structure</button>
+        <button class="act" data-act="data">Report: where the calendar data lives</button>
         <textarea data-role="out" hidden></textarea>
         <button class="act" data-act="copy" hidden>Copy to clipboard</button>
         <div class="note" data-role="hint"></div>
@@ -341,6 +500,14 @@
         status.textContent = "Structure report below — it lists element names, not content.";
         hint.textContent =
           "Copy it and send it back. Nothing in it includes your name, your courses' text, or any URL token.";
+        return;
+      }
+
+      if (act === "data") {
+        show(dataReport(), "ok");
+        status.textContent = "Data-model report below — long text is cut at 80 characters.";
+        hint.textContent =
+          "Copy it and send it back. It says where the calendar keeps its events, not what they all are.";
         return;
       }
 
