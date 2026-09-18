@@ -35,6 +35,10 @@ type HelperSurface = {
   recorded: Set<string>;
   currentCourseId: () => string | null;
   listOf: (body: unknown) => unknown[] | null;
+  queryKeys: (url: string) => string;
+  cookieNames: () => string[];
+  apiTraffic: () => Array<Record<string, unknown>> | null;
+  newestApiUrl: () => string | null;
   VERSION: string;
 };
 
@@ -88,6 +92,7 @@ const {
   recordRequest,
   requestReport,
   listOf,
+  queryKeys,
 } = sandbox.__huskyctHelper as HelperSurface;
 
 test("the userscript parses and exposes its helpers", () => {
@@ -119,6 +124,152 @@ test("pathOnly keeps a different origin visible but strips it too", () => {
     pathOnly("https://example.com/some/file.ics?token=SECRET"),
     "https://example.com/some/file.ics",
   );
+});
+
+/**
+ * A copy of the script running against a stubbed page.
+ *
+ * `readyState: "loading"` keeps the panel from mounting: these tests exercise
+ * the data helpers, and there is no DOM here for a panel to mount into.
+ */
+function helperWith(page: Record<string, unknown>): HelperSurface {
+  const box: Record<string, unknown> = {
+    console,
+    URL,
+    Blob: class {},
+    setTimeout,
+    clearTimeout,
+    navigator: {},
+    location: {
+      href: "https://lms.uconn.edu/ultra/course",
+      origin: "https://lms.uconn.edu",
+      pathname: "/ultra/course",
+    },
+    document: { cookie: "", readyState: "loading", addEventListener() {} },
+    ...page,
+  };
+  box.window = box;
+  vm.createContext(box);
+  vm.runInContext(SOURCE, box);
+
+  return box.__huskyctHelper as HelperSurface;
+}
+
+/**
+ * The diagnosis report exists to be pasted into a chat window, so the only part
+ * of a URL it may reproduce is the parameter *names*. A value can be a record
+ * id, and it can be a token.
+ */
+test("queryKeys reports parameter names and never their values", () => {
+  const url =
+    "https://lms.uconn.edu/learn/api/v1/courses/_198430_1/announcements?limit=20&token=SECRET";
+
+  const keys = queryKeys(url);
+
+  assert.equal(keys, "?limit&token");
+  assert.ok(!keys.includes("SECRET"));
+  assert.ok(!keys.includes("20"));
+});
+
+test("queryKeys keeps a repeated parameter to one name", () => {
+  assert.equal(queryKeys("/x?a=1&a=2&b=3"), "?a&b");
+});
+
+test("queryKeys says nothing when there is no query string", () => {
+  assert.equal(queryKeys("/learn/api/v1/users/me"), "");
+});
+
+test("queryKeys survives a URL it cannot parse", () => {
+  assert.equal(queryKeys("http://[not a url"), "");
+});
+
+/** A cookie value is a session. Only the names may leave the browser. */
+test("cookieNames lists names and never their values", () => {
+  const helper = helperWith({
+    document: {
+      cookie: "BbRouter=abc123; JSESSIONID=SECRETSESSION; XSRF-TOKEN=SECRETTOKEN",
+      readyState: "loading",
+      addEventListener() {},
+    },
+  });
+
+  const names = helper.cookieNames();
+
+  // Spread first: the array comes from inside the VM realm, and a strict deep
+  // comparison checks prototypes, so it would not match a host array.
+  assert.deepEqual([...names], ["BbRouter", "JSESSIONID", "XSRF-TOKEN"]);
+  assert.ok(!JSON.stringify(names).includes("SECRET"));
+});
+
+/**
+ * This is the evidence the whole diagnosis rests on: what the page's *own*
+ * requests got. If it kept the wrong entries, or leaked a query value while
+ * keeping them, the report would mislead in a way that is hard to notice.
+ */
+test("apiTraffic keeps only Learn API calls, with the status each one got", () => {
+  const helper = helperWith({
+    performance: {
+      getEntriesByType: () => [
+        {
+          name: "https://lms.uconn.edu/learn/api/v1/users/me?x=1",
+          initiatorType: "fetch",
+          transferSize: 900,
+          responseStatus: 200,
+        },
+        {
+          name: "https://lms.uconn.edu/webapps/calendar/calendar.ics?token=SECRET",
+          initiatorType: "xmlhttprequest",
+          transferSize: 10,
+          responseStatus: 200,
+        },
+        {
+          name: "https://lms.uconn.edu/learn/api/v1/courses/_1/announcements?token=SECRET",
+          initiatorType: "fetch",
+          transferSize: 50,
+          responseStatus: 403,
+        },
+      ],
+    },
+  });
+
+  const traffic = helper.apiTraffic();
+  assert.ok(traffic, "apiTraffic returned nothing");
+  assert.equal(traffic.length, 2, "a non-API request was kept");
+
+  assert.equal(traffic[0].path, "/learn/api/v1/users/me");
+  assert.equal(traffic[0].query, "?x");
+  assert.equal(traffic[0].status, 200);
+  assert.equal(traffic[0].bytes, 900);
+
+  assert.equal(traffic[1].status, 403);
+  assert.equal(traffic[1].query, "?token");
+  assert.ok(!JSON.stringify(traffic).includes("SECRET"));
+});
+
+test("apiTraffic reports nothing rather than guessing when timing is absent", () => {
+  assert.equal(helperWith({}).apiTraffic(), null);
+});
+
+/**
+ * The replay target is the one place a raw URL is needed, and it is handed
+ * straight to `fetch`. It must still be the newest Learn API call, or the
+ * probe would replay something unrelated and prove nothing.
+ */
+test("newestApiUrl is the last Learn API call, query and all", () => {
+  const helper = helperWith({
+    performance: {
+      getEntriesByType: () => [
+        { name: "https://lms.uconn.edu/learn/api/v1/users/me", responseStatus: 200 },
+        { name: "https://lms.uconn.edu/learn/api/v1/courses/_1/announcements?limit=20", responseStatus: 200 },
+      ],
+    },
+  });
+
+  assert.equal(
+    helper.newestApiUrl(),
+    "https://lms.uconn.edu/learn/api/v1/courses/_1/announcements?limit=20",
+  );
+  assert.equal(helperWith({}).newestApiUrl(), null);
 });
 
 const CALENDAR_A = [

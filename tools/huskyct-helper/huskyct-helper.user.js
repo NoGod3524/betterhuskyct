@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.5.0
+// @version      0.5.1
 // @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -41,7 +41,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.5.0";
+  const VERSION = "0.5.1";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -650,11 +650,17 @@
     return match ? match[1] : null;
   }
 
-  async function apiGet(path) {
-    const response = await fetch(path, {
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-    });
+  /**
+   * `headers` is optional on purpose. Every probe below passes something
+   * different, and one of them has to pass *nothing* — a request that differs
+   * from the failing one only by its headers is how a missing or unwanted
+   * header gets found.
+   */
+  async function apiGet(path, headers) {
+    const options = { credentials: "same-origin" };
+    if (headers) options.headers = headers;
+
+    const response = await fetch(path, options);
     const text = await response.text();
 
     let body = null;
@@ -674,12 +680,118 @@
     return null;
   }
 
+  /**
+   * The *names* of the cookies this page can read. Never the values.
+   *
+   * A session cookie is a password, and this report is written to be pasted
+   * into a chat window — so the names are the only part that is safe to show,
+   * and they are also the part worth knowing: whether a csrf cookie exists is
+   * a fact about the site, not about the person reading it.
+   */
+  function cookieNames() {
+    try {
+      return String(document.cookie || "")
+        .split(";")
+        .map((part) => part.split("=")[0].trim())
+        .filter(Boolean)
+        .sort();
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * `?a=1&b=2` becomes `?a&b`.
+   *
+   * Query values on this site carry record ids and sometimes tokens; the names
+   * are what say how an endpoint is meant to be called.
+   */
+  function queryKeys(url) {
+    try {
+      const names = [...new Set(new URL(url, window.location.href).searchParams.keys())].sort();
+      return names.length ? "?" + names.join("&") : "";
+    } catch {
+      return "";
+    }
+  }
+
+  /**
+   * Every `/learn/api` request this page has already made, according to the
+   * browser's own performance log.
+   *
+   * This is the closest thing to proof available from inside the page: the
+   * `status` here is what the *page's own* request received, so a 200 next to a
+   * path means that path works, and the fault is in our request rather than in
+   * the URL.
+   *
+   * It deliberately does not carry the raw URL. A query string here can hold a
+   * token, and a record that cannot hold one cannot leak it later — callers
+   * that need to replay a URL get it from `newestApiUrl` below and pass it
+   * straight to `fetch` without ever printing it.
+   */
+  function apiTraffic() {
+    try {
+      if (!window.performance || typeof performance.getEntriesByType !== "function") return null;
+      return performance
+        .getEntriesByType("resource")
+        .filter((entry) => /\/learn\/api\//.test(entry.name))
+        .map((entry) => ({
+          path: pathOnly(entry.name),
+          query: queryKeys(entry.name),
+          // 0 means the browser withheld it, which is itself worth seeing.
+          status: typeof entry.responseStatus === "number" ? entry.responseStatus : "(not exposed)",
+          via: entry.initiatorType || "?",
+          bytes: entry.transferSize,
+        }));
+    } catch {
+      return null;
+    }
+  }
+
+  /** The newest `/learn/api` URL this page fetched, to replay verbatim. */
+  function newestApiUrl() {
+    try {
+      if (!window.performance || typeof performance.getEntriesByType !== "function") return null;
+      const entries = performance
+        .getEntriesByType("resource")
+        .filter((entry) => /\/learn\/api\//.test(entry.name));
+      return entries.length ? entries[entries.length - 1].name : null;
+    } catch {
+      return null;
+    }
+  }
+
   async function exploreReport() {
     const lines = [];
     const courseId = currentCourseId();
 
     lines.push("# " + window.location.pathname);
     lines.push("courseId: " + (courseId || "(this URL is not inside a course)"));
+    lines.push("cookie names visible here: " + (cookieNames().join(", ") || "(none)"));
+    lines.push("");
+
+    // What this page has already asked for, and how it went.
+    //
+    // The browser remembers every resource it loaded, which is free evidence.
+    // If the page itself fetched these endpoints and got 200, the paths are
+    // right and the difference must be in the request; if the page never asked
+    // for them, the paths were a guess and the guess is what is wrong.
+    const traffic = apiTraffic();
+    lines.push("=== /learn/api traffic this page already made ===");
+    if (!traffic) {
+      lines.push("(performance timing is not available here)");
+    } else if (traffic.length === 0) {
+      lines.push("(none recorded — this page has not fetched /learn/api since it");
+      lines.push(" loaded. Open Announcements or Course Content, then press this");
+      lines.push(" button again to compare.)");
+    } else {
+      for (const entry of traffic.slice(-25)) {
+        lines.push(
+          "  " + String(entry.status).padStart(11) + "  " + entry.path + entry.query +
+            "   [" + entry.via + ", " + entry.bytes + " bytes]",
+        );
+      }
+    }
     lines.push("");
 
     if (!courseId) {
@@ -687,20 +799,33 @@
       return lines.join("\n");
     }
 
-    const endpoints = [
-      ["announcements", "/learn/api/v1/courses/" + courseId + "/announcements"],
-      ["contents/ROOT/children", "/learn/api/v1/courses/" + courseId + "/contents/ROOT/children"],
-      ["course", "/learn/api/v1/courses/" + courseId],
-      // Worth checking: if this takes a date range, the calendar export stops
-      // needing the user to page through the term by hand.
-      ["calendars/calendarItems", "/learn/api/v1/calendars/calendarItems"],
-      ["users/me/memberships", "/learn/api/v1/users/me/memberships"],
+    const base = "/learn/api/v1/courses/" + courseId;
+
+    // Six requests, and the differences between them *are* the experiment. The
+    // bogus path is the control: if a path that cannot possibly exist answers
+    // exactly like the real ones, nothing is being denied — the request is
+    // simply never reaching the application, and every path would fail.
+    const probes = [
+      ["control: a path that cannot exist", "/learn/api/v1/__huskypilot_no_such_endpoint__", null],
+      ["announcements, no headers at all", base + "/announcements", null],
+      ["announcements, Accept: application/json", base + "/announcements", { Accept: "application/json" }],
+      ["announcements, X-Requested-With", base + "/announcements", { "X-Requested-With": "XMLHttpRequest" }],
+      ["users/me — is the whole prefix alive?", "/learn/api/v1/users/me", null],
+      ["course", base, null],
     ];
 
-    for (const [label, path] of endpoints) {
-      lines.push("=== " + label + " ===");
+    const newest = newestApiUrl();
+    if (newest) probes.push(["replay of a URL this page used", newest, null]);
+
+    lines.push("=== probes ===");
+    for (const [label, path, headers] of probes) {
+      lines.push("");
+      lines.push("--- " + label + " ---");
+      lines.push("path: " + pathOnly(path) + queryKeys(path));
+      lines.push("sent headers: " + (headers ? Object.keys(headers).join(", ") : "(none)"));
+
       try {
-        const result = await apiGet(path);
+        const result = await apiGet(path, headers);
         lines.push("status: " + result.status);
 
         const list = listOf(result.body);
@@ -712,7 +837,6 @@
           if (handlers.length) lines.push("handlers: " + handlers.join(", "));
 
           for (const item of list.slice(0, 3)) {
-            lines.push("");
             lines.push("  keys: " + Object.keys(item || {}).sort().join(", "));
             lines.push("  " + safeJson(item, 2));
           }
@@ -720,16 +844,21 @@
           lines.push("keys: " + Object.keys(result.body).sort().join(", "));
           lines.push(safeJson(result.body, 2));
         } else {
-          lines.push("not JSON: " + result.text.slice(0, 200));
+          // The body matters most when it is a refusal: two refusals that look
+          // identical came from the same place, which is the whole question.
+          lines.push("body, not JSON: " + result.text.replace(/\s+/g, " ").slice(0, 220));
         }
       } catch (error) {
         lines.push("threw: " + error.message);
       }
-      lines.push("");
+
       // Slow on purpose: this is someone else's server.
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
+    lines.push("");
+    lines.push("# Query strings appear as parameter names only, never values;");
+    lines.push("# cookies appear as names only, never contents.");
     lines.push("# Long strings were cut at 80 characters.");
     return lines.join("\n");
   }
@@ -803,7 +932,7 @@
         <button class="act" data-act="structure">Report: page structure</button>
         <button class="act" data-act="data">Report: where the calendar data lives</button>
         <button class="act" data-act="requests">Report: what this page asks the server</button>
-        <button class="act" data-act="explore">Report: what this course's API returns</button>
+        <button class="act" data-act="explore">Report: why the course API says no</button>
         <button class="act" data-act="forget">Clear recorded requests</button>
         <textarea data-role="out" hidden></textarea>
         <button class="act" data-act="copy" hidden>Copy to clipboard</button>
@@ -930,11 +1059,11 @@
 
       if (act === "explore") {
         status.className = "note";
-        status.textContent = "Asking the course API…";
+        status.textContent = "Probing the course API…";
         show(await exploreReport(), "ok");
-        status.textContent = "Course API report below — long text cut at 80 characters.";
+        status.textContent = "Diagnosis below — it compares six requests, including one impossible path.";
         hint.textContent =
-          "Copy it and send it back. It is a description of the response, not the announcements themselves.";
+          "Copy it and send it back. Query strings are shown as names only and cookies as names only, so no token and no session value can be in it.";
         return;
       }
 
@@ -1035,6 +1164,10 @@
       recorded,
       currentCourseId,
       listOf,
+      queryKeys,
+      cookieNames,
+      apiTraffic,
+      newestApiUrl,
       collect: harvest,
       collected,
       VERSION,

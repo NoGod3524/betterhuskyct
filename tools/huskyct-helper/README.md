@@ -45,16 +45,34 @@ taught where to look.
 
 ## Sending a report back
 
-Press one of the two report buttons, then copy the text out of the box. Both are
-safe to share:
+The buttons that start with *Report:* produce text you can copy out of the box
+and send on. They are written to be safe to share:
 
-- the structure report lists element names, ids, classes and short **UI labels**
-  (button text, headings) — not page content;
-- the link report lists **paths only**, with every query string and fragment
-  removed, so no token is in it.
+- the **structure report** lists element names, ids, classes and short **UI
+  labels** (button text, headings) — not page content;
+- the **link report** lists **paths only**, with every query string and fragment
+  removed, so no token is in it;
+- the **request report** lists the paths this page asked the server for, again
+  with query strings stripped;
+- the **API report** shows query strings as **parameter names only** and cookies
+  as **names only**. Values never appear, so no token and no session value can
+  be in it.
 
 Still, give it a skim before sending. If anything in it looks like it should not
 leave your machine, cut that line out.
+
+### Why there is an API report at all
+
+The course pages are a different application from the legacy calendar page, and
+guessing at its markup is how a script ends up silently doing nothing. The API
+report answers one question — *why is this request refused?* — by sending six
+requests that differ from each other in exactly one way each, including a path
+that cannot possibly exist. If that impossible path is refused in the same way
+as the real ones, then nothing is being denied and the path itself is wrong.
+
+It also lists what the page's **own** requests received, read out of the
+browser's performance log. A 200 next to a path there means that path works, and
+the fault is in our request rather than the URL.
 
 ## Status
 
