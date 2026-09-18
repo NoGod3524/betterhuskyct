@@ -233,7 +233,10 @@ test("labelForTask prefers the pick, then the feed, then the default", () => {
   );
   assert.equal(labelForTask(noDefault, assignment()), null);
   assert.equal(defaultCourse(noDefault), null);
-  assert.equal(labelForTask(EMPTY_COURSE_BOOK, classMeeting()), null);
+  // Nothing configured at all: a titled class meeting resolves from UConn's
+  // catalogue, and an assignment with a made-up title still resolves to nothing.
+  assert.equal(labelForTask(EMPTY_COURSE_BOOK, classMeeting())?.code, "NRE 1000E");
+  assert.equal(labelForTask(EMPTY_COURSE_BOOK, assignment()), null);
   assert.equal(first.isDefault, true);
 });
 
