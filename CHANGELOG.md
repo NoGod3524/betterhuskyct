@@ -9,6 +9,18 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.3.1](https://github.com/NoGod3524/huskypilot/releases/tag/v1.3.1) — Where did the delete button go
+
+*Patch: the collapsed card had no way in to remove a calendar.*
+
+### Fixed
+
+- The card collapses once a calendar is in, and its only door was labelled
+  **Add another calendar** — but the remove button lives behind that door too.
+  Nobody would look for "delete" under "add", which is exactly the complaint
+  that came back. That button now reads **Manage calendars**, and the line
+  under it says so. ([#30])
+
 ## [1.3.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.3.0) — The same dashboard, on your phone
 
 *Minor bump: a second device no longer starts empty.*
@@ -368,5 +380,7 @@ saying what to work on next.*
 [#27]: https://github.com/NoGod3524/huskypilot/pull/27
 [#28]: https://github.com/NoGod3524/huskypilot/pull/28
 [#29]: https://github.com/NoGod3524/huskypilot/pull/29
+[#30]: https://github.com/NoGod3524/huskypilot/pull/30
+
 
 
