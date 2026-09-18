@@ -87,7 +87,6 @@ const {
   recordsToIcs,
   recordRequest,
   requestReport,
-  currentCourseId,
   listOf,
 } = sandbox.__huskyctHelper as HelperSurface;
 
