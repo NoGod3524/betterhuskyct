@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.3.0
+// @version      0.4.0
 // @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
 // @match        https://huskyct.uconn.edu/*
 // @updateURL    https://raw.githubusercontent.com/NoGod3524/huskypilot/feat/huskyct-helper/tools/huskyct-helper/huskyct-helper.user.js
 // @downloadURL  https://raw.githubusercontent.com/NoGod3524/huskypilot/feat/huskyct-helper/tools/huskyct-helper/huskyct-helper.user.js
-// @run-at       document-idle
+// @run-at       document-start
 // @grant        none
 // ==/UserScript==
 
@@ -543,6 +543,94 @@
     return { total: collected.size, added, available: true };
   }
 
+  // --------------------------------------------------- what the page asks for
+
+  /**
+   * A record of the endpoints this page talks to.
+   *
+   * The Calendar page handed over its data through FullCalendar, but the course
+   * pages are a different application entirely, and guessing at its markup is
+   * how a script ends up silently doing nothing. Watching which paths the page
+   * requests is evidence: once the endpoints are known, the data can be read
+   * directly instead of scraped off the screen.
+   *
+   * Paths only. Query strings carry tokens, so they are dropped, and headers and
+   * bodies are never touched.
+   */
+  const REQUEST_KEY = "huskypilot.helper.requests";
+
+  function loadRequests() {
+    try {
+      const raw = sessionStorage.getItem(REQUEST_KEY);
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  const recorded = loadRequests();
+
+  function recordRequest(method, url) {
+    try {
+      const parsed = new URL(url, window.location.href);
+      if (parsed.origin !== window.location.origin) return;
+      const entry = String(method || "GET").toUpperCase() + " " + parsed.pathname;
+      if (recorded.has(entry)) return;
+      recorded.add(entry);
+      sessionStorage.setItem(REQUEST_KEY, JSON.stringify([...recorded]));
+    } catch {
+      /* not a URL we can make sense of */
+    }
+  }
+
+  function installRecorder() {
+    const originalFetch = window.fetch;
+    if (typeof originalFetch === "function") {
+      window.fetch = function (input, init) {
+        try {
+          const url = typeof input === "string" ? input : input && input.url;
+          const method =
+            (init && init.method) || (input && input.method) || "GET";
+          recordRequest(method, url);
+        } catch {
+          /* never let bookkeeping break a request */
+        }
+        return originalFetch.apply(this, arguments);
+      };
+    }
+
+    const open = window.XMLHttpRequest && window.XMLHttpRequest.prototype.open;
+    if (typeof open === "function") {
+      window.XMLHttpRequest.prototype.open = function (method, url) {
+        try {
+          recordRequest(method, url);
+        } catch {
+          /* as above */
+        }
+        return open.apply(this, arguments);
+      };
+    }
+  }
+
+  function requestReport() {
+    const lines = ["# " + window.location.pathname, ""];
+    const entries = [...recorded].sort();
+
+    if (entries.length === 0) {
+      lines.push("(nothing recorded yet)");
+      lines.push("");
+      lines.push("# Open a course, then Announcements, then Course Content, and");
+      lines.push("# press this again. The list fills up as you go.");
+      return lines.join("\n");
+    }
+
+    for (const entry of entries) lines.push("  " + entry);
+    lines.push("");
+    lines.push("# " + entries.length + " distinct paths.");
+    lines.push("# Query strings and fragments were stripped; headers and bodies are never read.");
+    return lines.join("\n");
+  }
+
   // -------------------------------------------------------------------- panel
 
   const style = `
@@ -611,6 +699,8 @@
         <button class="act" data-act="links">Report: links on this page (tokens stripped)</button>
         <button class="act" data-act="structure">Report: page structure</button>
         <button class="act" data-act="data">Report: where the calendar data lives</button>
+        <button class="act" data-act="requests">Report: what this page asks the server</button>
+        <button class="act" data-act="forget">Clear recorded requests</button>
         <textarea data-role="out" hidden></textarea>
         <button class="act" data-act="copy" hidden>Copy to clipboard</button>
         <div class="note" data-role="status">Nothing is uploaded. Everything stays in this browser.</div>
@@ -726,6 +816,29 @@
         return;
       }
 
+      if (act === "requests") {
+        show(requestReport(), "ok");
+        status.textContent = "Endpoint report below — paths only.";
+        hint.textContent =
+          "Copy it and send it back. No token can be in it: query strings are stripped and headers are never read.";
+        return;
+      }
+
+      if (act === "forget") {
+        const total = recorded.size;
+        recorded.clear();
+        try {
+          sessionStorage.removeItem(REQUEST_KEY);
+        } catch {
+          /* nothing to clear */
+        }
+        out.hidden = true;
+        copyButton.hidden = true;
+        status.className = "note";
+        status.textContent = "Cleared " + total + " recorded path(s). Now open the pages you want mapped.";
+        return;
+      }
+
       if (act === "links") {
         show(linkReport(), "ok");
         status.textContent = "Link report below — query strings and fragments removed.";
@@ -803,11 +916,23 @@
       eventToRecord,
       recordsToIcs,
       utcStamp,
+      recordRequest,
+      requestReport,
+      recorded,
       collect: harvest,
       collected,
       VERSION,
     };
   }
 
-  if (typeof document !== "undefined" && document.documentElement) mountPanel();
+  // At document-start, so nothing the page loads escapes the recorder.
+  installRecorder();
+
+  if (typeof document !== "undefined") {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", mountPanel, { once: true });
+    } else {
+      mountPanel();
+    }
+  }
 })();

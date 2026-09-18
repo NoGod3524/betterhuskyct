@@ -30,6 +30,9 @@ type HelperSurface = {
   eventToRecord: (raw: Record<string, unknown>, event: Record<string, unknown>) => Record<string, unknown> | null;
   recordsToIcs: (records: Array<Record<string, unknown>>) => string;
   utcStamp: (iso: string) => string | null;
+  recordRequest: (method: string, url: string) => void;
+  requestReport: () => string;
+  recorded: Set<string>;
   VERSION: string;
 };
 
@@ -41,10 +44,11 @@ const sandbox: Record<string, unknown> = {
   clearTimeout,
   navigator: {},
   // A userscript always runs inside a page, so a real Location is part of the
-  // environment rather than something the code should work around.
+  // environment rather than something the code should work around. This is the
+  // host HuskyCT actually serves from.
   location: {
-    href: "https://huskyct.uconn.edu/ultra/course",
-    origin: "https://huskyct.uconn.edu",
+    href: "https://lms.uconn.edu/ultra/course",
+    origin: "https://lms.uconn.edu",
     pathname: "/ultra/course",
   },
 };
@@ -54,8 +58,16 @@ vm.runInContext(SOURCE, sandbox);
 
 import { parseCalendar } from "../src/lib/parse-calendar.ts";
 
-const { mergeCalendars, pathOnly, VERSION, courseCodeFrom, eventToRecord, recordsToIcs } =
-  sandbox.__huskyctHelper as HelperSurface;
+const {
+  mergeCalendars,
+  pathOnly,
+  VERSION,
+  courseCodeFrom,
+  eventToRecord,
+  recordsToIcs,
+  recordRequest,
+  requestReport,
+} = sandbox.__huskyctHelper as HelperSurface;
 
 test("the userscript parses and exposes its helpers", () => {
   assert.equal(typeof mergeCalendars, "function");
@@ -64,7 +76,7 @@ test("the userscript parses and exposes its helpers", () => {
 });
 
 test("pathOnly drops the query string, which is where the token lives", () => {
-  const href = "https://huskyct.uconn.edu/webapps/calendar/calendar.ics?token=SECRET&x=1#frag";
+  const href = "https://lms.uconn.edu/webapps/calendar/calendar.ics?token=SECRET&x=1#frag";
 
   assert.equal(pathOnly(href), "/webapps/calendar/calendar.ics");
   assert.ok(!pathOnly(href).includes("SECRET"));
@@ -281,4 +293,61 @@ test("a comma or semicolon in a title cannot break the calendar", () => {
 
   assert.match(ics, /SUMMARY:Reading\\; chapters 1\\, 2 & 3/);
   assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 1);
+});
+
+// ------------------------------------------------- the endpoint recorder
+
+test("a recorded path keeps the route and drops the query string", () => {
+  recordRequest(
+    "GET",
+    "https://lms.uconn.edu/learn/api/public/v1/courses/_200541_1/contents?token=SECRET#frag",
+  );
+
+  const report = requestReport();
+
+  assert.match(report, /GET \/learn\/api\/public\/v1\/courses\/_200541_1\/contents/);
+  assert.ok(!report.includes("SECRET"), "a token reached the report");
+  assert.ok(!report.includes("?"), "a query string reached the report");
+});
+
+test("only paths on this site are recorded", () => {
+  recordRequest("POST", "https://example.com/tracking?x=1");
+
+  assert.ok(!requestReport().includes("example.com"));
+});
+
+test("the same endpoint is listed once, whatever the query", () => {
+  recordRequest("GET", "https://lms.uconn.edu/learn/api/public/v1/courses?term=1268");
+  recordRequest("GET", "https://lms.uconn.edu/learn/api/public/v1/courses?term=1263");
+  recordRequest("GET", "https://lms.uconn.edu/learn/api/public/v1/courses?page=2");
+
+  const hits = requestReport()
+    .split("\n")
+    .filter((line) => line.trim() === "GET /learn/api/public/v1/courses");
+
+  assert.equal(hits.length, 1);
+});
+
+test("the report says so when nothing has been recorded", () => {
+  // A fresh sandbox, so the set is empty.
+  const fresh: Record<string, unknown> = {
+    console,
+    URL,
+    Blob: class {},
+    setTimeout,
+    clearTimeout,
+    navigator: {},
+    location: {
+      href: "https://lms.uconn.edu/ultra/course",
+      origin: "https://lms.uconn.edu",
+      pathname: "/ultra/course",
+    },
+  };
+  fresh.window = fresh;
+  vm.createContext(fresh);
+  vm.runInContext(SOURCE, fresh);
+
+  const report = (fresh.__huskyctHelper as HelperSurface).requestReport();
+
+  assert.match(report, /nothing recorded yet/);
 });
