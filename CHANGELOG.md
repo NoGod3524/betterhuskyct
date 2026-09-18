@@ -9,6 +9,27 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.1.1](https://github.com/NoGod3524/huskypilot/releases/tag/v1.1.1) — A lecture is not a deadline
+
+*Patch: the Plan route was treating class meetings as work you owe.*
+
+### Fixed
+
+- **`Plan` no longer lists class meetings.** Blackboard puts lectures and graded
+  items in the same calendar, so the plan was showing "Environmental Science,
+  ARJ 105" beside a quiz and judging the lecture "at risk" — it read your day as
+  work you had not started. Lectures stay in the Today / Tomorrow / This week
+  list, where seeing your day is the whole point. ([#27])
+- The **due-soon banner**, the desktop notification, and the "N due in the next
+  7 days" headline count deadlines only, so a lecture can no longer inflate them.
+- **Workload insights** count deadlines only: a lecture is not work you complete,
+  so including one dragged the completion rate down and inflated its course.
+
+"Is this something I owe, or somewhere I have to be?" is now a named rule,
+`isDeadline()`, because several parts of the app needed to ask it. Feeds that are
+not Blackboard leave the marker unset, and those entries still count as
+deadlines.
+
 ## [1.1.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.1.0) — Any calendar, several of them
 
 *Minor bump: 1.0.1 assumed a calendar feed belongs to one course. HuskyCT issues
@@ -287,3 +308,4 @@ saying what to work on next.*
 [#20]: https://github.com/NoGod3524/huskypilot/pull/20
 [#21]: https://github.com/NoGod3524/huskypilot/pull/21
 [#22]: https://github.com/NoGod3524/huskypilot/pull/22
+[#27]: https://github.com/NoGod3524/huskypilot/pull/27

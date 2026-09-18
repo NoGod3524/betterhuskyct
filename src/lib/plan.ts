@@ -1,4 +1,4 @@
-import type { CalendarTask } from "./calendar-types.ts";
+import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import { dueTimestamp, startOfLocalDay } from "./date-utils.ts";
 import {
   SESSION_MINUTES,
@@ -97,7 +97,7 @@ export function buildPlan(
 ): Plan {
   const planned = orderPlannedTasks(
     tasks
-      .filter((task) => !completedIds.has(task.id))
+      .filter((task) => !completedIds.has(task.id) && isDeadline(task))
       .map((task) => plannedTask(task, now, effortFor(efforts, task.id)))
       .filter((item): item is PlannedTask => item !== null),
   );

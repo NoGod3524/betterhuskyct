@@ -158,7 +158,7 @@ src/
 │  ├─ page.tsx                       # /          overview
 │  ├─ plan/page.tsx                  # /plan      what to do next
 │  ├─ tasks/page.tsx                 # /tasks     rolling 7-day list
-│  ├─ calendar/page.tsx              # /calendar  week grid
+│  ├─ calendar/page.tsx              # /calendar  add another calendar
 │  ├─ insights/page.tsx              # /insights  workload analytics
 │  ├─ globals.css
 │  └─ icon.tsx

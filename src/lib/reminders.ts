@@ -1,4 +1,4 @@
-import type { CalendarTask } from "./calendar-types.ts";
+import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import { dueTimestamp } from "./date-utils.ts";
 
 // "When is this task due" is a date concern, so it lives in date-utils and is
@@ -44,6 +44,7 @@ export function dueSoonTasks(
 
   return tasks
     .filter((task) => {
+      if (!isDeadline(task)) return false;
       const due = dueTimestamp(task);
       return due !== null && due >= from && due <= to;
     })

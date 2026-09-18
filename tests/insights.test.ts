@@ -58,6 +58,28 @@ test("completionRate reflects the completed subset", () => {
   assert.equal(insights.completionRate, 0.5);
 });
 
+test("computeInsights counts deadlines only, so a lecture cannot skew them", () => {
+  const tasks = [
+    makeTask({ id: "lecture", kind: "class", course: "NRE 1000E" }),
+    makeTask({ id: "quiz", kind: "assignment", course: "NRE 1000E" }),
+    makeTask({ id: "plain", course: "STAT 1000Q" }),
+  ];
+
+  const insights = computeInsights(tasks, new Set(["quiz"]), NOW);
+
+  // The lecture is neither work owed nor work completed.
+  assert.equal(insights.total, 2);
+  assert.equal(insights.completed, 1);
+  assert.equal(insights.completionRate, 0.5);
+  assert.deepEqual(
+    insights.byCourse.map((row) => [row.course, row.total]),
+    [
+      ["NRE 1000E", 1],
+      ["STAT 1000Q", 1],
+    ],
+  );
+});
+
 test("completionRate is 1 when every task is complete", () => {
   const tasks = [makeTask({ id: "a" }), makeTask({ id: "b" })];
 
