@@ -149,11 +149,11 @@ export function ConnectSection() {
             onClick={() => setIsExpanded(true)}
             className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#cdd9e6] bg-white px-3 text-sm font-semibold text-[#244e7a] transition hover:border-[#9fb7d1]"
           >
-            <Plus size={15} />
-            {t(locale, "connect.addMore")}
+            {t(locale, "connect.manage")}
+            <ChevronRight size={15} />
           </button>
           {/* Sync lives inside the panel, so the collapsed bar needs its own way
-              in — nobody would look for it under "add another calendar". */}
+              in — nobody would look for it under a button about calendars. */}
           <button
             type="button"
             onClick={() => {
