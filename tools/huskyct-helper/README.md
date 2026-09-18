@@ -9,11 +9,15 @@ A userscript that runs inside your own HuskyCT session and does two things:
 2. **Reports what a page contains**, so the selectors in this script can be
    written against the real thing instead of guessed.
 
+> **HuskyCT is Blackboard Ultra at `lms.uconn.edu`.** The script also matches
+> `huskyct.uconn.edu` in case that hostname still redirects, but `lms.uconn.edu`
+> is the one that matters.
+
 ## What it does not do
 
 - It never asks for, stores, or transmits your **NetID or password**. It uses the
   session your browser already has, exactly as the page itself does.
-- It never sends anything anywhere except `huskyct.uconn.edu`.
+- It never sends anything anywhere except `lms.uconn.edu`.
 - The report buttons **strip query strings and fragments**, because a calendar
   feed URL carries a token. A report is meant to be pasted into a chat window, so
   nothing that is a secret goes into it.

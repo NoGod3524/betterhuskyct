@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.1.0
+// @version      0.1.1
 // @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
 // @author       NoGod3524
+// @match        https://lms.uconn.edu/*
 // @match        https://huskyct.uconn.edu/*
 // @run-at       document-idle
 // @grant        none
@@ -11,6 +12,9 @@
 
 /**
  * HuskyCT Helper.
+ *
+ * HuskyCT is Blackboard Ultra at lms.uconn.edu — the "huskyct" hostname is kept
+ * as a second match only because it may still redirect there.
  *
  * Why this exists: HuskyCT hands out one calendar feed per course, so a semester
  * is a dozen links, and HuskyPilot can only take one at a time. This runs inside
@@ -21,7 +25,7 @@
  *   - It never asks for, stores, or transmits your NetID or password. It uses
  *     the session your browser already has, exactly as the page itself does.
  *   - It never sends anything to a server. There is no network call to anywhere
- *     but huskyct.uconn.edu.
+ *     but lms.uconn.edu.
  *   - The "Report" buttons strip query strings, because a calendar feed URL
  *     carries a token and a report is something you paste into a chat window.
  *
