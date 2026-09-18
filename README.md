@@ -38,6 +38,7 @@ HuskyPilot was built at UConn against HuskyCT (Blackboard), which is the awkward
 
 - **Import any ICS calendar** — drop a downloaded `.ics` file anywhere on the page, or paste a private feed URL; several at once is fine
 - **Courses named for you** — a Blackboard feed titles a class meeting `Environmental Science` and never says which course it is, so the app looks the title up in UConn's public course catalogue and fills in `NRE 1000E` itself. Nothing to configure
+- **Sync to your phone without a server** — *Sync* packs the calendars, your ticks and your courses into one ~1,800-character link. It rides in the URL fragment, so it is never uploaded, and your feed link is left out of it on purpose
 - **Plan** — set how big each task is (quick / medium / long) and HuskyPilot warns you honestly when the days left no longer fit the work, and resurfaces anything already overdue
 - **Several calendars, several courses** — HuskyCT issues one feed per course, so add as many as you have; file each under a course (code plus LEC / DIS / LAB / SEM), and every task shows its course, whether it is a class meeting or an assignment, its room, and the exact due time — with a per-task picker for the rows the default gets wrong
 - **Rolling 7-day view** — Today / Tomorrow / This week, grouped and time-sorted
