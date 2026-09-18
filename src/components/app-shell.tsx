@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { AppFooter } from "@/components/app-footer";
+import { SyncBanner } from "@/components/sync-banner";
 import { useCalendar } from "@/components/calendar-provider";
 import { t } from "@/lib/i18n";
 
@@ -268,6 +269,7 @@ export function AppShell({
             </div>
           </header>
 
+          <SyncBanner />
           <div className="flex-1">{children}</div>
           <AppFooter version={version} />
         </section>

@@ -9,6 +9,35 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.3.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.3.0) — The same dashboard, on your phone
+
+*Minor bump: a second device no longer starts empty.*
+
+### Added
+
+- **Sync to another device, with no server and no account.** *Sync* in the
+  import card packs everything this device knows — the calendars, your ticks,
+  your courses, the effort marks — into one link about 1,800 characters long.
+  Open it on your phone and the whole dashboard is there. No re-import, nothing
+  to set up again. ([#29])
+- The payload rides in the URL **fragment**, which a browser never sends to a
+  server, so nothing is uploaded and nothing can expire. The link works just as
+  well pasted into a browser that already has the app open.
+- The receiving device is **asked first**: it reports what arrived — calendars,
+  deadlines, ticks, courses — and writes nothing until you accept.
+
+### Notes
+
+- The feed URL is deliberately **not** in the payload. It is a password, and a
+  link destined for a chat client is no place for one. The events travel
+  instead, which is what lets the second device skip the import entirely.
+- Ticks are only ever **added**, never removed: having ticked something on the
+  other device is never a reason to untick it here. Courses and effort marks
+  take the incoming value, because importing a link is a deliberate act.
+- A calendar already on this device is left as it is, and incoming course ids
+  are remapped by code and component, so the same course named on both devices
+  stays one course.
+
 ## [1.2.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.2.0) — The calendar names its own courses
 
 *Minor bump: the app no longer has to ask which course a class meeting is.*
@@ -338,4 +367,6 @@ saying what to work on next.*
 [#22]: https://github.com/NoGod3524/huskypilot/pull/22
 [#27]: https://github.com/NoGod3524/huskypilot/pull/27
 [#28]: https://github.com/NoGod3524/huskypilot/pull/28
+[#29]: https://github.com/NoGod3524/huskypilot/pull/29
+
 

@@ -31,6 +31,15 @@ import {
 } from "@/lib/subscriptions";
 import { CalendarFileError, readCalendarFile } from "@/lib/calendar-file";
 import {
+  buildSyncPayload,
+  decodeSyncPayload,
+  encodeSyncPayload,
+  readSyncFragment,
+  syncLink,
+  type SyncPayload,
+} from "@/lib/sync";
+import { mergeSyncPayload } from "@/lib/sync-merge";
+import {
   clearCompletedTaskIds,
   restoreCompletedTaskIds,
   saveCompletedTaskIds,
@@ -148,6 +157,16 @@ type CalendarContextValue = {
 
   rememberSource: boolean;
   toggleRememberSource: () => void;
+
+  /** A link from another device, waiting for the user to accept it. */
+  pendingSync: SyncPayload | null;
+  applyPendingSync: () => void;
+  dismissPendingSync: () => void;
+  /** The generated link, once the user has asked for one. */
+  outgoingSyncLink: string | null;
+  createSyncLink: () => Promise<void>;
+  isPackingSync: boolean;
+  syncError: string | null;
 };
 
 const CalendarContext = createContext<CalendarContextValue | null>(null);
@@ -218,6 +237,11 @@ export function CalendarProvider({
   // Mirrors `subscriptions` for async work, which would otherwise close over a
   // stale value between awaits.
   const subscriptionsRef = useRef<Subscription[]>([]);
+  // A link from another device is offered, never applied on its own.
+  const [pendingSync, setPendingSync] = useState<SyncPayload | null>(null);
+  const [outgoingSyncLink, setOutgoingSyncLink] = useState<string | null>(null);
+  const [isPackingSync, setIsPackingSync] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const hasSubscriptions = subscriptions.length > 0;
   const isImported = hasSubscriptions && !demoMode;
@@ -477,8 +501,35 @@ export function CalendarProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const demoTasks = useMemo(() => createDemoTasks(now), [now]);
-  const tasks = useMemo(
+  /**
+   * Offers whatever a sync link in the address bar is carrying.
+   *
+   * Watches `hashchange` as well as running once on mount, because pasting a
+   * link into a browser that already has the app open is a fragment navigation:
+   * the page does not reload, so a mount-only read would silently do nothing —
+   * which is exactly the flow someone follows on their phone.
+   *
+   * The payload rides in the fragment, so it is never sent to a server. It is
+   * only ever offered; nothing is written until the user accepts it.
+   */
+  useEffect(() => {
+    function offerSyncLink() {
+      const packed = readSyncFragment(window.location.hash);
+      if (!packed) return;
+
+      const activeLocale = restoreLocale(window.localStorage);
+      void decodeSyncPayload(packed).then((payload) => {
+        if (payload) setPendingSync(payload);
+        else setError(t(activeLocale, "sync.unreadable"));
+      });
+    }
+
+    offerSyncLink();
+    window.addEventListener("hashchange", offerSyncLink);
+    return () => window.removeEventListener("hashchange", offerSyncLink);
+  }, []);
+
+  const demoTasks = useMemo(() => createDemoTasks(now), [now]);  const tasks = useMemo(
     () => (isImported ? mergeTasks(subscriptions) : demoTasks),
     [isImported, subscriptions, demoTasks],
   );
@@ -631,6 +682,85 @@ export function CalendarProvider({
       );
       setError(message);
     }
+  }
+
+  /** Drops the `#sync=…` fragment without reloading or navigating. */
+  function clearSyncFragment() {
+    const { pathname, search } = window.location;
+    window.history.replaceState(null, "", `${pathname}${search}`);
+  }
+
+  /**
+   * Packs everything this device knows into a link the user sends themselves.
+   *
+   * The feed URL stays behind on purpose: a link that gets pasted into a chat
+   * client must not be a password. The events travel instead, which is what lets
+   * the second device skip the import entirely.
+   */
+  async function createSyncLink() {
+    setIsPackingSync(true);
+    setSyncError(null);
+    try {
+      const payload = buildSyncPayload({
+        feeds: subscriptionsRef.current.map((subscription) => ({
+          name: subscription.name,
+          courseId: subscription.courseId,
+          importedAt: subscription.importedAt,
+          events: subscription.events,
+        })),
+        completedIds,
+        efforts,
+        courses: courseBook,
+      });
+      const packed = await encodeSyncPayload(payload);
+
+      setOutgoingSyncLink(
+        syncLink(window.location.origin, window.location.pathname, packed),
+      );
+    } catch {
+      setSyncError(t(locale, "sync.packFailed"));
+    } finally {
+      setIsPackingSync(false);
+    }
+  }
+
+  function applyPendingSync() {
+    if (!pendingSync) return;
+
+    const merged = mergeSyncPayload(
+      {
+        courses: courseBook,
+        efforts,
+        completedIds,
+        subscriptions: subscriptionsRef.current,
+      },
+      pendingSync,
+    );
+
+    commitSubscriptions(merged.subscriptions);
+    commitCourseBook(merged.courses);
+    setEfforts(merged.efforts);
+    saveEffortMap(window.localStorage, merged.efforts);
+    setCompletedIds(merged.completedIds);
+    saveCompletedTaskIds(window.localStorage, "imported", merged.completedIds);
+
+    if (merged.subscriptions.length > 0) setDemoMode(false);
+    setRestoredFromStorage(false);
+    setPendingSync(null);
+    setOutgoingSyncLink(null);
+    clearSyncFragment();
+    setError(null);
+    setNotice(
+      t(locale, "sync.applied", {
+        calendars: merged.addedFeeds,
+        tasks: merged.completedIds.size,
+      }),
+    );
+  }
+
+  function dismissPendingSync() {
+    setPendingSync(null);
+    clearSyncFragment();
   }
 
   // Recomputed from the current tasks, so the plan always matches the screen.
@@ -843,6 +973,13 @@ export function CalendarProvider({
     toggleReminders,
     rememberSource,
     toggleRememberSource,
+    pendingSync,
+    applyPendingSync,
+    dismissPendingSync,
+    outgoingSyncLink,
+    createSyncLink,
+    isPackingSync,
+    syncError,
   };
 
   return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>;

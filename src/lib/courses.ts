@@ -123,6 +123,16 @@ export function parseStoredCourseBook(rawValue: string): CourseBook | null {
     return null;
   }
 
+  return parseCourseBook(parsed);
+}
+
+/**
+ * Reads a course book from an already-parsed value.
+ *
+ * Split out from the storage reader so a book that arrives over the wire — in a
+ * sync link — is checked by exactly the same rules as one read from disk.
+ */
+export function parseCourseBook(parsed: unknown): CourseBook | null {
   if (!isRecord(parsed)) return null;
   if (parsed.version !== COURSES_VERSION) return null;
   if (!Array.isArray(parsed.courses)) return null;
@@ -153,6 +163,19 @@ export function parseStoredCourseBook(rawValue: string): CourseBook | null {
   }
 
   return { courses, assignments };
+}
+
+/** The stored shape, for anything that has to send a book somewhere else. */
+export function serialiseCourseBook(book: CourseBook): {
+  version: number;
+  courses: Course[];
+  assignments: Record<string, string | null>;
+} {
+  return {
+    version: COURSES_VERSION,
+    courses: book.courses,
+    assignments: book.assignments,
+  };
 }
 
 export function saveCourseBook(storage: Storage, book: CourseBook) {
