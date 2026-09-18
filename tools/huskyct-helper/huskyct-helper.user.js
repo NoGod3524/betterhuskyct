@@ -38,7 +38,10 @@
 (function () {
   "use strict";
 
-  const VERSION = "0.1.0";
+  // Shown in the panel header and in the PRODID of every file this writes, so
+  // it has to agree with `@version` in the metadata block above — otherwise the
+  // panel reports a version the browser never installed. A test enforces it.
+  const VERSION = "0.5.0";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities

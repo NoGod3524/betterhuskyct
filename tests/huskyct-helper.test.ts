@@ -96,6 +96,17 @@ test("the userscript parses and exposes its helpers", () => {
   assert.match(VERSION, /^\d+\.\d+\.\d+$/);
 });
 
+/**
+ * The panel prints this version, and it is the only way to tell from the screen
+ * which copy the browser actually installed. If it drifts from `@version`, the
+ * panel confidently reports a build that is not running.
+ */
+test("the panel version matches the version in the metadata block", () => {
+  const declared = SOURCE.match(/^\/\/\s*@version\s+(\S+)/m)?.[1];
+  assert.ok(declared, "@version is missing from the userscript header");
+  assert.equal(VERSION, declared);
+});
+
 test("pathOnly drops the query string, which is where the token lives", () => {
   const href = "https://lms.uconn.edu/webapps/calendar/calendar.ics?token=SECRET&x=1#frag";
 
