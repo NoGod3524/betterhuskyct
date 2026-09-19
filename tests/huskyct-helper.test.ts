@@ -39,6 +39,7 @@ type HelperSurface = {
   postedFromText: (value: string) => string | null;
   collectAnnouncements: (root: unknown) => Array<{ title: string; body: string; posted: string | null }>;
   collectContentItems: (root: unknown) => Array<{ title: string; state: string }>;
+  collectCourseFiles: (root: unknown) => Array<{ title: string; id: string; url: string }>;
   courseDigestToMarkdown: (digest: Record<string, unknown>) => string;
   todoFromLabel: (label: string) => Record<string, unknown> | null;
   dueDateFromText: (value: string) => Date | null;
@@ -101,6 +102,7 @@ const {
   postedFromText,
   collectAnnouncements,
   collectContentItems,
+  collectCourseFiles,
   courseDigestToMarkdown,
   todoFromLabel,
   dueDateFromText,
@@ -669,4 +671,118 @@ test("a title with a comma survives the round trip through the calendar", async 
   const parsed = await parseCalendar(recordsToIcs(todosToRecords(todos)), new Date("2026-09-20T12:00:00Z"));
   assert.equal(parsed.events.length, 1);
   assert.equal(parsed.events[0].title, "Reading, chapters 1-3");
+});
+
+/**
+ * The course page shows the same announcements the Announcements page does, in
+ * a dialog with different class names. Both renderings have to be read, or the
+ * course page silently reports having no announcements.
+ */
+test("announcements are read from the dialog rendering too", () => {
+  const card = {
+    querySelector: (selector: string) =>
+      selector === ".announcement-title-detail"
+        ? null
+        : selector === ".announcement-title"
+          ? { textContent: "Online OH Starting soon" }
+          : selector === ".announcement-sent-date"
+            ? { textContent: "9/17/26, 4:47 PM" }
+            : selector === ".click-message-detail"
+              ? null
+              : selector === ".body-text.message-entries"
+                ? { textContent: "Hi everyone, office hours tonight." }
+                : null,
+    textContent: "Online OH Starting soon 9/17/26, 4:47 PM Hi everyone, office hours tonight.",
+  };
+
+  const records = collectAnnouncements({ querySelectorAll: () => [card] });
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].title, "Online OH Starting soon");
+  assert.equal(records[0].posted, "9/17/26, 4:47 PM");
+  assert.equal(records[0].body, "Hi everyone, office hours tonight.");
+});
+
+test("the same announcement rendered twice is collected once", () => {
+  const row = (title: string) => ({
+    querySelector: (selector: string) =>
+      selector === ".announcement-title-detail"
+        ? { textContent: title }
+        : selector === ".announcement-sent-date"
+          ? { textContent: "9/17/26, 4:47 PM" }
+          : selector === ".click-message-detail"
+            ? { textContent: "body" }
+            : null,
+    textContent: title + " 9/17/26, 4:47 PM body",
+  });
+
+  const records = collectAnnouncements({ querySelectorAll: () => [row("Same title"), row("Same title")] });
+  assert.equal(records.length, 1);
+});
+
+/**
+ * A folder's name comes from an accessibility label, but only a real anchor
+ * carries an address, and a link is what makes an index usable.
+ */
+test("the files a course links to are read, with their paths", () => {
+  const link = (href: string | null, text: string) => ({
+    getAttribute: (name: string) => (name === "href" ? href : null),
+    textContent: text,
+  });
+
+  const files = collectCourseFiles({
+    querySelectorAll: () => [
+      link("https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409752_1?view=content&state=view", "Course Information and Syllabus"),
+      // The same document linked twice must not be listed twice.
+      link("https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409752_1?view=content", "Course Information and Syllabus"),
+      link("https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409753_1?view=content", "Office Hours"),
+      link(null, "no address"),
+      link("https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409754_1", ""),
+    ],
+  });
+
+  assert.deepEqual(
+    Array.from(files, (file) => ({ title: file.title, id: file.id, url: file.url })),
+    [
+      {
+        title: "Course Information and Syllabus",
+        id: "_14409752_1",
+        url: "https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409752_1",
+      },
+      {
+        title: "Office Hours",
+        id: "_14409753_1",
+        url: "https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409753_1",
+      },
+    ],
+  );
+});
+
+/** A query string can carry a token, and none of it is needed to open a file. */
+test("a file's query string is dropped", () => {
+  const files = collectCourseFiles({
+    querySelectorAll: () => [
+      {
+        getAttribute: (name: string) => (name === "href" ? "/document/_1_1?token=SECRET&x=1#frag" : null),
+        textContent: "Syllabus",
+      },
+    ],
+  });
+
+  assert.equal(files.length, 1);
+  assert.equal(files[0].url, "/document/_1_1");
+  assert.ok(!JSON.stringify(files).includes("SECRET"));
+});
+
+test("the digest lists files as links", () => {
+  const markdown = courseDigestToMarkdown({
+    course: { code: "MATH 1070Q", title: null },
+    source: "/ultra/courses/_203765_1/outline",
+    announcements: [],
+    content: [{ title: "Cengage WebAssign", state: "Started" }],
+    files: [{ title: "Course Information and Syllabus", url: "https://lms.uconn.edu/x/document/_1_1" }],
+  });
+
+  assert.match(markdown, /## Files \(1\)/);
+  assert.match(markdown, /- \[Course Information and Syllabus\]\(https:\/\/lms\.uconn\.edu\/x\/document\/_1_1\)/);
 });

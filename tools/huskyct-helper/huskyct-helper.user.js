@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.7.0
+// @version      0.8.0
 // @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -41,7 +41,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.7.0";
+  const VERSION = "0.8.0";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -685,19 +685,44 @@
     return match ? match[1].trim() : null;
   }
 
-  /** Announcements, as the course's Announcements page renders them. */
+  /**
+   * Announcements, from either place they are rendered.
+   *
+   * The Announcements page uses .announcement-item-row with
+   * .announcement-title-detail and .click-message-detail. The course page shows
+   * the same announcements in a dialog using .announcement-card with
+   * .announcement-title, .announcement-sent-date and .body-text.message-entries.
+   * Same records, two renderings, so both are read.
+   */
   function collectAnnouncements(root) {
     const scope = root || document;
     const records = [];
-    for (const row of scope.querySelectorAll(".announcement-item-row")) {
-      const title = textOf(row.querySelector(".announcement-title-detail"));
+    const seen = new Set();
+
+    for (const row of scope.querySelectorAll(".announcement-item-row, .announcement-card")) {
+      const title =
+        textOf(row.querySelector(".announcement-title-detail")) ||
+        textOf(row.querySelector(".announcement-title"));
       if (!title) continue;
+
+      // Prefer the element built for the timestamp; fall back to finding one in
+      // the row's text for renderings that do not have it.
+      const posted =
+        textOf(row.querySelector(".announcement-sent-date")) || postedFromText(textOf(row));
+
+      const key = title + "|" + posted;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
       records.push({
         title,
-        body: textOf(row.querySelector(".click-message-detail")),
-        posted: postedFromText(textOf(row)),
+        body:
+          textOf(row.querySelector(".click-message-detail")) ||
+          textOf(row.querySelector(".body-text.message-entries")),
+        posted: posted || null,
       });
     }
+
     return records;
   }
 
@@ -729,6 +754,38 @@
   function currentCourseId() {
     const match = window.location.pathname.match(/\/ultra\/courses\/([^/]+)/);
     return match ? match[1] : null;
+  }
+
+  /**
+   * Documents the course page links to.
+   *
+   * The outline's items are found by accessibility label, which gives names but
+   * no addresses. A document is a real anchor — /ultra/courses/<id>/document/
+   * <fileId> — and a link is what makes an index useful. Only the path is kept;
+   * a query string can carry a token, and none of it is needed to open a file
+   * the reader is already entitled to.
+   */
+  function collectCourseFiles(root) {
+    const scope = root || document;
+    const files = [];
+    const seen = new Set();
+
+    for (const anchor of scope.querySelectorAll('a[href*="/document/"]')) {
+      const href = anchor.getAttribute("href") || "";
+      const title = textOf(anchor) || anchor.getAttribute("title") || "";
+      if (!title) continue;
+
+      // The id has to come out of the path, or there is nothing to list. The
+      // selector implies it will, but depending on the caller's selector for
+      // the shape of a record is how an empty entry reaches the output.
+      const id = (href.match(/\/document\/([^/?#]+)/) || [])[1];
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+
+      files.push({ title, id, url: href.split("?")[0].split("#")[0] });
+    }
+
+    return files;
   }
 
   /** The course this page belongs to, from what its header renders. */
@@ -776,6 +833,12 @@
       for (const item of content) {
         lines.push("- " + item.title + (item.state ? "  (" + item.state + ")" : ""));
       }
+    }
+
+    const files = digest.files || [];
+    if (files.length) {
+      lines.push("", "## Files (" + files.length + ")");
+      for (const file of files) lines.push("- [" + file.title + "](" + file.url + ")");
     }
 
     lines.push("");
@@ -1084,11 +1147,12 @@
           course: collectCourse(document),
           announcements: collectAnnouncements(document),
           content: collectContentItems(document),
+          files: collectCourseFiles(document),
           source: window.location.pathname,
         };
         const markdown = courseDigestToMarkdown(digest);
 
-        if (!digest.announcements.length && !digest.content.length) {
+        if (!digest.announcements.length && !digest.content.length && !digest.files.length) {
           status.className = "note warn";
           status.textContent = "Nothing to collect on this page.";
           hint.textContent =
@@ -1099,8 +1163,8 @@
         download("huskyct-course.md", markdown, "text/markdown;charset=utf-8");
         status.className = "note ok";
         status.textContent =
-          "Collected " + digest.announcements.length + " announcement(s) and " +
-          digest.content.length + " content item(s).";
+          "Collected " + digest.announcements.length + " announcement(s), " +
+          digest.content.length + " content item(s), " + digest.files.length + " file(s).";
         hint.textContent =
           "Saved as huskyct-course.md. Nothing was requested from UConn — this reads the page you are looking at.";
         show(markdown, "ok");
@@ -1238,6 +1302,7 @@
       postedFromText,
       collectAnnouncements,
       collectContentItems,
+      collectCourseFiles,
       collectCourse,
       courseDigestToMarkdown,
       todoFromLabel,

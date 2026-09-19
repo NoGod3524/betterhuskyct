@@ -62,8 +62,13 @@ leave your machine, cut that line out.
 
 *Collect this course: announcements + content* reads the page you are looking at
 — the Announcements list, the course outline, or both — and saves a Markdown
-digest: the course's name, every announcement with its full text, and the
-outline items.
+digest: the course's name, every announcement with its full text, the outline
+items, and the **files the course links to**, as links.
+
+It reads announcements from either place they appear — the Announcements page
+and the course page's own announcement dialog — because those are two different
+renderings of the same records, and reading only one of them makes the other
+look empty.
 
 It sends **no request at all**. Everything it writes is already on screen.
 
