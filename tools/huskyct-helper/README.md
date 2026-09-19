@@ -1,13 +1,14 @@
 # HuskyCT Helper
 
-A userscript that runs inside your own HuskyCT session and does two things:
+A userscript that runs inside your own HuskyCT session and does three things:
 
 1. **Merges your course calendars into one `.ics`.** HuskyCT hands out one
    calendar feed per course, so a semester is a dozen links and HuskyPilot can
    only take one at a time. This collects every feed the page already exposes and
    writes a single file you can drop straight into the app.
-2. **Reports what a page contains**, so the selectors in this script can be
-   written against the real thing instead of guessed.
+2. **Collects a course** — its announcements, its outline, and the files it links
+   to — as a Markdown digest.
+3. **Collects your deadlines** from the to-do list as a calendar file.
 
 > **HuskyCT is Blackboard Ultra at `lms.uconn.edu`.** The script also matches
 > `huskyct.uconn.edu` in case that hostname still redirects, but `lms.uconn.edu`
@@ -18,11 +19,9 @@ A userscript that runs inside your own HuskyCT session and does two things:
 - It never asks for, stores, or transmits your **NetID or password**. It uses the
   session your browser already has, exactly as the page itself does.
 - It never sends anything anywhere except `lms.uconn.edu`.
-- The report buttons **strip query strings and fragments**, because a calendar
-  feed URL carries a token. A report is meant to be pasted into a chat window, so
-  nothing that is a secret goes into it.
-- It reads at most one page per press, with a pause between requests, so it does
-  not put load on UConn's systems.
+- **It asks HuskyCT for nothing.** Everything it collects is read off the page
+  already on screen. The only requests it ever makes are for the calendar feeds
+  that page itself links to — one at a time, with a pause between them.
 
 ## Install
 
@@ -36,27 +35,11 @@ A userscript that runs inside your own HuskyCT session and does two things:
 
 **To get one calendar file:** open a HuskyCT page that lists your calendars —
 the Calendar page, or a course's calendar settings — and press
-*Merge this page's calendars into one .ics*. The merged file lands in your
-downloads. Drop it into [HuskyPilot](https://huskypilot.vercel.app/).
+*Merge .ics links on this page*. The merged file lands in your downloads. Drop it
+into [HuskyPilot](https://huskypilot.vercel.app/).
 
-If it says it found no `.ics` links, that page does not expose any on its own.
-Press *Report: links on this page* and send that back, and the finder can be
-taught where to look.
-
-## Sending a report back
-
-The buttons that start with *Report:* produce text you can copy out of the box
-and send on. They are written to be safe to share:
-
-- the **structure report** lists element names, ids, classes and short **UI
-  labels** (button text, headings) — not page content;
-- the **link report** lists **paths only**, with every query string and fragment
-  removed, so no token is in it;
-- the **request report** lists the paths this page asked the server for, again
-  with query strings stripped.
-
-Still, give it a skim before sending. If anything in it looks like it should not
-leave your machine, cut that line out.
+If it says it found no `.ics` links, that page does not expose any on its own;
+try the Calendar page instead.
 
 ## Collecting a course
 
@@ -112,6 +95,7 @@ right one for someone sitting in the same timezone as their classes.
 
 ## Status
 
-Early. The merge works off links that are already on the page; the reporting
-buttons exist so the parts that depend on HuskyCT's markup can be written from
-evidence rather than assumption.
+Early, and deliberately small. Every reader here was written against markup
+observed on a live signed-in page rather than guessed at. The diagnostic buttons
+used to observe it have been removed: they had done their job, and a script other
+people install should not ship its author's scaffolding.

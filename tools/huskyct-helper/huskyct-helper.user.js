@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.8.0
+// @version      0.9.0
 // @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -41,53 +41,10 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.8.0";
+  const VERSION = "0.9.0";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
-
-  /** `tag#id.class1.class2[role]`, with the class list capped. */
-  function describe(element) {
-    if (!element || element.nodeType !== 1) return "";
-    let out = element.tagName.toLowerCase();
-    if (element.id) out += "#" + element.id;
-    const classes = (element.className && typeof element.className === "string"
-      ? element.className
-      : ""
-    )
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 4);
-    if (classes.length) out += "." + classes.join(".");
-    const role = element.getAttribute("role");
-    if (role) out += "[role=" + role + "]";
-    return out;
-  }
-
-  /** UI labels are safe to report; arbitrary content is not. */
-  function label(element) {
-    const text = (element.textContent || "").replace(/\s+/g, " ").trim();
-    if (!text) return "";
-    return text.length > 60 ? text.slice(0, 60) + "…" : text;
-  }
-
-  /**
-   * A URL with its query string and fragment removed.
-   *
-   * This matters: a HuskyCT calendar feed is
-   * `/webapps/calendar/calendar.ics?token=…`, and the token is a password. The
-   * path alone is all that is needed to work out the pattern.
-   */
-  function pathOnly(href) {
-    try {
-      const url = new URL(href, window.location.href);
-      if (url.origin !== window.location.origin) return url.origin + url.pathname;
-      return url.pathname;
-    } catch {
-      return "(unparseable)";
-    }
-  }
 
   function download(filename, text, type) {
     const blob = new Blob([text], { type: type || "text/plain;charset=utf-8" });
@@ -108,70 +65,6 @@
     } catch {
       return false;
     }
-  }
-
-  // ------------------------------------------------------- reporting the page
-
-  function structureReport() {
-    const lines = [];
-    lines.push("# " + window.location.pathname);
-    lines.push("# title: " + document.title);
-    lines.push("# user agent: " + navigator.userAgent);
-    lines.push("");
-
-    // Landmarks and the containers that usually hold the interesting things.
-    const interesting =
-      "main, nav, aside, header, section, article, form, table, [role], " +
-      "[data-testid], [class*='course'], [class*='content'], [class*='calendar'], " +
-      "[class*='material'], [class*='file'], [class*='attach']";
-    const seen = new Set();
-    let count = 0;
-
-    for (const element of document.querySelectorAll(interesting)) {
-      const key = describe(element);
-      if (seen.has(key) && !element.id) continue;
-      seen.add(key);
-      if (++count > 400) {
-        lines.push("… truncated at 400 elements");
-        break;
-      }
-      const depth = (function () {
-        let d = 0;
-        let node = element;
-        while ((node = node.parentElement)) d += 1;
-        return d;
-      })();
-      lines.push(
-        "  ".repeat(Math.min(depth, 12)) + describe(element) + "  :: " + label(element),
-      );
-    }
-
-    return lines.join("\n");
-  }
-
-  function linkReport() {
-    const byPath = new Map();
-
-    for (const anchor of document.querySelectorAll("a[href]")) {
-      const path = pathOnly(anchor.getAttribute("href"));
-      const entry = byPath.get(path) || { count: 0, labels: new Set() };
-      entry.count += 1;
-      const text = label(anchor);
-      if (text && entry.labels.size < 2) entry.labels.add(text);
-      byPath.set(path, entry);
-    }
-
-    const lines = ["# " + window.location.pathname, ""];
-    for (const [path, entry] of [...byPath.entries()].sort()) {
-      lines.push(
-        `${String(entry.count).padStart(3)}x  ${path}` +
-          (entry.labels.size ? "   // " + [...entry.labels].join(" | ") : ""),
-      );
-    }
-    lines.push("");
-    lines.push("# query strings and fragments were stripped on purpose:");
-    lines.push("# a calendar feed URL carries a token, and this text is meant to be shared.");
-    return lines.join("\n");
   }
 
   // ------------------------------------------------------------ merging .ics
@@ -229,7 +122,8 @@
         const url = new URL(href, window.location.href);
         if (url.origin !== window.location.origin) continue;
         if (!/\.ics(\?|$)/i.test(url.pathname + url.search)) continue;
-        found.set(url.href, label(anchor) || url.pathname);
+        const text = (anchor.textContent || "").replace(/\s+/g, " ").trim();
+        found.set(url.href, (text.length > 60 ? text.slice(0, 60) + "…" : text) || url.pathname);
       } catch {
         /* not a URL we can use */
       }
@@ -237,184 +131,7 @@
     return [...found.entries()];
   }
 
-  // ------------------------------------------------- finding the data model
-
-  /** JSON with long strings cut and functions dropped, so a report stays small. */
-  function safeJson(value, indent) {
-    const seen = new WeakSet();
-    return JSON.stringify(
-      value,
-      function (key, item) {
-        if (typeof item === "function") return "[function]";
-        if (typeof item === "string") {
-          return item.length > 80 ? item.slice(0, 80) + "…" : item;
-        }
-        if (item && typeof item === "object") {
-          if (seen.has(item)) return "[seen]";
-          seen.add(item);
-        }
-        return item;
-      },
-      indent,
-    );
-  }
-
-  function attributeChain(element, levels) {
-    const out = [];
-    let node = element;
-    let depth = 0;
-    while (node && node.nodeType === 1 && depth < (levels || 4)) {
-      const attrs = [...node.attributes]
-        .map((a) => a.name + "=" + (a.value.length > 50 ? a.value.slice(0, 50) + "…" : a.value))
-        .join("  ");
-      out.push("  ".repeat(depth) + node.tagName.toLowerCase() + (attrs ? "  [" + attrs + "]" : ""));
-      node = node.parentElement;
-      depth += 1;
-    }
-    return out.join("\n");
-  }
-
-  /**
-   * Where does this page actually keep its calendar?
-   *
-   * The calendar is an AngularJS + FullCalendar app, so the events are almost
-   * certainly already in a JavaScript model on the page. Reading that is both
-   * more complete and far less brittle than scraping the rendered DOM — and it
-   * is the only way to get the course code that the ICS feed leaves out.
-   */
-  function dataReport() {
-    const lines = [];
-    lines.push("# " + window.location.pathname);
-    lines.push("");
-
-    const jq = window.jQuery || window.$;
-    lines.push("jQuery:  " + (jq ? "present " + (jq.fn && jq.fn.jquery) : "absent"));
-    lines.push("angular: " + (window.angular ? "present" : "absent"));
-    lines.push("");
-
-    // 1. FullCalendar keeps its own event list.
-    if (jq) {
-      const containers = jq("#fullCalendar, .fullcalendar-container");
-      lines.push("fullcalendar containers: " + containers.length);
-      if (containers.length) {
-        try {
-          const events = jq(containers[0]).fullCalendar("clientEvents");
-          lines.push("clientEvents: " + (events ? events.length : "returned nothing"));
-          if (events && events.length) {
-            lines.push("event keys: " + Object.keys(events[0]).sort().join(", "));
-            lines.push("first event (strings cut at 80):");
-            lines.push(safeJson(events[0], 2));
-          }
-        } catch (error) {
-          lines.push("clientEvents threw: " + error.message);
-        }
-      }
-      lines.push("");
-    }
-
-    // 2. The AngularJS scope, walked carefully and with a hard budget.
-    if (window.angular) {
-      lines.push("--- angular models ---");
-      let visited = 0;
-      const seen = new WeakSet();
-      const found = [];
-
-      function walk(scope, path, depth) {
-        if (!scope || typeof scope !== "object") return;
-        if (visited++ > 2000 || depth > 8) return;
-        if (seen.has(scope)) return;
-        seen.add(scope);
-
-        let keys = [];
-        try {
-          keys = Object.keys(scope);
-        } catch {
-          return;
-        }
-
-        for (const key of keys) {
-          if (key.charAt(0) === "$") continue;
-          let value;
-          try {
-            value = scope[key];
-          } catch {
-            continue;
-          }
-          if (Array.isArray(value) && value.length && value[0] && typeof value[0] === "object") {
-            found.push({
-              path: path + "." + key,
-              length: value.length,
-              keys: Object.keys(value[0]).sort().join(", "),
-              sample: safeJson(value[0], 0),
-            });
-          } else if (value && typeof value === "object" && !Array.isArray(value)) {
-            walk(value, path + "." + key, depth + 1);
-          }
-        }
-
-        walk(scope.$$childHead, path + ">child", depth + 1);
-        walk(scope.$$nextSibling, path + ">sibling", depth);
-      }
-
-      const roots = document.querySelectorAll(
-        ".page-base-calendar, #fullCalendar, [ng-controller], body",
-      );
-      for (const node of roots) {
-        try {
-          walk(window.angular.element(node).scope(), describe(node), 0);
-        } catch {
-          /* no scope on that node */
-        }
-        if (found.length > 40) break;
-      }
-
-      lines.push("scopes visited: " + visited + ", arrays found: " + found.length);
-      for (const entry of found.slice(0, 25)) {
-        lines.push("");
-        lines.push("  " + entry.path + "   [" + entry.length + " items]");
-        lines.push("    keys: " + entry.keys);
-        lines.push("    first: " + entry.sample);
-      }
-      lines.push("");
-    }
-
-    // 3. The rendered elements, with their attributes and their parents'.
-    lines.push("--- calendar event elements ---");
-    const samples = document.querySelectorAll(
-      ".fc-event, .month-scroll-content li, .calendar-week .event-dot",
-    );
-    lines.push("matched: " + samples.length);
-    for (const node of [...samples].slice(0, 4)) {
-      lines.push("");
-      lines.push(attributeChain(node, 5));
-      lines.push("  text: " + label(node));
-    }
-
-    return lines.join("\n");
-  }
-
   // ------------------------------------------------------- collecting events
-
-  /**
-   * Pull the course code out of a Blackboard calendar name.
-   *
-   * `1268-UCONN-MATH-1070Q-SEC100-1191: MATH-1070Q-Mathematics for Business…`
-   * is term, school, subject, number, section, id. Only the subject and number
-   * are wanted, and the ICS feed never carries them at all.
-   */
-  function courseCodeFrom(name) {
-    if (!name) return null;
-    const head = String(name).split(":")[0];
-    const parts = head.split("-");
-    if (parts.length < 4) return null;
-
-    const subject = parts[2];
-    const number = parts[3];
-    if (!/^[A-Z]{2,6}$/.test(subject)) return null;
-    if (!/^\d{2,4}[A-Z]?$/.test(number)) return null;
-
-    return subject + " " + number;
-  }
 
   function kindFromSourceType(type) {
     if (/GradableItem/.test(type || "")) return "assignment";
@@ -470,7 +187,7 @@
       // a class meeting from an assignment, exactly as it does for a real feed.
       uid: type + "-" + sourceId + "-" + (utcStamp(start) || ""),
       title: raw.title || event.title || "Untitled",
-      course: courseCodeFrom(name),
+      course: courseCodeFromDisplay(name),
       start,
       end: raw.endDate || event.end || null,
       location: raw.location || null,
@@ -544,94 +261,6 @@
     }
 
     return { total: collected.size, added, available: true };
-  }
-
-  // --------------------------------------------------- what the page asks for
-
-  /**
-   * A record of the endpoints this page talks to.
-   *
-   * The Calendar page handed over its data through FullCalendar, but the course
-   * pages are a different application entirely, and guessing at its markup is
-   * how a script ends up silently doing nothing. Watching which paths the page
-   * requests is evidence: once the endpoints are known, the data can be read
-   * directly instead of scraped off the screen.
-   *
-   * Paths only. Query strings carry tokens, so they are dropped, and headers and
-   * bodies are never touched.
-   */
-  const REQUEST_KEY = "huskypilot.helper.requests";
-
-  function loadRequests() {
-    try {
-      const raw = sessionStorage.getItem(REQUEST_KEY);
-      return new Set(raw ? JSON.parse(raw) : []);
-    } catch {
-      return new Set();
-    }
-  }
-
-  const recorded = loadRequests();
-
-  function recordRequest(method, url) {
-    try {
-      const parsed = new URL(url, window.location.href);
-      if (parsed.origin !== window.location.origin) return;
-      const entry = String(method || "GET").toUpperCase() + " " + parsed.pathname;
-      if (recorded.has(entry)) return;
-      recorded.add(entry);
-      sessionStorage.setItem(REQUEST_KEY, JSON.stringify([...recorded]));
-    } catch {
-      /* not a URL we can make sense of */
-    }
-  }
-
-  function installRecorder() {
-    const originalFetch = window.fetch;
-    if (typeof originalFetch === "function") {
-      window.fetch = function (input, init) {
-        try {
-          const url = typeof input === "string" ? input : input && input.url;
-          const method =
-            (init && init.method) || (input && input.method) || "GET";
-          recordRequest(method, url);
-        } catch {
-          /* never let bookkeeping break a request */
-        }
-        return originalFetch.apply(this, arguments);
-      };
-    }
-
-    const open = window.XMLHttpRequest && window.XMLHttpRequest.prototype.open;
-    if (typeof open === "function") {
-      window.XMLHttpRequest.prototype.open = function (method, url) {
-        try {
-          recordRequest(method, url);
-        } catch {
-          /* as above */
-        }
-        return open.apply(this, arguments);
-      };
-    }
-  }
-
-  function requestReport() {
-    const lines = ["# " + window.location.pathname, ""];
-    const entries = [...recorded].sort();
-
-    if (entries.length === 0) {
-      lines.push("(nothing recorded yet)");
-      lines.push("");
-      lines.push("# Open a course, then Announcements, then Course Content, and");
-      lines.push("# press this again. The list fills up as you go.");
-      return lines.join("\n");
-    }
-
-    for (const entry of entries) lines.push("  " + entry);
-    lines.push("");
-    lines.push("# " + entries.length + " distinct paths.");
-    lines.push("# Query strings and fragments were stripped; headers and bodies are never read.");
-    return lines.join("\n");
   }
 
   // ------------------------------------------------- reading the course page
@@ -1014,11 +643,6 @@
         <button class="act" data-act="merge">Merge .ics links on this page</button>
         <button class="act" data-act="course">Collect this course: announcements + content</button>
         <button class="act" data-act="todos">Collect deadlines from this page (.ics)</button>
-        <button class="act" data-act="links">Report: links on this page (tokens stripped)</button>
-        <button class="act" data-act="structure">Report: page structure</button>
-        <button class="act" data-act="data">Report: where the calendar data lives</button>
-        <button class="act" data-act="requests">Report: what this page asks the server</button>
-        <button class="act" data-act="forget">Clear recorded requests</button>
         <textarea data-role="out" hidden></textarea>
         <button class="act" data-act="copy" hidden>Copy to clipboard</button>
         <div class="note" data-role="status">Nothing is uploaded. Everything stays in this browser.</div>
@@ -1118,30 +742,6 @@
         return;
       }
 
-      if (act === "structure") {
-        show(structureReport(), "ok");
-        status.textContent = "Structure report below — it lists element names, not content.";
-        hint.textContent =
-          "Copy it and send it back. Nothing in it includes your name, your courses' text, or any URL token.";
-        return;
-      }
-
-      if (act === "data") {
-        show(dataReport(), "ok");
-        status.textContent = "Data-model report below — long text is cut at 80 characters.";
-        hint.textContent =
-          "Copy it and send it back. It says where the calendar keeps its events, not what they all are.";
-        return;
-      }
-
-      if (act === "requests") {
-        show(requestReport(), "ok");
-        status.textContent = "Endpoint report below — paths only.";
-        hint.textContent =
-          "Copy it and send it back. No token can be in it: query strings are stripped and headers are never read.";
-        return;
-      }
-
       if (act === "course") {
         const digest = {
           course: collectCourse(document),
@@ -1200,39 +800,16 @@
         return;
       }
 
-      if (act === "forget") {
-        const total = recorded.size;
-        recorded.clear();
-        try {
-          sessionStorage.removeItem(REQUEST_KEY);
-        } catch {
-          /* nothing to clear */
-        }
-        out.hidden = true;
-        copyButton.hidden = true;
-        status.className = "note";
-        status.textContent = "Cleared " + total + " recorded path(s). Now open the pages you want mapped.";
-        return;
-      }
-
-      if (act === "links") {
-        show(linkReport(), "ok");
-        status.textContent = "Link report below — query strings and fragments removed.";
-        hint.textContent =
-          "Copy it and send it back. Calendar tokens are deliberately not in it.";
-        return;
-      }
-
       if (act === "merge") {
         const links = calendarLinks();
         if (links.length === 0) {
           status.className = "note warn";
           status.textContent =
-            "No .ics links on this page. Open a course's calendar settings, or use the report buttons.";
+            "No .ics links on this page. Open the Calendar page, or a course's calendar settings.";
           show(
             "Found no calendar feed links here.\n\n" +
               "This button looks for links ending in .ics on the page you are on.\n" +
-              "Press “Report: links on this page” and send that back if you expected some.",
+              "The Calendar page is the one that usually has them.",
             "warn",
           );
           return;
@@ -1284,17 +861,11 @@
   if (typeof window !== "undefined") {
     window.__huskyctHelper = {
       mergeCalendars,
-      pathOnly,
-      describe,
       calendarLinks,
-      courseCodeFrom,
       kindFromSourceType,
       eventToRecord,
       recordsToIcs,
       utcStamp,
-      recordRequest,
-      requestReport,
-      recorded,
       currentCourseId,
       textOf,
       courseCodeFromDisplay,
@@ -1314,9 +885,6 @@
       VERSION,
     };
   }
-
-  // At document-start, so nothing the page loads escapes the recorder.
-  installRecorder();
 
   if (typeof document !== "undefined") {
     if (document.readyState === "loading") {
