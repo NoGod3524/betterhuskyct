@@ -15,6 +15,15 @@ test("blackboardKind recognises a graded item", () => {
   assert.equal(blackboardKind(ASSIGNMENT_UID), "assignment");
 });
 
+/**
+ * HuskyCT Helper reads the to-do list off the page and writes its own UIDs. A
+ * to-do entry is graded work by definition, so the kind is known without any of
+ * the guessing a calendar feed needs.
+ */
+test("blackboardKind recognises the helper's own to-do export", () => {
+  assert.equal(blackboardKind("huskyct-todo-_3867214_1"), "assignment");
+});
+
 test("blackboardKind returns null for anything else", () => {
   assert.equal(blackboardKind("some-other-uid"), null);
   assert.equal(blackboardKind(""), null);

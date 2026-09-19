@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.6.0
+// @version      0.7.0
 // @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -41,7 +41,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.6.0";
+  const VERSION = "0.7.0";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -782,6 +782,108 @@
     return lines.join("\n");
   }
 
+
+  // ------------------------------------------------------- the to-do panel
+
+  /**
+   * The application renders each to-do item as one link, and puts its whole
+   * record in that link's aria-label:
+   *
+   *   "Section 4.7 Homework, Homework · MATH-1070Q-SEC100.120-1268 · _203765_1,
+   *    due 9/25/26, 11:59 PM"
+   *
+   * That is far steadier than the markup around it. The classes there carry
+   * build hashes — `makeStylesdueDateDefault-0-2-1013` — and change with every
+   * release, while an aria-label is part of the page's contract with screen
+   * readers and only changes when the meaning does.
+   */
+  function todoFromLabel(label) {
+    const text = String(label || "").trim();
+    const dueSplit = text.lastIndexOf(", due ");
+    if (dueSplit === -1) return null;
+
+    const head = text.slice(0, dueSplit);
+    const dueText = text.slice(dueSplit + ", due ".length).trim();
+
+    // "<title>, <kind> · <course> · <course id>"
+    const parts = head.split(" · ").map((part) => part.trim()).filter(Boolean);
+    if (parts.length < 2) return null;
+
+    // The kind is a trailing clause, and a title may contain its own comma, so
+    // only the last comma separates them.
+    const lastComma = parts[0].lastIndexOf(", ");
+    return {
+      title: lastComma === -1 ? parts[0] : parts[0].slice(0, lastComma).trim(),
+      kind: lastComma === -1 ? null : parts[0].slice(lastComma + 2).trim(),
+      course: courseCodeFromDisplay(parts[0]) || courseCodeFromDisplay(parts[1]),
+      courseName: parts[1],
+      courseId: parts[2] || null,
+      dueText,
+      due: dueDateFromText(dueText),
+    };
+  }
+
+  /**
+   * `9/25/26, 11:59 PM` -> an instant, read in the reader's own timezone.
+   *
+   * The page shows a wall-clock time with no zone on it. Building the date from
+   * its parts lets the browser interpret it locally, which is right for someone
+   * sitting in the same timezone as their classes — and it is the only reading
+   * available from the page alone.
+   */
+  function dueDateFromText(value) {
+    const match = String(value || "").match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4}),?\s+(\d{1,2}):(\d{2})\s*([AP])M/i);
+    if (!match) return null;
+
+    const year = match[3].length === 2 ? 2000 + Number(match[3]) : Number(match[3]);
+    // 12 AM is hour 0 and 12 PM is hour 12; the modulo handles both.
+    const hour = (Number(match[4]) % 12) + (/p/i.test(match[6]) ? 12 : 0);
+
+    const date = new Date(year, Number(match[1]) - 1, Number(match[2]), hour, Number(match[5]), 0, 0);
+    return Number.isNaN(date.valueOf()) ? null : date;
+  }
+
+  /** Every to-do item the page is currently showing. */
+  function collectTodos(root) {
+    const scope = root || document;
+    const records = [];
+    const seen = new Set();
+
+    for (const node of scope.querySelectorAll("[aria-label]")) {
+      const label = node.getAttribute("aria-label") || "";
+      if (label.indexOf(", due ") === -1) continue;
+
+      const todo = todoFromLabel(label);
+      if (!todo || !todo.due) continue;
+
+      const key = (node.getAttribute("data-analytics-id") || "") + "|" + label;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      // The application's own id for the item, so collecting twice does not put
+      // the same deadline into HuskyPilot twice.
+      const analytics = node.getAttribute("data-analytics-id") || "";
+      const stable = analytics.split(".").pop() || todo.title + "@" + todo.dueText;
+      todo.uid = "huskyct-todo-" + stable.replace(/[^\w.-]+/g, "-");
+      records.push(todo);
+    }
+
+    return records;
+  }
+
+  /** To-do items in the shape the calendar writer already understands. */
+  function todosToRecords(todos) {
+    return todos.map((todo) => ({
+      uid: todo.uid,
+      title: todo.title,
+      course: todo.course,
+      start: todo.due.toISOString(),
+      end: null,
+      allDay: false,
+      kind: "assignment",
+    }));
+  }
+
   // -------------------------------------------------------------------- panel
 
   const style = `
@@ -848,6 +950,7 @@
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
         <button class="act" data-act="merge">Merge .ics links on this page</button>
         <button class="act" data-act="course">Collect this course: announcements + content</button>
+        <button class="act" data-act="todos">Collect deadlines from this page (.ics)</button>
         <button class="act" data-act="links">Report: links on this page (tokens stripped)</button>
         <button class="act" data-act="structure">Report: page structure</button>
         <button class="act" data-act="data">Report: where the calendar data lives</button>
@@ -1004,6 +1107,35 @@
         return;
       }
 
+      if (act === "todos") {
+        const todos = collectTodos(document);
+
+        if (todos.length === 0) {
+          status.className = "note warn";
+          status.textContent = "No deadlines on this page.";
+          hint.textContent =
+            "The to-do list lives on the Courses page (the HuskyCT home). Open it, then press this again.";
+          return;
+        }
+
+        const records = todosToRecords(todos);
+        download("huskyct-deadlines.ics", recordsToIcs(records), "text/calendar;charset=utf-8");
+
+        const withCourse = todos.filter((todo) => todo.course).length;
+        status.className = "note ok";
+        status.textContent =
+          "Exported " + records.length + " deadline(s), " + withCourse + " with a course code.";
+        hint.textContent =
+          "Saved as huskyct-deadlines.ics. Nothing was requested from UConn — this reads the page you are looking at.";
+        show(
+          todos
+            .map((todo) => todo.dueText + "  " + (todo.course || "?") + "  " + todo.title)
+            .join("\n"),
+          "ok",
+        );
+        return;
+      }
+
       if (act === "forget") {
         const total = recorded.size;
         recorded.clear();
@@ -1108,6 +1240,10 @@
       collectContentItems,
       collectCourse,
       courseDigestToMarkdown,
+      todoFromLabel,
+      dueDateFromText,
+      collectTodos,
+      todosToRecords,
       collect: harvest,
       collected,
       VERSION,

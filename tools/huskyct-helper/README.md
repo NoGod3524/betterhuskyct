@@ -85,6 +85,26 @@ Titles are read from each item's accessibility label — `Status for Cengage
 WebAssign: Started` — rather than from a CSS class, because those class names
 carry build hashes and change with every release.
 
+## Collecting deadlines
+
+*Collect deadlines from this page (.ics)* reads the to-do list — which lives on
+the HuskyCT home, the Courses page — and writes `huskyct-deadlines.ics`. Drop
+that into HuskyPilot like any other calendar.
+
+Each item is read from the link the application renders for it, because that
+link's accessible name carries the whole record:
+
+    Section 4.7 Homework, Homework · MATH-1070Q-SEC100.120-1268 · _203765_1,
+    due 9/25/26, 11:59 PM
+
+Title, kind, course, due time and the application's own item id all come out of
+that one string. Using its id as the calendar UID means collecting twice does
+not put the same deadline into HuskyPilot twice.
+
+Times are read as the reader's own local time. The page shows wall-clock time
+with no zone on it, so that is the only reading the page offers — and it is the
+right one for someone sitting in the same timezone as their classes.
+
 ## Status
 
 Early. The merge works off links that are already on the page; the reporting

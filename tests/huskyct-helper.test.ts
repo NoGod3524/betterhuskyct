@@ -40,6 +40,10 @@ type HelperSurface = {
   collectAnnouncements: (root: unknown) => Array<{ title: string; body: string; posted: string | null }>;
   collectContentItems: (root: unknown) => Array<{ title: string; state: string }>;
   courseDigestToMarkdown: (digest: Record<string, unknown>) => string;
+  todoFromLabel: (label: string) => Record<string, unknown> | null;
+  dueDateFromText: (value: string) => Date | null;
+  collectTodos: (root: unknown) => Array<Record<string, unknown>>;
+  todosToRecords: (todos: Array<Record<string, unknown>>) => Array<Record<string, unknown>>;
   VERSION: string;
 };
 
@@ -98,6 +102,10 @@ const {
   collectAnnouncements,
   collectContentItems,
   courseDigestToMarkdown,
+  todoFromLabel,
+  dueDateFromText,
+  collectTodos,
+  todosToRecords,
 } = sandbox.__huskyctHelper as HelperSurface;
 
 test("the userscript parses and exposes its helpers", () => {
@@ -516,4 +524,149 @@ test("a digest of an empty page still says which course it came from", () => {
   // Nothing collected means no empty section heading claiming otherwise.
   assert.ok(!markdown.includes("## Announcements"));
   assert.ok(!markdown.includes("## Course content"));
+});
+
+// --------------------------------------------------------------- to-do panel
+//
+// The label below is copied from a real HuskyCT to-do item. Parsing it is the
+// whole reader: the markup around it carries build hashes, the label does not.
+
+const TODO_LABEL =
+  "Section 4.7 Homework, Homework · MATH-1070Q-SEC100.120-1268 · _203765_1, due 9/25/26, 11:59 PM";
+
+test("a to-do item is read out of its accessibility label", () => {
+  const todo = todoFromLabel(TODO_LABEL);
+  assert.ok(todo, "nothing parsed");
+
+  assert.equal(todo.title, "Section 4.7 Homework");
+  assert.equal(todo.kind, "Homework");
+  assert.equal(todo.course, "MATH 1070Q");
+  assert.equal(todo.courseId, "_203765_1");
+  assert.equal(todo.dueText, "9/25/26, 11:59 PM");
+});
+
+test("a title containing a comma keeps all of itself", () => {
+  const todo = todoFromLabel("Reading, chapters 1-3, Homework · NRE-1000E-Environmental Science-SEC002-1268 · _1_1, due 1/2/27, 12:05 AM");
+  assert.ok(todo);
+  assert.equal(todo.title, "Reading, chapters 1-3");
+  assert.equal(todo.kind, "Homework");
+  assert.equal(todo.course, "NRE 1000E");
+});
+
+test("a label that is not a to-do item yields nothing", () => {
+  assert.equal(todoFromLabel("Mark as complete"), null);
+  assert.equal(todoFromLabel("Section 4.7 Homework"), null);
+  assert.equal(todoFromLabel(""), null);
+});
+
+/**
+ * The page gives a wall-clock time with no zone. Building the date from its
+ * parts lets the browser read it locally, so the assertions are on the local
+ * fields — an ISO string would depend on where the test machine is.
+ */
+test("a due date is read as local wall-clock time", () => {
+  const due = dueDateFromText("9/25/26, 11:59 PM");
+  assert.ok(due, "no date parsed");
+  assert.equal(due.getFullYear(), 2026);
+  assert.equal(due.getMonth(), 8, "September is month 8");
+  assert.equal(due.getDate(), 25);
+  assert.equal(due.getHours(), 23);
+  assert.equal(due.getMinutes(), 59);
+});
+
+test("midnight and noon are not swapped", () => {
+  const midnight = dueDateFromText("1/2/27, 12:05 AM");
+  assert.ok(midnight);
+  assert.equal(midnight.getHours(), 0);
+  assert.equal(midnight.getMinutes(), 5);
+
+  const noon = dueDateFromText("1/2/27, 12:05 PM");
+  assert.ok(noon);
+  assert.equal(noon.getHours(), 12);
+});
+
+test("a four-digit year is taken as written", () => {
+  const due = dueDateFromText("3/4/2027, 9:00 AM");
+  assert.ok(due);
+  assert.equal(due.getFullYear(), 2027);
+});
+
+test("text that is not a date yields nothing", () => {
+  assert.equal(dueDateFromText("tomorrow"), null);
+  assert.equal(dueDateFromText(""), null);
+});
+
+test("collecting the same page twice yields the same deadline once", () => {
+  const anchor = (label: string, analytics: string) => ({
+    getAttribute: (name: string) => (name === "aria-label" ? label : name === "data-analytics-id" ? analytics : null),
+  });
+
+  const todos = collectTodos({
+    querySelectorAll: () => [
+      anchor(TODO_LABEL, "student-todo.item._3867214_1"),
+      // The same item rendered twice — a list view and a preview, say.
+      anchor(TODO_LABEL, "student-todo.item._3867214_1"),
+      anchor("Mark as complete", ""),
+    ],
+  });
+
+  assert.equal(todos.length, 1);
+  // The application's own id is kept, so exporting twice does not add a second
+  // copy of the deadline to HuskyPilot.
+  assert.equal(todos[0].uid, "huskyct-todo-_3867214_1");
+});
+
+test("a to-do without the application's id still gets a stable one", () => {
+  const anchor = { getAttribute: (name: string) => (name === "aria-label" ? TODO_LABEL : null) };
+  const first = collectTodos({ querySelectorAll: () => [anchor] });
+  const second = collectTodos({ querySelectorAll: () => [anchor] });
+
+  assert.equal(first.length, 1);
+  assert.ok(first[0].uid.startsWith("huskyct-todo-"));
+  assert.equal(first[0].uid, second[0].uid, "the fallback id is not stable");
+});
+
+/**
+ * HuskyPilot reads the calendar kind out of the UID, and treats anything that
+ * is not a class meeting as a deadline. A to-do is always graded work.
+ */
+test("a to-do becomes a calendar record HuskyPilot reads as a deadline", () => {
+  const todos = collectTodos({
+    querySelectorAll: () => [
+      { getAttribute: (name: string) => (name === "aria-label" ? TODO_LABEL : name === "data-analytics-id" ? "student-todo.item._3867214_1" : null) },
+    ],
+  });
+
+  const records = todosToRecords(todos);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].title, "Section 4.7 Homework");
+  assert.equal(records[0].course, "MATH 1070Q");
+  assert.equal(records[0].kind, "assignment");
+  assert.equal(typeof records[0].start, "string", "the writer expects an ISO string");
+});
+
+test("the exported to-do calendar parses back through HuskyPilot's own parser", async () => {
+  const todos = collectTodos({
+    querySelectorAll: () => [
+      { getAttribute: (name: string) => (name === "aria-label" ? TODO_LABEL : name === "data-analytics-id" ? "student-todo.item._3867214_1" : null) },
+    ],
+  });
+
+  const ics = recordsToIcs(todosToRecords(todos));
+  const parsed = await parseCalendar(ics, new Date("2026-09-20T12:00:00Z"));
+
+  assert.equal(parsed.events.length, 1);
+  assert.equal(parsed.events[0].title, "Section 4.7 Homework");
+  assert.equal(parsed.events[0].course, "MATH 1070Q");
+});
+
+test("a title with a comma survives the round trip through the calendar", async () => {
+  const label = "Reading, chapters 1-3, Homework · NRE-1000E-Environmental Science-SEC002-1268 · _1_1, due 1/2/27, 12:05 AM";
+  const todos = collectTodos({
+    querySelectorAll: () => [{ getAttribute: (name: string) => (name === "aria-label" ? label : null) }],
+  });
+
+  const parsed = await parseCalendar(recordsToIcs(todosToRecords(todos)), new Date("2026-09-20T12:00:00Z"));
+  assert.equal(parsed.events.length, 1);
+  assert.equal(parsed.events[0].title, "Reading, chapters 1-3");
 });
