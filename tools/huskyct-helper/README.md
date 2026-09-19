@@ -53,26 +53,37 @@ and send on. They are written to be safe to share:
 - the **link report** lists **paths only**, with every query string and fragment
   removed, so no token is in it;
 - the **request report** lists the paths this page asked the server for, again
-  with query strings stripped;
-- the **API report** shows query strings as **parameter names only** and cookies
-  as **names only**. Values never appear, so no token and no session value can
-  be in it.
+  with query strings stripped.
 
 Still, give it a skim before sending. If anything in it looks like it should not
 leave your machine, cut that line out.
 
-### Why there is an API report at all
+## Collecting a course
 
-The course pages are a different application from the legacy calendar page, and
-guessing at its markup is how a script ends up silently doing nothing. The API
-report answers one question — *why is this request refused?* — by sending six
-requests that differ from each other in exactly one way each, including a path
-that cannot possibly exist. If that impossible path is refused in the same way
-as the real ones, then nothing is being denied and the path itself is wrong.
+*Collect this course: announcements + content* reads the page you are looking at
+— the Announcements list, the course outline, or both — and saves a Markdown
+digest: the course's name, every announcement with its full text, and the
+outline items.
 
-It also lists what the page's **own** requests received, read out of the
-browser's performance log. A 200 next to a path there means that path works, and
-the fault is in our request rather than the URL.
+It sends **no request at all**. Everything it writes is already on screen.
+
+That is a deliberate choice, and it comes from a measurement rather than a
+preference. HuskyCT's own API refuses scripts. Measured on 2026-09-19: a request
+the page itself made to `/learn/api/v1/users/me` returned 200, an
+identical-looking one from a script returned 403 with an S3-style `AccessDenied`
+body, and adding any header of our own reset the connection. A path that cannot
+exist returned the same 403 as a real one, so the edge in front of HuskyCT
+admits the application's own calls and refuses everything else regardless of the
+path.
+
+Forging those calls would mean imitating the application against a system that
+is explicitly refusing to be scripted. Reading the rendered page needs no such
+thing, produces no traffic that could look like scraping, and keeps working when
+the internals change.
+
+Titles are read from each item's accessibility label — `Status for Cengage
+WebAssign: Started` — rather than from a CSS class, because those class names
+carry build hashes and change with every release.
 
 ## Status
 

@@ -34,11 +34,12 @@ type HelperSurface = {
   requestReport: () => string;
   recorded: Set<string>;
   currentCourseId: () => string | null;
-  listOf: (body: unknown) => unknown[] | null;
-  queryKeys: (url: string) => string;
-  cookieNames: () => string[];
-  apiTraffic: () => Array<Record<string, unknown>> | null;
-  newestApiUrl: () => string | null;
+  courseCodeFromDisplay: (value: string | null) => string | null;
+  courseTitleFromDisplay: (value: string | null) => string | null;
+  postedFromText: (value: string) => string | null;
+  collectAnnouncements: (root: unknown) => Array<{ title: string; body: string; posted: string | null }>;
+  collectContentItems: (root: unknown) => Array<{ title: string; state: string }>;
+  courseDigestToMarkdown: (digest: Record<string, unknown>) => string;
   VERSION: string;
 };
 
@@ -91,8 +92,12 @@ const {
   recordsToIcs,
   recordRequest,
   requestReport,
-  listOf,
-  queryKeys,
+  courseCodeFromDisplay,
+  courseTitleFromDisplay,
+  postedFromText,
+  collectAnnouncements,
+  collectContentItems,
+  courseDigestToMarkdown,
 } = sandbox.__huskyctHelper as HelperSurface;
 
 test("the userscript parses and exposes its helpers", () => {
@@ -124,152 +129,6 @@ test("pathOnly keeps a different origin visible but strips it too", () => {
     pathOnly("https://example.com/some/file.ics?token=SECRET"),
     "https://example.com/some/file.ics",
   );
-});
-
-/**
- * A copy of the script running against a stubbed page.
- *
- * `readyState: "loading"` keeps the panel from mounting: these tests exercise
- * the data helpers, and there is no DOM here for a panel to mount into.
- */
-function helperWith(page: Record<string, unknown>): HelperSurface {
-  const box: Record<string, unknown> = {
-    console,
-    URL,
-    Blob: class {},
-    setTimeout,
-    clearTimeout,
-    navigator: {},
-    location: {
-      href: "https://lms.uconn.edu/ultra/course",
-      origin: "https://lms.uconn.edu",
-      pathname: "/ultra/course",
-    },
-    document: { cookie: "", readyState: "loading", addEventListener() {} },
-    ...page,
-  };
-  box.window = box;
-  vm.createContext(box);
-  vm.runInContext(SOURCE, box);
-
-  return box.__huskyctHelper as HelperSurface;
-}
-
-/**
- * The diagnosis report exists to be pasted into a chat window, so the only part
- * of a URL it may reproduce is the parameter *names*. A value can be a record
- * id, and it can be a token.
- */
-test("queryKeys reports parameter names and never their values", () => {
-  const url =
-    "https://lms.uconn.edu/learn/api/v1/courses/_198430_1/announcements?limit=20&token=SECRET";
-
-  const keys = queryKeys(url);
-
-  assert.equal(keys, "?limit&token");
-  assert.ok(!keys.includes("SECRET"));
-  assert.ok(!keys.includes("20"));
-});
-
-test("queryKeys keeps a repeated parameter to one name", () => {
-  assert.equal(queryKeys("/x?a=1&a=2&b=3"), "?a&b");
-});
-
-test("queryKeys says nothing when there is no query string", () => {
-  assert.equal(queryKeys("/learn/api/v1/users/me"), "");
-});
-
-test("queryKeys survives a URL it cannot parse", () => {
-  assert.equal(queryKeys("http://[not a url"), "");
-});
-
-/** A cookie value is a session. Only the names may leave the browser. */
-test("cookieNames lists names and never their values", () => {
-  const helper = helperWith({
-    document: {
-      cookie: "BbRouter=abc123; JSESSIONID=SECRETSESSION; XSRF-TOKEN=SECRETTOKEN",
-      readyState: "loading",
-      addEventListener() {},
-    },
-  });
-
-  const names = helper.cookieNames();
-
-  // Spread first: the array comes from inside the VM realm, and a strict deep
-  // comparison checks prototypes, so it would not match a host array.
-  assert.deepEqual([...names], ["BbRouter", "JSESSIONID", "XSRF-TOKEN"]);
-  assert.ok(!JSON.stringify(names).includes("SECRET"));
-});
-
-/**
- * This is the evidence the whole diagnosis rests on: what the page's *own*
- * requests got. If it kept the wrong entries, or leaked a query value while
- * keeping them, the report would mislead in a way that is hard to notice.
- */
-test("apiTraffic keeps only Learn API calls, with the status each one got", () => {
-  const helper = helperWith({
-    performance: {
-      getEntriesByType: () => [
-        {
-          name: "https://lms.uconn.edu/learn/api/v1/users/me?x=1",
-          initiatorType: "fetch",
-          transferSize: 900,
-          responseStatus: 200,
-        },
-        {
-          name: "https://lms.uconn.edu/webapps/calendar/calendar.ics?token=SECRET",
-          initiatorType: "xmlhttprequest",
-          transferSize: 10,
-          responseStatus: 200,
-        },
-        {
-          name: "https://lms.uconn.edu/learn/api/v1/courses/_1/announcements?token=SECRET",
-          initiatorType: "fetch",
-          transferSize: 50,
-          responseStatus: 403,
-        },
-      ],
-    },
-  });
-
-  const traffic = helper.apiTraffic();
-  assert.ok(traffic, "apiTraffic returned nothing");
-  assert.equal(traffic.length, 2, "a non-API request was kept");
-
-  assert.equal(traffic[0].path, "/learn/api/v1/users/me");
-  assert.equal(traffic[0].query, "?x");
-  assert.equal(traffic[0].status, 200);
-  assert.equal(traffic[0].bytes, 900);
-
-  assert.equal(traffic[1].status, 403);
-  assert.equal(traffic[1].query, "?token");
-  assert.ok(!JSON.stringify(traffic).includes("SECRET"));
-});
-
-test("apiTraffic reports nothing rather than guessing when timing is absent", () => {
-  assert.equal(helperWith({}).apiTraffic(), null);
-});
-
-/**
- * The replay target is the one place a raw URL is needed, and it is handed
- * straight to `fetch`. It must still be the newest Learn API call, or the
- * probe would replay something unrelated and prove nothing.
- */
-test("newestApiUrl is the last Learn API call, query and all", () => {
-  const helper = helperWith({
-    performance: {
-      getEntriesByType: () => [
-        { name: "https://lms.uconn.edu/learn/api/v1/users/me", responseStatus: 200 },
-        { name: "https://lms.uconn.edu/learn/api/v1/courses/_1/announcements?limit=20", responseStatus: 200 },
-      ],
-    },
-  });
-
-  assert.equal(
-    helper.newestApiUrl(),
-    "https://lms.uconn.edu/learn/api/v1/courses/_1/announcements?limit=20",
-  );
-  assert.equal(helperWith({}).newestApiUrl(), null);
 });
 
 const CALENDAR_A = [
@@ -542,10 +401,119 @@ test("the course id is read out of a course URL", () => {
   );
 });
 
-test("listOf reads both shapes Ultra returns", () => {
-  assert.deepEqual(listOf([1, 2]), [1, 2]);
-  assert.deepEqual(listOf({ results: [1, 2] }), [1, 2]);
-  assert.equal(listOf({ items: [] }), null);
-  assert.equal(listOf(null), null);
-  assert.equal(listOf("nope"), null);
+// ---------------------------------------------------------------- course page
+//
+// The readers touch the DOM, but the parts that decide what the data means are
+// pure, and those are where mistakes would hide.
+
+test("the course code comes out of the name the page displays", () => {
+  assert.equal(courseCodeFromDisplay("MATH-1070Q-Mathematics for Business and Economics-SEC100-1268"), "MATH 1070Q");
+  assert.equal(courseCodeFromDisplay("NRE-1000E-Environmental Science-SEC002-1268"), "NRE 1000E");
+  // The other form on the same page, and the one the calendar feed carries.
+  assert.equal(courseCodeFromDisplay("1268-UCONN-MATH-1070Q-SEC100-1191"), "MATH 1070Q");
+  assert.equal(courseCodeFromDisplay("no course code here"), null);
+  assert.equal(courseCodeFromDisplay(""), null);
+  assert.equal(courseCodeFromDisplay(null), null);
+});
+
+test("the course title drops the code, the section and the term", () => {
+  assert.equal(
+    courseTitleFromDisplay("MATH-1070Q-Mathematics for Business and Economics-SEC100-1268"),
+    "Mathematics for Business and Economics",
+  );
+  assert.equal(courseTitleFromDisplay("NRE-1000E-Environmental Science-SEC002-1268"), "Environmental Science");
+  assert.equal(courseTitleFromDisplay("not a course name"), null);
+});
+
+/**
+ * Announcement times are rendered relative to whenever the page was loaded, so
+ * they are carried through as words rather than converted into an instant that
+ * would already be wrong by the time anyone reads it.
+ */
+test("an announcement's posted time keeps the page's own wording", () => {
+  const row = "Reminder Exam 1 Tuesday September 29th Hi Everyone, Exam 1 11 hours ago, at 12:45 PM";
+  assert.equal(postedFromText(row), "11 hours ago, at 12:45 PM");
+  assert.equal(postedFromText("Online OH Starting soon 9/17/26, 4:47 PM body text"), "9/17/26, 4:47 PM");
+  assert.equal(postedFromText("no timestamp in this text"), null);
+});
+
+test("announcements are read from the rows the page renders", () => {
+  const row = (title: string, body: string, posted: string) => ({
+    querySelector: (selector: string) =>
+      selector.includes("title") ? { textContent: title } : selector.includes("detail") ? { textContent: body } : null,
+    textContent: title + " " + body + " " + posted,
+  });
+
+  const records = collectAnnouncements({
+    querySelectorAll: () => [
+      row("Virtual Office Hours Today", "Sorry for being late!", "7 hours ago, at 5:31 PM"),
+      // A row with no title is not an announcement and must not become one.
+      row("", "orphan body", "1 hour ago, at 1:00 PM"),
+    ],
+  });
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].title, "Virtual Office Hours Today");
+  assert.equal(records[0].body, "Sorry for being late!");
+  assert.equal(records[0].posted, "7 hours ago, at 5:31 PM");
+});
+
+/**
+ * Titles come from the accessibility label rather than a class name, because
+ * those class names carry build hashes that change with every release.
+ */
+test("content items are read from their accessibility labels", () => {
+  const label = (value: string) => ({ getAttribute: () => value });
+
+  const items = collectContentItems({
+    querySelectorAll: () => [
+      label("Status for Cengage WebAssign: Started"),
+      label("Status for Course Information and Syllabus: Started"),
+      // The same title twice must not produce two entries.
+      label("Status for Cengage WebAssign: Started"),
+      label("Mark as complete"),
+      { getAttribute: () => null },
+    ],
+  });
+
+  // Array.from builds this in the host realm; the array came out of the VM, and
+  // a strict deep comparison also checks prototypes.
+  assert.deepEqual(
+    Array.from(items, (item) => ({ title: item.title, state: item.state })),
+    [
+      { title: "Cengage WebAssign", state: "Started" },
+      { title: "Course Information and Syllabus", state: "Started" },
+    ],
+  );
+});
+
+test("the digest carries the course, its announcements and its content", () => {
+  const markdown = courseDigestToMarkdown({
+    course: { code: "MATH 1070Q", title: "Mathematics for Business and Economics" },
+    source: "/ultra/courses/_203765_1/announcements",
+    announcements: [{ title: "Reminder Exam 1", posted: "11 hours ago, at 12:45 PM", body: "Covers Chapter 4." }],
+    content: [{ title: "Cengage WebAssign", state: "Started" }],
+  });
+
+  assert.match(markdown, /^# MATH 1070Q/);
+  assert.match(markdown, /Mathematics for Business and Economics/);
+  assert.match(markdown, /## Announcements \(1\)/);
+  assert.match(markdown, /### Reminder Exam 1/);
+  assert.match(markdown, /Covers Chapter 4\./);
+  assert.match(markdown, /## Course content \(1\)/);
+  assert.match(markdown, /- Cengage WebAssign {2}\(Started\)/);
+});
+
+test("a digest of an empty page still says which course it came from", () => {
+  const markdown = courseDigestToMarkdown({
+    course: { code: "STAT 1000Q", title: null },
+    source: "/ultra/courses/_1_1/outline",
+    announcements: [],
+    content: [],
+  });
+
+  assert.match(markdown, /^# STAT 1000Q/);
+  // Nothing collected means no empty section heading claiming otherwise.
+  assert.ok(!markdown.includes("## Announcements"));
+  assert.ok(!markdown.includes("## Course content"));
 });

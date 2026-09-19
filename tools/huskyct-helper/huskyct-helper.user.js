@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.5.1
+// @version      0.6.0
 // @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -41,7 +41,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.5.1";
+  const VERSION = "0.6.0";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -634,232 +634,151 @@
     return lines.join("\n");
   }
 
-  // ------------------------------------------------- reading the course API
+  // ------------------------------------------------- reading the course page
 
   /**
-   * Blackboard Ultra's own front end talks to `/learn/api/v1/...`, and the
-   * session cookie already authenticates those calls — so this reads them the
-   * same way the page does. No token is handled and nothing extra is sent.
+   * Everything in this section reads what the browser has already rendered.
    *
-   * They are internal endpoints, not the documented public API, so they can
-   * change without notice. Everything here checks its own shape and says what
-   * it found rather than assuming.
+   * Reading HuskyCT's own API is not an option. Measured on 2026-09-19: a
+   * request the page itself makes to /learn/api/v1/users/me returns 200, an
+   * identical-looking one from a script returns 403 with an S3-style
+   * AccessDenied body, and adding any header of our own resets the connection.
+   * A path that cannot exist returns the same 403 as a real one, so the edge in
+   * front of HuskyCT admits the application's own calls and refuses everything
+   * else — regardless of the path.
+   *
+   * Trying to forge those calls is both futile and the one part of this script
+   * that would look like scraping in a log. The rendered page has what is
+   * needed, and reading it sends no request at all: announcements, the content
+   * outline and the course's name are all already on screen.
    */
+
+  function textOf(node) {
+    return node ? String(node.textContent || "").replace(/\s+/g, " ").trim() : "";
+  }
+
+  /** `MATH-1070Q-Mathematics for Business and Economics-SEC100-1268` -> `MATH 1070Q` */
+  function courseCodeFromDisplay(value) {
+    if (!value) return null;
+    const match = String(value).match(/\b([A-Z]{2,6})-(\d{2,4}[A-Z]?)-/);
+    return match ? match[1] + " " + match[2] : null;
+  }
+
+  /** The readable middle of that same string, with the section suffix dropped. */
+  function courseTitleFromDisplay(value) {
+    if (!value) return null;
+    const match = String(value).match(/^[A-Z]{2,6}-\S*?-(.+?)-SEC\d+/);
+    return match ? match[1].replace(/-/g, " ").trim() : null;
+  }
+
+  /**
+   * When an announcement was posted, in the page's own words.
+   *
+   * It is relative ("7 hours ago, at 5:31 PM") or absolute ("9/17/26, 4:47 PM").
+   * The wording is kept rather than converted: turning a relative time into an
+   * instant needs a clock reading that may not match the person reading this.
+   */
+  function postedFromText(value) {
+    const match = String(value || "").match(
+      /(\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago,\s+at\s+[^,]+|\d{1,2}\/\d{1,2}\/\d{2,4},\s+\d{1,2}:\d{2}\s*[AP]M)/i,
+    );
+    return match ? match[1].trim() : null;
+  }
+
+  /** Announcements, as the course's Announcements page renders them. */
+  function collectAnnouncements(root) {
+    const scope = root || document;
+    const records = [];
+    for (const row of scope.querySelectorAll(".announcement-item-row")) {
+      const title = textOf(row.querySelector(".announcement-title-detail"));
+      if (!title) continue;
+      records.push({
+        title,
+        body: textOf(row.querySelector(".click-message-detail")),
+        posted: postedFromText(textOf(row)),
+      });
+    }
+    return records;
+  }
+
+  /**
+   * The course outline.
+   *
+   * Titles come from each item's accessibility label — "Status for Cengage
+   * WebAssign: Started" — not from a CSS class. Those class names carry build
+   * hashes (`makeStylescontentItemTitle-0-2-809`) and change every release,
+   * while an aria-label is part of the page's contract with screen readers and
+   * is far steadier.
+   */
+  function collectContentItems(root) {
+    const scope = root || document;
+    const items = [];
+    const seen = new Set();
+    for (const node of scope.querySelectorAll("[aria-label^='Status for ']")) {
+      const match = String(node.getAttribute("aria-label") || "").match(/^Status for (.+?):\s*(.+)$/);
+      if (!match) continue;
+      const title = match[1].trim();
+      if (seen.has(title)) continue;
+      seen.add(title);
+      items.push({ title, state: match[2].trim() });
+    }
+    return items;
+  }
+
+  /** The course id out of a course URL, e.g. `/ultra/courses/_203765_1/outline`. */
   function currentCourseId() {
     const match = window.location.pathname.match(/\/ultra\/courses\/([^/]+)/);
     return match ? match[1] : null;
   }
 
-  /**
-   * `headers` is optional on purpose. Every probe below passes something
-   * different, and one of them has to pass *nothing* — a request that differs
-   * from the failing one only by its headers is how a missing or unwanted
-   * header gets found.
-   */
-  async function apiGet(path, headers) {
-    const options = { credentials: "same-origin" };
-    if (headers) options.headers = headers;
-
-    const response = await fetch(path, options);
-    const text = await response.text();
-
-    let body = null;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      /* the caller reports the text instead */
-    }
-
-    return { status: response.status, ok: response.ok, body, text };
-  }
-
-  /** Ultra wraps lists in `results` on some endpoints and not others. */
-  function listOf(body) {
-    if (Array.isArray(body)) return body;
-    if (body && Array.isArray(body.results)) return body.results;
-    return null;
+  /** The course this page belongs to, from what its header renders. */
+  function collectCourse(root) {
+    const scope = root || document;
+    const heading =
+      textOf(scope.querySelector("[class*='courseTitle']")) ||
+      textOf(scope.querySelector("h1")) ||
+      "";
+    return {
+      id: currentCourseId(),
+      code: courseCodeFromDisplay(heading),
+      title: courseTitleFromDisplay(heading),
+      heading,
+    };
   }
 
   /**
-   * The *names* of the cookies this page can read. Never the values.
+   * A plain-text digest of the course.
    *
-   * A session cookie is a password, and this report is written to be pasted
-   * into a chat window — so the names are the only part that is safe to show,
-   * and they are also the part worth knowing: whether a csrf cookie exists is
-   * a fact about the site, not about the person reading it.
+   * Markdown on purpose: it reads fine in a message, it diffs, and there is no
+   * rendering to get wrong.
    */
-  function cookieNames() {
-    try {
-      return String(document.cookie || "")
-        .split(";")
-        .map((part) => part.split("=")[0].trim())
-        .filter(Boolean)
-        .sort();
-    } catch {
-      return [];
-    }
-  }
-
-  /**
-   * `?a=1&b=2` becomes `?a&b`.
-   *
-   * Query values on this site carry record ids and sometimes tokens; the names
-   * are what say how an endpoint is meant to be called.
-   */
-  function queryKeys(url) {
-    try {
-      const names = [...new Set(new URL(url, window.location.href).searchParams.keys())].sort();
-      return names.length ? "?" + names.join("&") : "";
-    } catch {
-      return "";
-    }
-  }
-
-  /**
-   * Every `/learn/api` request this page has already made, according to the
-   * browser's own performance log.
-   *
-   * This is the closest thing to proof available from inside the page: the
-   * `status` here is what the *page's own* request received, so a 200 next to a
-   * path means that path works, and the fault is in our request rather than in
-   * the URL.
-   *
-   * It deliberately does not carry the raw URL. A query string here can hold a
-   * token, and a record that cannot hold one cannot leak it later — callers
-   * that need to replay a URL get it from `newestApiUrl` below and pass it
-   * straight to `fetch` without ever printing it.
-   */
-  function apiTraffic() {
-    try {
-      if (!window.performance || typeof performance.getEntriesByType !== "function") return null;
-      return performance
-        .getEntriesByType("resource")
-        .filter((entry) => /\/learn\/api\//.test(entry.name))
-        .map((entry) => ({
-          path: pathOnly(entry.name),
-          query: queryKeys(entry.name),
-          // 0 means the browser withheld it, which is itself worth seeing.
-          status: typeof entry.responseStatus === "number" ? entry.responseStatus : "(not exposed)",
-          via: entry.initiatorType || "?",
-          bytes: entry.transferSize,
-        }));
-    } catch {
-      return null;
-    }
-  }
-
-  /** The newest `/learn/api` URL this page fetched, to replay verbatim. */
-  function newestApiUrl() {
-    try {
-      if (!window.performance || typeof performance.getEntriesByType !== "function") return null;
-      const entries = performance
-        .getEntriesByType("resource")
-        .filter((entry) => /\/learn\/api\//.test(entry.name));
-      return entries.length ? entries[entries.length - 1].name : null;
-    } catch {
-      return null;
-    }
-  }
-
-  async function exploreReport() {
+  function courseDigestToMarkdown(digest) {
     const lines = [];
-    const courseId = currentCourseId();
+    const course = digest.course || {};
 
-    lines.push("# " + window.location.pathname);
-    lines.push("courseId: " + (courseId || "(this URL is not inside a course)"));
-    lines.push("cookie names visible here: " + (cookieNames().join(", ") || "(none)"));
-    lines.push("");
+    lines.push("# " + (course.code || course.heading || "HuskyCT course"));
+    if (course.title) lines.push("", course.title);
+    lines.push("", "Source: " + (digest.source || "(unknown page)"));
 
-    // What this page has already asked for, and how it went.
-    //
-    // The browser remembers every resource it loaded, which is free evidence.
-    // If the page itself fetched these endpoints and got 200, the paths are
-    // right and the difference must be in the request; if the page never asked
-    // for them, the paths were a guess and the guess is what is wrong.
-    const traffic = apiTraffic();
-    lines.push("=== /learn/api traffic this page already made ===");
-    if (!traffic) {
-      lines.push("(performance timing is not available here)");
-    } else if (traffic.length === 0) {
-      lines.push("(none recorded — this page has not fetched /learn/api since it");
-      lines.push(" loaded. Open Announcements or Course Content, then press this");
-      lines.push(" button again to compare.)");
-    } else {
-      for (const entry of traffic.slice(-25)) {
-        lines.push(
-          "  " + String(entry.status).padStart(11) + "  " + entry.path + entry.query +
-            "   [" + entry.via + ", " + entry.bytes + " bytes]",
-        );
+    const announcements = digest.announcements || [];
+    if (announcements.length) {
+      lines.push("", "## Announcements (" + announcements.length + ")");
+      for (const item of announcements) {
+        lines.push("", "### " + item.title);
+        if (item.posted) lines.push("_" + item.posted + "_");
+        if (item.body) lines.push("", item.body);
       }
     }
-    lines.push("");
 
-    if (!courseId) {
-      lines.push("Open a course first — the URL needs /ultra/courses/<id>/ in it.");
-      return lines.join("\n");
-    }
-
-    const base = "/learn/api/v1/courses/" + courseId;
-
-    // Six requests, and the differences between them *are* the experiment. The
-    // bogus path is the control: if a path that cannot possibly exist answers
-    // exactly like the real ones, nothing is being denied — the request is
-    // simply never reaching the application, and every path would fail.
-    const probes = [
-      ["control: a path that cannot exist", "/learn/api/v1/__huskypilot_no_such_endpoint__", null],
-      ["announcements, no headers at all", base + "/announcements", null],
-      ["announcements, Accept: application/json", base + "/announcements", { Accept: "application/json" }],
-      ["announcements, X-Requested-With", base + "/announcements", { "X-Requested-With": "XMLHttpRequest" }],
-      ["users/me — is the whole prefix alive?", "/learn/api/v1/users/me", null],
-      ["course", base, null],
-    ];
-
-    const newest = newestApiUrl();
-    if (newest) probes.push(["replay of a URL this page used", newest, null]);
-
-    lines.push("=== probes ===");
-    for (const [label, path, headers] of probes) {
-      lines.push("");
-      lines.push("--- " + label + " ---");
-      lines.push("path: " + pathOnly(path) + queryKeys(path));
-      lines.push("sent headers: " + (headers ? Object.keys(headers).join(", ") : "(none)"));
-
-      try {
-        const result = await apiGet(path, headers);
-        lines.push("status: " + result.status);
-
-        const list = listOf(result.body);
-        if (list) {
-          lines.push("count: " + list.length);
-          const handlers = [
-            ...new Set(list.map((item) => item && (item.contentHandler || item.handler))),
-          ].filter(Boolean);
-          if (handlers.length) lines.push("handlers: " + handlers.join(", "));
-
-          for (const item of list.slice(0, 3)) {
-            lines.push("  keys: " + Object.keys(item || {}).sort().join(", "));
-            lines.push("  " + safeJson(item, 2));
-          }
-        } else if (result.body) {
-          lines.push("keys: " + Object.keys(result.body).sort().join(", "));
-          lines.push(safeJson(result.body, 2));
-        } else {
-          // The body matters most when it is a refusal: two refusals that look
-          // identical came from the same place, which is the whole question.
-          lines.push("body, not JSON: " + result.text.replace(/\s+/g, " ").slice(0, 220));
-        }
-      } catch (error) {
-        lines.push("threw: " + error.message);
+    const content = digest.content || [];
+    if (content.length) {
+      lines.push("", "## Course content (" + content.length + ")");
+      for (const item of content) {
+        lines.push("- " + item.title + (item.state ? "  (" + item.state + ")" : ""));
       }
-
-      // Slow on purpose: this is someone else's server.
-      await new Promise((resolve) => setTimeout(resolve, 300));
     }
 
     lines.push("");
-    lines.push("# Query strings appear as parameter names only, never values;");
-    lines.push("# cookies appear as names only, never contents.");
-    lines.push("# Long strings were cut at 80 characters.");
     return lines.join("\n");
   }
 
@@ -928,11 +847,11 @@
         <button class="act" data-act="clear">Clear collected</button>
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
         <button class="act" data-act="merge">Merge .ics links on this page</button>
+        <button class="act" data-act="course">Collect this course: announcements + content</button>
         <button class="act" data-act="links">Report: links on this page (tokens stripped)</button>
         <button class="act" data-act="structure">Report: page structure</button>
         <button class="act" data-act="data">Report: where the calendar data lives</button>
         <button class="act" data-act="requests">Report: what this page asks the server</button>
-        <button class="act" data-act="explore">Report: why the course API says no</button>
         <button class="act" data-act="forget">Clear recorded requests</button>
         <textarea data-role="out" hidden></textarea>
         <button class="act" data-act="copy" hidden>Copy to clipboard</button>
@@ -1057,13 +976,31 @@
         return;
       }
 
-      if (act === "explore") {
-        status.className = "note";
-        status.textContent = "Probing the course API…";
-        show(await exploreReport(), "ok");
-        status.textContent = "Diagnosis below — it compares six requests, including one impossible path.";
+      if (act === "course") {
+        const digest = {
+          course: collectCourse(document),
+          announcements: collectAnnouncements(document),
+          content: collectContentItems(document),
+          source: window.location.pathname,
+        };
+        const markdown = courseDigestToMarkdown(digest);
+
+        if (!digest.announcements.length && !digest.content.length) {
+          status.className = "note warn";
+          status.textContent = "Nothing to collect on this page.";
+          hint.textContent =
+            "Open the course's Announcements page, or its Content page, then press this again.";
+          return;
+        }
+
+        download("huskyct-course.md", markdown, "text/markdown;charset=utf-8");
+        status.className = "note ok";
+        status.textContent =
+          "Collected " + digest.announcements.length + " announcement(s) and " +
+          digest.content.length + " content item(s).";
         hint.textContent =
-          "Copy it and send it back. Query strings are shown as names only and cookies as names only, so no token and no session value can be in it.";
+          "Saved as huskyct-course.md. Nothing was requested from UConn — this reads the page you are looking at.";
+        show(markdown, "ok");
         return;
       }
 
@@ -1163,11 +1100,14 @@
       requestReport,
       recorded,
       currentCourseId,
-      listOf,
-      queryKeys,
-      cookieNames,
-      apiTraffic,
-      newestApiUrl,
+      textOf,
+      courseCodeFromDisplay,
+      courseTitleFromDisplay,
+      postedFromText,
+      collectAnnouncements,
+      collectContentItems,
+      collectCourse,
+      courseDigestToMarkdown,
       collect: harvest,
       collected,
       VERSION,

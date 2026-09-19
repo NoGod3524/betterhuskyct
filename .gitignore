@@ -43,3 +43,6 @@ next-env.d.ts
 # editor / assistant scaffolding (regenerated locally; not part of the project)
 AGENTS.md
 CLAUDE.md
+
+# Local scratch for driving a browser by hand; may contain real page content.
+.probe/
