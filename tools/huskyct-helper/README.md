@@ -8,7 +8,8 @@ A userscript that runs inside your own HuskyCT session and does three things:
    writes a single file you can drop straight into the app.
 2. **Collects a course** — its announcements, its outline, and the files it links
    to — as a Markdown digest.
-3. **Collects your deadlines** from the to-do list as a calendar file.
+3. **Sends your deadlines to HuskyPilot** in one press — no file to download, and
+   nothing uploaded.
 
 > **HuskyCT is Blackboard Ultra at `lms.uconn.edu`.** The script also matches
 > `huskyct.uconn.edu` in case that hostname still redirects, but `lms.uconn.edu`
@@ -73,11 +74,22 @@ Titles are read from each item's accessibility label — `Status for Cengage
 WebAssign: Started` — rather than from a CSS class, because those class names
 carry build hashes and change with every release.
 
-## Collecting deadlines
+## Sending deadlines to HuskyPilot
 
-*Collect deadlines from this page (.ics)* reads the to-do list — which lives on
-the HuskyCT home, the Courses page — and writes `huskyct-deadlines.ics`. Drop
-that into HuskyPilot like any other calendar.
+*Send deadlines to HuskyPilot* reads the to-do list — which lives on the HuskyCT
+home, the Courses page — and opens the dashboard with those deadlines already in
+the link. Press **Apply** there and they are in.
+
+There is no file to download and nothing to import. The data rides in the
+fragment of the URL, which browsers never send to a server, so it goes from
+HuskyCT to your own copy of HuskyPilot and nowhere else. A whole term is a couple
+of kilobytes: 120 deadlines pack to about 1.4 KB, and the dashboard's own guard
+is 32 KB.
+
+It uses the same link format as *Sync this dashboard to another device*, so the
+payload is read back by exactly the same code. A test asserts that by running a
+generated link through the dashboard's real reader rather than through a
+description of it.
 
 Each item is read from the link the application renders for it, because that
 link's accessible name carries the whole record:
@@ -85,13 +97,18 @@ link's accessible name carries the whole record:
     Section 4.7 Homework, Homework · MATH-1070Q-SEC100.120-1268 · _203765_1,
     due 9/25/26, 11:59 PM
 
-Title, kind, course, due time and the application's own item id all come out of
-that one string. Using its id as the calendar UID means collecting twice does
-not put the same deadline into HuskyPilot twice.
+Title, kind, course and due time all come out of that one string. The task id is
+built as `uid + ":" + start` — exactly how the dashboard derives one from a
+calendar file — so a deadline that arrived by file and one that arrived by link
+are recognised as the same deadline rather than counted twice.
 
 Times are read as the reader's own local time. The page shows wall-clock time
-with no zone on it, so that is the only reading the page offers — and it is the
-right one for someone sitting in the same timezone as their classes.
+with no zone on it, so that is the only reading it offers, and the right one for
+someone sitting in the same timezone as their classes.
+
+**Why it still asks once.** HuskyPilot confirms before applying a link, on
+purpose: a sync link is untrusted input. The helper could set a flag meaning
+"this one is safe", but anyone could set that flag too, so it does not.
 
 ## Status
 

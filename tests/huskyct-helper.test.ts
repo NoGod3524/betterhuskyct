@@ -39,16 +39,28 @@ type HelperSurface = {
   dueDateFromText: (value: string) => Date | null;
   collectTodos: (root: unknown) => Array<Record<string, unknown>>;
   todosToRecords: (todos: Array<Record<string, unknown>>) => Array<Record<string, unknown>>;
+  taskFromRecord: (record: Record<string, unknown>) => Record<string, unknown>;
+  syncPayload: (records: Array<Record<string, unknown>>, now?: Date) => Record<string, unknown>;
+  huskypilotLink: (records: Array<Record<string, unknown>>, now?: Date) => Promise<string>;
   VERSION: string;
 };
 
 const sandbox: Record<string, unknown> = {
   console,
   URL,
-  Blob: class {},
   setTimeout,
   clearTimeout,
   navigator: {},
+  // Real ones, not stubs: building the HuskyPilot link gzips the payload through
+  // Blob -> CompressionStream -> Response, and a stub Blob cannot stream.
+  Blob,
+  Response,
+  TextEncoder,
+  TextDecoder,
+  CompressionStream,
+  DecompressionStream,
+  btoa,
+  atob,
   // A userscript always runs inside a page, so a real Location is part of the
   // environment rather than something the code should work around. This is the
   // host HuskyCT actually serves from.
@@ -81,6 +93,7 @@ function helperAt(href: string, pathname: string, origin: string): HelperSurface
 }
 
 import { parseCalendar } from "../src/lib/parse-calendar.ts";
+import { decodeSyncPayload } from "../src/lib/sync.ts";
 
 const {
   mergeCalendars,
@@ -98,6 +111,9 @@ const {
   dueDateFromText,
   collectTodos,
   todosToRecords,
+  taskFromRecord,
+  syncPayload,
+  huskypilotLink,
 } = sandbox.__huskyctHelper as HelperSurface;
 
 test("the userscript parses and exposes its helpers", () => {
@@ -720,4 +736,107 @@ test("the digest lists files as links", () => {
 
   assert.match(markdown, /## Files \(1\)/);
   assert.match(markdown, /- \[Course Information and Syllabus\]\(https:\/\/lms\.uconn\.edu\/x\/document\/_1_1\)/);
+});
+
+// --------------------------------------------------------- sending to HuskyPilot
+//
+// The payload has to satisfy the dashboard's own reader, which drops anything
+// that does not match rather than half-applying it. So these assertions run the
+// real link through the real reader, not through a description of it.
+
+const TODO_ANCHOR = {
+  getAttribute: (name: string) =>
+    name === "aria-label"
+      ? TODO_LABEL
+      : name === "data-analytics-id"
+        ? "student-todo.item._3867214_1"
+        : null,
+};
+
+function collectedRecords() {
+  return todosToRecords(collectTodos({ querySelectorAll: () => [TODO_ANCHOR] }));
+}
+
+test("a collected deadline becomes a task in the dashboard's own shape", () => {
+  const task = taskFromRecord(collectedRecords()[0]);
+
+  assert.equal(task.id, "huskyct-todo-_3867214_1:2026-09-26T03:59:00.000Z");
+  assert.equal(task.title, "Section 4.7 Homework");
+  assert.equal(task.course, "MATH 1070Q");
+  assert.equal(task.start, "2026-09-26T03:59:00.000Z");
+  assert.equal(task.end, null);
+  assert.equal(task.dateKey, null, "a timed entry has no all-day key");
+  assert.equal(task.allDay, false);
+  assert.equal(task.location, null);
+  assert.equal(task.kind, "assignment");
+});
+
+/**
+ * This is what stops a deadline arriving twice. The dashboard derives a task id
+ * as `uid + ":" + start` when it reads a calendar file; the link has to produce
+ * the same string or the two paths would both add the same homework.
+ */
+test("the id matches what the dashboard builds from the calendar file", async () => {
+  const records = collectedRecords();
+  const parsed = await parseCalendar(recordsToIcs(records), new Date("2026-09-20T12:00:00Z"));
+
+  assert.equal(parsed.events.length, 1);
+  assert.equal(taskFromRecord(records[0]).id, parsed.events[0].id);
+});
+
+test("the payload says nothing about the parts it did not collect", () => {
+  // Through JSON, so the object under test is built in this realm: a strict
+  // deep comparison checks prototypes, and the payload comes out of the VM.
+  const payload = JSON.parse(JSON.stringify(syncPayload(collectedRecords(), new Date("2026-09-19T12:00:00Z"))));
+
+  assert.equal(payload.version, 1);
+  assert.equal(payload.exportedAt, "2026-09-19T12:00:00.000Z");
+  assert.equal((payload.feeds as unknown[]).length, 1);
+  // Empty means "change nothing" to the merge, which only ever adds courses and
+  // unions ticks. Filling these in would be inventing data about the user.
+  assert.deepEqual(payload.completedIds, []);
+  assert.deepEqual(payload.efforts, {});
+  assert.deepEqual(payload.courses, { version: 1, courses: [], assignments: {} });
+});
+
+test("the link the panel opens is accepted by the dashboard's own reader", async () => {
+  const link = await huskypilotLink(collectedRecords(), new Date("2026-09-19T12:00:00Z"));
+  assert.ok(link.startsWith("https://huskypilot.vercel.app/#sync="), link.slice(0, 60));
+
+  const packed = link.slice(link.indexOf("#sync=") + "#sync=".length);
+  const payload = await decodeSyncPayload(packed);
+  assert.ok(payload, "the dashboard would have rejected this link");
+
+  const events = payload.feeds.flatMap((feed) => feed.events);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].title, "Section 4.7 Homework");
+  assert.equal(events[0].course, "MATH 1070Q");
+  assert.equal(events[0].kind, "assignment");
+});
+
+test("the same deadlines always produce the same link", async () => {
+  const at = new Date("2026-09-19T12:00:00Z");
+  assert.equal(await huskypilotLink(collectedRecords(), at), await huskypilotLink(collectedRecords(), at));
+});
+
+test("a link for a whole term of deadlines stays well inside what a fragment holds", async () => {
+  const many = [];
+  for (let index = 0; index < 120; index += 1) {
+    many.push({
+      uid: "huskyct-todo-_" + index + "_1",
+      title: "Homework set " + index,
+      course: "MATH 1070Q",
+      start: new Date(Date.UTC(2026, 8, 20 + (index % 30), 3, 59)).toISOString(),
+      end: null,
+      allDay: false,
+      kind: "assignment",
+    });
+  }
+
+  const link = await huskypilotLink(many, new Date("2026-09-19T12:00:00Z"));
+  const packed = link.slice(link.indexOf("#sync=") + "#sync=".length);
+
+  assert.ok(packed.length < 32768, "over the dashboard's own guard: " + packed.length);
+  const payload = await decodeSyncPayload(packed);
+  assert.equal(payload?.feeds.flatMap((feed) => feed.events).length, 120);
 });

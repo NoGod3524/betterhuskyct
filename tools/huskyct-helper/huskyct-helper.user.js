@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.9.0
+// @version      0.10.0
 // @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -41,7 +41,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.9.0";
+  const VERSION = "0.10.0";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -576,6 +576,90 @@
     }));
   }
 
+
+  // --------------------------------------------------- sending to HuskyPilot
+
+  /**
+   * The dashboard accepts a whole set-up in the fragment of a URL: JSON,
+   * gzipped, base64url, behind `#sync=`. A fragment is never sent to a server,
+   * which is what keeps this honest — the data goes from HuskyCT to the user's
+   * own copy of HuskyPilot and nowhere else. There is nothing to store and
+   * nothing to expire.
+   *
+   * The shape below is not invented here. It is what `parseSyncPayload` in the
+   * app accepts, and that reader is deliberately strict: a payload that does not
+   * match is dropped whole rather than half-applied, and `courses` has to carry
+   * its own `version` for the same reason.
+   */
+  const HUSKYPILOT_URL = "https://huskypilot.vercel.app/";
+  const SYNC_VERSION = 1;
+
+  /** gzip, then base64url — the same three steps the app reverses. */
+  async function packSync(text) {
+    const stream = new Blob([new TextEncoder().encode(text)])
+      .stream()
+      .pipeThrough(new CompressionStream("gzip"));
+    const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+
+    let binary = "";
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  /**
+   * A collected record as the dashboard's own task shape.
+   *
+   * The id is `uid + ":" + start` because that is exactly how the app builds one
+   * from a calendar file. Sending a deadline that is already there therefore
+   * matches the existing entry rather than adding a second copy of it.
+   */
+  function taskFromRecord(record) {
+    return {
+      id: record.uid + ":" + record.start,
+      title: record.title,
+      course: record.course === undefined ? null : record.course,
+      start: record.start,
+      dateKey: record.allDay ? record.start.slice(0, 10) : null,
+      end: record.end === undefined ? null : record.end,
+      allDay: Boolean(record.allDay),
+      location: record.location === undefined ? null : record.location,
+      kind: record.kind === undefined ? null : record.kind,
+    };
+  }
+
+  /**
+   * The sync payload, carrying only what was just collected.
+   *
+   * Ticks, effort marks and courses go over empty on purpose. The app merges
+   * additively — courses are only ever added, ticks are unioned — so an empty
+   * set says "change nothing here". Filling them in would mean sending a guess
+   * about the user's other devices back to them.
+   */
+  function syncPayload(records, now) {
+    const stamp = (now || new Date()).toISOString();
+    return {
+      version: SYNC_VERSION,
+      exportedAt: stamp,
+      feeds: [
+        {
+          name: "HuskyCT to-do",
+          courseId: null,
+          importedAt: stamp,
+          events: records.map(taskFromRecord),
+        },
+      ],
+      completedIds: [],
+      efforts: {},
+      courses: { version: 1, courses: [], assignments: {} },
+    };
+  }
+
+  /** The link the panel opens: the payload, carried in the fragment. */
+  async function huskypilotLink(records, now) {
+    const packed = await packSync(JSON.stringify(syncPayload(records, now)));
+    return HUSKYPILOT_URL + "#sync=" + packed;
+  }
+
   // -------------------------------------------------------------------- panel
 
   const style = `
@@ -636,13 +720,13 @@
       </header>
       <div class="body">
         <div class="note" data-role="count">Collected 0 events.</div>
-        <button class="act primary" data-act="export">Export .ics</button>
+        <button class="act" data-act="export">Export .ics</button>
         <div class="note">Stay on the Calendar page and move through the term — every view you open is added as you go. Then export and drop the file into HuskyPilot.</div>
         <button class="act" data-act="clear">Clear collected</button>
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
         <button class="act" data-act="merge">Merge .ics links on this page</button>
         <button class="act" data-act="course">Collect this course: announcements + content</button>
-        <button class="act" data-act="todos">Collect deadlines from this page (.ics)</button>
+        <button class="act primary" data-act="todos">Send deadlines to HuskyPilot</button>
         <textarea data-role="out" hidden></textarea>
         <button class="act" data-act="copy" hidden>Copy to clipboard</button>
         <div class="note" data-role="status">Nothing is uploaded. Everything stays in this browser.</div>
@@ -717,7 +801,7 @@
         const records = [...collected.values()];
         const withCourse = records.filter((record) => record.course).length;
         download(
-          "huskyct-deadlines.ics",
+          "huskyct-calendar.ics",
           recordsToIcs(records),
           "text/calendar;charset=utf-8",
         );
@@ -727,7 +811,7 @@
           "Exported " + records.length + " events, " + withCourse + " with a course code.";
         hint.textContent =
           (result.added ? "Picked up " + result.added + " more just now. " : "") +
-          "Drop huskyct-deadlines.ics into HuskyPilot.";
+          "Drop huskyct-calendar.ics into HuskyPilot.";
         return;
       }
 
@@ -783,20 +867,23 @@
         }
 
         const records = todosToRecords(todos);
-        download("huskyct-deadlines.ics", recordsToIcs(records), "text/calendar;charset=utf-8");
+        button.disabled = true;
+        status.className = "note";
+        status.textContent = "Sending " + records.length + " deadline(s) to HuskyPilot…";
 
-        const withCourse = todos.filter((todo) => todo.course).length;
-        status.className = "note ok";
-        status.textContent =
-          "Exported " + records.length + " deadline(s), " + withCourse + " with a course code.";
-        hint.textContent =
-          "Saved as huskyct-deadlines.ics. Nothing was requested from UConn — this reads the page you are looking at.";
-        show(
-          todos
-            .map((todo) => todo.dueText + "  " + (todo.course || "?") + "  " + todo.title)
-            .join("\n"),
-          "ok",
-        );
+        try {
+          const link = await huskypilotLink(records);
+          window.open(link, "_blank", "noopener");
+          status.className = "note ok";
+          status.textContent = "Opened HuskyPilot with " + records.length + " deadline(s).";
+          hint.textContent =
+            "Press Apply there and they are in. Nothing was uploaded — the deadlines travel inside the link.";
+        } catch (error) {
+          status.className = "note warn";
+          status.textContent = "Could not build the link: " + error.message;
+        } finally {
+          button.disabled = false;
+        }
         return;
       }
 
@@ -880,6 +967,9 @@
       dueDateFromText,
       collectTodos,
       todosToRecords,
+      taskFromRecord,
+      syncPayload,
+      huskypilotLink,
       collect: harvest,
       collected,
       VERSION,
