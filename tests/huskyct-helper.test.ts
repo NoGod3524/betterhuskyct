@@ -577,7 +577,7 @@ test("a to-do without the application's id still gets a stable one", () => {
   const second = collectTodos({ querySelectorAll: () => [anchor] });
 
   assert.equal(first.length, 1);
-  assert.ok(first[0].uid.startsWith("huskyct-todo-"));
+  assert.ok(String(first[0].uid).startsWith("huskyct-todo-"));
   assert.equal(first[0].uid, second[0].uid, "the fallback id is not stable");
 });
 
