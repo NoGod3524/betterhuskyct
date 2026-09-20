@@ -63,6 +63,9 @@ function newSubscriptionId(): string {
   return `feed-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** For a caller building a subscription itself, such as a sync import. */
+export const createSubscriptionId = newSubscriptionId;
+
 function parseSubscription(value: unknown): Subscription | null {
   if (!isRecord(value)) return null;
   if (typeof value.id !== "string" || !value.id) return null;
