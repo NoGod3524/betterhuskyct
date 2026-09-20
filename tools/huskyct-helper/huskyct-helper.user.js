@@ -2,7 +2,7 @@
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
 // @version      0.10.0
-// @description  Merges your HuskyCT course calendars into one .ics, and reports what a page contains. Everything happens in your own browser.
+// @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to HuskyPilot. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
 // @match        https://huskyct.uconn.edu/*
