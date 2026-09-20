@@ -12,6 +12,7 @@ import {
   FileUp,
   LayoutDashboard,
   ListChecks,
+  Puzzle,
   Sparkles,
 } from "lucide-react";
 
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { href: "/tasks", key: "nav.tasks", Icon: Check },
   { href: "/calendar", key: "nav.calendar", Icon: CalendarDays },
   { href: "/insights", key: "insights.eyebrow", Icon: ChartColumn },
+  { href: "/helper", key: "nav.helper", Icon: Puzzle },
 ] as const;
 
 /**

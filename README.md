@@ -162,12 +162,14 @@ src/
 │  ├─ tasks/page.tsx                 # /tasks     rolling 7-day list
 │  ├─ calendar/page.tsx              # /calendar  add another calendar
 │  ├─ insights/page.tsx              # /insights  workload analytics
+│  ├─ helper/page.tsx                # /helper    install the browser helper
 │  ├─ globals.css
 │  └─ icon.tsx
 ├─ components/
 │  ├─ calendar-provider.tsx          # Every piece of app state, in the root layout
 │  ├─ app-shell.tsx                  # Sidebar, header, footer
 │  ├─ connect-section.tsx            # Import form, course list, help text
+│  ├─ helper-section.tsx             # How to install the browser helper
 │  ├─ plan-section.tsx               # Overdue / at risk / upcoming plan rows
 │  ├─ tasks-section.tsx              # Task groups and cards
 │  ├─ task-card.tsx                  # One task: badges, time, room, course picker

@@ -9,6 +9,27 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.5.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.5.0) — A door for the helper
+
+*Minor bump: a page that installs the browser helper, so nobody has to find a raw URL.*
+
+### Added
+
+- **A Helper page**, reachable from the sidebar, that installs the browser
+  helper in two store clicks. It asks for the Tampermonkey listing belonging to
+  the browser doing the asking — Edge is checked first, because Edge's user
+  agent says "Chrome" too and the Chrome Web Store refuses to install into it —
+  and falls back to Tampermonkey's own page for anything it does not recognise.
+  ([#35])
+- It says what the helper does, and at more length what it will not: no NetID,
+  no password, no request of its own, nothing uploaded.
+
+### Notes
+
+- Which listing to offer is decided in `src/lib/helper.ts` and tested there,
+  because a wrong store link fails at the exact moment someone has decided to
+  trust the thing. All four listings were fetched and each named Tampermonkey.
+
 ## [1.4.1](https://github.com/NoGod3524/huskypilot/releases/tag/v1.4.1) — A date is not an instant
 
 *Patch: all-day entries landed a day early for anyone east of UTC.*
@@ -437,6 +458,7 @@ saying what to work on next.*
 [#30]: https://github.com/NoGod3524/huskypilot/pull/30
 [#31]: https://github.com/NoGod3524/huskypilot/pull/31
 [#34]: https://github.com/NoGod3524/huskypilot/pull/34
+[#35]: https://github.com/NoGod3524/huskypilot/pull/35
 
 
 
