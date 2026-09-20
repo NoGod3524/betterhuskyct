@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.10.1
+// @version      0.10.2
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to HuskyPilot. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
 // @match        https://huskyct.uconn.edu/*
-// @updateURL    https://raw.githubusercontent.com/NoGod3524/huskypilot/feat/huskyct-helper/tools/huskyct-helper/huskyct-helper.user.js
-// @downloadURL  https://raw.githubusercontent.com/NoGod3524/huskypilot/feat/huskyct-helper/tools/huskyct-helper/huskyct-helper.user.js
+// @updateURL    https://raw.githubusercontent.com/NoGod3524/huskypilot/main/tools/huskyct-helper/huskyct-helper.user.js
+// @downloadURL  https://raw.githubusercontent.com/NoGod3524/huskypilot/main/tools/huskyct-helper/huskyct-helper.user.js
 // @run-at       document-start
 // @grant        none
 // ==/UserScript==
@@ -41,7 +41,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.10.1";
+  const VERSION = "0.10.2";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
