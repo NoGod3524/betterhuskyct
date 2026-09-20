@@ -577,7 +577,7 @@ test("a to-do without the application's id still gets a stable one", () => {
   const second = collectTodos({ querySelectorAll: () => [anchor] });
 
   assert.equal(first.length, 1);
-  assert.ok(first[0].uid.startsWith("huskyct-todo-"));
+  assert.ok(String(first[0].uid).startsWith("huskyct-todo-"));
   assert.equal(first[0].uid, second[0].uid, "the fallback id is not stable");
 });
 
@@ -762,10 +762,16 @@ function collectedRecords() {
 test("a collected deadline becomes a task in the dashboard's own shape", () => {
   const task = taskFromRecord(collectedRecords()[0]);
 
-  assert.equal(task.id, "huskyct-todo-_3867214_1:2026-09-26T03:59:00.000Z");
+  // Built from the same local parts the reader uses, not written out as a UTC
+  // instant. The page shows wall-clock time with no zone on it, so the instant
+  // depends on where the machine is: 11:59 PM is 03:59Z in New York and 23:59Z
+  // in London. A hardcoded string passes here and fails on CI, which is UTC.
+  const due = new Date(2026, 8, 25, 23, 59, 0, 0);
+
+  assert.equal(task.id, "huskyct-todo-_3867214_1:" + due.toISOString());
   assert.equal(task.title, "Section 4.7 Homework");
   assert.equal(task.course, "MATH 1070Q");
-  assert.equal(task.start, "2026-09-26T03:59:00.000Z");
+  assert.equal(task.start, due.toISOString());
   assert.equal(task.end, null);
   assert.equal(task.dateKey, null, "a timed entry has no all-day key");
   assert.equal(task.allDay, false);

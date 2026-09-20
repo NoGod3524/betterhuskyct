@@ -1,6 +1,6 @@
 # Changelog
 
-Every notable change to HuskyPilot, oldest first. Each entry corresponds to a
+Every notable change to HuskyPilot, newest first. Each entry corresponds to a
 merged pull request, and each version tag marks the state of `main` right after
 that merge.
 
@@ -8,6 +8,40 @@ The scheme is deliberately simple:
 
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
+
+## [1.4.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.4.0) — HuskyCT hands over your deadlines
+
+*Minor bump: a browser extension that puts HuskyCT's own data into the dashboard.*
+
+### Added
+
+- **HuskyCT Helper**, a userscript that runs inside the session your browser
+  already has. It reads the to-do list, a course's announcements and its
+  outline, and it opens HuskyPilot with the deadlines already in the link —
+  no file to download, nothing to import, and nothing uploaded. ([#31])
+- It **reads rather than asks**. HuskyCT's own API refuses scripts: a request
+  the page itself makes gets a 200 where an identical one from a script gets an
+  `AccessDenied`, and a path that cannot exist is refused the same way. So the
+  helper reads what is already on screen, which makes no request at all. The
+  one exception is merging calendar feeds, and those are links the page shows.
+- Content is found by **accessibility label** — `Status for Cengage WebAssign:
+  Started` — rather than by CSS class, because those class names carry build
+  hashes and change with every release.
+
+### Changed
+
+- `blackboardKind` recognises the helper's `huskyct-todo-` uids, so deadlines
+  that arrive this way are graded work rather than falling through to the
+  unknown kind.
+
+### Notes
+
+- The link carries the same payload as *Sync to another device*, and the app
+  reads it back with the same reader. A deadline that arrived by file and one
+  that arrived by link are therefore recognised as the same deadline instead of
+  being counted twice.
+- HuskyPilot still **asks before applying**, and the helper cannot skip that: a
+  flag meaning "this link is safe" could be set by anyone who can write a link.
 
 ## [1.3.1](https://github.com/NoGod3524/huskypilot/releases/tag/v1.3.1) — Where did the delete button go
 
@@ -381,6 +415,7 @@ saying what to work on next.*
 [#28]: https://github.com/NoGod3524/huskypilot/pull/28
 [#29]: https://github.com/NoGod3524/huskypilot/pull/29
 [#30]: https://github.com/NoGod3524/huskypilot/pull/30
+[#31]: https://github.com/NoGod3524/huskypilot/pull/31
 
 
 
