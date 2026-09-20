@@ -30,7 +30,7 @@ A userscript that runs inside your own HuskyCT session and does three things:
    Safari) or [Violentmonkey](https://violentmonkey.github.io/).
 2. Open the extension's dashboard → **Create a new script**.
 3. Delete the template, paste in the whole of `huskyct-helper.user.js`, and save.
-4. Open HuskyCT. A small panel appears in the bottom-right corner.
+4. Open HuskyCT. A small panel appears in the bottom-right corner, and it says which button the page you are on wants.
 
 ## Use
 

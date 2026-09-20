@@ -39,6 +39,7 @@ type HelperSurface = {
   dueDateFromText: (value: string) => Date | null;
   collectTodos: (root: unknown) => Array<Record<string, unknown>>;
   todosToRecords: (todos: Array<Record<string, unknown>>) => Array<Record<string, unknown>>;
+  guidanceFor: (scope: unknown, courseId: string | null) => string;
   taskFromRecord: (record: Record<string, unknown>) => Record<string, unknown>;
   syncPayload: (records: Array<Record<string, unknown>>, now?: Date) => Record<string, unknown>;
   huskypilotLink: (records: Array<Record<string, unknown>>, now?: Date) => Promise<string>;
@@ -111,6 +112,7 @@ const {
   dueDateFromText,
   collectTodos,
   todosToRecords,
+  guidanceFor,
   taskFromRecord,
   syncPayload,
   huskypilotLink,
@@ -839,4 +841,18 @@ test("a link for a whole term of deadlines stays well inside what a fragment hol
   assert.ok(packed.length < 32768, "over the dashboard's own guard: " + packed.length);
   const payload = await decodeSyncPayload(packed);
   assert.equal(payload?.feeds.flatMap((feed) => feed.events).length, 120);
+});
+
+test("the panel says which button this page wants", () => {
+  const withTodo = { querySelector: (selector: string) => (selector.includes(", due ") ? {} : null) };
+  const plain = { querySelector: () => null };
+
+  assert.match(guidanceFor(withTodo, null), /Send deadlines to HuskyPilot/);
+  assert.match(guidanceFor(plain, "_203765_1"), /Collect this course/);
+  assert.match(guidanceFor(plain, null), /Courses page/);
+});
+
+test("a page with a to-do list wins over being inside a course", () => {
+  const withTodo = { querySelector: (selector: string) => (selector.includes(", due ") ? {} : null) };
+  assert.match(guidanceFor(withTodo, "_203765_1"), /Send deadlines to HuskyPilot/);
 });

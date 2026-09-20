@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.10.0
+// @version      0.10.1
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to HuskyPilot. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -41,7 +41,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.10.0";
+  const VERSION = "0.10.1";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -660,6 +660,24 @@
     return HUSKYPILOT_URL + "#sync=" + packed;
   }
 
+  /**
+   * What to do on the page the panel happens to be sitting on.
+   *
+   * The panel offers six actions and nothing on screen says which one this page
+   * wants. Working that out is the script's job, not the reader's.
+   */
+  function guidanceFor(scope, courseId) {
+    const root = scope || document;
+
+    if (root.querySelector("[aria-label*=', due ']")) {
+      return "This page has your to-do list. Press “Send deadlines to HuskyPilot”.";
+    }
+    if (courseId) {
+      return "You are in a course. Press “Collect this course” for its announcements and files.";
+    }
+    return "Open the Courses page for your deadlines, or a course for its announcements and files.";
+  }
+
   // -------------------------------------------------------------------- panel
 
   const style = `
@@ -758,6 +776,7 @@
     }, 1500);
     harvest();
     refreshCount();
+    hint.textContent = guidanceFor(document, currentCourseId());
 
     wrap.querySelector(".close").addEventListener("click", () => {
       host.remove();
@@ -967,6 +986,7 @@
       dueDateFromText,
       collectTodos,
       todosToRecords,
+      guidanceFor,
       taskFromRecord,
       syncPayload,
       huskypilotLink,
