@@ -162,12 +162,14 @@ src/
 │  ├─ tasks/page.tsx                 # /tasks     滚动 7 天清单
 │  ├─ calendar/page.tsx              # /calendar  再加一个日历
 │  ├─ insights/page.tsx              # /insights  负担分析
+│  ├─ helper/page.tsx                # /helper    安装浏览器助手
 │  ├─ globals.css
 │  └─ icon.tsx
 ├─ components/
 │  ├─ calendar-provider.tsx          # 全部应用状态，挂在根布局
 │  ├─ app-shell.tsx                  # 侧边栏、页头、页脚
 │  ├─ connect-section.tsx            # 导入表单、课程列表、帮助说明
+│  ├─ helper-section.tsx             # 怎么安装浏览器助手
 │  ├─ plan-section.tsx               # 已过期 / 有风险 / 接下来 三组计划行
 │  ├─ tasks-section.tsx              # 任务分组与卡片
 │  ├─ task-card.tsx                  # 单条任务：标签、时间、教室、课程下拉
