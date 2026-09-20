@@ -35,6 +35,14 @@ jobs:
       - name: Test
         run: npm test
 
+      # A date-only DTSTART once shifted one day earlier for any runtime east of
+      # UTC, and this job runs in UTC, so the suite passed while the bug was
+      # real. Running it again from the other side of the line is the guard.
+      - name: Test east of UTC
+        run: npm test
+        env:
+          TZ: Pacific/Auckland
+
       - name: Lint
         run: npm run lint
 

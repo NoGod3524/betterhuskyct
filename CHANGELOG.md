@@ -9,6 +9,26 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.4.1](https://github.com/NoGod3524/huskypilot/releases/tag/v1.4.1) — A date is not an instant
+
+*Patch: all-day entries landed a day early for anyone east of UTC.*
+
+### Fixed
+
+- An all-day entry — `DTSTART;VALUE=DATE:20260901` — is a calendar date with no
+  time and no zone. It is parsed into local midnight and was then read back in
+  **UTC**, which returns the previous day for any runtime east of UTC: local
+  midnight in London is 23:00Z the day before. Deployments in UTC were
+  unaffected, which is why nothing had noticed. ([#34])
+- `dateKey` is consumed as a local date — `date-utils` turns it back into local
+  midnight — so the local reading is the one the rest of the app already
+  expected. The two halves now agree.
+
+### Notes
+
+- CI ran the suite only in UTC, where the old behaviour is correct, so it could
+  not have caught this. It now runs a second time with `TZ=Pacific/Auckland`.
+
 ## [1.4.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.4.0) — HuskyCT hands over your deadlines
 
 *Minor bump: a browser extension that puts HuskyCT's own data into the dashboard.*
@@ -416,6 +436,7 @@ saying what to work on next.*
 [#29]: https://github.com/NoGod3524/huskypilot/pull/29
 [#30]: https://github.com/NoGod3524/huskypilot/pull/30
 [#31]: https://github.com/NoGod3524/huskypilot/pull/31
+[#34]: https://github.com/NoGod3524/huskypilot/pull/34
 
 
 

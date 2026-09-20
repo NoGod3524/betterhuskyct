@@ -37,9 +37,26 @@ function cleanText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+/**
+ * The calendar date an all-day entry belongs to.
+ *
+ * A `VALUE=DATE` carries no time and no zone — `20260901` means the first of
+ * September, wherever the reader is. node-ical turns it into local midnight, so
+ * reading the parts back in the same local zone returns the date the file
+ * actually wrote.
+ *
+ * Reading them in UTC instead made this depend on where the process runs:
+ * local midnight in London is 23:00Z the day before, so every all-day entry
+ * arrived one day early for a runtime east of UTC, and correctly for one west
+ * of it. `dateKey` is consumed as a local date — `date-utils` turns it back
+ * into local midnight — so the local reading is the one the rest of the app
+ * already expects.
+ */
 function allDayKey(value: CalendarDate) {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: value.tz ?? "UTC",
+    // A named zone wins if the file gave one; otherwise stay in the zone
+    // node-ical built the date in.
+    ...(value.tz ? { timeZone: value.tz } : {}),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

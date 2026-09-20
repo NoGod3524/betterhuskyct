@@ -87,6 +87,29 @@ END:VCALENDAR`;
   assert.equal(groups[2].tasks.some((event) => event.course === "ECON 1201"), true);
 });
 
+/**
+ * A date-only DTSTART carries no zone: 20260901 is the first of September
+ * wherever the reader is. This passes in any zone now — it did not always, and
+ * the reason CI runs the suite a second time east of UTC is this test.
+ */
+test("an all-day entry keeps the date the file wrote, wherever this runs", async () => {
+  const calendar = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:all-day
+DTSTAMP:20260801T120000Z
+DTSTART;VALUE=DATE:20260901
+SUMMARY:All-day reminder
+END:VEVENT
+END:VCALENDAR`;
+
+  const parsed = await parseCalendar(calendar, new Date(2026, 8, 1, 9, 0, 0));
+  const allDay = parsed.events[0];
+
+  assert.equal(allDay.allDay, true);
+  assert.equal(allDay.dateKey, "2026-09-01");
+});
+
 test("hides timed events earlier today but keeps all-day events for today", () => {
   const now = new Date(2026, 8, 1, 9, 0, 0);
   const events = [
