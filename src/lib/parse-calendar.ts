@@ -21,6 +21,10 @@ type CalendarDate = Date & { dateOnly?: true; tz?: string };
 export function blackboardKind(uid: string): TaskKind | null {
   if (uid.includes(".calendar.CalendarEntry-")) return "class";
   if (uid.includes(".gradebook2.GradableItem-")) return "assignment";
+  // HuskyCT Helper's own to-do export. Those items are read from the course's
+  // to-do list, which only ever lists graded work — so unlike a calendar entry,
+  // there is no ambiguity to resolve.
+  if (uid.startsWith("huskyct-todo-")) return "assignment";
   return null;
 }
 
