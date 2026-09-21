@@ -9,7 +9,32 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
-## [1.6.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.6.0) — BetterHuskyCT
+## [1.6.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.1) — The rename, finished
+
+*Patch: the parts of the rename that needed the repository and the domain to move first.*
+
+### Changed
+
+- Everything that pointed at `github.com/NoGod3524/huskypilot` now points at
+  `betterhuskyct` — the helper's update URL, its download URL, the constants in
+  `src/lib/helper.ts` that the install page hands out, the README badges, and
+  the changelog's own links. ([#37])
+- The helper points at **`betterhuskyct.vercel.app`**, and moves to 0.10.4 so
+  installed copies pick the new address up. ([#37])
+
+### Notes
+
+- The repository rename was measured before it was relied on: an installed copy
+  of the helper has the *old* raw update URL baked into its Tampermonkey
+  metadata, so if `raw.githubusercontent.com` had stopped resolving the old path
+  those copies could never have updated themselves again. It does follow the
+  rename — `raw.githubusercontent.com/NoGod3524/huskypilot/...` still answers
+  200 with the current file. ([#37])
+- Vercel binds a `.vercel.app` domain at deploy time, so the renamed project
+  answered `DEPLOYMENT_NOT_FOUND` until the first production deploy after the
+  rename. That is what this commit is. ([#37])
+
+## [1.6.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.0) — BetterHuskyCT
 
 *Minor bump: the project has a name that says what it is.*
 
@@ -29,7 +54,7 @@ The scheme is deliberately simple:
   panel names the dashboard, and Tampermonkey only notices a change when
   `@version` increases.
 
-## [1.5.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.5.0) — A door for the helper
+## [1.5.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.5.0) — A door for the helper
 
 *Minor bump: a page that installs the browser helper, so nobody has to find a raw URL.*
 
@@ -50,7 +75,7 @@ The scheme is deliberately simple:
   because a wrong store link fails at the exact moment someone has decided to
   trust the thing. All four listings were fetched and each named Tampermonkey.
 
-## [1.4.1](https://github.com/NoGod3524/huskypilot/releases/tag/v1.4.1) — A date is not an instant
+## [1.4.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.4.1) — A date is not an instant
 
 *Patch: all-day entries landed a day early for anyone east of UTC.*
 
@@ -70,7 +95,7 @@ The scheme is deliberately simple:
 - CI ran the suite only in UTC, where the old behaviour is correct, so it could
   not have caught this. It now runs a second time with `TZ=Pacific/Auckland`.
 
-## [1.4.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.4.0) — HuskyCT hands over your deadlines
+## [1.4.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.4.0) — HuskyCT hands over your deadlines
 
 *Minor bump: a browser extension that puts HuskyCT's own data into the dashboard.*
 
@@ -104,7 +129,7 @@ The scheme is deliberately simple:
 - BetterHuskyCT still **asks before applying**, and the helper cannot skip that: a
   flag meaning "this link is safe" could be set by anyone who can write a link.
 
-## [1.3.1](https://github.com/NoGod3524/huskypilot/releases/tag/v1.3.1) — Where did the delete button go
+## [1.3.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.3.1) — Where did the delete button go
 
 *Patch: the collapsed card had no way in to remove a calendar.*
 
@@ -116,7 +141,7 @@ The scheme is deliberately simple:
   that came back. That button now reads **Manage calendars**, and the line
   under it says so. ([#30])
 
-## [1.3.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.3.0) — The same dashboard, on your phone
+## [1.3.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.3.0) — The same dashboard, on your phone
 
 *Minor bump: a second device no longer starts empty.*
 
@@ -145,7 +170,7 @@ The scheme is deliberately simple:
   are remapped by code and component, so the same course named on both devices
   stays one course.
 
-## [1.2.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.2.0) — The calendar names its own courses
+## [1.2.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.2.0) — The calendar names its own courses
 
 *Minor bump: the app no longer has to ask which course a class meeting is.*
 
@@ -173,7 +198,7 @@ The scheme is deliberately simple:
 - The snapshot is 255 KB of JSON, about **65 KB gzipped**, added to the client
   bundle and cached by the service worker after the first load.
 
-## [1.1.1](https://github.com/NoGod3524/huskypilot/releases/tag/v1.1.1) — A lecture is not a deadline
+## [1.1.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.1.1) — A lecture is not a deadline
 
 *Patch: the Plan route was treating class meetings as work you owe.*
 
@@ -194,7 +219,7 @@ The scheme is deliberately simple:
 not Blackboard leave the marker unset, and those entries still count as
 deadlines.
 
-## [1.1.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.1.0) — Any calendar, several of them
+## [1.1.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.1.0) — Any calendar, several of them
 
 *Minor bump: 1.0.1 assumed a calendar feed belongs to one course. HuskyCT issues
 one feed per course, so a semester is several links — and the graded items inside
@@ -246,7 +271,7 @@ real barrier, so 1.1.0 removes it.*
 - Tasks are de-duplicated by their ICS UID, so overlapping feeds — or a feed that
   is simply refreshed — no longer double their rows.
 
-## [1.0.1](https://github.com/NoGod3524/huskypilot/releases/tag/v1.0.1) — Rows you can actually recognise
+## [1.0.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.0.1) — Rows you can actually recognise
 
 *Patch: the Plan route used to print `CALENDAR — Take-home Quiz 1` and nothing
 else. It now says which course the row belongs to, what kind of entry it is, and
@@ -273,7 +298,7 @@ exactly when and where it happens.*
 - The `CALENDAR` placeholder that appeared on every task with no course of its
   own. A row now shows nothing rather than something untrue.
 
-## [1.0.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.0.0) — Plan
+## [1.0.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.0.0) — Plan
 
 *First stable release. BetterHuskyCT stops only showing what is due and starts
 saying what to work on next.*
@@ -296,7 +321,7 @@ saying what to work on next.*
 - `dueTimestamp` moved from `reminders` into `date-utils`, beside the other date
   helpers.
 
-## [0.3.1](https://github.com/NoGod3524/huskypilot/releases/tag/v0.3.1) — Version footer and settled history
+## [0.3.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.3.1) — Version footer and settled history
 
 ### Added
 
@@ -304,7 +329,7 @@ saying what to work on next.*
   single source of truth. ([#18])
 - This changelog, plus annotated git tags marking every earlier release. ([#17])
 
-## [0.3.0](https://github.com/NoGod3524/huskypilot/releases/tag/v0.3.0) — Real routes
+## [0.3.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.3.0) — Real routes
 
 *Minor bump: architecture.*
 
@@ -323,7 +348,7 @@ saying what to work on next.*
 - Sidebar navigation uses `next/link` and marks the active route with
   `aria-current="page"`.
 
-## [0.2.3](https://github.com/NoGod3524/huskypilot/releases/tag/v0.2.3) — Auto-refresh and CSV export
+## [0.2.3](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.2.3) — Auto-refresh and CSV export
 
 ### Added
 
@@ -338,14 +363,14 @@ saying what to work on next.*
 - The privacy wording now says the ICS URL is not stored *unless you explicitly
   ask for it*.
 
-## [0.2.2](https://github.com/NoGod3524/huskypilot/releases/tag/v0.2.2) — Documentation refresh
+## [0.2.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.2.2) — Documentation refresh
 
 ### Changed
 
 - Both READMEs now document the PWA, reminders, insights, and the optional
   auto-refresh, and the project structure and roadmap are up to date. ([#13])
 
-## [0.2.1](https://github.com/NoGod3524/huskypilot/releases/tag/v0.2.1) — Due-soon reminders
+## [0.2.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.2.1) — Due-soon reminders
 
 ### Added
 
@@ -354,7 +379,7 @@ saying what to work on next.*
   fingerprint so the same reminder is never repeated.
 - A service worker `notificationclick` handler that brings the open app forward.
 
-## [0.2.0](https://github.com/NoGod3524/huskypilot/releases/tag/v0.2.0) — Installable and offline
+## [0.2.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.2.0) — Installable and offline
 
 *Minor bump: new capability.*
 
@@ -367,13 +392,13 @@ saying what to work on next.*
   is never cached.
 - Safe-area padding so the layout clears the home indicator when installed.
 
-## [0.1.10](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.10) — Import help
+## [0.1.10](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.1.10) — Import help
 
 ### Added
 
 - An expandable "Where do I find my ICS link?" section on the import card. ([#10])
 
-## [0.1.9](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.9) — Repository cleanup
+## [0.1.9](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.1.9) — Repository cleanup
 
 ### Added
 
@@ -385,7 +410,7 @@ saying what to work on next.*
 - The assistant prompt file and editor/assistant scaffolding, so the repository
   root only contains project files. ([#9])
 
-## [0.1.8](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.8) — Continuous integration
+## [0.1.8](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.1.8) — Continuous integration
 
 ### Added
 
@@ -393,54 +418,54 @@ saying what to work on next.*
   every push to `main`, with least-privilege permissions and concurrency
   cancellation. ([#8])
 
-## [0.1.7](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.7) — Insights panel
+## [0.1.7](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.1.7) — Insights panel
 
 ### Added
 
 - A workload analytics section: completion rate, tasks per course, the next 7
   days, and the next 4 weeks. ([#7])
 
-## [0.1.6](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.6) — Portfolio README
+## [0.1.6](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.1.6) — Portfolio README
 
 ### Added
 
 - A bilingual README (English and Simplified Chinese) with an architecture
   diagram, the SSRF control table, and the design decisions. ([#6])
 
-## [0.1.5](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.5) — Obsolete panel removed
+## [0.1.5](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.1.5) — Obsolete panel removed
 
 ### Removed
 
 - The outdated "Private by design" panel. ([#5])
 
-## [0.1.4](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.4) — Dead navigation removed
+## [0.1.4](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.1.4) — Dead navigation removed
 
 ### Removed
 
 - Sidebar links that pointed at nothing ("Courses" and "Privacy"). ([#4])
 
-## [0.1.3](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.3) — English / 简体中文
+## [0.1.3](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.1.3) — English / 简体中文
 
 ### Added
 
 - A language toggle for the whole interface, including date formatting, remembered
   across visits. ([#3])
 
-## [0.1.2](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.2) — Task completion
+## [0.1.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.1.2) — Task completion
 
 ### Added
 
 - A checkbox on every task card, a struck-through title when done, and state that
   survives a refresh and a re-import. ([#2])
 
-## [0.1.1](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.1) — Local persistence
+## [0.1.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.1.1) — Local persistence
 
 ### Added
 
 - Imported events and their metadata are saved in the browser and restored on
   load, using versioned payloads that recover safely from corrupt data. ([#1])
 
-## [0.1.0](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.0) — BetterHuskyCT V0
+## [0.1.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v0.1.0) — BetterHuskyCT V0
 
 ### Added
 
@@ -450,36 +475,37 @@ saying what to work on next.*
   `node-ical`, and course-name extraction from event titles.
 - A `node:test` suite covering parsing, grouping, and URL rejection.
 
-[#1]: https://github.com/NoGod3524/huskypilot/pull/1
-[#2]: https://github.com/NoGod3524/huskypilot/pull/2
-[#3]: https://github.com/NoGod3524/huskypilot/pull/3
-[#4]: https://github.com/NoGod3524/huskypilot/pull/4
-[#5]: https://github.com/NoGod3524/huskypilot/pull/5
-[#6]: https://github.com/NoGod3524/huskypilot/pull/6
-[#7]: https://github.com/NoGod3524/huskypilot/pull/7
-[#8]: https://github.com/NoGod3524/huskypilot/pull/8
-[#9]: https://github.com/NoGod3524/huskypilot/pull/9
-[#10]: https://github.com/NoGod3524/huskypilot/pull/10
-[#11]: https://github.com/NoGod3524/huskypilot/pull/11
-[#12]: https://github.com/NoGod3524/huskypilot/pull/12
-[#13]: https://github.com/NoGod3524/huskypilot/pull/13
-[#14]: https://github.com/NoGod3524/huskypilot/pull/14
-[#15]: https://github.com/NoGod3524/huskypilot/pull/15
-[#16]: https://github.com/NoGod3524/huskypilot/pull/16
-[#17]: https://github.com/NoGod3524/huskypilot/pull/17
-[#18]: https://github.com/NoGod3524/huskypilot/pull/18
-[#19]: https://github.com/NoGod3524/huskypilot/pull/19
-[#20]: https://github.com/NoGod3524/huskypilot/pull/20
-[#21]: https://github.com/NoGod3524/huskypilot/pull/21
-[#22]: https://github.com/NoGod3524/huskypilot/pull/22
-[#27]: https://github.com/NoGod3524/huskypilot/pull/27
-[#28]: https://github.com/NoGod3524/huskypilot/pull/28
-[#29]: https://github.com/NoGod3524/huskypilot/pull/29
-[#30]: https://github.com/NoGod3524/huskypilot/pull/30
-[#31]: https://github.com/NoGod3524/huskypilot/pull/31
-[#34]: https://github.com/NoGod3524/huskypilot/pull/34
-[#35]: https://github.com/NoGod3524/huskypilot/pull/35
-[#36]: https://github.com/NoGod3524/huskypilot/pull/36
+[#1]: https://github.com/NoGod3524/betterhuskyct/pull/1
+[#2]: https://github.com/NoGod3524/betterhuskyct/pull/2
+[#3]: https://github.com/NoGod3524/betterhuskyct/pull/3
+[#4]: https://github.com/NoGod3524/betterhuskyct/pull/4
+[#5]: https://github.com/NoGod3524/betterhuskyct/pull/5
+[#6]: https://github.com/NoGod3524/betterhuskyct/pull/6
+[#7]: https://github.com/NoGod3524/betterhuskyct/pull/7
+[#8]: https://github.com/NoGod3524/betterhuskyct/pull/8
+[#9]: https://github.com/NoGod3524/betterhuskyct/pull/9
+[#10]: https://github.com/NoGod3524/betterhuskyct/pull/10
+[#11]: https://github.com/NoGod3524/betterhuskyct/pull/11
+[#12]: https://github.com/NoGod3524/betterhuskyct/pull/12
+[#13]: https://github.com/NoGod3524/betterhuskyct/pull/13
+[#14]: https://github.com/NoGod3524/betterhuskyct/pull/14
+[#15]: https://github.com/NoGod3524/betterhuskyct/pull/15
+[#16]: https://github.com/NoGod3524/betterhuskyct/pull/16
+[#17]: https://github.com/NoGod3524/betterhuskyct/pull/17
+[#18]: https://github.com/NoGod3524/betterhuskyct/pull/18
+[#19]: https://github.com/NoGod3524/betterhuskyct/pull/19
+[#20]: https://github.com/NoGod3524/betterhuskyct/pull/20
+[#21]: https://github.com/NoGod3524/betterhuskyct/pull/21
+[#22]: https://github.com/NoGod3524/betterhuskyct/pull/22
+[#27]: https://github.com/NoGod3524/betterhuskyct/pull/27
+[#28]: https://github.com/NoGod3524/betterhuskyct/pull/28
+[#29]: https://github.com/NoGod3524/betterhuskyct/pull/29
+[#30]: https://github.com/NoGod3524/betterhuskyct/pull/30
+[#31]: https://github.com/NoGod3524/betterhuskyct/pull/31
+[#34]: https://github.com/NoGod3524/betterhuskyct/pull/34
+[#35]: https://github.com/NoGod3524/betterhuskyct/pull/35
+[#36]: https://github.com/NoGod3524/betterhuskyct/pull/36
+[#37]: https://github.com/NoGod3524/betterhuskyct/pull/37
 
 
 

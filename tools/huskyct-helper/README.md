@@ -37,7 +37,7 @@ A userscript that runs inside your own HuskyCT session and does three things:
 **To get one calendar file:** open a HuskyCT page that lists your calendars —
 the Calendar page, or a course's calendar settings — and press
 *Merge .ics links on this page*. The merged file lands in your downloads. Drop it
-into [BetterHuskyCT](https://huskypilot.vercel.app/).
+into [BetterHuskyCT](https://betterhuskyct.vercel.app/).
 
 If it says it found no `.ics` links, that page does not expose any on its own;
 try the Calendar page instead.
