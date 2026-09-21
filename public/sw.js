@@ -1,4 +1,4 @@
-// HuskyPilot service worker: makes the app shell work offline.
+// BetterHuskyCT service worker: makes the app shell work offline.
 //
 // Strategy: navigations go network-first (so a new deploy is picked up straight
 // away, with the cached shell as the offline fallback), while hashed build

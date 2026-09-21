@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.10.2
-// @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to HuskyPilot. Nothing leaves your browser.
+// @version      0.10.3
+// @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
 // @match        https://huskyct.uconn.edu/*
@@ -19,7 +19,7 @@
  * as a second match only because it may still redirect there.
  *
  * Why this exists: HuskyCT hands out one calendar feed per course, so a semester
- * is a dozen links, and HuskyPilot can only take one at a time. This runs inside
+ * is a dozen links, and BetterHuskyCT can only take one at a time. This runs inside
  * the browser you are already signed in to, collects the feeds that browser can
  * already see, and writes them out as a single .ics.
  *
@@ -41,7 +41,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.10.2";
+  const VERSION = "0.10.3";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -103,7 +103,7 @@
     return [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//HuskyPilot//HuskyCT Helper " + VERSION + "//EN",
+      "PRODID:-//BetterHuskyCT//HuskyCT Helper " + VERSION + "//EN",
       "CALSCALE:GREGORIAN",
       "X-WR-CALNAME:" + name,
       ...timezones.values(),
@@ -183,7 +183,7 @@
       null;
 
     return {
-      // The type stays in the UID on purpose: HuskyPilot reads it back to tell
+      // The type stays in the UID on purpose: BetterHuskyCT reads it back to tell
       // a class meeting from an assignment, exactly as it does for a real feed.
       uid: type + "-" + sourceId + "-" + (utcStamp(start) || ""),
       title: raw.title || event.title || "Untitled",
@@ -200,7 +200,7 @@
     const lines = [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//HuskyPilot//HuskyCT Helper " + VERSION + "//EN",
+      "PRODID:-//BetterHuskyCT//HuskyCT Helper " + VERSION + "//EN",
       "CALSCALE:GREGORIAN",
       "X-WR-CALNAME:HuskyCT",
     ];
@@ -553,7 +553,7 @@
       seen.add(key);
 
       // The application's own id for the item, so collecting twice does not put
-      // the same deadline into HuskyPilot twice.
+      // the same deadline into BetterHuskyCT twice.
       const analytics = node.getAttribute("data-analytics-id") || "";
       const stable = analytics.split(".").pop() || todo.title + "@" + todo.dueText;
       todo.uid = "huskyct-todo-" + stable.replace(/[^\w.-]+/g, "-");
@@ -577,13 +577,13 @@
   }
 
 
-  // --------------------------------------------------- sending to HuskyPilot
+  // --------------------------------------------------- sending to BetterHuskyCT
 
   /**
    * The dashboard accepts a whole set-up in the fragment of a URL: JSON,
    * gzipped, base64url, behind `#sync=`. A fragment is never sent to a server,
    * which is what keeps this honest — the data goes from HuskyCT to the user's
-   * own copy of HuskyPilot and nowhere else. There is nothing to store and
+   * own copy of BetterHuskyCT and nowhere else. There is nothing to store and
    * nothing to expire.
    *
    * The shape below is not invented here. It is what `parseSyncPayload` in the
@@ -670,7 +670,7 @@
     const root = scope || document;
 
     if (root.querySelector("[aria-label*=', due ']")) {
-      return "This page has your to-do list. Press “Send deadlines to HuskyPilot”.";
+      return "This page has your to-do list. Press “Send deadlines to BetterHuskyCT”.";
     }
     if (courseId) {
       return "You are in a course. Press “Collect this course” for its announcements and files.";
@@ -739,12 +739,12 @@
       <div class="body">
         <div class="note" data-role="count">Collected 0 events.</div>
         <button class="act" data-act="export">Export .ics</button>
-        <div class="note">Stay on the Calendar page and move through the term — every view you open is added as you go. Then export and drop the file into HuskyPilot.</div>
+        <div class="note">Stay on the Calendar page and move through the term — every view you open is added as you go. Then export and drop the file into BetterHuskyCT.</div>
         <button class="act" data-act="clear">Clear collected</button>
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
         <button class="act" data-act="merge">Merge .ics links on this page</button>
         <button class="act" data-act="course">Collect this course: announcements + content</button>
-        <button class="act primary" data-act="todos">Send deadlines to HuskyPilot</button>
+        <button class="act primary" data-act="todos">Send deadlines to BetterHuskyCT</button>
         <textarea data-role="out" hidden></textarea>
         <button class="act" data-act="copy" hidden>Copy to clipboard</button>
         <div class="note" data-role="status">Nothing is uploaded. Everything stays in this browser.</div>
@@ -830,7 +830,7 @@
           "Exported " + records.length + " events, " + withCourse + " with a course code.";
         hint.textContent =
           (result.added ? "Picked up " + result.added + " more just now. " : "") +
-          "Drop huskyct-calendar.ics into HuskyPilot.";
+          "Drop huskyct-calendar.ics into BetterHuskyCT.";
         return;
       }
 
@@ -888,13 +888,13 @@
         const records = todosToRecords(todos);
         button.disabled = true;
         status.className = "note";
-        status.textContent = "Sending " + records.length + " deadline(s) to HuskyPilot…";
+        status.textContent = "Sending " + records.length + " deadline(s) to BetterHuskyCT…";
 
         try {
           const link = await huskypilotLink(records);
           window.open(link, "_blank", "noopener");
           status.className = "note ok";
-          status.textContent = "Opened HuskyPilot with " + records.length + " deadline(s).";
+          status.textContent = "Opened BetterHuskyCT with " + records.length + " deadline(s).";
           hint.textContent =
             "Press Apply there and they are in. Nothing was uploaded — the deadlines travel inside the link.";
         } catch (error) {
@@ -956,7 +956,7 @@
         status.textContent = `Merged ${texts.length} calendar(s), ${eventCount} events. Check your downloads.`;
         hint.textContent = failed.length
           ? "Could not read: " + failed.join(", ")
-          : "Drop huskyct-merged.ics into HuskyPilot.";
+          : "Drop huskyct-merged.ics into BetterHuskyCT.";
       }
     });
   }

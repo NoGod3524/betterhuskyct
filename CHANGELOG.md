@@ -1,6 +1,6 @@
 # Changelog
 
-Every notable change to HuskyPilot, newest first. Each entry corresponds to a
+Every notable change to BetterHuskyCT, newest first. Each entry corresponds to a
 merged pull request, and each version tag marks the state of `main` right after
 that merge.
 
@@ -8,6 +8,26 @@ The scheme is deliberately simple:
 
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
+
+## [1.6.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.6.0) — BetterHuskyCT
+
+*Minor bump: the project has a name that says what it is.*
+
+### Changed
+
+- Every user-facing string now reads **BetterHuskyCT**. The npm package is
+  `betterhuskyct`. ([#36])
+
+### Notes
+
+- The stored keys are still `huskypilot.*`, and so are the deployed domain and
+  the repository path. Changing those would discard every saved calendar and
+  break the update URL on copies of the helper people already have installed, so
+  they are deliberately untouched: a name is a label, a storage key is data, and
+  the two do not have to match. ([#36])
+- The helper moves to 0.10.3 so installed copies pick the new wording up. Its
+  panel names the dashboard, and Tampermonkey only notices a change when
+  `@version` increases.
 
 ## [1.5.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.5.0) — A door for the helper
 
@@ -58,7 +78,7 @@ The scheme is deliberately simple:
 
 - **HuskyCT Helper**, a userscript that runs inside the session your browser
   already has. It reads the to-do list, a course's announcements and its
-  outline, and it opens HuskyPilot with the deadlines already in the link —
+  outline, and it opens BetterHuskyCT with the deadlines already in the link —
   no file to download, nothing to import, and nothing uploaded. ([#31])
 - It **reads rather than asks**. HuskyCT's own API refuses scripts: a request
   the page itself makes gets a 200 where an identical one from a script gets an
@@ -81,7 +101,7 @@ The scheme is deliberately simple:
   reads it back with the same reader. A deadline that arrived by file and one
   that arrived by link are therefore recognised as the same deadline instead of
   being counted twice.
-- HuskyPilot still **asks before applying**, and the helper cannot skip that: a
+- BetterHuskyCT still **asks before applying**, and the helper cannot skip that: a
   flag meaning "this link is safe" could be set by anyone who can write a link.
 
 ## [1.3.1](https://github.com/NoGod3524/huskypilot/releases/tag/v1.3.1) — Where did the delete button go
@@ -255,7 +275,7 @@ exactly when and where it happens.*
 
 ## [1.0.0](https://github.com/NoGod3524/huskypilot/releases/tag/v1.0.0) — Plan
 
-*First stable release. HuskyPilot stops only showing what is due and starts
+*First stable release. BetterHuskyCT stops only showing what is due and starts
 saying what to work on next.*
 
 ### Added
@@ -340,7 +360,7 @@ saying what to work on next.*
 
 ### Added
 
-- A web app manifest, PWA icons, and a theme colour, so HuskyPilot can be added
+- A web app manifest, PWA icons, and a theme colour, so BetterHuskyCT can be added
   to a phone's home screen and opened full screen. ([#11])
 - A service worker that caches the app shell: navigations are network-first (so a
   new deploy lands immediately), hashed assets are cache-first, and the import API
@@ -420,7 +440,7 @@ saying what to work on next.*
 - Imported events and their metadata are saved in the browser and restored on
   load, using versioned payloads that recover safely from corrupt data. ([#1])
 
-## [0.1.0](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.0) — HuskyPilot V0
+## [0.1.0](https://github.com/NoGod3524/huskypilot/releases/tag/v0.1.0) — BetterHuskyCT V0
 
 ### Added
 
@@ -459,6 +479,7 @@ saying what to work on next.*
 [#31]: https://github.com/NoGod3524/huskypilot/pull/31
 [#34]: https://github.com/NoGod3524/huskypilot/pull/34
 [#35]: https://github.com/NoGod3524/huskypilot/pull/35
+[#36]: https://github.com/NoGod3524/huskypilot/pull/36
 
 
 
