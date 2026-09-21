@@ -3,12 +3,12 @@
 A userscript that runs inside your own HuskyCT session and does three things:
 
 1. **Merges your course calendars into one `.ics`.** HuskyCT hands out one
-   calendar feed per course, so a semester is a dozen links and HuskyPilot can
+   calendar feed per course, so a semester is a dozen links and BetterHuskyCT can
    only take one at a time. This collects every feed the page already exposes and
    writes a single file you can drop straight into the app.
 2. **Collects a course** — its announcements, its outline, and the files it links
    to — as a Markdown digest.
-3. **Sends your deadlines to HuskyPilot** in one press — no file to download, and
+3. **Sends your deadlines to BetterHuskyCT** in one press — no file to download, and
    nothing uploaded.
 
 > **HuskyCT is Blackboard Ultra at `lms.uconn.edu`.** The script also matches
@@ -37,7 +37,7 @@ A userscript that runs inside your own HuskyCT session and does three things:
 **To get one calendar file:** open a HuskyCT page that lists your calendars —
 the Calendar page, or a course's calendar settings — and press
 *Merge .ics links on this page*. The merged file lands in your downloads. Drop it
-into [HuskyPilot](https://huskypilot.vercel.app/).
+into [BetterHuskyCT](https://huskypilot.vercel.app/).
 
 If it says it found no `.ics` links, that page does not expose any on its own;
 try the Calendar page instead.
@@ -74,15 +74,15 @@ Titles are read from each item's accessibility label — `Status for Cengage
 WebAssign: Started` — rather than from a CSS class, because those class names
 carry build hashes and change with every release.
 
-## Sending deadlines to HuskyPilot
+## Sending deadlines to BetterHuskyCT
 
-*Send deadlines to HuskyPilot* reads the to-do list — which lives on the HuskyCT
+*Send deadlines to BetterHuskyCT* reads the to-do list — which lives on the HuskyCT
 home, the Courses page — and opens the dashboard with those deadlines already in
 the link. Press **Apply** there and they are in.
 
 There is no file to download and nothing to import. The data rides in the
 fragment of the URL, which browsers never send to a server, so it goes from
-HuskyCT to your own copy of HuskyPilot and nowhere else. A whole term is a couple
+HuskyCT to your own copy of BetterHuskyCT and nowhere else. A whole term is a couple
 of kilobytes: 120 deadlines pack to about 1.4 KB, and the dashboard's own guard
 is 32 KB.
 
@@ -106,7 +106,7 @@ Times are read as the reader's own local time. The page shows wall-clock time
 with no zone on it, so that is the only reading it offers, and the right one for
 someone sitting in the same timezone as their classes.
 
-**Why it still asks once.** HuskyPilot confirms before applying a link, on
+**Why it still asks once.** BetterHuskyCT confirms before applying a link, on
 purpose: a sync link is untrusted input. The helper could set a flag meaning
 "this one is safe", but anyone could set that flag too, so it does not.
 

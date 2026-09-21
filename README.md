@@ -1,4 +1,4 @@
-# HuskyPilot
+# BetterHuskyCT
 
 **Your course deadlines, organized.** Bring a calendar from any LMS or calendar app — paste its private ICS link, or drop a downloaded `.ics` file — and get one calm, ordered view of what's due next.
 
@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/NoGod3524/huskypilot/actions/workflows/ci.yml/badge.svg)](https://github.com/NoGod3524/huskypilot/actions/workflows/ci.yml)
 
-![HuskyPilot](./public/og.png)
+![BetterHuskyCT](./public/og.png)
 
 ## Screenshots
 
@@ -28,18 +28,18 @@ The same routes in Chinese: [`overview.zh.png`](./public/screenshots/overview.zh
 
 ## Why
 
-Students track deadlines across an LMS, a syllabus, and email. HuskyPilot turns the calendar feed you already have into a single rolling 7-day list, so "what's due next" is one glance instead of a scavenger hunt.
+Students track deadlines across an LMS, a syllabus, and email. BetterHuskyCT turns the calendar feed you already have into a single rolling 7-day list, so "what's due next" is one glance instead of a scavenger hunt.
 
 It is deliberately small and privacy-first: no NetID, no password, no scraping, no account.
 
-HuskyPilot was built at UConn against HuskyCT (Blackboard), which is the awkward case: it hands out **one feed per course**, and its assignment entries carry no course name. Anything that exports iCalendar works too — see [Where to get your calendar](#where-to-get-your-calendar).
+BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkward case: it hands out **one feed per course**, and its assignment entries carry no course name. Anything that exports iCalendar works too — see [Where to get your calendar](#where-to-get-your-calendar).
 
 ## Features
 
 - **Import any ICS calendar** — drop a downloaded `.ics` file anywhere on the page, or paste a private feed URL; several at once is fine
 - **Courses named for you** — a Blackboard feed titles a class meeting `Environmental Science` and never says which course it is, so the app looks the title up in UConn's public course catalogue and fills in `NRE 1000E` itself. Nothing to configure
 - **Sync to your phone without a server** — *Sync* packs the calendars, your ticks and your courses into one ~1,800-character link. It rides in the URL fragment, so it is never uploaded, and your feed link is left out of it on purpose
-- **Plan** — set how big each task is (quick / medium / long) and HuskyPilot warns you honestly when the days left no longer fit the work, and resurfaces anything already overdue
+- **Plan** — set how big each task is (quick / medium / long) and BetterHuskyCT warns you honestly when the days left no longer fit the work, and resurfaces anything already overdue
 - **Several calendars, several courses** — HuskyCT issues one feed per course, so add as many as you have; file each under a course (code plus LEC / DIS / LAB / SEM), and every task shows its course, whether it is a class meeting or an assignment, its room, and the exact due time — with a per-task picker for the rows the default gets wrong
 - **Rolling 7-day view** — Today / Tomorrow / This week, grouped and time-sorted
 - **Due-soon reminders** — an in-app banner for anything due in the next 24 hours, plus optional browser notifications while the app is open
@@ -48,7 +48,7 @@ HuskyPilot was built at UConn against HuskyCT (Blackboard), which is the awkward
 - **Workload insights** — completion rate, tasks per course, and the next 7 days / 4 weeks at a glance
 - **English / 简体中文** — one-click language toggle, remembered across visits
 - **Local persistence** — re-importing the same calendar preserves your completion state
-- **Optional auto-refresh** — off by default; tick **Remember new links** and HuskyPilot re-imports those feeds whenever you open it
+- **Optional auto-refresh** — off by default; tick **Remember new links** and BetterHuskyCT re-imports those feeds whenever you open it
 - **Privacy by design** — no NetID, no password, no account. Your ICS URL is used once and discarded unless you opt in to remembering it
 
 ## Where to get your calendar
@@ -130,7 +130,7 @@ Failures are logged without ever writing the private calendar URL to the log.
 | Data | Where it lives |
 |---|---|
 | Your ICS URL | Nowhere by default — used once, then discarded. Saved in this browser only if you tick **Remember new links** |
-| A dropped `.ics` file | Read in the page, sent to HuskyPilot's own endpoint to be parsed, and never written anywhere |
+| A dropped `.ics` file | Read in the page, sent to BetterHuskyCT's own endpoint to be parsed, and never written anywhere |
 | Parsed events | `localStorage`, in your browser only |
 | Completed task IDs | `localStorage`, in your browser only |
 | Language choice | `localStorage`, in your browser only |
@@ -238,7 +238,7 @@ slowly, so running it once a semester is plenty. Pass a term to limit it:
 
 ## Background
 
-HuskyPilot started as a personal tool. Deadlines were spread across HuskyCT, syllabi, and email, and the existing options either asked for a NetID or wanted more access than a simple "what's due next" view needs. This project is a narrow attempt to fix that: one private calendar feed in, one clear list out, and everything kept on your own device.
+BetterHuskyCT started as a personal tool. Deadlines were spread across HuskyCT, syllabi, and email, and the existing options either asked for a NetID or wanted more access than a simple "what's due next" view needs. This project is a narrow attempt to fix that: one private calendar feed in, one clear list out, and everything kept on your own device.
 
 ## Roadmap
 
@@ -256,7 +256,7 @@ Built by [Yinuo (NoGod3524)](https://github.com/NoGod3524), a UConn student.
 
 ## Disclaimer
 
-HuskyPilot is an independent student project. It is **not affiliated with, endorsed by, or supported by** the University of Connecticut, HuskyCT, or Blackboard Inc. "HuskyCT", "Blackboard" and "UConn" are named only to describe what the app reads.
+BetterHuskyCT is an independent student project. It is **not affiliated with, endorsed by, or supported by** the University of Connecticut, HuskyCT, or Blackboard Inc. "HuskyCT", "Blackboard" and "UConn" are named only to describe what the app reads.
 
 You paste your own private calendar link, and you are responsible for keeping it private — it works like a password. The app has no server-side database and stores nothing about you, but a link you tick **Remember** is saved in that browser.
 

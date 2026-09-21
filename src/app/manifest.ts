@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "HuskyPilot — Course deadlines, organized",
-    short_name: "HuskyPilot",
+    name: "BetterHuskyCT — Course deadlines, organized",
+    short_name: "BetterHuskyCT",
     description:
       "Turn your HuskyCT / Blackboard ICS calendar into a clean, private deadline dashboard.",
     start_url: "/",

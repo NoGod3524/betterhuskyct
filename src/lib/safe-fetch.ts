@@ -105,7 +105,7 @@ async function download(url: URL, redirectsRemaining: number): Promise<string> {
         headers: {
           Accept: "text/calendar,text/plain;q=0.9,*/*;q=0.2",
           Host: url.host,
-          "User-Agent": "HuskyPilot/0.1 calendar importer",
+          "User-Agent": "BetterHuskyCT/0.1 calendar importer",
         },
       },
       (response) => {

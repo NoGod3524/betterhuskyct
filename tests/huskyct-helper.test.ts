@@ -52,7 +52,7 @@ const sandbox: Record<string, unknown> = {
   setTimeout,
   clearTimeout,
   navigator: {},
-  // Real ones, not stubs: building the HuskyPilot link gzips the payload through
+  // Real ones, not stubs: building the BetterHuskyCT link gzips the payload through
   // Blob -> CompressionStream -> Response, and a stub Blob cannot stream.
   Blob,
   Response,
@@ -279,7 +279,7 @@ test("the course code is read out of the calendar name", () => {
   assert.equal(courseCodeFromDisplay("nothing useful"), null);
 });
 
-test("the record carries the kind HuskyPilot already understands", () => {
+test("the record carries the kind BetterHuskyCT already understands", () => {
   const homework = eventToRecord(HOMEWORK_RAW, { allDay: false })!;
   const lecture = eventToRecord(LECTURE_RAW, { allDay: false })!;
 
@@ -290,13 +290,13 @@ test("the record carries the kind HuskyPilot already understands", () => {
   assert.equal(lecture.location, "ARJ 105");
   assert.equal(homework.start, "2026-09-19T03:59:00.000Z");
 
-  // The UID has to keep the source type: that substring is how HuskyPilot tells
+  // The UID has to keep the source type: that substring is how BetterHuskyCT tells
   // a class meeting from a graded item, exactly as it does for a real feed.
   assert.match(homework.uid as string, /\.gradebook2\.GradableItem-/);
   assert.match(lecture.uid as string, /\.calendar\.CalendarEntry-/);
 });
 
-test("the exported calendar parses back through HuskyPilot's own parser", async () => {
+test("the exported calendar parses back through BetterHuskyCT's own parser", async () => {
   const records = [
     eventToRecord(HOMEWORK_RAW, { allDay: false })!,
     eventToRecord(LECTURE_RAW, { allDay: false })!,
@@ -567,7 +567,7 @@ test("collecting the same page twice yields the same deadline once", () => {
 
   assert.equal(todos.length, 1);
   // The application's own id is kept, so exporting twice does not add a second
-  // copy of the deadline to HuskyPilot.
+  // copy of the deadline to BetterHuskyCT.
   assert.equal(todos[0].uid, "huskyct-todo-_3867214_1");
 });
 
@@ -582,10 +582,10 @@ test("a to-do without the application's id still gets a stable one", () => {
 });
 
 /**
- * HuskyPilot reads the calendar kind out of the UID, and treats anything that
+ * BetterHuskyCT reads the calendar kind out of the UID, and treats anything that
  * is not a class meeting as a deadline. A to-do is always graded work.
  */
-test("a to-do becomes a calendar record HuskyPilot reads as a deadline", () => {
+test("a to-do becomes a calendar record BetterHuskyCT reads as a deadline", () => {
   const todos = collectTodos({
     querySelectorAll: () => [
       { getAttribute: (name: string) => (name === "aria-label" ? TODO_LABEL : name === "data-analytics-id" ? "student-todo.item._3867214_1" : null) },
@@ -600,7 +600,7 @@ test("a to-do becomes a calendar record HuskyPilot reads as a deadline", () => {
   assert.equal(typeof records[0].start, "string", "the writer expects an ISO string");
 });
 
-test("the exported to-do calendar parses back through HuskyPilot's own parser", async () => {
+test("the exported to-do calendar parses back through BetterHuskyCT's own parser", async () => {
   const todos = collectTodos({
     querySelectorAll: () => [
       { getAttribute: (name: string) => (name === "aria-label" ? TODO_LABEL : name === "data-analytics-id" ? "student-todo.item._3867214_1" : null) },
@@ -740,7 +740,7 @@ test("the digest lists files as links", () => {
   assert.match(markdown, /- \[Course Information and Syllabus\]\(https:\/\/lms\.uconn\.edu\/x\/document\/_1_1\)/);
 });
 
-// --------------------------------------------------------- sending to HuskyPilot
+// --------------------------------------------------------- sending to BetterHuskyCT
 //
 // The payload has to satisfy the dashboard's own reader, which drops anything
 // that does not match rather than half-applying it. So these assertions run the
@@ -853,12 +853,12 @@ test("the panel says which button this page wants", () => {
   const withTodo = { querySelector: (selector: string) => (selector.includes(", due ") ? {} : null) };
   const plain = { querySelector: () => null };
 
-  assert.match(guidanceFor(withTodo, null), /Send deadlines to HuskyPilot/);
+  assert.match(guidanceFor(withTodo, null), /Send deadlines to BetterHuskyCT/);
   assert.match(guidanceFor(plain, "_203765_1"), /Collect this course/);
   assert.match(guidanceFor(plain, null), /Courses page/);
 });
 
 test("a page with a to-do list wins over being inside a course", () => {
   const withTodo = { querySelector: (selector: string) => (selector.includes(", due ") ? {} : null) };
-  assert.match(guidanceFor(withTodo, "_203765_1"), /Send deadlines to HuskyPilot/);
+  assert.match(guidanceFor(withTodo, "_203765_1"), /Send deadlines to BetterHuskyCT/);
 });

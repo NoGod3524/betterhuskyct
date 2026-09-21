@@ -11,13 +11,13 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   ),
-  applicationName: "HuskyPilot",
-  title: "HuskyPilot — Your course deadlines, organized",
+  applicationName: "BetterHuskyCT",
+  title: "BetterHuskyCT — Your course deadlines, organized",
   description:
     "Turn a HuskyCT or Blackboard ICS calendar into a clear, private deadline dashboard.",
   appleWebApp: {
     capable: true,
-    title: "HuskyPilot",
+    title: "BetterHuskyCT",
     statusBarStyle: "default",
   },
   icons: {
@@ -27,13 +27,13 @@ export const metadata: Metadata = {
     apple: "/icons/icon-192.png",
   },
   openGraph: {
-    title: "HuskyPilot",
+    title: "BetterHuskyCT",
     description: "Your course deadlines, organized.",
     images: [{ url: "/og.png", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "HuskyPilot",
+    title: "BetterHuskyCT",
     description: "Your course deadlines, organized.",
     images: ["/og.png"],
   },

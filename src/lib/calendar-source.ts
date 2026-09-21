@@ -6,7 +6,7 @@ const MAX_URL_LENGTH = 2_048;
  * An opt-in record of the calendar feed URL, kept in this browser only so the
  * dashboard can refresh itself on open.
  *
- * This is the one place HuskyPilot knowingly stores a private feed URL, so it
+ * This is the one place BetterHuskyCT knowingly stores a private feed URL, so it
  * is off by default and the UI must explain what turning it on means. The URL
  * is still never sent anywhere except the app's own import endpoint.
  */
