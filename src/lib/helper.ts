@@ -14,11 +14,11 @@
 
 /** The script. A manager intercepts this URL; a browser without one shows it. */
 export const HELPER_SCRIPT_URL =
-  "https://raw.githubusercontent.com/NoGod3524/huskypilot/main/tools/huskyct-helper/huskyct-helper.user.js";
+  "https://raw.githubusercontent.com/NoGod3524/betterhuskyct/main/tools/huskyct-helper/huskyct-helper.user.js";
 
 /** Its source and documentation, for anyone who wants to read it first. */
 export const HELPER_SOURCE_URL =
-  "https://github.com/NoGod3524/huskypilot/tree/main/tools/huskyct-helper";
+  "https://github.com/NoGod3524/betterhuskyct/tree/main/tools/huskyct-helper";
 
 export type UserscriptManager = {
   id: "edge" | "chrome" | "firefox" | "other";

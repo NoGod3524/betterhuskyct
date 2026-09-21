@@ -24,7 +24,7 @@ const OUT = join(HERE, "..", "src", "lib", "ucc-courses.json");
 const ORIGIN = "https://classes.uconn.edu";
 const API = `${ORIGIN}/api/?page=fose`;
 const USER_AGENT =
-  "huskypilot-course-map (+https://github.com/NoGod3524/huskypilot)";
+  "huskypilot-course-map (+https://github.com/NoGod3524/betterhuskyct)";
 
 /**
  * Terms the site offers, newest first. A term only appears once registration

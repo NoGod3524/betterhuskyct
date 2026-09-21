@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         HuskyCT Helper
-// @namespace    https://github.com/NoGod3524/huskypilot
-// @version      0.10.3
+// @namespace    https://github.com/NoGod3524/betterhuskyct
+// @version      0.10.4
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
 // @match        https://huskyct.uconn.edu/*
-// @updateURL    https://raw.githubusercontent.com/NoGod3524/huskypilot/main/tools/huskyct-helper/huskyct-helper.user.js
-// @downloadURL  https://raw.githubusercontent.com/NoGod3524/huskypilot/main/tools/huskyct-helper/huskyct-helper.user.js
+// @updateURL    https://raw.githubusercontent.com/NoGod3524/betterhuskyct/main/tools/huskyct-helper/huskyct-helper.user.js
+// @downloadURL  https://raw.githubusercontent.com/NoGod3524/betterhuskyct/main/tools/huskyct-helper/huskyct-helper.user.js
 // @run-at       document-start
 // @grant        none
 // ==/UserScript==
@@ -41,7 +41,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.10.3";
+  const VERSION = "0.10.4";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -591,7 +591,7 @@
    * match is dropped whole rather than half-applied, and `courses` has to carry
    * its own `version` for the same reason.
    */
-  const HUSKYPILOT_URL = "https://huskypilot.vercel.app/";
+  const HUSKYPILOT_URL = "https://betterhuskyct.vercel.app/";
   const SYNC_VERSION = 1;
 
   /** gzip, then base64url — the same three steps the app reverses. */
