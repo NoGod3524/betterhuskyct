@@ -809,7 +809,7 @@ test("the payload says nothing about the parts it did not collect", () => {
 
 test("the link the panel opens is accepted by the dashboard's own reader", async () => {
   const link = await huskypilotLink(collectedRecords(), new Date("2026-09-19T12:00:00Z"));
-  assert.ok(link.startsWith("https://betterhuskyct.vercel.app/#sync="), link.slice(0, 60));
+  assert.ok(link.startsWith("https://huskypilot.vercel.app/#sync="), link.slice(0, 60));
 
   const packed = link.slice(link.indexOf("#sync=") + "#sync=".length);
   const payload = await decodeSyncPayload(packed);

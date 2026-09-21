@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.10.4
+// @version      0.10.5
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -41,7 +41,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.10.4";
+  const VERSION = "0.10.5";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -591,7 +591,7 @@
    * match is dropped whole rather than half-applied, and `courses` has to carry
    * its own `version` for the same reason.
    */
-  const HUSKYPILOT_URL = "https://betterhuskyct.vercel.app/";
+  const HUSKYPILOT_URL = "https://huskypilot.vercel.app/";
   const SYNC_VERSION = 1;
 
   /** gzip, then base64url — the same three steps the app reverses. */
