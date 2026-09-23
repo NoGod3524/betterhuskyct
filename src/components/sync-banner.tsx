@@ -39,7 +39,19 @@ export function SyncBanner() {
               completed: summary.completed,
               courses: summary.courses,
             })}
+            {summary.announcements > 0
+              ? ` ${t(locale, "sync.incomingAnnouncements", {
+                  count: summary.announcements,
+                })}.`
+              : null}
           </p>
+          {/* Only worth saying when there are some: a link from an older helper
+              carries none, and a line about nothing is noise. */}
+          {summary.announcements > 0 ? (
+            <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
+              {t(locale, "sync.incomingAnnouncementsNote")}
+            </p>
+          ) : null}
           <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
             {t(locale, "sync.incomingNote")}
           </p>

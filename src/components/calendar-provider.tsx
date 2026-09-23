@@ -14,6 +14,13 @@ import {
 import { isDeadline } from "@/lib/calendar-types";
 import type { CalendarImportResult, CalendarTask, TaskGroup } from "@/lib/calendar-types";
 import {
+  clearAnnouncements,
+  restoreAnnouncements,
+  saveAnnouncements,
+  sortAnnouncements,
+  type Announcement,
+} from "@/lib/announcements";
+import {
   addSubscription,
   addSubscriptions,
   clearSubscriptions,
@@ -167,6 +174,10 @@ type CalendarContextValue = {
   createSyncLink: () => Promise<void>;
   isPackingSync: boolean;
   syncError: string | null;
+
+  /** Course announcements, newest first. Empty until a helper sends some. */
+  announcements: Announcement[];
+  clearAnnouncements: () => void;
 };
 
 const CalendarContext = createContext<CalendarContextValue | null>(null);
@@ -208,6 +219,9 @@ export function CalendarProvider({
   const [calendarUrl, setCalendarUrl] = useState("");
   const [importCourseId, setImportCourseId] = useState("");
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  // Course announcements. They arrive by sync only — the app never fetches
+  // HuskyCT itself — so this is empty on a device that has never been sent any.
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   // True while the demo data is what the pages show, either because nothing has
   // been imported yet or because the user asked for the demo back.
   const [demoMode, setDemoMode] = useState(true);
@@ -237,6 +251,8 @@ export function CalendarProvider({
   // Mirrors `subscriptions` for async work, which would otherwise close over a
   // stale value between awaits.
   const subscriptionsRef = useRef<Subscription[]>([]);
+  // The same, for the announcement list when a sync link is packed.
+  const announcementsRef = useRef<Announcement[]>([]);
   // A link from another device is offered, never applied on its own.
   const [pendingSync, setPendingSync] = useState<SyncPayload | null>(null);
   const [outgoingSyncLink, setOutgoingSyncLink] = useState<string | null>(null);
@@ -259,6 +275,28 @@ export function CalendarProvider({
     subscriptionsRef.current = next;
     setSubscriptions(next);
     saveSubscriptions(window.localStorage, next);
+  }
+
+  function commitAnnouncements(next: Announcement[]) {
+    // Sorted once, here, so every consumer sees the same order without each of
+    // them having to remember to sort.
+    const ordered = sortAnnouncements(next);
+    announcementsRef.current = ordered;
+    setAnnouncements(ordered);
+    saveAnnouncements(window.localStorage, ordered);
+  }
+
+  /**
+   * Throws the collected announcements away.
+   *
+   * There has to be a way out. Sync only ever adds, so without this a term of
+   * announcements collected by mistake — or a course the user has finished —
+   * would sit on the page until storage was cleared wholesale.
+   */
+  function dropAnnouncements() {
+    commitAnnouncements([]);
+    setNotice(t(locale, "announcements.cleared"));
+    setError(null);
   }
 
   /**
@@ -491,6 +529,10 @@ export function CalendarProvider({
       setEfforts(restoreEffortMap(window.localStorage));
       setCourseBook(restoreCourseBook(window.localStorage));
 
+      const restoredAnnouncements = restoreAnnouncements(window.localStorage);
+      announcementsRef.current = restoredAnnouncements.announcements;
+      setAnnouncements(restoredAnnouncements.announcements);
+
       void refreshRemembered(restored.subscriptions, restoredLocale);
     }, 0);
 
@@ -711,6 +753,7 @@ export function CalendarProvider({
         completedIds,
         efforts,
         courses: courseBook,
+        announcements: announcementsRef.current,
       });
       const packed = await encodeSyncPayload(payload);
 
@@ -733,12 +776,16 @@ export function CalendarProvider({
         efforts,
         completedIds,
         subscriptions: subscriptionsRef.current,
+        announcements: announcementsRef.current,
       },
       pendingSync,
     );
 
     commitSubscriptions(merged.subscriptions);
     commitCourseBook(merged.courses);
+    // After `commitCourseBook`, so the resolution the merge just did against the
+    // merged book is what gets stored rather than a resolution against the old one.
+    commitAnnouncements(merged.announcements);
     setEfforts(merged.efforts);
     saveEffortMap(window.localStorage, merged.efforts);
     setCompletedIds(merged.completedIds);
@@ -754,6 +801,7 @@ export function CalendarProvider({
       t(locale, "sync.applied", {
         calendars: merged.addedFeeds,
         tasks: merged.completedIds.size,
+        announcements: merged.announcements.length,
       }),
     );
   }
@@ -862,8 +910,11 @@ export function CalendarProvider({
     clearCompletedTaskIds(window.localStorage, "imported");
     saveEffortMap(window.localStorage, {});
     clearCourseBook(window.localStorage);
+    clearAnnouncements(window.localStorage);
     subscriptionsRef.current = [];
+    announcementsRef.current = [];
     setSubscriptions([]);
+    setAnnouncements([]);
     setCourseBook(EMPTY_COURSE_BOOK);
     setEfforts({});
     setDemoMode(true);
@@ -980,6 +1031,8 @@ export function CalendarProvider({
     createSyncLink,
     isPackingSync,
     syncError,
+    announcements,
+    clearAnnouncements: dropAnnouncements,
   };
 
   return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>;

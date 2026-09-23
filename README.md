@@ -38,12 +38,13 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 
 - **Import any ICS calendar** — drop a downloaded `.ics` file anywhere on the page, or paste a private feed URL; several at once is fine
 - **Courses named for you** — a Blackboard feed titles a class meeting `Environmental Science` and never says which course it is, so the app looks the title up in UConn's public course catalogue and fills in `NRE 1000E` itself. Nothing to configure
-- **Sync to your phone without a server** — *Sync* packs the calendars, your ticks and your courses into one ~1,800-character link. It rides in the URL fragment, so it is never uploaded, and your feed link is left out of it on purpose
+- **Sync to your phone without a server** — *Sync* packs the calendars, your ticks, your courses and the announcements the helper brought in into one link (about 3,100 characters for a term of 120 deadlines and 40 announcements). It rides in the URL fragment, so it is never uploaded, and your feed link is left out of it on purpose
 - **Plan** — set how big each task is (quick / medium / long) and BetterHuskyCT warns you honestly when the days left no longer fit the work, and resurfaces anything already overdue
 - **Several calendars, several courses** — HuskyCT issues one feed per course, so add as many as you have; file each under a course (code plus LEC / DIS / LAB / SEM), and every task shows its course, whether it is a class meeting or an assignment, its room, and the exact due time — with a per-task picker for the rows the default gets wrong
 - **Rolling 7-day view** — Today / Tomorrow / This week, grouped and time-sorted
 - **Due-soon reminders** — an in-app banner for anything due in the next 24 hours, plus optional browser notifications while the app is open
 - **Installable and offline** — add it to a phone's home screen as a PWA and keep reading saved tasks without a connection
+- **Announcements** — the browser helper brings your courses' announcements in on the same press as the deadlines, newest first and grouped by course
 - **Completion tracking** — tick tasks done; the state is saved in your browser and survives refresh
 - **Workload insights** — completion rate, tasks per course, and the next 7 days / 4 weeks at a glance
 - **English / 简体中文** — one-click language toggle, remembered across visits
@@ -132,6 +133,7 @@ Failures are logged without ever writing the private calendar URL to the log.
 | Your ICS URL | Nowhere by default — used once, then discarded. Saved in this browser only if you tick **Remember new links** |
 | A dropped `.ics` file | Read in the page, sent to BetterHuskyCT's own endpoint to be parsed, and never written anywhere |
 | Parsed events | `localStorage`, in your browser only |
+| Course announcements | `localStorage`, in your browser only — sent over by the browser helper alongside your deadlines |
 | Completed task IDs | `localStorage`, in your browser only |
 | Language choice | `localStorage`, in your browser only |
 
@@ -161,6 +163,7 @@ src/
 │  ├─ plan/page.tsx                  # /plan      what to do next
 │  ├─ tasks/page.tsx                 # /tasks     rolling 7-day list
 │  ├─ calendar/page.tsx              # /calendar  add another calendar
+│  ├─ announcements/page.tsx         # /announcements  course announcements
 │  ├─ insights/page.tsx              # /insights  workload analytics
 │  ├─ helper/page.tsx                # /helper    install the browser helper
 │  ├─ globals.css
@@ -175,6 +178,7 @@ src/
 │  ├─ task-card.tsx                  # One task: badges, time, room, course picker
 │  ├─ course-picker.tsx              # Per-task course override
 │  ├─ insights-section.tsx           # Workload analytics
+│  ├─ announcements-section.tsx      # Course announcements, grouped and filterable
 │  ├─ hero-section.tsx               # Overview header and status line
 │  ├─ app-footer.tsx                 # Version footer
 │  └─ service-worker-registrar.tsx   # Registers the offline service worker (production only)
@@ -193,6 +197,7 @@ src/
    ├─ reminders.ts                   # Due-soon detection and reminder settings
    ├─ calendar-file.ts               # Reading a dropped .ics: size, sanity, file-name labelling
    ├─ subscriptions.ts               # The list of calendars: cached events, names, opt-in URLs
+   ├─ announcements.ts               # Course announcements: derived ids, caps, storage
    ├─ import-storage.ts              # 1.0.x single-import storage, read once to migrate
    ├─ completion-storage.ts          # Versioned localStorage for completed task IDs
    └─ i18n.ts                        # English / 简体中文 dictionaries and lookup

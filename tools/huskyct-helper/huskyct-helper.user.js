@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.10.6
+// @version      0.11.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -41,7 +41,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.10.6";
+  const VERSION = "0.11.0";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -433,6 +433,31 @@
   }
 
   /**
+   * Announcements in the shape the dashboard's announcement reader accepts.
+   *
+   * The course is named by its *code* rather than its id, because the code is
+   * the only handle both sides understand: HuskyCT's `_203765_1` means nothing
+   * to the dashboard, while `MATH 1070Q` is what its course book is keyed on.
+   *
+   * `announced` is when this page was read, not when the announcement was
+   * posted. The posted time is relative prose that only holds at the moment it
+   * is read — see `postedFromText` — so it travels as text and is never used as
+   * a sort key. Anything else would be inventing a date the page never gave.
+   */
+  function announcementsToCandidates(records, courseCode, now) {
+    const stamp = (now || new Date()).toISOString();
+    return (records || [])
+      .filter((record) => record && record.title)
+      .map((record) => ({
+        courseCode: courseCode || null,
+        title: record.title,
+        body: record.body || "",
+        posted: record.posted || null,
+        announced: stamp,
+      }));
+  }
+
+  /**
    * A plain-text digest of the course.
    *
    * Markdown on purpose: it reads fine in a message, it diffs, and there is no
@@ -634,8 +659,11 @@
    * additively — courses are only ever added, ticks are unioned — so an empty
    * set says "change nothing here". Filling them in would mean sending a guess
    * about the user's other devices back to them.
+   *
+   * `announcements` is always present, empty or not, so the shape of what this
+   * sends does not change with which page the button was pressed on.
    */
-  function syncPayload(records, now) {
+  function syncPayload(records, now, announcements) {
     const stamp = (now || new Date()).toISOString();
     return {
       version: SYNC_VERSION,
@@ -651,13 +679,41 @@
       completedIds: [],
       efforts: {},
       courses: { version: 1, courses: [], assignments: {} },
+      announcements: announcements || [],
     };
   }
 
   /** The link the panel opens: the payload, carried in the fragment. */
-  async function huskypilotLink(records, now) {
-    const packed = await packSync(JSON.stringify(syncPayload(records, now)));
+  async function huskypilotLink(records, now, announcements) {
+    const packed = await packSync(
+      JSON.stringify(syncPayload(records, now, announcements)),
+    );
     return HUSKYPILOT_URL + "#sync=" + packed;
+  }
+
+  /**
+   * What the "Send deadlines" button puts in the link.
+   *
+   * Pulled out of the button handler so the join between collecting and sending
+   * can be exercised without a panel. The rule it encodes: announcements ride
+   * along **only** on a course page. On the Courses page there is no course to
+   * attribute them to, and an announcement nobody can place is worse than one
+   * that was not sent.
+   */
+  function deadlinesAndAnnouncements(scope, now) {
+    const records = todosToRecords(collectTodos(scope));
+
+    const courseId = currentCourseId();
+    if (!courseId) return { records, announcements: [] };
+
+    return {
+      records,
+      announcements: announcementsToCandidates(
+        collectAnnouncements(scope),
+        courseCodeFromDisplay(collectCourse(scope).heading),
+        now,
+      ),
+    };
   }
 
   /**
@@ -888,15 +944,28 @@
         const records = todosToRecords(todos);
         button.disabled = true;
         status.className = "note";
-        status.textContent = "Sending " + records.length + " deadline(s) to BetterHuskyCT…";
+
+        // On a course page the announcements are already on screen, so they ride
+        // along with the deadlines rather than needing the other button and a
+        // second trip.
+        const sendable = deadlinesAndAnnouncements(document);
+        const announcements = sendable.announcements;
+
+        status.textContent =
+          "Sending " + records.length + " deadline(s)" +
+          (announcements.length ? " and " + announcements.length + " announcement(s)" : "") +
+          " to BetterHuskyCT…";
 
         try {
-          const link = await huskypilotLink(records);
+          const link = await huskypilotLink(records, undefined, announcements);
           window.open(link, "_blank", "noopener");
           status.className = "note ok";
-          status.textContent = "Opened BetterHuskyCT with " + records.length + " deadline(s).";
+          status.textContent =
+            "Opened BetterHuskyCT with " + records.length + " deadline(s)" +
+            (announcements.length ? " and " + announcements.length + " announcement(s)" : "") +
+            ".";
           hint.textContent =
-            "Press Apply there and they are in. Nothing was uploaded — the deadlines travel inside the link.";
+            "Press Apply there and they are in. Nothing was uploaded — the data travels inside the link.";
         } catch (error) {
           status.className = "note warn";
           status.textContent = "Could not build the link: " + error.message;
@@ -981,6 +1050,8 @@
       collectContentItems,
       collectCourseFiles,
       collectCourse,
+      announcementsToCandidates,
+      deadlinesAndAnnouncements,
       courseDigestToMarkdown,
       todoFromLabel,
       dueDateFromText,

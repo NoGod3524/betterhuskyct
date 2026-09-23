@@ -9,6 +9,54 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.6.4](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.4) — Announcements arrive
+
+*Patch: a new capability — the app can finally hold what the helper has been able to read all along.*
+
+### Added
+
+- **Announcements are a first-class thing the app holds.** The browser helper
+  could already read a course's announcements, but it could only write them to a
+  Markdown file, because the app had nowhere to put them: it knew about
+  deadlines and nothing else. There is now a `/announcements` route, grouped by
+  course and newest first, with a per-course filter and a **Clear announcements**
+  button.
+- **The helper brings them along.** *Send deadlines to BetterHuskyCT* on a course
+  page now carries that course's announcements in the same link, so it is one
+  press rather than two. The helper moves to **0.11.0**. Its *Collect this course*
+  Markdown digest is unchanged.
+- **They travel between your own devices too**, on the sync link, because they
+  ride the same payload the calendar and the ticks do.
+
+### Notes
+
+- **`SYNC_VERSION` deliberately stays at 1.** An `announcements` key is optional
+  on input and always written on output. Bumping the version would have made
+  every link from an already-installed helper fail outright — the same class of
+  breakage the two domain flips in 1.6.2 and 1.6.3 cost. There is a test that
+  pins this: a link from a helper written before announcements existed still
+  reads, and its missing field means "nothing to add".
+- **An announcement's id is derived, not given.** Blackboard hands out no id for
+  one, and the only timestamp on it is the page's own words — *"7 hours ago, at
+  5:31 PM"* — which the helper refuses to convert, because a relative time is
+  only true at the moment it is read. The id is therefore a hash of the course
+  code, title and posted text, which makes re-collecting the same course update
+  a row in place instead of duplicating it, and makes the same announcement
+  arriving by sync on a second device converge on one row.
+- **The posted line stays prose.** It is shown as the page wrote it. What is
+  sorted on and aged is when the page was actually read.
+- **The writer is lenient where the link reader is strict.** A malformed row is
+  skipped rather than failing the whole link: an announcement is decoration next
+  to the deadlines, and a term should not be lost to one thin row.
+- **An ambiguous course code resolves to nothing.** If a course code matches two
+  local courses — the same code with two different components is a real thing
+  here — the row shows the code instead of a coin-flip pick.
+- Caps: 400 announcements, 1,200 characters per body. Measured at the cap — 120
+  deadlines, 5 courses, 400 full bodies — the packed link is 8,968 characters,
+  well inside the dashboard's 32 KB fragment guard. A realistic term (120
+  deadlines, 40 announcements) is about 3,074, of which the announcements are
+  864. A test asserts the guard holds.
+
 ## [1.6.3](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.3) — The domain, for real
 
 *Patch: the address the helper hands out was, briefly, the one that had stopped answering.*

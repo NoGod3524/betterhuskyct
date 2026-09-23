@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { CalendarTask } from "../src/lib/calendar-types.ts";
+import {
+  parseAnnouncementCandidates,
+  type Announcement,
+} from "../src/lib/announcements.ts";
 import { EMPTY_COURSE_BOOK, addCourse, type CourseBook } from "../src/lib/courses.ts";
 import type { Subscription } from "../src/lib/subscriptions.ts";
 import {
@@ -202,6 +206,7 @@ test("describeSync counts what the user is being offered", () => {
     completed: 3,
     courses: 1,
     efforts: 1,
+    announcements: 0,
   });
 });
 
@@ -365,4 +370,295 @@ test("per-task course choices survive with the right course id", () => {
   )?.id;
   assert.equal(merged.courses.assignments.a, statLocalId);
   assert.equal(merged.courses.assignments.b, null);
+});
+
+// -------------------------------------------------------------- announcements
+
+function announced(title: string, patch: Record<string, unknown> = {}) {
+  return {
+    courseCode: "NRE 1000E",
+    title,
+    body: `${title} body`,
+    posted: "9/17/26, 4:47 PM",
+    announced: "2026-09-23T10:00:00.000Z",
+    ...patch,
+  };
+}
+
+/** One already-held announcement, as the merge would find it on this device. */
+function takenAnnouncement(title: string, announcedAt: string): Announcement {
+  const [parsed] = parseAnnouncementCandidates(
+    [
+      {
+        courseCode: "NRE 1000E",
+        title,
+        body: `${title} body`,
+        posted: "9/17/26, 4:47 PM",
+        announced: announcedAt,
+      },
+    ],
+    NOW,
+  );
+  return parsed;
+}
+
+/**
+ * The compatibility case, and the reason `SYNC_VERSION` did not move.
+ *
+ * Every helper installed before announcements existed sends `version: 1` with no
+ * `announcements` key at all. Bumping the version would have made each of those
+ * links fail whole. This is the test that keeps that decision honest.
+ */
+test("a link from a helper written before announcements still reads", () => {
+  const legacy = {
+    version: 1,
+    exportedAt: NOW.toISOString(),
+    feeds: [
+      {
+        name: "HuskyCT to-do",
+        courseId: null,
+        importedAt: NOW.toISOString(),
+        events: [task("a")],
+      },
+    ],
+    completedIds: [],
+    efforts: {},
+    courses: { version: 1, courses: [], assignments: {} },
+  };
+
+  const parsed = parseSyncPayload(JSON.stringify(legacy));
+
+  assert.ok(parsed, "an older helper's link was rejected");
+  assert.deepEqual(parsed.announcements, []);
+  assert.equal(parsed.feeds.length, 1);
+});
+
+test("announcements survive a round trip through a link", async () => {
+  const payload = payloadOf({ announcements: parseAnnouncementCandidates([announced("Midterm moved")]) });
+  const packed = await encodeSyncPayload(payload);
+  const decoded = await decodeSyncPayload(packed);
+
+  assert.equal(decoded?.announcements.length, 1);
+  assert.equal(decoded?.announcements[0].title, "Midterm moved");
+});
+
+test("a malformed announcement is skipped without taking the term down with it", () => {
+  const raw = JSON.parse(serialiseSyncPayload(payloadOf()));
+  raw.announcements = [{ title: "Good" }, { body: "no title at all" }, "junk"];
+
+  const parsed = parseSyncPayload(JSON.stringify(raw));
+
+  assert.ok(parsed, "one bad row rejected the whole link");
+  assert.equal(parsed.announcements.length, 1);
+  assert.equal(parsed.announcements[0].title, "Good");
+});
+
+test("merging unions announcements and never removes one already here", () => {
+  const localAnnouncement = takenAnnouncement("Older", "2026-09-01T10:00:00.000Z");
+  const incoming = parseAnnouncementCandidates([
+    announced("Newer", { announced: "2026-09-22T10:00:00.000Z" }),
+  ]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: EMPTY_COURSE_BOOK,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: [localAnnouncement],
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements.length, 2);
+  assert.equal(merged.addedAnnouncements, 1);
+  // Newest first, so the incoming one leads.
+  assert.equal(merged.announcements[0].title, "Newer");
+});
+
+test("re-syncing the same announcement converges instead of doubling it", () => {
+  const incoming = parseAnnouncementCandidates([announced("Midterm moved")]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: EMPTY_COURSE_BOOK,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: incoming,
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements.length, 1);
+  assert.equal(merged.addedAnnouncements, 0);
+});
+
+test("a fuller second reading replaces the thin first one", () => {
+  const first = parseAnnouncementCandidates([announced("Midterm moved", { body: "" })]);
+  const second = parseAnnouncementCandidates([
+    announced("Midterm moved", { body: "The midterm moves to the 14th." }),
+  ]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: EMPTY_COURSE_BOOK,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: first,
+    },
+    payloadOf({ announcements: second }),
+  );
+
+  assert.equal(merged.announcements.length, 1);
+  assert.equal(merged.announcements[0].body, "The midterm moves to the 14th.");
+});
+
+test("an announcement finds its course by code, not by id", () => {
+  const localBook = bookWith("NRE 1000E");
+  const incoming = parseAnnouncementCandidates([announced("Midterm moved")]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: localBook,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: [],
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements[0].courseId, localBook.courses[0].id);
+});
+
+test("an ambiguous course code picks nothing rather than guessing", () => {
+  // The same code with two different components is a real thing here, and a row
+  // that shows the code is honest where a wrong pick is not.
+  const localBook = addCourse(addCourse(EMPTY_COURSE_BOOK, "NRE 1000E", "LEC"), "NRE 1000E", "DIS");
+  assert.equal(localBook.courses.length, 2);
+  const incoming = parseAnnouncementCandidates([announced("Midterm moved")]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: localBook,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: [],
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements[0].courseId, null);
+  assert.equal(merged.announcements[0].courseCode, "NRE 1000E");
+});
+
+test("an announcement for a course this device has never heard of is still shown", () => {
+  const incoming = parseAnnouncementCandidates([
+    announced("Midterm moved", { courseCode: "SOCI 1501" }),
+  ]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: EMPTY_COURSE_BOOK,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: [],
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements.length, 1);
+  assert.equal(merged.announcements[0].courseId, null);
+  assert.equal(merged.announcements[0].courseCode, "SOCI 1501");
+});
+
+test("the outgoing summary counts announcements", () => {
+  const summary = describeSync(
+    payloadOf({ announcements: parseAnnouncementCandidates([announced("One"), announced("Two")]) }),
+  );
+
+  assert.equal(summary.announcements, 2);
+});
+
+/**
+ * The caps exist for this, and nothing else asserted them at the boundary.
+ *
+ * 400 announcements of 1,200 characters is the most this can ever be asked to
+ * carry. Measured, that packs to 8,968 characters against a 32,768 guard, so
+ * there is room — but the guard is the thing that keeps a link openable, and a
+ * future cap change should have to fail here rather than in someone's browser.
+ */
+test("the caps keep a worst-case link inside the fragment guard", async () => {
+  const at = new Date("2026-09-23T12:00:00Z");
+  const full = parseAnnouncementCandidates(
+    Array.from({ length: 400 }, (_, index) => ({
+      courseCode: "MATH 1070Q",
+      title: "Announcement " + index,
+      body: "A paragraph of course news. ".repeat(60),
+      posted: "9/17/26, 4:47 PM",
+      announced: at.toISOString(),
+    })),
+    at,
+  );
+
+  assert.equal(full.length, 400);
+  assert.equal(full[0].body.length, 1_200, "the body cap did not apply");
+
+  const payload = buildSyncPayload({
+    feeds: [
+      {
+        name: "HuskyCT to-do",
+        courseId: null,
+        importedAt: at.toISOString(),
+        events: Array.from({ length: 120 }, (_, index) =>
+          task("deadline-" + index, {
+            start: new Date(Date.UTC(2026, 8, 20 + (index % 30), 3, 59)).toISOString(),
+          }),
+        ),
+      },
+    ],
+    completedIds: [],
+    efforts: {},
+    courses: bookWith("MATH 1070Q", "STAT 1000Q", "SOCI 1501", "NRE 1000E", "ECON 1201"),
+    announcements: full,
+    now: at,
+  });
+
+  const packed = await encodeSyncPayload(payload);
+
+  assert.ok(
+    packed.length < 32_768,
+    "worst case is over the dashboard's guard: " + packed.length,
+  );
+  // And it still reads back, which is the point of staying under the guard.
+  const decoded = await decodeSyncPayload(packed);
+  assert.equal(decoded?.announcements.length, 400);
+  assert.equal(decoded?.feeds.flatMap((feed) => feed.events).length, 120);
+});
+
+test("a course code matches regardless of case or odd spacing", () => {
+  // The catalogue and the page disagree about case, and a code can arrive with a
+  // run of whitespace in it. Matching on a bare lowercase comparison would miss
+  // the course and show the raw code instead of the user's own name for it.
+  const localBook = bookWith("MATH 1070Q");
+  const incoming = parseAnnouncementCandidates([
+    announced("Midterm moved", { courseCode: "  math   1070q  " }),
+  ]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: localBook,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: [],
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements[0].courseId, localBook.courses[0].id);
 });
