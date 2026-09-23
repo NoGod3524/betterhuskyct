@@ -44,6 +44,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Rolling 7-day view** — Today / Tomorrow / This week, grouped and time-sorted
 - **Due-soon reminders** — an in-app banner for anything due in the next 24 hours, plus optional browser notifications while the app is open
 - **Installable and offline** — add it to a phone's home screen as a PWA and keep reading saved tasks without a connection
+- **Announcements** — the browser helper brings your courses' announcements in on the same press as the deadlines, newest first and grouped by course
 - **Completion tracking** — tick tasks done; the state is saved in your browser and survives refresh
 - **Workload insights** — completion rate, tasks per course, and the next 7 days / 4 weeks at a glance
 - **English / 简体中文** — one-click language toggle, remembered across visits
@@ -132,6 +133,7 @@ Failures are logged without ever writing the private calendar URL to the log.
 | Your ICS URL | Nowhere by default — used once, then discarded. Saved in this browser only if you tick **Remember new links** |
 | A dropped `.ics` file | Read in the page, sent to BetterHuskyCT's own endpoint to be parsed, and never written anywhere |
 | Parsed events | `localStorage`, in your browser only |
+| Course announcements | `localStorage`, in your browser only — sent over by the browser helper alongside your deadlines |
 | Completed task IDs | `localStorage`, in your browser only |
 | Language choice | `localStorage`, in your browser only |
 
@@ -161,6 +163,7 @@ src/
 │  ├─ plan/page.tsx                  # /plan      what to do next
 │  ├─ tasks/page.tsx                 # /tasks     rolling 7-day list
 │  ├─ calendar/page.tsx              # /calendar  add another calendar
+│  ├─ announcements/page.tsx         # /announcements  course announcements
 │  ├─ insights/page.tsx              # /insights  workload analytics
 │  ├─ helper/page.tsx                # /helper    install the browser helper
 │  ├─ globals.css
@@ -175,6 +178,7 @@ src/
 │  ├─ task-card.tsx                  # One task: badges, time, room, course picker
 │  ├─ course-picker.tsx              # Per-task course override
 │  ├─ insights-section.tsx           # Workload analytics
+│  ├─ announcements-section.tsx      # Course announcements, grouped and filterable
 │  ├─ hero-section.tsx               # Overview header and status line
 │  ├─ app-footer.tsx                 # Version footer
 │  └─ service-worker-registrar.tsx   # Registers the offline service worker (production only)
@@ -193,6 +197,7 @@ src/
    ├─ reminders.ts                   # Due-soon detection and reminder settings
    ├─ calendar-file.ts               # Reading a dropped .ics: size, sanity, file-name labelling
    ├─ subscriptions.ts               # The list of calendars: cached events, names, opt-in URLs
+   ├─ announcements.ts               # Course announcements: derived ids, caps, storage
    ├─ import-storage.ts              # 1.0.x single-import storage, read once to migrate
    ├─ completion-storage.ts          # Versioned localStorage for completed task IDs
    └─ i18n.ts                        # English / 简体中文 dictionaries and lookup

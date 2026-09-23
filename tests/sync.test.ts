@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { CalendarTask } from "../src/lib/calendar-types.ts";
+import {
+  parseAnnouncementCandidates,
+  type Announcement,
+} from "../src/lib/announcements.ts";
 import { EMPTY_COURSE_BOOK, addCourse, type CourseBook } from "../src/lib/courses.ts";
 import type { Subscription } from "../src/lib/subscriptions.ts";
 import {
@@ -202,6 +206,7 @@ test("describeSync counts what the user is being offered", () => {
     completed: 3,
     courses: 1,
     efforts: 1,
+    announcements: 0,
   });
 });
 
@@ -365,4 +370,216 @@ test("per-task course choices survive with the right course id", () => {
   )?.id;
   assert.equal(merged.courses.assignments.a, statLocalId);
   assert.equal(merged.courses.assignments.b, null);
+});
+
+// -------------------------------------------------------------- announcements
+
+function announced(title: string, patch: Record<string, unknown> = {}) {
+  return {
+    courseCode: "NRE 1000E",
+    title,
+    body: `${title} body`,
+    posted: "9/17/26, 4:47 PM",
+    announced: "2026-09-23T10:00:00.000Z",
+    ...patch,
+  };
+}
+
+/** One already-held announcement, as the merge would find it on this device. */
+function takenAnnouncement(title: string, announcedAt: string): Announcement {
+  const [parsed] = parseAnnouncementCandidates(
+    [
+      {
+        courseCode: "NRE 1000E",
+        title,
+        body: `${title} body`,
+        posted: "9/17/26, 4:47 PM",
+        announced: announcedAt,
+      },
+    ],
+    NOW,
+  );
+  return parsed;
+}
+
+/**
+ * The compatibility case, and the reason `SYNC_VERSION` did not move.
+ *
+ * Every helper installed before announcements existed sends `version: 1` with no
+ * `announcements` key at all. Bumping the version would have made each of those
+ * links fail whole. This is the test that keeps that decision honest.
+ */
+test("a link from a helper written before announcements still reads", () => {
+  const legacy = {
+    version: 1,
+    exportedAt: NOW.toISOString(),
+    feeds: [
+      {
+        name: "HuskyCT to-do",
+        courseId: null,
+        importedAt: NOW.toISOString(),
+        events: [task("a")],
+      },
+    ],
+    completedIds: [],
+    efforts: {},
+    courses: { version: 1, courses: [], assignments: {} },
+  };
+
+  const parsed = parseSyncPayload(JSON.stringify(legacy));
+
+  assert.ok(parsed, "an older helper's link was rejected");
+  assert.deepEqual(parsed.announcements, []);
+  assert.equal(parsed.feeds.length, 1);
+});
+
+test("announcements survive a round trip through a link", async () => {
+  const payload = payloadOf({ announcements: parseAnnouncementCandidates([announced("Midterm moved")]) });
+  const packed = await encodeSyncPayload(payload);
+  const decoded = await decodeSyncPayload(packed);
+
+  assert.equal(decoded?.announcements.length, 1);
+  assert.equal(decoded?.announcements[0].title, "Midterm moved");
+});
+
+test("a malformed announcement is skipped without taking the term down with it", () => {
+  const raw = JSON.parse(serialiseSyncPayload(payloadOf()));
+  raw.announcements = [{ title: "Good" }, { body: "no title at all" }, "junk"];
+
+  const parsed = parseSyncPayload(JSON.stringify(raw));
+
+  assert.ok(parsed, "one bad row rejected the whole link");
+  assert.equal(parsed.announcements.length, 1);
+  assert.equal(parsed.announcements[0].title, "Good");
+});
+
+test("merging unions announcements and never removes one already here", () => {
+  const localAnnouncement = takenAnnouncement("Older", "2026-09-01T10:00:00.000Z");
+  const incoming = parseAnnouncementCandidates([
+    announced("Newer", { announced: "2026-09-22T10:00:00.000Z" }),
+  ]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: EMPTY_COURSE_BOOK,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: [localAnnouncement],
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements.length, 2);
+  assert.equal(merged.addedAnnouncements, 1);
+  // Newest first, so the incoming one leads.
+  assert.equal(merged.announcements[0].title, "Newer");
+});
+
+test("re-syncing the same announcement converges instead of doubling it", () => {
+  const incoming = parseAnnouncementCandidates([announced("Midterm moved")]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: EMPTY_COURSE_BOOK,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: incoming,
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements.length, 1);
+  assert.equal(merged.addedAnnouncements, 0);
+});
+
+test("a fuller second reading replaces the thin first one", () => {
+  const first = parseAnnouncementCandidates([announced("Midterm moved", { body: "" })]);
+  const second = parseAnnouncementCandidates([
+    announced("Midterm moved", { body: "The midterm moves to the 14th." }),
+  ]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: EMPTY_COURSE_BOOK,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: first,
+    },
+    payloadOf({ announcements: second }),
+  );
+
+  assert.equal(merged.announcements.length, 1);
+  assert.equal(merged.announcements[0].body, "The midterm moves to the 14th.");
+});
+
+test("an announcement finds its course by code, not by id", () => {
+  const localBook = bookWith("NRE 1000E");
+  const incoming = parseAnnouncementCandidates([announced("Midterm moved")]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: localBook,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: [],
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements[0].courseId, localBook.courses[0].id);
+});
+
+test("an ambiguous course code picks nothing rather than guessing", () => {
+  // The same code with two different components is a real thing here, and a row
+  // that shows the code is honest where a wrong pick is not.
+  const localBook = addCourse(addCourse(EMPTY_COURSE_BOOK, "NRE 1000E", "LEC"), "NRE 1000E", "DIS");
+  assert.equal(localBook.courses.length, 2);
+  const incoming = parseAnnouncementCandidates([announced("Midterm moved")]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: localBook,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: [],
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements[0].courseId, null);
+  assert.equal(merged.announcements[0].courseCode, "NRE 1000E");
+});
+
+test("an announcement for a course this device has never heard of is still shown", () => {
+  const incoming = parseAnnouncementCandidates([
+    announced("Midterm moved", { courseCode: "SOCI 1501" }),
+  ]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: EMPTY_COURSE_BOOK,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: [],
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements.length, 1);
+  assert.equal(merged.announcements[0].courseId, null);
+  assert.equal(merged.announcements[0].courseCode, "SOCI 1501");
+});
+
+test("the outgoing summary counts announcements", () => {
+  const summary = describeSync(
+    payloadOf({ announcements: parseAnnouncementCandidates([announced("One"), announced("Two")]) }),
+  );
+
+  assert.equal(summary.announcements, 2);
 });

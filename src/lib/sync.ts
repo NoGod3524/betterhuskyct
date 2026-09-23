@@ -1,3 +1,8 @@
+import {
+  MAX_ANNOUNCEMENTS,
+  parseAnnouncementCandidates,
+  type Announcement,
+} from "./announcements.ts";
 import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import { isCalendarTask } from "./import-storage.ts";
 import { EFFORT_LEVELS, type EffortMap } from "./effort.ts";
@@ -41,6 +46,17 @@ export type SyncPayload = {
   completedIds: string[];
   efforts: EffortMap;
   courses: CourseBook;
+  /**
+   * Always present, empty when there is nothing to say.
+   *
+   * Optional *on input* and required on output, and that asymmetry is the whole
+   * compatibility story. A helper installed before this field existed still
+   * sends `version: 1` with no `announcements`, and bumping the version would
+   * have made every one of those links fail outright — the same breakage the two
+   * domain flips already cost. An absent field reads as "nothing to add", which
+   * is exactly what the older producers mean by it.
+   */
+  announcements: Announcement[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -112,6 +128,15 @@ export function parseSyncPayload(text: string): SyncPayload | null {
     if (feed && feed.events.length > 0) feeds.push(feed);
   }
 
+  // Lenient where the rest of this reader is strict, on purpose: an announcement
+  // is decoration next to the deadlines, and a link carrying one malformed row
+  // should still hand over the term. A missing field is not malformed at all —
+  // it is what every producer written before this field existed sends.
+  const announcements = parseAnnouncementCandidates(
+    parsed.announcements,
+    new Date(parsed.exportedAt),
+  );
+
   return {
     version: SYNC_VERSION,
     exportedAt: parsed.exportedAt,
@@ -119,6 +144,7 @@ export function parseSyncPayload(text: string): SyncPayload | null {
     completedIds: parsed.completedIds as string[],
     efforts,
     courses,
+    announcements,
   };
 }
 
@@ -127,6 +153,7 @@ export function buildSyncPayload(input: {
   completedIds: Iterable<string>;
   efforts: EffortMap;
   courses: CourseBook;
+  announcements?: Announcement[];
   now?: Date;
 }): SyncPayload {
   return {
@@ -139,6 +166,7 @@ export function buildSyncPayload(input: {
       courses: input.courses.courses.map((course) => ({ ...course })),
       assignments: { ...input.courses.assignments },
     },
+    announcements: (input.announcements ?? []).slice(0, MAX_ANNOUNCEMENTS),
   };
 }
 
@@ -151,6 +179,7 @@ export function serialiseSyncPayload(payload: SyncPayload): string {
     completedIds: payload.completedIds,
     efforts: payload.efforts,
     courses: serialiseCourseBook(payload.courses),
+    announcements: payload.announcements,
   });
 }
 
@@ -232,6 +261,7 @@ export function describeSync(payload: SyncPayload): {
   completed: number;
   courses: number;
   efforts: number;
+  announcements: number;
 } {
   const events = payload.feeds.flatMap((feed) => feed.events);
   return {
@@ -241,5 +271,6 @@ export function describeSync(payload: SyncPayload): {
     completed: payload.completedIds.length,
     courses: payload.courses.courses.length,
     efforts: Object.keys(payload.efforts).length,
+    announcements: payload.announcements.length,
   };
 }

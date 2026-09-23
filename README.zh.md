@@ -44,6 +44,7 @@ BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好�
 - **滚动 7 天视图** —— 今天 / 明天 / 本周，分组并按时间排序
 - **到期提醒** —— 未来 24 小时有任务到期时显示横幅；可选开启浏览器通知（App 打开时生效）
 - **可安装 + 离线** —— 作为 PWA 加到手机主屏幕，没网也能看已保存的任务
+- **课程公告** —— 浏览器助手在送 deadline 的同一按里把课程公告一起带来，按课程分组、最新的在最前
 - **完成勾选** —— 勾选任务；状态存在浏览器里，刷新不丢
 - **任务负担洞察** —— 完成率、各课程任务量、未来 7 天 / 4 周一览
 - **English / 简体中文** —— 一键切换语言，选择会被记住
@@ -132,6 +133,7 @@ flowchart TB
 | 你的 ICS 链接 | 默认哪里都不存——用完即弃。只有勾选「记住新加的链接」时，才只保存在此浏览器 |
 | 拖入的 `.ics` 文件 | 在页面里读取，发给 BetterHuskyCT 自己的接口解析，不会被写到任何地方 |
 | 解析后的事件 | 只在你浏览器的 `localStorage` |
+| 课程公告 | 只在你浏览器的 `localStorage`（由浏览器助手随 deadline 一起送来） |
 | 已完成的任务 ID | 只在你浏览器的 `localStorage` |
 | 语言选择 | 只在你浏览器的 `localStorage` |
 
@@ -161,6 +163,7 @@ src/
 │  ├─ plan/page.tsx                  # /plan      接下来做什么
 │  ├─ tasks/page.tsx                 # /tasks     滚动 7 天清单
 │  ├─ calendar/page.tsx              # /calendar  再加一个日历
+│  ├─ announcements/page.tsx         # /announcements 课程公告
 │  ├─ insights/page.tsx              # /insights  负担分析
 │  ├─ helper/page.tsx                # /helper    安装浏览器助手
 │  ├─ globals.css
@@ -175,6 +178,7 @@ src/
 │  ├─ task-card.tsx                  # 单条任务：标签、时间、教室、课程下拉
 │  ├─ course-picker.tsx              # 单条任务的课程覆盖
 │  ├─ insights-section.tsx           # 负担分析
+│  ├─ announcements-section.tsx      # 课程公告：按课程分组、可筛选
 │  ├─ hero-section.tsx               # 总览页头部与状态行
 │  ├─ app-footer.tsx                 # 版本号页脚
 │  └─ service-worker-registrar.tsx   # 注册离线 Service Worker（仅生产环境）
@@ -193,6 +197,7 @@ src/
    ├─ reminders.ts                   # 到期检测与提醒设置
    ├─ calendar-file.ts               # 读取拖入的 .ics：大小、格式检查、按文件名命名
    ├─ subscriptions.ts               # 订阅列表：缓存的事件、名字、可选保存的链接
+   ├─ announcements.ts               # 课程公告：派生 ID、上限、存储
    ├─ import-storage.ts              # 1.0.x 的单份导入存储，只在升级时读一次
    ├─ completion-storage.ts          # 带版本的 localStorage（已完成的任务 ID）
    └─ i18n.ts                        # 中英文字典与查表函数

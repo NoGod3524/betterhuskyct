@@ -34,6 +34,11 @@ type HelperSurface = {
   collectAnnouncements: (root: unknown) => Array<{ title: string; body: string; posted: string | null }>;
   collectContentItems: (root: unknown) => Array<{ title: string; state: string }>;
   collectCourseFiles: (root: unknown) => Array<{ title: string; id: string; url: string }>;
+  announcementsToCandidates: (
+    records: Array<{ title: string; body?: string; posted?: string | null }>,
+    courseCode: string | null,
+    now?: Date,
+  ) => Array<Record<string, unknown>>;
   courseDigestToMarkdown: (digest: Record<string, unknown>) => string;
   todoFromLabel: (label: string) => Record<string, unknown> | null;
   dueDateFromText: (value: string) => Date | null;
@@ -41,8 +46,16 @@ type HelperSurface = {
   todosToRecords: (todos: Array<Record<string, unknown>>) => Array<Record<string, unknown>>;
   guidanceFor: (scope: unknown, courseId: string | null) => string;
   taskFromRecord: (record: Record<string, unknown>) => Record<string, unknown>;
-  syncPayload: (records: Array<Record<string, unknown>>, now?: Date) => Record<string, unknown>;
-  huskypilotLink: (records: Array<Record<string, unknown>>, now?: Date) => Promise<string>;
+  syncPayload: (
+    records: Array<Record<string, unknown>>,
+    now?: Date,
+    announcements?: Array<Record<string, unknown>>,
+  ) => Record<string, unknown>;
+  huskypilotLink: (
+    records: Array<Record<string, unknown>>,
+    now?: Date,
+    announcements?: Array<Record<string, unknown>>,
+  ) => Promise<string>;
   VERSION: string;
 };
 
@@ -107,6 +120,7 @@ const {
   collectAnnouncements,
   collectContentItems,
   collectCourseFiles,
+  announcementsToCandidates,
   courseDigestToMarkdown,
   todoFromLabel,
   dueDateFromText,
@@ -805,6 +819,9 @@ test("the payload says nothing about the parts it did not collect", () => {
   assert.deepEqual(payload.completedIds, []);
   assert.deepEqual(payload.efforts, {});
   assert.deepEqual(payload.courses, { version: 1, courses: [], assignments: {} });
+  // Present and empty rather than absent: the shape this sends should not change
+  // with which page the button was pressed on.
+  assert.deepEqual(payload.announcements, []);
 });
 
 test("the link the panel opens is accepted by the dashboard's own reader", async () => {
@@ -825,6 +842,116 @@ test("the link the panel opens is accepted by the dashboard's own reader", async
 test("the same deadlines always produce the same link", async () => {
   const at = new Date("2026-09-19T12:00:00Z");
   assert.equal(await huskypilotLink(collectedRecords(), at), await huskypilotLink(collectedRecords(), at));
+});
+
+// ------------------------------------------------------- announcements travel
+
+/** What `collectAnnouncements` hands back, as the panel would pass it on. */
+function collectedAnnouncements() {
+  return [
+    {
+      title: "Online OH Starting soon",
+      body: "Hi everyone, office hours tonight.",
+      posted: "9/17/26, 4:47 PM",
+    },
+    {
+      title: "Midterm moved",
+      body: "The midterm moves to the 14th.",
+      posted: "7 hours ago, at 5:31 PM",
+    },
+  ];
+}
+
+test("an announcement carries its course by code, because that is what both sides know", () => {
+  const candidates = announcementsToCandidates(
+    collectedAnnouncements(),
+    "MATH 1070Q",
+    new Date("2026-09-19T12:00:00Z"),
+  );
+
+  assert.equal(candidates.length, 2);
+  assert.equal(candidates[0].courseCode, "MATH 1070Q");
+  assert.equal(candidates[0].title, "Online OH Starting soon");
+  assert.equal(candidates[0].body, "Hi everyone, office hours tonight.");
+  // The posted time travels as the page's own words, never as a parsed instant.
+  assert.equal(candidates[1].posted, "7 hours ago, at 5:31 PM");
+});
+
+test("the announced time is when the page was read, so relative prose cannot rot", () => {
+  const at = new Date("2026-09-19T12:00:00Z");
+  const candidates = announcementsToCandidates(collectedAnnouncements(), "MATH 1070Q", at);
+
+  assert.equal(candidates[0].announced, at.toISOString());
+  assert.equal(candidates[1].announced, at.toISOString());
+});
+
+test("an announcement with no title is dropped before it reaches the payload", () => {
+  const candidates = announcementsToCandidates(
+    [{ title: "", body: "orphan", posted: null }, ...collectedAnnouncements()],
+    "MATH 1070Q",
+  );
+
+  assert.equal(candidates.length, 2);
+});
+
+test("a missing body or course becomes null-ish rather than undefined", () => {
+  const [candidate] = announcementsToCandidates([{ title: "Only a title" }], null);
+
+  assert.equal(candidate.courseCode, null);
+  assert.equal(candidate.body, "");
+  assert.equal(candidate.posted, null);
+});
+
+test("announcements survive the trip into the dashboard's own reader", async () => {
+  const at = new Date("2026-09-19T12:00:00Z");
+  const candidates = announcementsToCandidates(collectedAnnouncements(), "MATH 1070Q", at);
+  const link = await huskypilotLink(collectedRecords(), at, candidates);
+
+  const packed = link.slice(link.indexOf("#sync=") + "#sync=".length);
+  const payload = await decodeSyncPayload(packed);
+
+  assert.ok(payload, "the dashboard would have rejected a link carrying announcements");
+  assert.equal(payload.announcements.length, 2);
+  assert.equal(payload.announcements[0].title, "Online OH Starting soon");
+  // The dashboard computes the id, and it must not depend on the device.
+  assert.match(payload.announcements[0].id, /^[0-9a-f]{8}$/);
+  assert.equal(payload.announcements[0].courseCode, "MATH 1070Q");
+});
+
+test("a term of deadlines plus its announcements still fits in a fragment", async () => {
+  const at = new Date("2026-09-19T12:00:00Z");
+  const many = [];
+  for (let index = 0; index < 120; index += 1) {
+    many.push({
+      uid: "huskyct-todo-_" + index + "_1",
+      title: "Homework set " + index,
+      course: "MATH 1070Q",
+      start: new Date(Date.UTC(2026, 8, 20 + (index % 30), 3, 59)).toISOString(),
+      end: null,
+      allDay: false,
+      kind: "assignment",
+    });
+  }
+
+  // A term of announcements with real bodies — the case that could actually
+  // overflow the fragment the app reads.
+  const announcements = announcementsToCandidates(
+    Array.from({ length: 40 }, (_, index) => ({
+      title: "Announcement " + index,
+      body: "A paragraph of course news. ".repeat(12),
+      posted: "9/17/26, 4:47 PM",
+    })),
+    "MATH 1070Q",
+    at,
+  );
+
+  const link = await huskypilotLink(many, at, announcements);
+  const packed = link.slice(link.indexOf("#sync=") + "#sync=".length);
+
+  assert.ok(packed.length < 32768, "over the dashboard's own guard: " + packed.length);
+  const payload = await decodeSyncPayload(packed);
+  assert.equal(payload?.feeds.flatMap((feed) => feed.events).length, 120);
+  assert.equal(payload?.announcements.length, 40);
 });
 
 test("a link for a whole term of deadlines stays well inside what a fragment holds", async () => {

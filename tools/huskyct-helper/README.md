@@ -80,11 +80,29 @@ carry build hashes and change with every release.
 home, the Courses page — and opens the dashboard with those deadlines already in
 the link. Press **Apply** there and they are in.
 
+**On a course page it takes that course's announcements with it.** You are
+already looking at them, so there is no reason to make it a second button and a
+second trip: the same press adds the announcements to the link, and the
+dashboard lists them on its Announcements page under the course code. The
+*Collect this course* button still writes its Markdown digest, unchanged, for
+when you want a file.
+
+The course is named by its **code** — `MATH 1070Q` — rather than its HuskyCT id,
+because that is the only handle the dashboard shares; `_203765_1` means nothing
+over there.
+
+Each announcement's **posted** line stays exactly as the page wrote it
+("7 hours ago, at 5:31 PM"). That is deliberate: a relative time is only true at
+the moment it is read, so converting it would mean inventing a timestamp this
+script has no honest way to produce. What does travel as an instant is when the
+page was read, which is what the dashboard sorts on.
+
 There is no file to download and nothing to import. The data rides in the
 fragment of the URL, which browsers never send to a server, so it goes from
 HuskyCT to your own copy of BetterHuskyCT and nowhere else. A whole term is a couple
 of kilobytes: 120 deadlines pack to about 1.4 KB, and the dashboard's own guard
-is 32 KB.
+is 32 KB. Announcements are capped at 400, with each body cut off at 1,200
+characters, so a term of them cannot crowd the deadlines out.
 
 It uses the same link format as *Sync this dashboard to another device*, so the
 payload is read back by exactly the same code. A test asserts that by running a
