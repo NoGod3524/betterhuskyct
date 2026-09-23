@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.14.0
+// @version      0.14.1
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.14.0";
+  const VERSION = "0.14.1";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1245,15 +1245,6 @@
 
     chip.addEventListener("click", () => setCollapsed(false));
 
-    // The switch swaps to the *other* language and remembers it, so the panel
-    // and the dashboard end up agreeing without either being told twice.
-    langButton.addEventListener("click", () => {
-      setLocale(otherLocale());
-      relabel();
-    });
-
-    relabel();
-
     const out = wrap.querySelector('[data-role="out"]');
     const status = wrap.querySelector('[data-role="status"]');
     const hint = wrap.querySelector('[data-role="hint"]');
@@ -1262,6 +1253,23 @@
     const acquireButton = wrap.querySelector('[data-act="acquire"]');
     const acquireHint = wrap.querySelector('[data-role="acquire-hint"]');
     const langButton = wrap.querySelector('[data-role="lang"]');
+
+    /**
+     * Both of these come after every element they touch, and the ordering is
+     * load-bearing.
+     *
+     * `langButton` is a `const`. Wiring the switch or rendering the first time
+     * before it is initialised throws "Cannot access 'langButton' before
+     * initialization" and takes the whole panel with it, so the panel never
+     * appears at all. That shipped in 0.14.0, and only a real page caught it:
+     * the unit tests render the markup as a string and never run mountPanel.
+     */
+    langButton.addEventListener("click", () => {
+      setLocale(otherLocale());
+      relabel();
+    });
+
+    relabel();
 
     /** The page-specific advice, re-derivable so a language switch can refresh it. */
     function refreshGuidance() {
