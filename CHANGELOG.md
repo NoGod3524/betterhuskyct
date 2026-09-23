@@ -9,6 +9,29 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.6.3](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.3) — The domain, for real
+
+*Patch: the address the helper hands out was, briefly, the one that had stopped answering.*
+
+### Fixed
+
+- The helper points at **`betterhuskyct.vercel.app`**, which is now the live
+  address, and moves to 0.10.6. ([#39])
+
+### Notes
+
+- 1.6.2 (which shipped as a version bump without an entry of its own) put the
+  helper back on `huskypilot.vercel.app`, because at that moment it was the
+  address that answered and the new one returned `DEPLOYMENT_NOT_FOUND`.
+  Attaching the domain in Vercel swapped the two over, leaving the helper
+  pointing at the dead one. Both directions of that mistake were live breakage,
+  and both were caught by measuring the addresses rather than assuming the move
+  had landed. ([#38], [#39])
+- The self-test used to hardcode the app's address, which is why it reported the
+  old domain as "the app" and mentioned the new one only as a note. It now reads
+  the address out of the helper, so a helper pointing somewhere dead fails the
+  check instead of hiding behind a stale literal. ([#39])
+
 ## [1.6.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.1) — The rename, finished
 
 *Patch: the parts of the rename that needed the repository and the domain to move first.*
@@ -506,6 +529,8 @@ saying what to work on next.*
 [#35]: https://github.com/NoGod3524/betterhuskyct/pull/35
 [#36]: https://github.com/NoGod3524/betterhuskyct/pull/36
 [#37]: https://github.com/NoGod3524/betterhuskyct/pull/37
+[#38]: https://github.com/NoGod3524/betterhuskyct/pull/38
+[#39]: https://github.com/NoGod3524/betterhuskyct/pull/39
 
 
 
