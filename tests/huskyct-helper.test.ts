@@ -23,6 +23,14 @@ const SOURCE = readFileSync(
 type HelperSurface = {
   mergeCalendars: (name: string, texts: string[]) => string;
   calendarLinks: () => Array<[string, string]>;
+  calendarNameFor: (links: Array<[string, string]>) => string;
+  planCalendarAcquisition: (
+    linksCount: number,
+    collectedCount: number,
+    available: boolean,
+  ) => { source: string | null; filename: string | null; message: string | null };
+  acquireLabelFor: (linksCount: number, collectedCount: number) => string;
+  acquireHintFor: (linksCount: number, collectedCount: number) => string;
   kindFromSourceType: (type: string) => string | null;
   eventToRecord: (raw: Record<string, unknown>, event: Record<string, unknown>) => Record<string, unknown> | null;
   recordsToIcs: (records: Array<Record<string, unknown>>) => string;
@@ -115,6 +123,10 @@ import { decodeSyncPayload } from "../src/lib/sync.ts";
 
 const {
   mergeCalendars,
+  calendarNameFor,
+  planCalendarAcquisition,
+  acquireLabelFor,
+  acquireHintFor,
   VERSION,
   eventToRecord,
   recordsToIcs,
@@ -1079,4 +1091,112 @@ test("the panel says which button this page wants", () => {
 test("a page with a to-do list wins over being inside a course", () => {
   const withTodo = { querySelector: (selector: string) => (selector.includes(", due ") ? {} : null) };
   assert.match(guidanceFor(withTodo, "_203765_1"), /Send deadlines to BetterHuskyCT/);
+});
+
+// ------------------------------------------- one button for the page's calendar
+
+/**
+ * The bug this guards: with a single feed, the old merge path passed a bare
+ * `""` as the calendar's name, which wrote a bare `X-WR-CALNAME:` into the file.
+ * The dashboard reads that key as the name and got `""` rather than null, so it
+ * showed a blank name where it would otherwise have said "Unnamed calendar".
+ */
+test("the merged calendar is never given an empty name", () => {
+  assert.equal(calendarNameFor([]), "HuskyCT");
+
+  const single: Array<[string, string]> = [["https://lms.uconn.edu/f.ics", ""]];
+  assert.ok(calendarNameFor(single).length > 0, "an unnamed single feed produced an empty name");
+  assert.equal(calendarNameFor(single), "HuskyCT");
+
+  // A single feed that does carry a label uses it, minus the extension.
+  assert.equal(
+    calendarNameFor([["https://lms.uconn.edu/f.ics", "MATH 1070Q.ics"]]),
+    "MATH 1070Q",
+  );
+
+  // Several feeds get a count, because no single label would be honest.
+  assert.equal(
+    calendarNameFor([
+      ["https://lms.uconn.edu/a.ics", "A"],
+      ["https://lms.uconn.edu/b.ics", "B"],
+    ]),
+    "HuskyCT (2 calendars)",
+  );
+});
+
+test("a feed link beats harvested events, and neither beats nothing", () => {
+  // Feeds win: the file they produce can be pasted in as a subscription, so it
+  // refreshes. A file of harvested events can only ever be dropped in once.
+  const feeds = planCalendarAcquisition(2, 0, false);
+  assert.equal(feeds.source, "feeds");
+  assert.equal(feeds.filename, "huskyct-merged.ics");
+
+  const events = planCalendarAcquisition(0, 12, true);
+  assert.equal(events.source, "events");
+  assert.equal(events.filename, "huskyct-calendar.ics");
+
+  // A calendar that exists but has loaded nothing yet is "move through it
+  // first", not "no calendar here" — different advice for the reader.
+  const empty = planCalendarAcquisition(0, 0, true);
+  assert.equal(empty.source, null);
+  assert.match(empty.message ?? "", /move through it first/);
+
+  const absent = planCalendarAcquisition(0, 0, false);
+  assert.equal(absent.source, null);
+  assert.match(absent.message ?? "", /No feed links and no calendar/);
+});
+
+test("the button says which source it is about to use", () => {
+  assert.match(acquireLabelFor(1, 0), /1 feed link/);
+  assert.match(acquireLabelFor(3, 0), /3 feed links/);
+  assert.match(acquireLabelFor(0, 8), /events collected/);
+  // Nothing to work with: still one label, but no promise attached.
+  assert.equal(acquireLabelFor(0, 0), "Get this page's calendar");
+
+  assert.match(acquireHintFor(2, 0), /pasted in as a link/);
+  assert.match(acquireHintFor(0, 4), /export what has been collected/);
+  assert.match(acquireHintFor(0, 0), /Calendar page/);
+});
+
+/**
+ * The panel lives in a template string, which means a mismatch between a button
+ * and its handler is invisible: no test builds the panel, so a selector that
+ * matches nothing would be a null dereference on every page load rather than a
+ * failing assertion. (I hit exactly this while writing the change — a button
+ * labelled "Send deadlines…" whose handler compared against `"todos"` — so it is
+ * a real mistake here, not a hypothetical.)
+ *
+ * These check the source for the pairings, which is cheap and catches the ones
+ * that mattered.
+ */
+test("every panel button has a handler, and the labels match", () => {
+  const actions = [...SOURCE.matchAll(/data-act="([a-z]+)"/g)].map((match) => match[1]);
+  assert.ok(actions.length > 0, "no panel buttons found at all");
+
+  for (const action of actions) {
+    // `copy` is handled by its own branch; the rest are compared against `act`.
+    assert.match(
+      SOURCE,
+      new RegExp(`act === "${action}"`),
+      `the "${action}" button has no handler`,
+    );
+  }
+
+  // The one-button promise: the *merge* action is gone, folded into `acquire`.
+  // `export` stays, because it is the labelled fallback for a page with no feeds
+  // — what is gone is having two file buttons with no way to tell them apart.
+  assert.ok(
+    !actions.includes("merge"),
+    "the panel has its own merge button again instead of routing through acquire",
+  );
+  assert.ok(
+    actions.includes("acquire"),
+    "the acquire button is missing",
+  );
+
+  // And the label the code will write is the label the markup ships.
+  assert.ok(
+    SOURCE.includes(acquireLabelFor(0, 0)),
+    "the markup's acquire label and acquireLabelFor(0, 0) disagree",
+  );
 });

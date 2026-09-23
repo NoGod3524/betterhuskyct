@@ -2,10 +2,11 @@
 
 A userscript that runs inside your own HuskyCT session and does three things:
 
-1. **Merges your course calendars into one `.ics`.** HuskyCT hands out one
-   calendar feed per course, so a semester is a dozen links and BetterHuskyCT can
-   only take one at a time. This collects every feed the page already exposes and
-   writes a single file you can drop straight into the app.
+1. **Gets the calendar off the page you are looking at.** It prefers the `.ics`
+   feed links the page exposes, because the file that produces can be pasted into
+   BetterHuskyCT as a *link* — a subscription that refreshes itself. If the page
+   exposes none, it falls back to exporting the events the calendar has already
+   loaded, which can only be dropped in as a file.
 2. **Collects a course** — its announcements, its outline, and the files it links
    to — as a Markdown digest.
 3. **Sends your deadlines to BetterHuskyCT** in one press — no file to download, and
@@ -14,6 +15,21 @@ A userscript that runs inside your own HuskyCT session and does three things:
 > **HuskyCT is Blackboard Ultra at `lms.uconn.edu`.** The script also matches
 > `huskyct.uconn.edu` in case that hostname still redirects, but `lms.uconn.edu`
 > is the one that matters.
+
+## Why there is one calendar button and not two
+
+There used to be two: *Merge .ics links* and *Export .ics*. Both produced a
+`.ics` file that you then dropped into the same place, so the reader had to work
+out which to press — when the real answer depended on whether the page happened
+to expose feed links, which is the script's business and not theirs.
+
+The two are not equivalent, and that is why the order is what it is. A merged
+feed file can be **pasted into the dashboard as a link**, and only a link can
+refresh itself later. The app has no way to turn a file back into a feed URL, so
+harvested events can only ever be a one-time file. Feeds win; harvesting is what
+happens when there are no feeds to win with.
+
+The button says which one it is about to do.
 
 ## What it does not do
 

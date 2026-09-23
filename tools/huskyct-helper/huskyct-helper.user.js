@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.11.0
+// @version      0.12.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -20,8 +20,9 @@
  *
  * Why this exists: HuskyCT hands out one calendar feed per course, so a semester
  * is a dozen links, and BetterHuskyCT can only take one at a time. This runs inside
- * the browser you are already signed in to, collects the feeds that browser can
- * already see, and writes them out as a single .ics.
+ * the browser you are already signed in to and gets the calendar off the page —
+ * merging the feed links it can see, or falling back to the events the calendar
+ * has already loaded when the page exposes no feeds.
  *
  * What it does NOT do, on purpose:
  *   - It never asks for, stores, or transmits your NetID or password. It uses
@@ -41,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.11.0";
+  const VERSION = "0.12.0";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -734,6 +735,175 @@
     return "Open the Courses page for your deadlines, or a course for its announcements and files.";
   }
 
+  /**
+   * What to call the calendar this produces.
+   *
+   * This exists because of a bug the old merge path had: with a single feed it
+   * passed a bare `""`, which wrote a bare `X-WR-CALNAME:` into the file. The
+   * dashboard reads that key as the calendar's name, so it got `""` rather than
+   * nothing and showed a blank name where it would otherwise have said
+   * "Unnamed calendar". A label is never empty now.
+   */
+  function calendarNameFor(links) {
+    if (links.length === 1) {
+      const label = (links[0][1] || "").replace(/\.ics$/i, "").trim();
+      if (label) return label;
+    }
+    if (links.length > 1) return "HuskyCT (" + links.length + " calendars)";
+    return "HuskyCT";
+  }
+
+  /**
+   * Which source this page offers, decided without doing any work.
+   *
+   * Split out from `acquireCalendar` so the decision can be tested on its own:
+   * the actions around it fetch other people's servers and write files, which
+   * makes them awkward to assert against, while the rule itself —
+   * feeds beat harvested events, and nothing is an honest answer — is the part
+   * that would break quietly.
+   */
+  function planCalendarAcquisition(linksCount, collectedCount, available) {
+    if (linksCount > 0) {
+      return {
+        source: "feeds",
+        filename: "huskyct-merged.ics",
+        message: null,
+      };
+    }
+
+    if (collectedCount > 0) {
+      return {
+        source: "events",
+        filename: "huskyct-calendar.ics",
+        message: null,
+      };
+    }
+
+    return {
+      source: null,
+      filename: null,
+      message: available
+        ? "This page has a calendar but no events loaded yet — move through it first."
+        : "No feed links and no calendar on this page.",
+    };
+  }
+
+  /**
+   * The one action behind "give me this page's calendar".
+   *
+   * Feed links are preferred because they carry the original VEVENT blocks
+   * untouched and, more importantly, because the file they produce can be pasted
+   * into the dashboard as a *link* — a subscription that refreshes itself. The
+   * harvested events can only ever be dragged in as a file, because the app has
+   * no way to turn a file back into a feed URL, so that route is the fallback
+   * for a page that exposes no feeds at all.
+   */
+  async function acquireCalendar(options) {
+    const opts = options || {};
+    const links = calendarLinks();
+
+    if (links.length === 0) {
+      const result = harvest(opts.now);
+      const plan = planCalendarAcquisition(0, collected.size, result.available);
+
+      if (plan.source !== "events") {
+        return {
+          ok: false,
+          message: plan.message,
+          detail:
+            "This button prefers links ending in .ics, and this page has none.\n" +
+            "It falls back to the events the calendar has loaded, and there are none yet.\n" +
+            "The Calendar page is the one that usually has the feed links.",
+        };
+      }
+
+      const records = [...collected.values()];
+      const withCourse = records.filter((record) => record.course).length;
+      download(plan.filename, recordsToIcs(records), "text/calendar;charset=utf-8");
+
+      return {
+        ok: true,
+        source: "events",
+        message:
+          "No feed links here, so exported " + records.length + " collected events" +
+          (withCourse ? ", " + withCourse + " with a course code" : "") +
+          ". Check your downloads.",
+        hint:
+          (result.added ? "Picked up " + result.added + " more just now. " : "") +
+          "Drop huskyct-calendar.ics into BetterHuskyCT. A file cannot refresh itself — " +
+          "open the Calendar page for the feed links if you want that.",
+      };
+    }
+
+    if (opts.status) {
+      opts.status.className = "note";
+      opts.status.textContent = "Reading " + links.length + " calendar(s)…";
+    }
+
+    const texts = [];
+    const failed = [];
+    for (const [href, name] of links) {
+      try {
+        const response = await fetch(href, { credentials: "same-origin" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        texts.push(await response.text());
+      } catch (error) {
+        failed.push(name + " (" + error.message + ")");
+      }
+      // Deliberately slow: this is someone else's server.
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+
+    if (texts.length === 0) {
+      return {
+        ok: false,
+        message: "Found " + links.length + " feed link(s) but could not read any of them.",
+        detail: failed.join("\n"),
+      };
+    }
+
+    const plan = planCalendarAcquisition(links.length, collected.size, true);
+    const merged = mergeCalendars(calendarNameFor(links), texts);
+    const eventCount = (merged.match(/BEGIN:VEVENT/g) || []).length;
+    download(plan.filename, merged, "text/calendar;charset=utf-8");
+
+    return {
+      ok: true,
+      source: "feeds",
+      message:
+        "Merged " + texts.length + " calendar(s), " + eventCount + " events. Check your downloads.",
+      hint: failed.length
+        ? "Could not read: " + failed.join(", ")
+        : "Open huskyct-merged.ics and copy its contents into the dashboard's link box — " +
+          "that way it refreshes itself. Dropping the file works too, but only once.",
+    };
+  }
+
+  /**
+   * Say which source this page will use, before the button is pressed.
+   *
+   * Without this the label would promise one thing and the button might do
+   * another, which is how the old two-button panel left people guessing. The
+   * text is deliberately about the *page*, not about feeds in the abstract.
+   */
+  function acquireLabelFor(linksCount, collectedCount) {
+    if (linksCount > 0) {
+      return linksCount === 1
+        ? "Get this page's calendar (1 feed link)"
+        : "Get this page's calendar (" + linksCount + " feed links)";
+    }
+    if (collectedCount > 0) {
+      return "Get this page's calendar (events collected so far)";
+    }
+    return "Get this page's calendar";
+  }
+
+  function acquireHintFor(linksCount, collectedCount) {
+    if (linksCount > 0) return "Feed links found here — the merged file can be pasted in as a link.";
+    if (collectedCount > 0) return "No feed links on this page, so it will export what has been collected.";
+    return "No feed links here yet. The Calendar page is the one that usually has them.";
+  }
+
   // -------------------------------------------------------------------- panel
 
   const style = `
@@ -794,13 +964,20 @@
       </header>
       <div class="body">
         <div class="note" data-role="count">Collected 0 events.</div>
-        <button class="act" data-act="export">Export .ics</button>
-        <div class="note">Stay on the Calendar page and move through the term — every view you open is added as you go. Then export and drop the file into BetterHuskyCT.</div>
+        <!-- One button for "give me this page's calendar", not two.
+             Two file-producing buttons on one panel left the reader to work out
+             which to press when both produce a .ics they then drag into the same
+             place. The label changes to say which one it will do, because feed
+             links are the better source: they can be pasted straight in as a
+             subscription, and only a link can refresh itself later. -->
+        <button class="act primary" data-act="acquire">Get this page's calendar</button>
+        <div class="note" data-role="acquire-hint"></div>
+        <button class="act" data-act="export">Export events collected so far</button>
+        <div class="note">Stay on the Calendar page and move through the term — every view you open is added as you go. This is the fallback for when the page exposes no feed links.</div>
         <button class="act" data-act="clear">Clear collected</button>
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
-        <button class="act" data-act="merge">Merge .ics links on this page</button>
         <button class="act" data-act="course">Collect this course: announcements + content</button>
-        <button class="act primary" data-act="todos">Send deadlines to BetterHuskyCT</button>
+        <button class="act" data-act="todos">Send deadlines to BetterHuskyCT</button>
         <textarea data-role="out" hidden></textarea>
         <button class="act" data-act="copy" hidden>Copy to clipboard</button>
         <div class="note" data-role="status">Nothing is uploaded. Everything stays in this browser.</div>
@@ -816,6 +993,8 @@
     const hint = wrap.querySelector('[data-role="hint"]');
     const count = wrap.querySelector('[data-role="count"]');
     const copyButton = wrap.querySelector('[data-act="copy"]');
+    const acquireButton = wrap.querySelector('[data-act="acquire"]');
+    const acquireHint = wrap.querySelector('[data-role="acquire-hint"]');
 
     function refreshCount() {
       const total = collected.size;
@@ -826,12 +1005,36 @@
       count.className = total === 0 ? "note" : "note ok";
     }
 
+    /**
+     * Keep the acquire button honest about which source it is about to use.
+     *
+     * Read from the page each time rather than cached: HuskyCT is a single-page
+     * app, so the links under the panel change without it ever being remounted.
+     * A label that promised "1 feed link" after navigating away would be worse
+     * than no label at all.
+     */
+    function refreshAcquireLabel() {
+      let linksCount = 0;
+      try {
+        linksCount = calendarLinks().length;
+      } catch (error) {
+        /* a page that will not let us look is a page with no links we can use */
+      }
+
+      acquireButton.textContent = acquireLabelFor(linksCount, collected.size);
+      acquireHint.textContent = acquireHintFor(linksCount, collected.size);
+    }
+
     // Cheap: `clientEvents` reads an in-memory list, it does not make a request.
     window.setInterval(() => {
-      if (harvest().added > 0) refreshCount();
+      if (harvest().added > 0) {
+        refreshCount();
+        refreshAcquireLabel();
+      }
     }, 1500);
     harvest();
     refreshCount();
+    refreshAcquireLabel();
     hint.textContent = guidanceFor(document, currentCourseId());
 
     wrap.querySelector(".close").addEventListener("click", () => {
@@ -975,57 +1178,27 @@
         return;
       }
 
-      if (act === "merge") {
-        const links = calendarLinks();
-        if (links.length === 0) {
-          status.className = "note warn";
-          status.textContent =
-            "No .ics links on this page. Open the Calendar page, or a course's calendar settings.";
-          show(
-            "Found no calendar feed links here.\n\n" +
-              "This button looks for links ending in .ics on the page you are on.\n" +
-              "The Calendar page is the one that usually has them.",
-            "warn",
-          );
-          return;
-        }
-
+      if (act === "acquire") {
         button.disabled = true;
-        status.className = "note";
-        status.textContent = `Reading ${links.length} calendar(s)…`;
+        try {
+          const result = await acquireCalendar({ status });
 
-        const texts = [];
-        const failed = [];
-        for (const [href, name] of links) {
-          try {
-            const response = await fetch(href, { credentials: "same-origin" });
-            if (!response.ok) throw new Error("HTTP " + response.status);
-            texts.push(await response.text());
-          } catch (error) {
-            failed.push(name + " (" + error.message + ")");
+          if (!result.ok) {
+            status.className = "note warn";
+            status.textContent = result.message;
+            if (result.detail) show(result.detail, "warn");
+            return;
           }
-          // Deliberately slow: this is someone else's server.
-          await new Promise((resolve) => setTimeout(resolve, 400));
+
+          status.className = "note ok";
+          status.textContent = result.message;
+          hint.textContent = result.hint || "";
+          refreshCount();
+          refreshAcquireLabel();
+        } finally {
+          button.disabled = false;
         }
-
-        button.disabled = false;
-
-        if (texts.length === 0) {
-          status.className = "note warn";
-          status.textContent = "Could not read any of them.";
-          show(failed.join("\n"), "warn");
-          return;
-        }
-
-        const merged = mergeCalendars("HuskyCT (merged)", texts);
-        const eventCount = (merged.match(/BEGIN:VEVENT/g) || []).length;
-        download("huskyct-merged.ics", merged, "text/calendar;charset=utf-8");
-
-        status.className = "note ok";
-        status.textContent = `Merged ${texts.length} calendar(s), ${eventCount} events. Check your downloads.`;
-        hint.textContent = failed.length
-          ? "Could not read: " + failed.join(", ")
-          : "Drop huskyct-merged.ics into BetterHuskyCT.";
+        return;
       }
     });
   }
@@ -1037,6 +1210,11 @@
     window.__huskyctHelper = {
       mergeCalendars,
       calendarLinks,
+      calendarNameFor,
+      planCalendarAcquisition,
+      acquireCalendar,
+      acquireLabelFor,
+      acquireHintFor,
       kindFromSourceType,
       eventToRecord,
       recordsToIcs,
