@@ -9,6 +9,56 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.6.6](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.6) — The panel comes back
+
+*Patch: the Send deadlines button could not be found, and then 0.14.0 shipped with the panel unable to mount at all.*
+
+### Fixed
+
+- **The panel did not appear.** 0.14.0's first render call sat above the
+  declaration of the element it renders into, so `mountPanel` threw
+  `Cannot access 'langButton' before initialization` and stopped there. Since the
+  helper updates itself from `@updateURL`, every installed copy would have picked
+  that up. The helper moves to **0.14.1**.
+- **Closing the panel used to delete it.** The × called `host.remove()`, which
+  took every button out of the page for the rest of the session — including Send
+  deadlines — with nothing to say how to get them back, because there was no way.
+  Closing now collapses to an always-mounted chip that reopens it.
+- **A blocked popup was reported as success.** `window.open` returns `null` when
+  the browser blocks it, silently, and the old code said "Opened BetterHuskyCT"
+  either way: the reader was told it worked and saw nothing happen. It now checks,
+  and shows the link itself when the tab is blocked.
+- **The guidance was the last element in the panel**, under six buttons, so the
+  line saying which button this page wants was the last thing anyone read. It is
+  first now, and Send deadlines leads as the only primary button.
+- **Mounting was not idempotent** — injecting twice stacked two panels, the upper
+  one invisibly covering the lower. Mounting clears any existing panel first.
+
+### Added
+
+- **The panel speaks both languages the dashboard does**, with a switch in its
+  header. The two run on different origins, so neither can read the other's
+  `localStorage`; they agree instead — same key name, same two values, same
+  browser-derived default — and every user-visible string, status lines included,
+  is built from one dictionary. The browser's own language decides the default,
+  so a Chinese browser gets a Chinese panel without being asked.
+
+### Notes
+
+- **The to-do parsing was never broken.** Worth recording, because it was the
+  first guess: the panel keys off an `aria-label` containing `", due "`, and
+  injecting the shipped script into the real signed-in Courses page showed the
+  live label uses exactly that shape and parses correctly, timezone and all. The
+  data path was fine; every failure was in the DOM wiring.
+- **How the regression got out.** The fix commit came *after* the merge: PR #42
+  was merged at the commit before it, so the tip that shipped was the one not yet
+  checked on a real page. The bug was found only by injecting the shipped script
+  into the signed-in HuskyCT page — no unit test here runs `mountPanel`, so 262
+  tests were green while the panel could not mount at all. There is now a test
+  that fails if the ordering is moved back, and it was checked against the broken
+  ordering as well as the fixed one, since a guard that cannot fail is not a
+  guard.
+
 ## [1.6.5](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.5) — One calendar button
 
 *Patch: the helper's panel had two ways to get a calendar file and no way to tell them apart.*
