@@ -1200,3 +1200,65 @@ test("every panel button has a handler, and the labels match", () => {
     "the markup's acquire label and acquireLabelFor(0, 0) disagree",
   );
 });
+
+/**
+ * Three panel bugs that were reported, or measured against the live page, pinned
+ * so they cannot come back. None of them is visible to a test that only exercises
+ * the pure helpers, because all three live in the DOM wiring.
+ */
+test("closing the panel collapses it instead of deleting it", () => {
+  // Reported as "I do not know where to press it": the close button called
+  // `host.remove()`, which took every button out of the page for the rest of the
+  // session, with nothing to say how to get them back.
+  assert.ok(
+    !/\.close"\)\.addEventListener\("click",\s*\(\)\s*=>\s*\{\s*host\.remove\(\)/.test(SOURCE),
+    "the close button deletes the panel again instead of collapsing it",
+  );
+  assert.match(SOURCE, /setCollapsed\(true\)/, "closing no longer collapses");
+  // The chip is built with `className = "chip"`, not written as markup.
+  assert.match(SOURCE, /className = "chip"/, "the way back (the chip) is gone");
+  assert.match(SOURCE, /data-collapsed/, "nothing tracks the collapsed state");
+});
+
+test("mounting the panel twice leaves one panel", () => {
+  // Measured: injecting the shipped script into a live page twice stacked two
+  // panels, and the one underneath looked like a broken panel.
+  assert.match(
+    SOURCE,
+    /querySelectorAll\("#huskypilot-helper"\)\.forEach\(\(node\) => node\.remove\(\)\)/,
+    "mountPanel no longer clears an existing panel, so it can stack",
+  );
+});
+
+test("a blocked new tab is reported instead of claimed as success", () => {
+  // `window.open` returns null when the popup is blocked, and does so silently.
+  // The old code said "Opened BetterHuskyCT" either way, so the reader was told
+  // it worked and saw nothing happen.
+  assert.match(SOURCE, /const opened = window\.open\(/, "window.open's result is not read");
+  assert.match(SOURCE, /blocked the new tab/, "a blocked popup is not reported to the reader");
+});
+
+test("the panel leads with the guidance and the deadlines button", () => {
+  // Anchored on the closing backtick of the template literal, not on the first
+  // `</div>` — a comment inside the markup contains one, and slicing there cut
+  // the panel down to 291 characters and made this test lie. (It did.)
+  const start = SOURCE.indexOf('<div class="body">');
+  const end = SOURCE.indexOf("`;", start);
+  assert.ok(start !== -1 && end > start, "could not find the panel template");
+  const panel = SOURCE.slice(start, end);
+
+  // The guidance first: it is what says which button this page wants, and it
+  // used to be the last element in the panel.
+  const hintAt = panel.indexOf('data-role="hint"');
+  const countAt = panel.indexOf('data-role="count"');
+  assert.ok(hintAt !== -1 && countAt !== -1, "the panel lost its hint or its count");
+  assert.ok(hintAt < countAt, "the guidance is not at the top of the panel");
+
+  // Send deadlines leads and is the only primary, because it is the one action
+  // that needs no file and cannot be done by hand.
+  const todosAt = panel.indexOf('data-act="todos"');
+  const acquireAt = panel.indexOf('data-act="acquire"');
+  assert.ok(todosAt !== -1 && acquireAt !== -1, "the panel lost a button");
+  assert.ok(todosAt < acquireAt, "Send deadlines is not the leading action");
+  assert.match(panel, /class="act primary" data-act="todos"/, "Send deadlines is not the primary button");
+});

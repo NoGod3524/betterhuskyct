@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.12.0
+// @version      0.13.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.12.0";
+  const VERSION = "0.13.0";
   const PANEL_WIDTH = 340;
 
   // ---------------------------------------------------------------- utilities
@@ -923,6 +923,25 @@
     header b { font-size: 13px; }
     header span { margin-left: auto; font-size: 11px; color: #7387a0; }
     button.close { border: 0; background: none; cursor: pointer; font-size: 15px; color: #7387a0; }
+    /* The way back. The panel used to be removed outright on close, which left
+       anyone who dismissed it with no way to find it again — the buttons were
+       still in the page, but nothing said so. The chip is always mounted; only
+       one of the chip and the panel is ever visible. */
+    .chip {
+      position: fixed; right: 16px; bottom: 16px; z-index: 2147483000;
+      display: none; align-items: center; gap: 7px;
+      font: 13px/1 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+      color: #fff; background: #2a71d8; border: 0; cursor: pointer;
+      padding: 9px 13px; border-radius: 999px;
+      box-shadow: 0 8px 22px rgba(23,43,65,.28);
+    }
+    .chip:hover { background: #1f61c0; }
+    .chip[data-dot="1"]::after {
+      content: ""; width: 7px; height: 7px; border-radius: 999px;
+      background: #ffd166; box-shadow: 0 0 0 2px rgba(255,255,255,.35);
+    }
+    :host([data-collapsed="1"]) .wrap { display: none; }
+    :host([data-collapsed="1"]) .chip { display: inline-flex; }
     .body { padding: 12px; display: grid; gap: 8px; }
     button.act {
       width: 100%; text-align: left; padding: 8px 10px; cursor: pointer;
@@ -947,6 +966,18 @@
   `;
 
   function mountPanel() {
+    /**
+     * One panel, ever.
+     *
+     * Measured, not defensive: injecting the script into a live page twice left
+     * two orphaned panels stacked on top of each other, because nothing checked
+     * whether one was already there. A userscript genuinely can run twice in a
+     * page — a manager that re-injects, or a frame the match rules cover — and
+     * the symptom is a panel that looks broken because a second one is sitting
+     * invisibly on top of it. Clearing the old one makes mounting idempotent.
+     */
+    document.querySelectorAll("#huskypilot-helper").forEach((node) => node.remove());
+
     const host = document.createElement("div");
     host.id = "huskypilot-helper";
     const shadow = host.attachShadow({ mode: "open" });
@@ -960,9 +991,13 @@
       <header>
         <b>HuskyCT Helper</b>
         <span class="pill">v${VERSION}</span>
-        <button class="close" title="Hide">×</button>
+        <button class="close" title="Hide the panel">×</button>
       </header>
       <div class="body">
+        <!-- The guidance comes first: it is what tells the reader which button
+             this page wants, and it used to sit under six buttons at the very
+             bottom, where it was the last thing anyone read. -->
+        <div class="note" data-role="hint"></div>
         <div class="note" data-role="count">Collected 0 events.</div>
         <!-- One button for "give me this page's calendar", not two.
              Two file-producing buttons on one panel left the reader to work out
@@ -970,23 +1005,46 @@
              place. The label changes to say which one it will do, because feed
              links are the better source: they can be pasted straight in as a
              subscription, and only a link can refresh itself later. -->
-        <button class="act primary" data-act="acquire">Get this page's calendar</button>
+        <!-- Send deadlines leads, because on the two pages that matter it is the
+             whole point of the helper, and it is the one action that needs no
+             file and cannot be done by hand. -->
+        <button class="act primary" data-act="todos">Send deadlines to BetterHuskyCT</button>
+        <button class="act" data-act="acquire">Get this page's calendar</button>
         <div class="note" data-role="acquire-hint"></div>
         <button class="act" data-act="export">Export events collected so far</button>
         <div class="note">Stay on the Calendar page and move through the term — every view you open is added as you go. This is the fallback for when the page exposes no feed links.</div>
         <button class="act" data-act="clear">Clear collected</button>
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
         <button class="act" data-act="course">Collect this course: announcements + content</button>
-        <button class="act" data-act="todos">Send deadlines to BetterHuskyCT</button>
         <textarea data-role="out" hidden></textarea>
         <button class="act" data-act="copy" hidden>Copy to clipboard</button>
         <div class="note" data-role="status">Nothing is uploaded. Everything stays in this browser.</div>
-        <div class="note" data-role="hint"></div>
       </div>
     `;
 
-    shadow.append(styleTag, wrap);
+    const chip = document.createElement("button");
+    chip.className = "chip";
+    chip.type = "button";
+    chip.title = "Show the HuskyCT Helper panel";
+    chip.textContent = "HuskyCT Helper";
+
+    shadow.append(styleTag, wrap, chip);
     document.documentElement.appendChild(host);
+
+    /**
+     * Collapse the panel to a chip, rather than deleting it.
+     *
+     * This is the whole "I cannot find the button" fix. The close button used to
+     * call `host.remove()`, which took the panel — and every button in it, the
+     * Send deadlines one included — out of the page for the rest of the
+     * session. Nothing said how to get it back, because there was no way.
+     */
+    function setCollapsed(collapsed) {
+      host.dataset.collapsed = collapsed ? "1" : "0";
+    }
+    setCollapsed(false);
+
+    chip.addEventListener("click", () => setCollapsed(false));
 
     const out = wrap.querySelector('[data-role="out"]');
     const status = wrap.querySelector('[data-role="status"]');
@@ -1038,7 +1096,7 @@
     hint.textContent = guidanceFor(document, currentCourseId());
 
     wrap.querySelector(".close").addEventListener("click", () => {
-      host.remove();
+      setCollapsed(true);
     });
 
     function show(text, className) {
@@ -1161,14 +1219,29 @@
 
         try {
           const link = await huskypilotLink(records, undefined, announcements);
-          window.open(link, "_blank", "noopener");
-          status.className = "note ok";
-          status.textContent =
-            "Opened BetterHuskyCT with " + records.length + " deadline(s)" +
-            (announcements.length ? " and " + announcements.length + " announcement(s)" : "") +
-            ".";
-          hint.textContent =
-            "Press Apply there and they are in. Nothing was uploaded — the data travels inside the link.";
+
+          // `window.open` returns null when the popup is blocked, and it does so
+          // silently. The old code reported "Opened BetterHuskyCT" either way,
+          // which is the worst possible answer: the user is told it worked, sees
+          // no new tab, and has nothing to try next. Ask, and offer the link.
+          const opened = window.open(link, "_blank", "noopener");
+
+          if (opened) {
+            status.className = "note ok";
+            status.textContent =
+              "Opened BetterHuskyCT with " + records.length + " deadline(s)" +
+              (announcements.length ? " and " + announcements.length + " announcement(s)" : "") +
+              ".";
+            hint.textContent =
+              "Press Apply there and they are in. Nothing was uploaded — the data travels inside the link.";
+          } else {
+            show(link, "warn");
+            status.className = "note warn";
+            status.textContent =
+              "Your browser blocked the new tab, so nothing opened. The link is below — copy it and open it yourself.";
+            hint.textContent =
+              "Look for a popup-blocked icon in the address bar and allow popups for HuskyCT, or just paste the link.";
+          }
         } catch (error) {
           status.className = "note warn";
           status.textContent = "Could not build the link: " + error.message;
