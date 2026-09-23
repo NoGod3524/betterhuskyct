@@ -39,6 +39,10 @@ type HelperSurface = {
     courseCode: string | null,
     now?: Date,
   ) => Array<Record<string, unknown>>;
+  deadlinesAndAnnouncements: (
+    scope: unknown,
+    now?: Date,
+  ) => { records: Array<Record<string, unknown>>; announcements: Array<Record<string, unknown>> };
   courseDigestToMarkdown: (digest: Record<string, unknown>) => string;
   todoFromLabel: (label: string) => Record<string, unknown> | null;
   dueDateFromText: (value: string) => Date | null;
@@ -900,6 +904,93 @@ test("a missing body or course becomes null-ish rather than undefined", () => {
   assert.equal(candidate.courseCode, null);
   assert.equal(candidate.body, "");
   assert.equal(candidate.posted, null);
+});
+
+/**
+ * The join the panel actually performs: a course page carries its announcements,
+ * a page that is not a course cannot.
+ *
+ * Tested through the real helper running at a real URL, because the decision
+ * depends on `location.pathname` — which is exactly the kind of thing a unit
+ * test with a stub would get wrong in the same way the code might.
+ */
+test("on a course page, the deadlines travel with that course's announcements", () => {
+  const at = new Date("2026-09-19T12:00:00Z");
+  const coursePage = helperAt(
+    "https://lms.uconn.edu/ultra/courses/_203765_1/outline",
+    "/ultra/courses/_203765_1/outline",
+    "https://lms.uconn.edu",
+  );
+
+  const todoLabel =
+    "Section 4.7 Homework, Homework · MATH-1070Q-Mathematics for Business and Economics-SEC100-1268 · _203765_1, due 9/25/26, 11:59 PM";
+  const todoNode = {
+    getAttribute: (name: string) => (name === "aria-label" ? todoLabel : "_203765_1"),
+  };
+  const heading = { textContent: "MATH-1070Q-Mathematics for Business and Economics-SEC100-1268" };
+  const announcementRow = {
+    querySelector: (selector: string) =>
+      selector === ".announcement-title-detail"
+        ? { textContent: "Midterm moved" }
+        : selector === ".announcement-sent-date"
+          ? { textContent: "9/17/26, 4:47 PM" }
+          : selector === ".click-message-detail"
+            ? { textContent: "The midterm moves to the 14th." }
+            : null,
+    textContent: "Midterm moved 9/17/26, 4:47 PM The midterm moves to the 14th.",
+  };
+
+  const scope = {
+    // The to-do reader asks for `[aria-label]`; the announcement reader asks for
+    // the two row classes. Discriminating on the selector is what a real DOM
+    // does, and without it the announcement row would be handed to the to-do
+    // reader and blow up on its first `getAttribute`.
+    querySelectorAll: (selector: string) =>
+      selector.indexOf("aria-label") !== -1 ? [todoNode] : [announcementRow],
+    querySelector: (selector: string) =>
+      selector === "[class*='courseTitle']" ? heading : null,
+  };
+
+  const sent = coursePage.deadlinesAndAnnouncements(scope, at);
+
+  assert.equal(sent.records.length, 1);
+  assert.equal(sent.announcements.length, 1);
+  assert.equal(sent.announcements[0].courseCode, "MATH 1070Q");
+  assert.equal(sent.announcements[0].title, "Midterm moved");
+  assert.equal(sent.announcements[0].announced, at.toISOString());
+});
+
+test("off a course page, announcements are left behind rather than sent unattributed", () => {
+  const coursesPage = helperAt(
+    "https://lms.uconn.edu/ultra/course",
+    "/ultra/course",
+    "https://lms.uconn.edu",
+  );
+
+  const todoLabel =
+    "Section 4.7 Homework, Homework · MATH-1070Q-Mathematics for Business and Economics-SEC100-1268 · _203765_1, due 9/25/26, 11:59 PM";
+  const todoNode = {
+    getAttribute: (name: string) => (name === "aria-label" ? todoLabel : "_203765_1"),
+  };
+  const announcementRow = {
+    querySelector: (selector: string) =>
+      selector === ".announcement-title-detail" ? { textContent: "Orphaned" } : null,
+    textContent: "Orphaned",
+  };
+
+  const scope = {
+    querySelectorAll: (selector: string) =>
+      selector.indexOf("aria-label") !== -1 ? [todoNode] : [announcementRow],
+    querySelector: () => null,
+  };
+
+  const sent = coursesPage.deadlinesAndAnnouncements(scope, new Date("2026-09-19T12:00:00Z"));
+
+  assert.equal(sent.records.length, 1);
+  // Not `deepEqual` with a literal: the array is built inside the VM, so its
+  // prototype is not this realm's and a strict comparison rejects it even when
+  // it is empty. The file notes the same trap for the payload above.
+  assert.equal(sent.announcements.length, 0);
 });
 
 test("announcements survive the trip into the dashboard's own reader", async () => {

@@ -802,6 +802,7 @@ export function CalendarProvider({
       t(locale, "sync.applied", {
         calendars: merged.addedFeeds,
         tasks: merged.completedIds.size,
+        announcements: merged.announcements.length,
       }),
     );
   }

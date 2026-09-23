@@ -692,6 +692,31 @@
   }
 
   /**
+   * What the "Send deadlines" button puts in the link.
+   *
+   * Pulled out of the button handler so the join between collecting and sending
+   * can be exercised without a panel. The rule it encodes: announcements ride
+   * along **only** on a course page. On the Courses page there is no course to
+   * attribute them to, and an announcement nobody can place is worse than one
+   * that was not sent.
+   */
+  function deadlinesAndAnnouncements(scope, now) {
+    const records = todosToRecords(collectTodos(scope));
+
+    const courseId = currentCourseId();
+    if (!courseId) return { records, announcements: [] };
+
+    return {
+      records,
+      announcements: announcementsToCandidates(
+        collectAnnouncements(scope),
+        courseCodeFromDisplay(collectCourse(scope).heading),
+        now,
+      ),
+    };
+  }
+
+  /**
    * What to do on the page the panel happens to be sitting on.
    *
    * The panel offers six actions and nothing on screen says which one this page
@@ -922,16 +947,9 @@
 
         // On a course page the announcements are already on screen, so they ride
         // along with the deadlines rather than needing the other button and a
-        // second trip. On the Courses page there is no course to attribute them
-        // to, and an announcement with no course is one nobody can place.
-        const courseId = currentCourseId();
-        const courseHeading = courseId ? collectCourse(document).heading : "";
-        const announcements = courseId
-          ? announcementsToCandidates(
-              collectAnnouncements(document),
-              courseCodeFromDisplay(courseHeading),
-            )
-          : [];
+        // second trip.
+        const sendable = deadlinesAndAnnouncements(document);
+        const announcements = sendable.announcements;
 
         status.textContent =
           "Sending " + records.length + " deadline(s)" +
@@ -1033,6 +1051,7 @@
       collectCourseFiles,
       collectCourse,
       announcementsToCandidates,
+      deadlinesAndAnnouncements,
       courseDigestToMarkdown,
       todoFromLabel,
       dueDateFromText,
