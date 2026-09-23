@@ -49,7 +49,7 @@ function sleep(ms) {
 }
 
 /** A payload of the shape the helper sends, packed by the app's own packer. */
-async function buildFragment() {
+async function buildFragment(options = {}) {
   const announcements = parseAnnouncementCandidates(
     [
       {
@@ -95,7 +95,7 @@ async function buildFragment() {
     efforts: {},
     courses: { courses: [], assignments: {} },
     announcements,
-    now: AT,
+    now: options.at ?? AT,
   });
 
   return await encodeSyncPayload(payload);
@@ -381,6 +381,131 @@ try {
   console.log(summary.result.value ?? "");
   check("two announcements are held", /"count":2/.test(summary.result.value ?? ""));
   check("each has a derived id", (JSON.parse(summary.result.value ?? "{}").ids ?? []).every((id) => /^[0-9a-f]{8}$/.test(id)));
+
+  /**
+   * The other half of the course-resolution rule.
+   *
+   * The run above deliberately has no local courses, so every announcement keeps
+   * its code and no name. This run pre-seeds a course book first, which is the
+   * common case for someone who has already added their calendar: the code has
+   * to resolve onto the course they named, and the id it lands on has to be
+   * *their* per-device id rather than anything that arrived in the link.
+   */
+  console.log("\n--- second run: a course the user already has ---");
+
+  /**
+   * Seed the book, then force a fresh document.
+   *
+   * Two things this has to get right, both learned the hard way:
+   *
+   * 1. Seed *before* the load. The course book is read from storage once, on
+   *    mount, so writing it into a page that is already running leaves React
+   *    holding the old value and the merge resolves against nothing.
+   * 2. Change the query string, not just the hash. A `Page.navigate` that
+   *    differs only in its fragment is a same-document navigation: no reload, so
+   *    no fresh mount, and the app has already stripped the fragment by then.
+   */
+  await cdp(
+    ws,
+    "Runtime.evaluate",
+    {
+      expression: `(() => {
+        localStorage.setItem("huskypilot.courses.v1", JSON.stringify({
+          version: 1,
+          courses: [{ id: "local-math-id", code: "MATH 1070Q", component: "LEC", isDefault: true }],
+          assignments: {},
+        }));
+        return "seeded";
+      })()`,
+      returnByValue: true,
+    },
+    sessionId,
+  );
+
+  // A genuinely different payload, not the first one with a byte flipped: a
+  // tampered gzip fragment would only prove that corrupt input is rejected.
+  const secondFragment = await buildFragment({ at: new Date(AT.getTime() + 60_000) });
+
+  await cdp(
+    ws,
+    "Page.navigate",
+    { url: BASE_URL + "/announcements?phase=2#sync=" + secondFragment },
+    sessionId,
+  );
+  await sleep(6500);
+
+  await cdp(
+    ws,
+    "Runtime.evaluate",
+    {
+      expression: `(() => {
+        const button = [...document.querySelectorAll("button")]
+          .find((node) => /add it here/i.test(node.textContent || ""));
+        if (!button) return "no button";
+        button.click();
+        return "clicked";
+      })()`,
+      returnByValue: true,
+    },
+    sessionId,
+  );
+  await sleep(2500);
+
+  const seededText = await cdp(
+    ws,
+    "Runtime.evaluate",
+    { expression: "document.body.innerText", returnByValue: true },
+    sessionId,
+  );
+  const seededBody = seededText.result.value ?? "";
+
+  if (process.env.E2E_VERBOSE) {
+    const diag = await cdp(
+      ws,
+      "Runtime.evaluate",
+      {
+        expression: `JSON.stringify({
+          hashHasSync: location.hash.startsWith("#sync="),
+          bannerPresent: /arrived from another device/i.test(document.body.innerText),
+          courseBookRaw: (localStorage.getItem("huskypilot.courses.v1") || "MISSING").slice(0, 120),
+        })`,
+        returnByValue: true,
+      },
+      sessionId,
+    );
+    console.log("phase-2 diagnostics:", diag.result.value);
+  }
+
+  const resolved = await cdp(
+    ws,
+    "Runtime.evaluate",
+    {
+      expression: `(() => {
+        const raw = JSON.parse(localStorage.getItem("huskypilot.announcements.v1"));
+        return JSON.stringify(raw.announcements.map((a) => ({ title: a.title, courseId: a.courseId, code: a.courseCode })));
+      })()`,
+      returnByValue: true,
+    },
+    sessionId,
+  );
+  console.log("\n--- resolution against a pre-existing course book ---");
+  console.log(resolved.result.value ?? "");
+
+  const rows = JSON.parse(resolved.result.value ?? "[]");
+  const mathRow = rows.find((row) => row.code === "MATH 1070Q");
+  const sociRow = rows.find((row) => row.code === "SOCI 1501");
+
+  check(
+    "a known course code resolves onto the user's own course id",
+    mathRow?.courseId === "local-math-id",
+    JSON.stringify(mathRow),
+  );
+  check(
+    "an unknown course code still resolves to nothing",
+    sociRow?.courseId === null,
+    JSON.stringify(sociRow),
+  );
+  check("the route still renders both", /Midterm moved to the 14th/.test(seededBody) && /Online office hours tonight/.test(seededBody));
 
   console.log("\n=== " + (failures.length === 0 ? "ALL CHECKS PASSED" : failures.length + " FAILED: " + failures.join("; ")) + " ===");
 } catch (error) {
