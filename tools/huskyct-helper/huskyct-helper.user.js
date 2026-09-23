@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.12.0
+// @version      0.14.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,8 +42,207 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.12.0";
+  const VERSION = "0.14.0";
   const PANEL_WIDTH = 340;
+
+  // ----------------------------------------------------------------- language
+
+  /**
+   * The panel speaks the same two languages the dashboard does.
+   *
+   * The dashboard keeps its choice in `huskypilot.locale.v1`, but the two run on
+   * different origins — this one on `lms.uconn.edu`, the dashboard on
+   * `betterhuskyct.vercel.app` — and a page cannot read another origin's
+   * localStorage. So the two cannot literally share one setting. What they can
+   * do is agree: same key name, same two values, same default derived from the
+   * browser, so someone who has picked Chinese gets Chinese on both sides
+   * without telling either one twice.
+   *
+   * The chosen language also rides in the sync link, so opening the dashboard
+   * after using the panel does not silently switch the reader back.
+   */
+  const LOCALE_KEY = "huskypilot.locale.v1";
+  const LOCALES = ["en", "zh-CN"];
+
+  function detectLocale() {
+    try {
+      const stored = window.localStorage.getItem(LOCALE_KEY);
+      if (LOCALES.indexOf(stored) !== -1) return stored;
+    } catch (error) {
+      /* a page that blocks storage still gets the browser's own answer */
+    }
+    const language = String(
+      (navigator && (navigator.language || navigator.userLanguage)) || "en",
+    );
+    return /^zh\b/i.test(language) ? "zh-CN" : "en";
+  }
+
+  let locale = detectLocale();
+
+  function setLocale(next) {
+    locale = LOCALES.indexOf(next) !== -1 ? next : "en";
+    try {
+      window.localStorage.setItem(LOCALE_KEY, locale);
+    } catch (error) {
+      /* not being able to remember it is not a reason to refuse to use it */
+    }
+  }
+
+  const STRINGS = {
+    en: {
+      panelTitle: "HuskyCT Helper",
+      chip: "HuskyCT Helper",
+      showPanel: "Show the HuskyCT Helper panel",
+      hidePanel: "Hide the panel",
+      sendDeadlines: "Send deadlines to BetterHuskyCT",
+      getCalendar: "Get this page's calendar",
+      exportCollected: "Export events collected so far",
+      clearCollected: "Clear collected",
+      collectCourse: "Collect this course: announcements + content",
+      copy: "Copy to clipboard",
+      copied: "Copied",
+      pressCtrlC: "Press Ctrl+C to copy",
+      calendarFootnote:
+        "Stay on the Calendar page and move through the term — every view you open is added as you go. This is the fallback for when the page exposes no feed links.",
+      privacy: "Nothing is uploaded. Everything stays in this browser.",
+      collectedNone: "Collected 0 events.",
+      collectedSome: "Collected {count} event(s).",
+      guideTodo: "This page has your to-do list. Press “Send deadlines to BetterHuskyCT”.",
+      guideCourse: "You are in a course. Press “Collect this course” for its announcements and files.",
+      guideNeither:
+        "Open the Courses page for your deadlines, or a course for its announcements and files.",
+      languageLabel: "中文",
+      // Status and hint lines, reached through the panel rather than baked in at
+      // the point of use, so nothing has to be re-translated after the fact.
+      noDeadlinesTitle: "No deadlines on this page.",
+      noDeadlinesHint:
+        "The to-do list lives on the Courses page (the HuskyCT home). Open it, then press this again.",
+      calendarBusy: "This page has a calendar but no events loaded yet — move through it first.",
+      calendarNone: "No calendar on this page. Open the Calendar page and try again.",
+      exported: "Exported {events} events, {withCourse} with a course code.",
+      pickedUp: "Picked up {count} more just now. ",
+      dropCalendar: "Drop huskyct-calendar.ics into BetterHuskyCT.",
+      popupBlocked:
+        "Your browser blocked the new tab, so nothing opened. The link is below — copy it and open it yourself.",
+      popupBlockedHint:
+        "Look for a popup-blocked icon in the address bar and allow popups for HuskyCT, or just paste the link.",
+      openedTitle: "Opened BetterHuskyCT with {deadlines} deadline(s){announcements}.",
+      openedHint:
+        "Press Apply there and they are in. Nothing was uploaded — the data travels inside the link.",
+      sentWithAnnouncements: " and {count} announcement(s)",
+      sendingTitle: "Sending {deadlines} deadline(s){announcements} to BetterHuskyCT…",
+      readingCalendars: "Reading {count} calendar(s)…",
+      linkFailed: "Could not build the link: {message}",
+      acquireHintFeeds: "Feed links found here — the merged file can be pasted in as a link.",
+      acquireHintEvents: "No feed links on this page, so it will export what has been collected.",
+      acquireHintNeither: "No feed links here yet. The Calendar page is the one that usually has them.",
+      acquireOneFeed: "Get this page's calendar (1 feed link)",
+      acquireManyFeeds: "Get this page's calendar ({count} feed links)",
+      acquireEvents: "Get this page's calendar (events collected so far)",
+      acquirePlain: "Get this page's calendar",
+      mergedTitle: "Merged {calendars} calendar(s), {events} events. Check your downloads.",
+      mergedHint:
+        "Open huskyct-merged.ics and copy its contents into the dashboard's link box — that way it refreshes itself. Dropping the file works too, but only once.",
+      mergedHintFailed: "Could not read: {list}",
+      exportFallbackTitle: "No feed links here, so exported {events} collected events{withCourse}. Check your downloads.",
+      exportFallbackWithCourse: ", {count} with a course code",
+      exportFallbackHint:
+        "Drop huskyct-calendar.ics into BetterHuskyCT. A file cannot refresh itself — open the Calendar page for the feed links if you want that.",
+      noFeedNoEvents: "This page has a calendar but no events loaded yet — move through it first.",
+      noFeedNoCalendar: "No feed links and no calendar on this page.",
+      noFeedDetail:
+        "This button prefers links ending in .ics, and this page has none.\nIt falls back to the events the calendar has loaded, and there are none yet.\nThe Calendar page is the one that usually has the feed links.",
+      feedUnreadable: "Found {count} feed link(s) but could not read any of them.",
+      clearedPanel: "Cleared {count} collected event(s).",
+      nothingToCollect: "Nothing to collect on this page.",
+      nothingToCollectHint:
+        "Open the course's Announcements page, or its Content page, then press this again.",
+      collectedCourse:
+        "Collected {announcements} announcement(s), {content} content item(s), {files} file(s).",
+      collectedCourseHint:
+        "Saved as huskyct-course.md. Nothing was requested from UConn — this reads the page you are looking at.",
+      noFeedLinksTitle: "No .ics links on this page. Open the Calendar page, or a course's calendar settings.",
+    },
+    "zh-CN": {
+      panelTitle: "HuskyCT 助手",
+      chip: "HuskyCT 助手",
+      showPanel: "显示 HuskyCT 助手面板",
+      hidePanel: "收起面板",
+      sendDeadlines: "把 deadline 发给 BetterHuskyCT",
+      getCalendar: "取这一页的日历",
+      exportCollected: "导出已采集的事件",
+      clearCollected: "清空已采集",
+      collectCourse: "采集这门课：公告 + 内容",
+      copy: "复制到剪贴板",
+      copied: "已复制",
+      pressCtrlC: "按 Ctrl+C 复制",
+      calendarFootnote:
+        "停在 Calendar 页，一路翻完整学期——每打开一个视图都会被记下来。这条是页面上没有订阅链接时的退路。",
+      privacy: "不上传任何东西，全部留在这个浏览器里。",
+      collectedNone: "已采集 0 个事件。",
+      collectedSome: "已采集 {count} 个事件。",
+      guideTodo: "这一页有待办列表。按「把 deadline 发给 BetterHuskyCT」。",
+      guideCourse: "你正在某门课里。按「采集这门课」取它的公告和文件。",
+      guideNeither: "打开 Courses 页取 deadline，或打开某门课取公告和文件。",
+      languageLabel: "English",
+      noDeadlinesTitle: "这一页没有 deadline。",
+      noDeadlinesHint: "待办列表在 Courses 页（HuskyCT 首页）。打开它，再按一次。",
+      calendarBusy: "这一页有日历，但还没加载出事件——先在日历里翻一翻。",
+      calendarNone: "这一页没有日历。打开 Calendar 页再试。",
+      exported: "已导出 {events} 个事件，其中 {withCourse} 个带课程代码。",
+      pickedUp: "刚刚又收到 {count} 个。",
+      dropCalendar: "把 huskyct-calendar.ics 拖进 BetterHuskyCT。",
+      popupBlocked: "浏览器拦下了新标签页，所以什么都没打开。链接在下面——复制出来自己打开。",
+      popupBlockedHint: "看看地址栏有没有「已拦截弹窗」的图标，允许 HuskyCT 弹窗；或者直接把链接粘过去。",
+      openedTitle: "已打开 BetterHuskyCT，带上了 {deadlines} 条 deadline{announcements}。",
+      openedHint: "在那里按 Apply 就进去了。没有上传任何东西——数据就在链接里。",
+      sentWithAnnouncements: "和 {count} 条公告",
+      sendingTitle: "正在把 {deadlines} 条 deadline{announcements} 发给 BetterHuskyCT…",
+      readingCalendars: "正在读取 {count} 个日历…",
+      linkFailed: "生成链接失败：{message}",
+      acquireHintFeeds: "这一页有订阅链接——合并出来的文件可以当链接贴进去。",
+      acquireHintEvents: "这一页没有订阅链接，所以会导出已经采集到的事件。",
+      acquireHintNeither: "这一页还没有订阅链接。通常 Calendar 页才有。",
+      acquireOneFeed: "取这一页的日历（1 个订阅链接）",
+      acquireManyFeeds: "取这一页的日历（{count} 个订阅链接）",
+      acquireEvents: "取这一页的日历（已采集的事件）",
+      acquirePlain: "取这一页的日历",
+      mergedTitle: "已合并 {calendars} 个日历、{events} 个事件。看看你的下载。",
+      mergedHint:
+        "打开 huskyct-merged.ics，把内容复制到仪表盘的链接框里——那样它以后会自己刷新。直接拖文件也行，但只有一次。",
+      mergedHintFailed: "读不出来：{list}",
+      exportFallbackTitle: "这一页没有订阅链接，已导出采集到的 {events} 个事件{withCourse}。看看你的下载。",
+      exportFallbackWithCourse: "，其中 {count} 个带课程代码",
+      exportFallbackHint:
+        "把 huskyct-calendar.ics 拖进 BetterHuskyCT。文件没法自己刷新——想要刷新就去 Calendar 页取订阅链接。",
+      noFeedNoEvents: "这一页有日历，但还没加载出事件——先在日历里翻一翻。",
+      noFeedNoCalendar: "这一页既没有订阅链接，也没有日历。",
+      noFeedDetail:
+        "这个按钮优先找 .ics 链接，而这一页没有。\n它退回到日历已经加载的事件，而目前一个都没有。\n通常 Calendar 页才有订阅链接。",
+      feedUnreadable: "找到 {count} 个订阅链接，但一个都读不出来。",
+      clearedPanel: "已清空 {count} 个已采集事件。",
+      nothingToCollect: "这一页没有可采集的内容。",
+      nothingToCollectHint: "打开这门课的公告页或内容页，再按一次。",
+      collectedCourse: "已采集 {announcements} 条公告、{content} 个内容条目、{files} 个文件。",
+      collectedCourseHint: "已存为 huskyct-course.md。没有向 UConn 发任何请求——读的就是你眼前这一页。",
+      noFeedLinksTitle: "这一页没有 .ics 链接。打开 Calendar 页，或某门课的日历设置。",
+    },
+  };
+
+  function t(key, params) {
+    const table = STRINGS[locale] || STRINGS.en;
+    let text = table[key] ?? STRINGS.en[key] ?? key;
+    if (params) {
+      for (const name of Object.keys(params)) {
+        text = text.split("{" + name + "}").join(String(params[name]));
+      }
+    }
+    return text;
+  }
+
+  function otherLocale() {
+    return locale === "zh-CN" ? "en" : "zh-CN";
+  }
 
   // ---------------------------------------------------------------- utilities
 
@@ -727,12 +926,12 @@
     const root = scope || document;
 
     if (root.querySelector("[aria-label*=', due ']")) {
-      return "This page has your to-do list. Press “Send deadlines to BetterHuskyCT”.";
+      return t("guideTodo");
     }
     if (courseId) {
-      return "You are in a course. Press “Collect this course” for its announcements and files.";
+      return t("guideCourse");
     }
-    return "Open the Courses page for your deadlines, or a course for its announcements and files.";
+    return t("guideNeither");
   }
 
   /**
@@ -782,9 +981,7 @@
     return {
       source: null,
       filename: null,
-      message: available
-        ? "This page has a calendar but no events loaded yet — move through it first."
-        : "No feed links and no calendar on this page.",
+      message: available ? t("noFeedNoEvents") : t("noFeedNoCalendar"),
     };
   }
 
@@ -810,10 +1007,7 @@
         return {
           ok: false,
           message: plan.message,
-          detail:
-            "This button prefers links ending in .ics, and this page has none.\n" +
-            "It falls back to the events the calendar has loaded, and there are none yet.\n" +
-            "The Calendar page is the one that usually has the feed links.",
+          detail: t("noFeedDetail"),
         };
       }
 
@@ -824,20 +1018,21 @@
       return {
         ok: true,
         source: "events",
-        message:
-          "No feed links here, so exported " + records.length + " collected events" +
-          (withCourse ? ", " + withCourse + " with a course code" : "") +
-          ". Check your downloads.",
+        message: t("exportFallbackTitle", {
+          events: records.length,
+          withCourse: withCourse
+            ? t("exportFallbackWithCourse", { count: withCourse })
+            : "",
+        }),
         hint:
-          (result.added ? "Picked up " + result.added + " more just now. " : "") +
-          "Drop huskyct-calendar.ics into BetterHuskyCT. A file cannot refresh itself — " +
-          "open the Calendar page for the feed links if you want that.",
+          (result.added ? t("pickedUp", { count: result.added }) : "") +
+          t("exportFallbackHint"),
       };
     }
 
     if (opts.status) {
       opts.status.className = "note";
-      opts.status.textContent = "Reading " + links.length + " calendar(s)…";
+      opts.status.textContent = t("readingCalendars", { count: links.length });
     }
 
     const texts = [];
@@ -857,7 +1052,7 @@
     if (texts.length === 0) {
       return {
         ok: false,
-        message: "Found " + links.length + " feed link(s) but could not read any of them.",
+        message: t("feedUnreadable", { count: links.length }),
         detail: failed.join("\n"),
       };
     }
@@ -870,12 +1065,10 @@
     return {
       ok: true,
       source: "feeds",
-      message:
-        "Merged " + texts.length + " calendar(s), " + eventCount + " events. Check your downloads.",
+      message: t("mergedTitle", { calendars: texts.length, events: eventCount }),
       hint: failed.length
-        ? "Could not read: " + failed.join(", ")
-        : "Open huskyct-merged.ics and copy its contents into the dashboard's link box — " +
-          "that way it refreshes itself. Dropping the file works too, but only once.",
+        ? t("mergedHintFailed", { list: failed.join(", ") })
+        : t("mergedHint"),
     };
   }
 
@@ -889,19 +1082,17 @@
   function acquireLabelFor(linksCount, collectedCount) {
     if (linksCount > 0) {
       return linksCount === 1
-        ? "Get this page's calendar (1 feed link)"
-        : "Get this page's calendar (" + linksCount + " feed links)";
+        ? t("acquireOneFeed")
+        : t("acquireManyFeeds", { count: linksCount });
     }
-    if (collectedCount > 0) {
-      return "Get this page's calendar (events collected so far)";
-    }
-    return "Get this page's calendar";
+    if (collectedCount > 0) return t("acquireEvents");
+    return t("acquirePlain");
   }
 
   function acquireHintFor(linksCount, collectedCount) {
-    if (linksCount > 0) return "Feed links found here — the merged file can be pasted in as a link.";
-    if (collectedCount > 0) return "No feed links on this page, so it will export what has been collected.";
-    return "No feed links here yet. The Calendar page is the one that usually has them.";
+    if (linksCount > 0) return t("acquireHintFeeds");
+    if (collectedCount > 0) return t("acquireHintEvents");
+    return t("acquireHintNeither");
   }
 
   // -------------------------------------------------------------------- panel
@@ -921,8 +1112,32 @@
       background: #f7fbff; border-radius: 14px 14px 0 0; cursor: default;
     }
     header b { font-size: 13px; }
-    header span { margin-left: auto; font-size: 11px; color: #7387a0; }
+    header span { font-size: 11px; color: #7387a0; }
     button.close { border: 0; background: none; cursor: pointer; font-size: 15px; color: #7387a0; }
+    button.lang {
+      margin-left: auto; border: 1px solid #cdd9e6; background: #fff; cursor: pointer;
+      font: inherit; font-size: 11px; color: #244e7a; padding: 2px 7px; border-radius: 999px;
+    }
+    button.lang:hover { border-color: #9fb7d1; }
+    /* The way back. The panel used to be removed outright on close, which left
+       anyone who dismissed it with no way to find it again — the buttons were
+       still in the page, but nothing said so. The chip is always mounted; only
+       one of the chip and the panel is ever visible. */
+    .chip {
+      position: fixed; right: 16px; bottom: 16px; z-index: 2147483000;
+      display: none; align-items: center; gap: 7px;
+      font: 13px/1 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+      color: #fff; background: #2a71d8; border: 0; cursor: pointer;
+      padding: 9px 13px; border-radius: 999px;
+      box-shadow: 0 8px 22px rgba(23,43,65,.28);
+    }
+    .chip:hover { background: #1f61c0; }
+    .chip[data-dot="1"]::after {
+      content: ""; width: 7px; height: 7px; border-radius: 999px;
+      background: #ffd166; box-shadow: 0 0 0 2px rgba(255,255,255,.35);
+    }
+    :host([data-collapsed="1"]) .wrap { display: none; }
+    :host([data-collapsed="1"]) .chip { display: inline-flex; }
     .body { padding: 12px; display: grid; gap: 8px; }
     button.act {
       width: 100%; text-align: left; padding: 8px 10px; cursor: pointer;
@@ -946,7 +1161,54 @@
     }
   `;
 
+  /**
+   * The panel's markup as a string, in whatever language is current.
+   *
+   * Taken out of `mountPanel` so the one surface I cannot reach in a browser is
+   * still checkable: there is no way to run the panel in this environment (the
+   * DevTools connection to a signed-in Edge needs its per-connection approval),
+   * and "the dictionary has Chinese in it" is a weaker claim than "the panel
+   * would render Chinese".
+   */
+  function panelMarkup() {
+    return `
+      <header>
+        <b>${t("panelTitle")}</b>
+        <span class="pill">v${VERSION}</span>
+        <button class="lang" data-role="lang" title="${t("languageLabel")}">${t("languageLabel")}</button>
+        <button class="close" title="${t("hidePanel")}">×</button>
+      </header>
+      <div class="body">
+        <div class="note" data-role="hint"></div>
+        <div class="note" data-role="count">${t("collectedNone")}</div>
+        <button class="act primary" data-act="todos">${t("sendDeadlines")}</button>
+        <button class="act" data-act="acquire">${t("getCalendar")}</button>
+        <div class="note" data-role="acquire-hint"></div>
+        <button class="act" data-act="export">${t("exportCollected")}</button>
+        <div class="note calendar-note">${t("calendarFootnote")}</div>
+        <button class="act" data-act="clear">${t("clearCollected")}</button>
+        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
+        <button class="act" data-act="course">${t("collectCourse")}</button>
+        <textarea data-role="out" hidden></textarea>
+        <button class="act" data-act="copy" hidden>${t("copy")}</button>
+        <div class="note" data-role="status">${t("privacy")}</div>
+      </div>
+    `;
+  }
+
   function mountPanel() {
+    /**
+     * One panel, ever.
+     *
+     * Measured, not defensive: injecting the script into a live page twice left
+     * two orphaned panels stacked on top of each other, because nothing checked
+     * whether one was already there. A userscript genuinely can run twice in a
+     * page — a manager that re-injects, or a frame the match rules cover — and
+     * the symptom is a panel that looks broken because a second one is sitting
+     * invisibly on top of it. Clearing the old one makes mounting idempotent.
+     */
+    document.querySelectorAll("#huskypilot-helper").forEach((node) => node.remove());
+
     const host = document.createElement("div");
     host.id = "huskypilot-helper";
     const shadow = host.attachShadow({ mode: "open" });
@@ -956,37 +1218,41 @@
 
     const wrap = document.createElement("div");
     wrap.className = "wrap";
-    wrap.innerHTML = `
-      <header>
-        <b>HuskyCT Helper</b>
-        <span class="pill">v${VERSION}</span>
-        <button class="close" title="Hide">×</button>
-      </header>
-      <div class="body">
-        <div class="note" data-role="count">Collected 0 events.</div>
-        <!-- One button for "give me this page's calendar", not two.
-             Two file-producing buttons on one panel left the reader to work out
-             which to press when both produce a .ics they then drag into the same
-             place. The label changes to say which one it will do, because feed
-             links are the better source: they can be pasted straight in as a
-             subscription, and only a link can refresh itself later. -->
-        <button class="act primary" data-act="acquire">Get this page's calendar</button>
-        <div class="note" data-role="acquire-hint"></div>
-        <button class="act" data-act="export">Export events collected so far</button>
-        <div class="note">Stay on the Calendar page and move through the term — every view you open is added as you go. This is the fallback for when the page exposes no feed links.</div>
-        <button class="act" data-act="clear">Clear collected</button>
-        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
-        <button class="act" data-act="course">Collect this course: announcements + content</button>
-        <button class="act" data-act="todos">Send deadlines to BetterHuskyCT</button>
-        <textarea data-role="out" hidden></textarea>
-        <button class="act" data-act="copy" hidden>Copy to clipboard</button>
-        <div class="note" data-role="status">Nothing is uploaded. Everything stays in this browser.</div>
-        <div class="note" data-role="hint"></div>
-      </div>
-    `;
+    // One source for the markup: the same function the tests render. The
+    // template used to be written out here, which meant a string could exist in
+    // the panel that nothing could check.
+    wrap.innerHTML = panelMarkup();
 
-    shadow.append(styleTag, wrap);
+    const chip = document.createElement("button");
+    chip.className = "chip";
+    chip.type = "button";
+
+    shadow.append(styleTag, wrap, chip);
     document.documentElement.appendChild(host);
+
+    /**
+     * Collapse the panel to a chip, rather than deleting it.
+     *
+     * This is the whole "I cannot find the button" fix. The close button used to
+     * call `host.remove()`, which took the panel — and every button in it, the
+     * Send deadlines one included — out of the page for the rest of the
+     * session. Nothing said how to get it back, because there was no way.
+     */
+    function setCollapsed(collapsed) {
+      host.dataset.collapsed = collapsed ? "1" : "0";
+    }
+    setCollapsed(false);
+
+    chip.addEventListener("click", () => setCollapsed(false));
+
+    // The switch swaps to the *other* language and remembers it, so the panel
+    // and the dashboard end up agreeing without either being told twice.
+    langButton.addEventListener("click", () => {
+      setLocale(otherLocale());
+      relabel();
+    });
+
+    relabel();
 
     const out = wrap.querySelector('[data-role="out"]');
     const status = wrap.querySelector('[data-role="status"]');
@@ -995,14 +1261,51 @@
     const copyButton = wrap.querySelector('[data-act="copy"]');
     const acquireButton = wrap.querySelector('[data-act="acquire"]');
     const acquireHint = wrap.querySelector('[data-role="acquire-hint"]');
+    const langButton = wrap.querySelector('[data-role="lang"]');
+
+    /** The page-specific advice, re-derivable so a language switch can refresh it. */
+    function refreshGuidance() {
+      hint.textContent = guidanceFor(document, currentCourseId());
+    }
 
     function refreshCount() {
       const total = collected.size;
       count.textContent =
         total === 0
-          ? "Collected 0 events."
-          : "Collected " + total + " event" + (total === 1 ? "" : "s") + ".";
+          ? t("collectedNone")
+          : t("collectedSome", { count: total });
       count.className = total === 0 ? "note" : "note ok";
+    }
+
+    /**
+     * Re-render every string in the panel from the current dictionary.
+     *
+     * All of them, in one function, on purpose: a language switch that misses a
+     * label leaves a half-Chinese panel, which reads worse than an English one.
+     * Anything user-visible belongs here, and the tests check that the switch
+     * reaches the header, the chip and the buttons.
+     */
+    function relabel() {
+      document.documentElement.lang = locale;
+      wrap.querySelector("header b").textContent = t("panelTitle");
+      langButton.textContent = t("languageLabel");
+      langButton.title = t("languageLabel");
+      wrap.querySelector(".close").title = t("hidePanel");
+
+      wrap.querySelector('[data-act="todos"]').textContent = t("sendDeadlines");
+      wrap.querySelector('[data-act="export"]').textContent = t("exportCollected");
+      wrap.querySelector('[data-act="clear"]').textContent = t("clearCollected");
+      wrap.querySelector('[data-act="course"]').textContent = t("collectCourse");
+      copyButton.textContent = t("copy");
+      wrap.querySelector(".calendar-note").textContent = t("calendarFootnote");
+      wrap.querySelector('[data-role="status"]').textContent = t("privacy");
+
+      chip.textContent = t("chip");
+      chip.title = t("showPanel");
+
+      refreshCount();
+      refreshAcquireLabel();
+      refreshGuidance();
     }
 
     /**
@@ -1033,12 +1336,13 @@
       }
     }, 1500);
     harvest();
-    refreshCount();
-    refreshAcquireLabel();
-    hint.textContent = guidanceFor(document, currentCourseId());
+    // `relabel` sets every string, including the count, the acquire label and
+    // the page guidance, so it is the whole first render — the individual
+    // refreshes below would be undone by it.
+    relabel();
 
     wrap.querySelector(".close").addEventListener("click", () => {
-      host.remove();
+      setCollapsed(true);
     });
 
     function show(text, className) {
@@ -1085,11 +1389,9 @@
         );
 
         status.className = "note ok";
-        status.textContent =
-          "Exported " + records.length + " events, " + withCourse + " with a course code.";
+        status.textContent = t("exported", { events: records.length, withCourse });
         hint.textContent =
-          (result.added ? "Picked up " + result.added + " more just now. " : "") +
-          "Drop huskyct-calendar.ics into BetterHuskyCT.";
+          (result.added ? t("pickedUp", { count: result.added }) : "") + t("dropCalendar");
         return;
       }
 
@@ -1100,7 +1402,7 @@
         out.hidden = true;
         copyButton.hidden = true;
         status.className = "note";
-        status.textContent = "Cleared " + total + " collected event(s).";
+        status.textContent = t("clearedPanel", { count: total });
         return;
       }
 
@@ -1116,19 +1418,19 @@
 
         if (!digest.announcements.length && !digest.content.length && !digest.files.length) {
           status.className = "note warn";
-          status.textContent = "Nothing to collect on this page.";
-          hint.textContent =
-            "Open the course's Announcements page, or its Content page, then press this again.";
+          status.textContent = t("nothingToCollect");
+          hint.textContent = t("nothingToCollectHint");
           return;
         }
 
         download("huskyct-course.md", markdown, "text/markdown;charset=utf-8");
         status.className = "note ok";
-        status.textContent =
-          "Collected " + digest.announcements.length + " announcement(s), " +
-          digest.content.length + " content item(s), " + digest.files.length + " file(s).";
-        hint.textContent =
-          "Saved as huskyct-course.md. Nothing was requested from UConn — this reads the page you are looking at.";
+        status.textContent = t("collectedCourse", {
+          announcements: digest.announcements.length,
+          content: digest.content.length,
+          files: digest.files.length,
+        });
+        hint.textContent = t("collectedCourseHint");
         show(markdown, "ok");
         return;
       }
@@ -1138,9 +1440,8 @@
 
         if (todos.length === 0) {
           status.className = "note warn";
-          status.textContent = "No deadlines on this page.";
-          hint.textContent =
-            "The to-do list lives on the Courses page (the HuskyCT home). Open it, then press this again.";
+          status.textContent = t("noDeadlinesTitle");
+          hint.textContent = t("noDeadlinesHint");
           return;
         }
 
@@ -1153,25 +1454,40 @@
         // second trip.
         const sendable = deadlinesAndAnnouncements(document);
         const announcements = sendable.announcements;
+        const announcementClause = announcements.length
+          ? t("sentWithAnnouncements", { count: announcements.length })
+          : "";
 
-        status.textContent =
-          "Sending " + records.length + " deadline(s)" +
-          (announcements.length ? " and " + announcements.length + " announcement(s)" : "") +
-          " to BetterHuskyCT…";
+        status.textContent = t("sendingTitle", {
+          deadlines: records.length,
+          announcements: announcementClause,
+        });
 
         try {
           const link = await huskypilotLink(records, undefined, announcements);
-          window.open(link, "_blank", "noopener");
-          status.className = "note ok";
-          status.textContent =
-            "Opened BetterHuskyCT with " + records.length + " deadline(s)" +
-            (announcements.length ? " and " + announcements.length + " announcement(s)" : "") +
-            ".";
-          hint.textContent =
-            "Press Apply there and they are in. Nothing was uploaded — the data travels inside the link.";
+
+          // `window.open` returns null when the popup is blocked, and it does so
+          // silently. The old code reported "Opened BetterHuskyCT" either way,
+          // which is the worst possible answer: the user is told it worked, sees
+          // no new tab, and has nothing to try next. Ask, and offer the link.
+          const opened = window.open(link, "_blank", "noopener");
+
+          if (opened) {
+            status.className = "note ok";
+            status.textContent = t("openedTitle", {
+              deadlines: records.length,
+              announcements: announcementClause,
+            });
+            hint.textContent = t("openedHint");
+          } else {
+            show(link, "warn");
+            status.className = "note warn";
+            status.textContent = t("popupBlocked");
+            hint.textContent = t("popupBlockedHint");
+          }
         } catch (error) {
           status.className = "note warn";
-          status.textContent = "Could not build the link: " + error.message;
+          status.textContent = t("linkFailed", { message: error.message });
         } finally {
           button.disabled = false;
         }
@@ -1242,6 +1558,14 @@
       collect: harvest,
       collected,
       VERSION,
+      STRINGS,
+      LOCALE_KEY,
+      detectLocale,
+      setLocale,
+      getLocale: () => locale,
+      t,
+      otherLocale,
+      panelMarkup,
     };
   }
 

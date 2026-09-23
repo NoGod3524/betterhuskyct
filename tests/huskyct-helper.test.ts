@@ -31,6 +31,13 @@ type HelperSurface = {
   ) => { source: string | null; filename: string | null; message: string | null };
   acquireLabelFor: (linksCount: number, collectedCount: number) => string;
   acquireHintFor: (linksCount: number, collectedCount: number) => string;
+  STRINGS: Record<string, Record<string, string>>;
+  LOCALE_KEY: string;
+  detectLocale: () => string;
+  setLocale: (next: string) => void;
+  getLocale: () => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  otherLocale: () => string;
   kindFromSourceType: (type: string) => string | null;
   eventToRecord: (raw: Record<string, unknown>, event: Record<string, unknown>) => Record<string, unknown> | null;
   recordsToIcs: (records: Array<Record<string, unknown>>) => string;
@@ -127,6 +134,12 @@ const {
   planCalendarAcquisition,
   acquireLabelFor,
   acquireHintFor,
+  STRINGS,
+  detectLocale,
+  setLocale,
+  getLocale,
+  t,
+  otherLocale,
   VERSION,
   eventToRecord,
   recordsToIcs,
@@ -1199,4 +1212,183 @@ test("every panel button has a handler, and the labels match", () => {
     SOURCE.includes(acquireLabelFor(0, 0)),
     "the markup's acquire label and acquireLabelFor(0, 0) disagree",
   );
+});
+
+/**
+ * Three panel bugs that were reported, or measured against the live page, pinned
+ * so they cannot come back. None of them is visible to a test that only exercises
+ * the pure helpers, because all three live in the DOM wiring.
+ */
+test("closing the panel collapses it instead of deleting it", () => {
+  // Reported as "I do not know where to press it": the close button called
+  // `host.remove()`, which took every button out of the page for the rest of the
+  // session, with nothing to say how to get them back.
+  assert.ok(
+    !/\.close"\)\.addEventListener\("click",\s*\(\)\s*=>\s*\{\s*host\.remove\(\)/.test(SOURCE),
+    "the close button deletes the panel again instead of collapsing it",
+  );
+  assert.match(SOURCE, /setCollapsed\(true\)/, "closing no longer collapses");
+  // The chip is built with `className = "chip"`, not written as markup.
+  assert.match(SOURCE, /className = "chip"/, "the way back (the chip) is gone");
+  assert.match(SOURCE, /data-collapsed/, "nothing tracks the collapsed state");
+});
+
+test("mounting the panel twice leaves one panel", () => {
+  // Measured: injecting the shipped script into a live page twice stacked two
+  // panels, and the one underneath looked like a broken panel.
+  assert.match(
+    SOURCE,
+    /querySelectorAll\("#huskypilot-helper"\)\.forEach\(\(node\) => node\.remove\(\)\)/,
+    "mountPanel no longer clears an existing panel, so it can stack",
+  );
+});
+
+test("a blocked new tab is reported instead of claimed as success", () => {
+  // `window.open` returns null when the popup is blocked, and does so silently.
+  // The old code said "Opened BetterHuskyCT" either way, so the reader was told
+  // it worked and saw nothing happen.
+  assert.match(SOURCE, /const opened = window\.open\(/, "window.open's result is not read");
+  assert.match(SOURCE, /blocked the new tab/, "a blocked popup is not reported to the reader");
+});
+
+/**
+ * The panel and the dashboard are on different origins, so neither can read the
+ * other's localStorage. What they can do is agree — same key name, same two
+ * values, same browser-derived default — and that is what these pin.
+ */
+test("the panel speaks both languages the dashboard does, with no gaps", () => {
+  const en = Object.keys(STRINGS.en);
+  const zh = Object.keys(STRINGS["zh-CN"]);
+
+  assert.ok(en.length > 40, "the dictionary looks truncated: " + en.length);
+  assert.deepEqual(
+    en.filter((key) => !zh.includes(key)),
+    [],
+    "keys missing from the Chinese dictionary",
+  );
+  assert.deepEqual(
+    zh.filter((key) => !en.includes(key)),
+    [],
+    "keys in Chinese that English does not have",
+  );
+
+  // Every key resolves to something, and never to the key itself — that is what
+  // a missing translation looks like at runtime.
+  for (const locale of ["en", "zh-CN"]) {
+    setLocale(locale);
+    for (const key of en) {
+      const text = t(key);
+      assert.ok(text && text.length > 0, `${locale} has an empty string for ${key}`);
+      assert.notEqual(text, key, `${locale} is missing a translation for ${key}`);
+    }
+  }
+
+  setLocale("en");
+});
+
+test("the Chinese dictionary is actually Chinese, not copied English", () => {
+  setLocale("zh-CN");
+  const samples = [t("sendDeadlines"), t("panelTitle"), t("guideTodo")];
+  for (const sample of samples) {
+    assert.match(sample, /[\u4e00-\u9fff]/, `not translated: ${sample}`);
+  }
+
+  setLocale("en");
+  assert.ok(!/[\u4e00-\u9fff]/.test(t("sendDeadlines")), "English picked up Chinese text");
+});
+
+test("a placeholder with no value supplied does not leak braces", () => {
+  setLocale("en");
+  assert.match(t("collectedSome", { count: 3 }), /3 event/);
+  assert.ok(!t("collectedSome", { count: 3 }).includes("{"), "an unfilled placeholder leaked");
+});
+
+test("the language defaults to the browser and is remembered once chosen", () => {
+  // The sandbox has no localStorage and a bare navigator, so this exercises the
+  // fallback path: no stored choice means ask the browser, and no browser answer
+  // means English.
+  assert.equal(detectLocale(), "en");
+
+  setLocale("zh-CN");
+  assert.equal(getLocale(), "zh-CN");
+  setLocale("en");
+  assert.equal(getLocale(), "en");
+
+  // A junk value must not become the locale.
+  setLocale("klingon");
+  assert.equal(getLocale(), "en");
+});
+
+test("the switch offers the other language", () => {
+  setLocale("en");
+  assert.equal(otherLocale(), "zh-CN");
+  setLocale("zh-CN");
+  assert.equal(otherLocale(), "en");
+  setLocale("en");
+});
+
+/**
+ * The rendered markup in the other language, not just the dictionary.
+ *
+ * The panel is the one surface I could not reach in a browser (the DevTools
+ * connection to the signed-in Edge needs its per-connection approval), so this
+ * checks what would actually be written into it: the same template the panel
+ * builds, rendered from the dictionary. It is the difference between "the
+ * dictionary has Chinese in it" and "the panel shows Chinese".
+ */
+test("the panel markup renders in Chinese, with nothing left in English", () => {
+  const surface = sandbox.__huskyctHelper as HelperSurface & {
+    panelMarkup: () => string;
+  };
+  assert.equal(typeof surface.panelMarkup, "function", "panelMarkup is not exposed");
+
+  surface.setLocale("en");
+  const english = surface.panelMarkup();
+  const englishLabels = ["Send deadlines to BetterHuskyCT", "Get this page's calendar", "Clear collected"];
+  for (const label of englishLabels) {
+    assert.ok(english.includes(label), `the English panel lost: ${label}`);
+  }
+
+  surface.setLocale("zh-CN");
+  const chinese = surface.panelMarkup();
+
+  // Every translated label must be present in the markup, in Chinese.
+  for (const key of ["sendDeadlines", "getCalendar", "clearCollected", "collectCourse", "copy"]) {
+    const text = surface.t(key);
+    assert.match(text, /[\u4e00-\u9fff]/, `not translated: ${key}`);
+    assert.ok(chinese.includes(text), `the rendered panel is missing the translation for ${key}`);
+  }
+
+  // And no label that was translated may still be sitting there in English.
+  // This is the check that catches a template string somebody forgot to wire up.
+  for (const label of englishLabels) {
+    assert.ok(!chinese.includes(label), `the Chinese panel still contains: ${label}`);
+  }
+
+  surface.setLocale("en");
+});
+
+test("the panel leads with the guidance and the deadlines button", () => {
+  // Anchored on the closing backtick of the template literal, not on the first
+  // `</div>` — a comment inside the markup contains one, and slicing there cut
+  // the panel down to 291 characters and made this test lie. (It did.)
+  const start = SOURCE.indexOf('<div class="body">');
+  const end = SOURCE.indexOf("`;", start);
+  assert.ok(start !== -1 && end > start, "could not find the panel template");
+  const panel = SOURCE.slice(start, end);
+
+  // The guidance first: it is what says which button this page wants, and it
+  // used to be the last element in the panel.
+  const hintAt = panel.indexOf('data-role="hint"');
+  const countAt = panel.indexOf('data-role="count"');
+  assert.ok(hintAt !== -1 && countAt !== -1, "the panel lost its hint or its count");
+  assert.ok(hintAt < countAt, "the guidance is not at the top of the panel");
+
+  // Send deadlines leads and is the only primary, because it is the one action
+  // that needs no file and cannot be done by hand.
+  const todosAt = panel.indexOf('data-act="todos"');
+  const acquireAt = panel.indexOf('data-act="acquire"');
+  assert.ok(todosAt !== -1 && acquireAt !== -1, "the panel lost a button");
+  assert.ok(todosAt < acquireAt, "Send deadlines is not the leading action");
+  assert.match(panel, /class="act primary" data-act="todos"/, "Send deadlines is not the primary button");
 });
