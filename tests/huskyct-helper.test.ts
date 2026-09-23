@@ -31,6 +31,13 @@ type HelperSurface = {
   ) => { source: string | null; filename: string | null; message: string | null };
   acquireLabelFor: (linksCount: number, collectedCount: number) => string;
   acquireHintFor: (linksCount: number, collectedCount: number) => string;
+  STRINGS: Record<string, Record<string, string>>;
+  LOCALE_KEY: string;
+  detectLocale: () => string;
+  setLocale: (next: string) => void;
+  getLocale: () => string;
+  t: (key: string, params?: Record<string, string | number>) => string;
+  otherLocale: () => string;
   kindFromSourceType: (type: string) => string | null;
   eventToRecord: (raw: Record<string, unknown>, event: Record<string, unknown>) => Record<string, unknown> | null;
   recordsToIcs: (records: Array<Record<string, unknown>>) => string;
@@ -127,6 +134,12 @@ const {
   planCalendarAcquisition,
   acquireLabelFor,
   acquireHintFor,
+  STRINGS,
+  detectLocale,
+  setLocale,
+  getLocale,
+  t,
+  otherLocale,
   VERSION,
   eventToRecord,
   recordsToIcs,
@@ -1236,6 +1249,82 @@ test("a blocked new tab is reported instead of claimed as success", () => {
   // it worked and saw nothing happen.
   assert.match(SOURCE, /const opened = window\.open\(/, "window.open's result is not read");
   assert.match(SOURCE, /blocked the new tab/, "a blocked popup is not reported to the reader");
+});
+
+/**
+ * The panel and the dashboard are on different origins, so neither can read the
+ * other's localStorage. What they can do is agree — same key name, same two
+ * values, same browser-derived default — and that is what these pin.
+ */
+test("the panel speaks both languages the dashboard does, with no gaps", () => {
+  const en = Object.keys(STRINGS.en);
+  const zh = Object.keys(STRINGS["zh-CN"]);
+
+  assert.ok(en.length > 40, "the dictionary looks truncated: " + en.length);
+  assert.deepEqual(
+    en.filter((key) => !zh.includes(key)),
+    [],
+    "keys missing from the Chinese dictionary",
+  );
+  assert.deepEqual(
+    zh.filter((key) => !en.includes(key)),
+    [],
+    "keys in Chinese that English does not have",
+  );
+
+  // Every key resolves to something, and never to the key itself — that is what
+  // a missing translation looks like at runtime.
+  for (const locale of ["en", "zh-CN"]) {
+    setLocale(locale);
+    for (const key of en) {
+      const text = t(key);
+      assert.ok(text && text.length > 0, `${locale} has an empty string for ${key}`);
+      assert.notEqual(text, key, `${locale} is missing a translation for ${key}`);
+    }
+  }
+
+  setLocale("en");
+});
+
+test("the Chinese dictionary is actually Chinese, not copied English", () => {
+  setLocale("zh-CN");
+  const samples = [t("sendDeadlines"), t("panelTitle"), t("guideTodo")];
+  for (const sample of samples) {
+    assert.match(sample, /[\u4e00-\u9fff]/, `not translated: ${sample}`);
+  }
+
+  setLocale("en");
+  assert.ok(!/[\u4e00-\u9fff]/.test(t("sendDeadlines")), "English picked up Chinese text");
+});
+
+test("a placeholder with no value supplied does not leak braces", () => {
+  setLocale("en");
+  assert.match(t("collectedSome", { count: 3 }), /3 event/);
+  assert.ok(!t("collectedSome", { count: 3 }).includes("{"), "an unfilled placeholder leaked");
+});
+
+test("the language defaults to the browser and is remembered once chosen", () => {
+  // The sandbox has no localStorage and a bare navigator, so this exercises the
+  // fallback path: no stored choice means ask the browser, and no browser answer
+  // means English.
+  assert.equal(detectLocale(), "en");
+
+  setLocale("zh-CN");
+  assert.equal(getLocale(), "zh-CN");
+  setLocale("en");
+  assert.equal(getLocale(), "en");
+
+  // A junk value must not become the locale.
+  setLocale("klingon");
+  assert.equal(getLocale(), "en");
+});
+
+test("the switch offers the other language", () => {
+  setLocale("en");
+  assert.equal(otherLocale(), "zh-CN");
+  setLocale("zh-CN");
+  assert.equal(otherLocale(), "en");
+  setLocale("en");
 });
 
 test("the panel leads with the guidance and the deadlines button", () => {
