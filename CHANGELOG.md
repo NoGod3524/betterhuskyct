@@ -9,6 +9,40 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.6.5](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.5) — One calendar button
+
+*Patch: the helper's panel had two ways to get a calendar file and no way to tell them apart.*
+
+### Changed
+
+- **The helper's "Merge .ics links" and "Export .ics" are now one button.**
+  Both produced a `.ics` you then dropped into the same place, so the reader had
+  to work out which to press — when the answer depended on whether the page
+  happened to expose feed links, which is the script's business and not theirs.
+  There is now **Get this page's calendar**, which prefers feed links and says
+  which source it will use before you press it. The helper moves to **0.12.0**.
+- Exporting the events collected so far is still there, relabelled as the
+  fallback for a page that exposes no feeds.
+
+### Notes
+
+- **The two paths are not equivalent, and that is what decides the order.** A
+  merged feed file can be pasted into the dashboard as a *link*, and only a link
+  can refresh itself later. The app has no way to turn a file back into a feed
+  URL, so harvested events can only ever be a one-time file. Feeds win;
+  harvesting is what happens when there are no feeds to win with.
+- **Fixed a blank calendar name.** With a single feed the merge path passed a
+  bare `""` as the calendar's name, writing a bare `X-WR-CALNAME:` into the file.
+  The dashboard reads that key as the name and got `""` rather than `null`, so it
+  showed a blank name where it would otherwise have said "Unnamed calendar".
+- **A panel-consistency test**, added after nearly shipping a button labelled
+  "Send deadlines to BetterHuskyCT" whose handler compared against `"todos"`. The
+  labels are written twice — once in the markup, once in `acquireLabelFor` — so a
+  mismatch is invisible: no test builds the panel, and a selector matching
+  nothing is a null dereference on every page load rather than a failing
+  assertion. Every `data-act` must now have a handler, and a separate merge
+  button must not come back.
+
 ## [1.6.4](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.4) — Announcements arrive
 
 *Patch: a new capability — the app can finally hold what the helper has been able to read all along.*
