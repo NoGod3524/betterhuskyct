@@ -177,7 +177,6 @@ type CalendarContextValue = {
 
   /** Course announcements, newest first. Empty until a helper sends some. */
   announcements: Announcement[];
-  hasAnnouncements: boolean;
   clearAnnouncements: () => void;
 };
 
@@ -1033,7 +1032,6 @@ export function CalendarProvider({
     isPackingSync,
     syncError,
     announcements,
-    hasAnnouncements: announcements.length > 0,
     clearAnnouncements: dropAnnouncements,
   };
 

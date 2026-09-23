@@ -1,4 +1,9 @@
-import { sameCourse, type Course, type CourseBook } from "./courses.ts";
+import {
+  normaliseCourseCode,
+  sameCourse,
+  type Course,
+  type CourseBook,
+} from "./courses.ts";
 import type { EffortMap } from "./effort.ts";
 import {
   MAX_ANNOUNCEMENTS,
@@ -172,9 +177,13 @@ function resolveAnnouncementCourse(
 
   if (!announcement.courseCode) return null;
 
-  const wanted = announcement.courseCode.toLowerCase();
+  // `normaliseCourseCode` rather than a bare `trim`: it is what every other
+  // reader and writer here puts codes through, so a code that reached this
+  // point with an odd run of whitespace still matches a course the user typed.
+  // Case is folded because the catalogue and the page disagree about it.
+  const wanted = normaliseCourseCode(announcement.courseCode).toLowerCase();
   const matches = courses.courses.filter(
-    (course) => course.code.toLowerCase() === wanted,
+    (course) => normaliseCourseCode(course.code).toLowerCase() === wanted,
   );
 
   return matches.length === 1 ? matches[0].id : null;

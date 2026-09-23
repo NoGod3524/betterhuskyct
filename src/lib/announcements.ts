@@ -254,16 +254,3 @@ export function sortAnnouncements(announcements: Announcement[]): Announcement[]
     return left.id < right.id ? -1 : 1;
   });
 }
-
-/** The course a group is for, for the heading: code first, then id, then "none". */
-export function announcementCourseLabel(
-  courseId: string | null,
-  courseCode: string | null,
-  nameFor: (courseId: string) => string | null,
-): string | null {
-  if (courseId) {
-    const name = nameFor(courseId);
-    if (name) return name;
-  }
-  return courseCode;
-}

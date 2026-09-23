@@ -583,3 +583,26 @@ test("the outgoing summary counts announcements", () => {
 
   assert.equal(summary.announcements, 2);
 });
+
+test("a course code matches regardless of case or odd spacing", () => {
+  // The catalogue and the page disagree about case, and a code can arrive with a
+  // run of whitespace in it. Matching on a bare lowercase comparison would miss
+  // the course and show the raw code instead of the user's own name for it.
+  const localBook = bookWith("MATH 1070Q");
+  const incoming = parseAnnouncementCandidates([
+    announced("Midterm moved", { courseCode: "  math   1070q  " }),
+  ]);
+
+  const merged = mergeSyncPayload(
+    {
+      courses: localBook,
+      efforts: {},
+      completedIds: new Set(),
+      subscriptions: [],
+      announcements: [],
+    },
+    payloadOf({ announcements: incoming }),
+  );
+
+  assert.equal(merged.announcements[0].courseId, localBook.courses[0].id);
+});
