@@ -145,12 +145,21 @@ function check(label, ok, detail) {
  * `shell: true` was the first version of this, and it leaked: killing the shell
  * leaves the actual server holding the port. `npx` also adds a wrapper process.
  * This way the pid we hold is the server, and killing it kills the server.
+ *
+ * Set `E2E_BASE_URL` to check a deployment instead of a local build — a Vercel
+ * preview, for instance. The fragment is still built here from this checkout's
+ * own source, which is the point: it asks whether *this* code's output is read
+ * correctly by *that* deployment.
  */
-const server = spawn(
-  process.execPath,
-  [join(REPO, "node_modules", "next", "dist", "bin", "next"), "start", "-p", String(PORT)],
-  { cwd: REPO, stdio: "ignore" },
-);
+const BASE_URL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:" + PORT;
+
+const server = BASE_URL.startsWith("http://127.0.0.1")
+  ? spawn(
+      process.execPath,
+      [join(REPO, "node_modules", "next", "dist", "bin", "next"), "start", "-p", String(PORT)],
+      { cwd: REPO, stdio: "ignore" },
+    )
+  : null;
 rmSync(PROFILE, { recursive: true, force: true });
 mkdirSync(PROFILE, { recursive: true });
 
@@ -173,7 +182,7 @@ try {
   const fragment = await buildFragment();
   console.log("fragment length:", fragment.length, "\n");
 
-  await waitForHttp("http://127.0.0.1:" + PORT + "/announcements", "next start");
+  if (server) await waitForHttp(BASE_URL + "/announcements", "next start");
   await waitForHttp("http://127.0.0.1:" + DEBUG_PORT + "/json/version", "chrome");
 
   const version = await (await fetch("http://127.0.0.1:" + DEBUG_PORT + "/json/version")).json();
@@ -190,9 +199,59 @@ try {
   await cdp(ws, "Runtime.enable", {}, sessionId);
   await cdp(ws, "Page.enable", {}, sessionId);
 
-  const url = "http://127.0.0.1:" + PORT + "/announcements#sync=" + fragment;
+  const url = BASE_URL + "/announcements#sync=" + fragment;
   await cdp(ws, "Page.navigate", { url }, sessionId);
   await sleep(6000);
+
+  /**
+   * Vercel injects a preview toolbar on a preview deployment, and it is an
+   * overlay that swallows both the text and the clicks on a check like this.
+   * Remove its element rather than dismissing it through its own UI, which is
+   * itself a moving target. A local build has none of this.
+   */
+  const toolbar = await cdp(
+    ws,
+    "Runtime.evaluate",
+    {
+      expression: `(() => {
+        const toolbar = [...document.querySelectorAll("vercel-live-feedback, #vercel-live-feedback, [data-vercel-toolbar]")];
+        toolbar.forEach((node) => node.remove());
+        const frames = [...document.querySelectorAll("iframe")].filter((node) =>
+          /vercel/i.test(node.src || "") || /vercel/i.test(node.title || ""));
+        frames.forEach((node) => node.remove());
+        return JSON.stringify({ removed: toolbar.length + frames.length });
+      })()`,
+      returnByValue: true,
+    },
+    sessionId,
+  );
+  if (process.env.E2E_VERBOSE) console.log("toolbar removal:", toolbar.result.value);
+  await sleep(500);
+
+  /**
+   * A preview deployment on a project with Vercel Authentication turns on
+   * redirects to `vercel.com/login`, and every assertion below then fails for a
+   * reason that has nothing to do with this app. Say so once, clearly, instead
+   * of printing thirteen misleading failures — that cost a detour the first time.
+   *
+   * Fetching such a URL with a plain HTTP client can still answer 200 with a
+   * login page in the body, so this checks where the *browser* ended up.
+   */
+  const landed = await cdp(
+    ws,
+    "Runtime.evaluate",
+    { expression: "location.host + location.pathname", returnByValue: true },
+    sessionId,
+  );
+  if (!/127\.0\.0\.1|localhost/.test(BASE_URL) && /vercel\.com/.test(landed.result.value ?? "")) {
+    console.error(
+      "\nThe deployment at " + BASE_URL + " redirected to " + landed.result.value + ".\n" +
+        "That is Vercel Authentication, not this app. Verify a protected preview by\n" +
+        "logging in there yourself, or point E2E_BASE_URL at production after a merge.\n",
+    );
+    process.exitCode = 3;
+    throw new Error("deployment is behind Vercel Authentication");
+  }
 
   const text = await cdp(
     ws,
@@ -326,10 +385,12 @@ try {
   console.log("\n=== " + (failures.length === 0 ? "ALL CHECKS PASSED" : failures.length + " FAILED: " + failures.join("; ")) + " ===");
 } catch (error) {
   console.error("E2E ERROR:", error.message);
-  process.exitCode = 1;
+  // Only set a generic failure code if nothing more specific claimed one — the
+  // auth guard above distinguishes "cannot check this" from "this is broken".
+  if (process.exitCode === undefined) process.exitCode = 1;
 } finally {
   ws?.close();
   chrome.kill();
-  server.kill();
+  server?.kill();
   await sleep(1500);
 }
