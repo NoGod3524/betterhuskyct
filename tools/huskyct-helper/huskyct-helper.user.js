@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.13.0
+// @version      0.14.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.13.0";
+  const VERSION = "0.14.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1161,6 +1161,41 @@
     }
   `;
 
+  /**
+   * The panel's markup as a string, in whatever language is current.
+   *
+   * Taken out of `mountPanel` so the one surface I cannot reach in a browser is
+   * still checkable: there is no way to run the panel in this environment (the
+   * DevTools connection to a signed-in Edge needs its per-connection approval),
+   * and "the dictionary has Chinese in it" is a weaker claim than "the panel
+   * would render Chinese".
+   */
+  function panelMarkup() {
+    return `
+      <header>
+        <b>${t("panelTitle")}</b>
+        <span class="pill">v${VERSION}</span>
+        <button class="lang" data-role="lang" title="${t("languageLabel")}">${t("languageLabel")}</button>
+        <button class="close" title="${t("hidePanel")}">×</button>
+      </header>
+      <div class="body">
+        <div class="note" data-role="hint"></div>
+        <div class="note" data-role="count">${t("collectedNone")}</div>
+        <button class="act primary" data-act="todos">${t("sendDeadlines")}</button>
+        <button class="act" data-act="acquire">${t("getCalendar")}</button>
+        <div class="note" data-role="acquire-hint"></div>
+        <button class="act" data-act="export">${t("exportCollected")}</button>
+        <div class="note calendar-note">${t("calendarFootnote")}</div>
+        <button class="act" data-act="clear">${t("clearCollected")}</button>
+        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
+        <button class="act" data-act="course">${t("collectCourse")}</button>
+        <textarea data-role="out" hidden></textarea>
+        <button class="act" data-act="copy" hidden>${t("copy")}</button>
+        <div class="note" data-role="status">${t("privacy")}</div>
+      </div>
+    `;
+  }
+
   function mountPanel() {
     /**
      * One panel, ever.
@@ -1183,44 +1218,10 @@
 
     const wrap = document.createElement("div");
     wrap.className = "wrap";
-    // The markup is written from the dictionary rather than hardcoded, so the
-    // panel cannot end up half translated: there is one place a user-visible
-    // string can come from, and the language switch re-renders all of it.
-    wrap.innerHTML = `
-      <header>
-        <b>${t("panelTitle")}</b>
-        <span class="pill">v${VERSION}</span>
-        <button class="lang" data-role="lang" title="${t("languageLabel")}">${t("languageLabel")}</button>
-        <button class="close" title="${t("hidePanel")}">×</button>
-      </header>
-      <div class="body">
-        <!-- The guidance comes first: it is what tells the reader which button
-             this page wants, and it used to sit under six buttons at the very
-             bottom, where it was the last thing anyone read. -->
-        <div class="note" data-role="hint"></div>
-        <div class="note" data-role="count">${t("collectedNone")}</div>
-        <!-- One button for "give me this page's calendar", not two.
-             Two file-producing buttons on one panel left the reader to work out
-             which to press when both produce a .ics they then drag into the same
-             place. The label changes to say which one it will do, because feed
-             links are the better source: they can be pasted straight in as a
-             subscription, and only a link can refresh itself later. -->
-        <!-- Send deadlines leads, because on the two pages that matter it is the
-             whole point of the helper, and it is the one action that needs no
-             file and cannot be done by hand. -->
-        <button class="act primary" data-act="todos">${t("sendDeadlines")}</button>
-        <button class="act" data-act="acquire">${t("getCalendar")}</button>
-        <div class="note" data-role="acquire-hint"></div>
-        <button class="act" data-act="export">${t("exportCollected")}</button>
-        <div class="note calendar-note">${t("calendarFootnote")}</div>
-        <button class="act" data-act="clear">${t("clearCollected")}</button>
-        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
-        <button class="act" data-act="course">${t("collectCourse")}</button>
-        <textarea data-role="out" hidden></textarea>
-        <button class="act" data-act="copy" hidden>${t("copy")}</button>
-        <div class="note" data-role="status">${t("privacy")}</div>
-      </div>
-    `;
+    // One source for the markup: the same function the tests render. The
+    // template used to be written out here, which meant a string could exist in
+    // the panel that nothing could check.
+    wrap.innerHTML = panelMarkup();
 
     const chip = document.createElement("button");
     chip.className = "chip";
@@ -1564,6 +1565,7 @@
       getLocale: () => locale,
       t,
       otherLocale,
+      panelMarkup,
     };
   }
 

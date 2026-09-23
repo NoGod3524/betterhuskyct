@@ -1327,6 +1327,47 @@ test("the switch offers the other language", () => {
   setLocale("en");
 });
 
+/**
+ * The rendered markup in the other language, not just the dictionary.
+ *
+ * The panel is the one surface I could not reach in a browser (the DevTools
+ * connection to the signed-in Edge needs its per-connection approval), so this
+ * checks what would actually be written into it: the same template the panel
+ * builds, rendered from the dictionary. It is the difference between "the
+ * dictionary has Chinese in it" and "the panel shows Chinese".
+ */
+test("the panel markup renders in Chinese, with nothing left in English", () => {
+  const surface = sandbox.__huskyctHelper as HelperSurface & {
+    panelMarkup: () => string;
+  };
+  assert.equal(typeof surface.panelMarkup, "function", "panelMarkup is not exposed");
+
+  surface.setLocale("en");
+  const english = surface.panelMarkup();
+  const englishLabels = ["Send deadlines to BetterHuskyCT", "Get this page's calendar", "Clear collected"];
+  for (const label of englishLabels) {
+    assert.ok(english.includes(label), `the English panel lost: ${label}`);
+  }
+
+  surface.setLocale("zh-CN");
+  const chinese = surface.panelMarkup();
+
+  // Every translated label must be present in the markup, in Chinese.
+  for (const key of ["sendDeadlines", "getCalendar", "clearCollected", "collectCourse", "copy"]) {
+    const text = surface.t(key);
+    assert.match(text, /[\u4e00-\u9fff]/, `not translated: ${key}`);
+    assert.ok(chinese.includes(text), `the rendered panel is missing the translation for ${key}`);
+  }
+
+  // And no label that was translated may still be sitting there in English.
+  // This is the check that catches a template string somebody forgot to wire up.
+  for (const label of englishLabels) {
+    assert.ok(!chinese.includes(label), `the Chinese panel still contains: ${label}`);
+  }
+
+  surface.setLocale("en");
+});
+
 test("the panel leads with the guidance and the deadlines button", () => {
   // Anchored on the closing backtick of the template literal, not on the first
   // `</div>` — a comment inside the markup contains one, and slicing there cut
