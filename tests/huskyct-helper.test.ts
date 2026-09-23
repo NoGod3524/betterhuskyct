@@ -1243,6 +1243,44 @@ test("mounting the panel twice leaves one panel", () => {
   );
 });
 
+/**
+ * The ordering that broke the panel in 0.14.0, checked specifically.
+ *
+ * `langButton` is a `const`, so wiring it or calling `relabel()` above its
+ * declaration is a temporal-dead-zone ReferenceError at the top of mountPanel —
+ * which means the panel never appears at all. That shipped with 262 tests green,
+ * because nothing in this file runs mountPanel; the markup is rendered as a
+ * string and the pure helpers are called directly. Only injecting the script
+ * into a real page caught it.
+ *
+ * Deliberately specific rather than a general "is this used before it is
+ * declared" walk: the general version cannot tell a reference inside a function
+ * body (fine, it runs later — `out` in `show()` is one) from a top-level one
+ * (a crash). This asserts the one rule that actually broke, which is the one
+ * worth keeping.
+ */
+test("mountPanel's element handles are declared before anything renders", () => {
+  const start = SOURCE.indexOf("function mountPanel()");
+  assert.ok(start !== -1, "mountPanel is gone");
+  const body = SOURCE.slice(start);
+
+  const lastDeclaration = Math.max(
+    ...[...body.matchAll(/const\s+[A-Za-z_$][\w$]*\s*=\s*wrap\.querySelector\(/g)].map(
+      (match) => match.index ?? 0,
+    ),
+  );
+  assert.ok(Number.isFinite(lastDeclaration), "no element handles found in mountPanel");
+
+  for (const statement of ["langButton.addEventListener", "refreshGuidance()", "\n    relabel();"]) {
+    const at = body.indexOf(statement);
+    assert.ok(at !== -1, `mountPanel no longer contains: ${statement.trim()}`);
+    assert.ok(
+      at > lastDeclaration,
+      `${statement.trim()} runs before every element handle exists — the TDZ crash that hides the panel`,
+    );
+  }
+});
+
 test("a blocked new tab is reported instead of claimed as success", () => {
   // `window.open` returns null when the popup is blocked, and does so silently.
   // The old code said "Opened BetterHuskyCT" either way, so the reader was told
