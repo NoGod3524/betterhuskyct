@@ -51,9 +51,11 @@ The scheme is deliberately simple:
 - **An ambiguous course code resolves to nothing.** If a course code matches two
   local courses — the same code with two different components is a real thing
   here — the row shows the code instead of a coin-flip pick.
-- Caps: 400 announcements, 1,200 characters per body. A term of 120 deadlines
-  plus 40 announcements with full bodies still packs well inside the dashboard's
-  32 KB fragment guard, and a test asserts it.
+- Caps: 400 announcements, 1,200 characters per body. Measured at the cap — 120
+  deadlines, 5 courses, 400 full bodies — the packed link is 8,968 characters,
+  well inside the dashboard's 32 KB fragment guard. A realistic term (120
+  deadlines, 40 announcements) is about 3,074, of which the announcements are
+  864. A test asserts the guard holds.
 
 ## [1.6.3](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.3) — The domain, for real
 

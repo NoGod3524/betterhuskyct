@@ -584,6 +584,62 @@ test("the outgoing summary counts announcements", () => {
   assert.equal(summary.announcements, 2);
 });
 
+/**
+ * The caps exist for this, and nothing else asserted them at the boundary.
+ *
+ * 400 announcements of 1,200 characters is the most this can ever be asked to
+ * carry. Measured, that packs to 8,968 characters against a 32,768 guard, so
+ * there is room — but the guard is the thing that keeps a link openable, and a
+ * future cap change should have to fail here rather than in someone's browser.
+ */
+test("the caps keep a worst-case link inside the fragment guard", async () => {
+  const at = new Date("2026-09-23T12:00:00Z");
+  const full = parseAnnouncementCandidates(
+    Array.from({ length: 400 }, (_, index) => ({
+      courseCode: "MATH 1070Q",
+      title: "Announcement " + index,
+      body: "A paragraph of course news. ".repeat(60),
+      posted: "9/17/26, 4:47 PM",
+      announced: at.toISOString(),
+    })),
+    at,
+  );
+
+  assert.equal(full.length, 400);
+  assert.equal(full[0].body.length, 1_200, "the body cap did not apply");
+
+  const payload = buildSyncPayload({
+    feeds: [
+      {
+        name: "HuskyCT to-do",
+        courseId: null,
+        importedAt: at.toISOString(),
+        events: Array.from({ length: 120 }, (_, index) =>
+          task("deadline-" + index, {
+            start: new Date(Date.UTC(2026, 8, 20 + (index % 30), 3, 59)).toISOString(),
+          }),
+        ),
+      },
+    ],
+    completedIds: [],
+    efforts: {},
+    courses: bookWith("MATH 1070Q", "STAT 1000Q", "SOCI 1501", "NRE 1000E", "ECON 1201"),
+    announcements: full,
+    now: at,
+  });
+
+  const packed = await encodeSyncPayload(payload);
+
+  assert.ok(
+    packed.length < 32_768,
+    "worst case is over the dashboard's guard: " + packed.length,
+  );
+  // And it still reads back, which is the point of staying under the guard.
+  const decoded = await decodeSyncPayload(packed);
+  assert.equal(decoded?.announcements.length, 400);
+  assert.equal(decoded?.feeds.flatMap((feed) => feed.events).length, 120);
+});
+
 test("a course code matches regardless of case or odd spacing", () => {
   // The catalogue and the page disagree about case, and a code can arrive with a
   // run of whitespace in it. Matching on a bare lowercase comparison would miss
