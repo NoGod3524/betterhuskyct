@@ -800,6 +800,8 @@ export function CalendarProvider({
     setNotice(
       t(locale, "sync.applied", {
         calendars: merged.addedFeeds,
+        added: merged.addedEvents,
+        updated: merged.updatedEvents,
         tasks: merged.completedIds.size,
         announcements: merged.announcements.length,
       }),
