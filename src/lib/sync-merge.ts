@@ -5,6 +5,7 @@ import {
   type CourseBook,
 } from "./courses.ts";
 import type { EffortMap } from "./effort.ts";
+import type { CalendarTask } from "./calendar-types.ts";
 import {
   MAX_ANNOUNCEMENTS,
   sortAnnouncements,
@@ -15,7 +16,7 @@ import {
   createSubscriptionId,
   type Subscription,
 } from "./subscriptions.ts";
-import type { SyncPayload } from "./sync.ts";
+import type { SyncFeed, SyncPayload } from "./sync.ts";
 
 export type LocalState = {
   courses: CourseBook;
@@ -79,13 +80,26 @@ export function mergeSyncPayload(
   for (const id of payload.completedIds) completedIds.add(id);
 
   const subscriptions = [...local.subscriptions];
-  const knownEvents = new Set(
-    subscriptions.flatMap((subscription) => subscription.events.map((event) => event.id)),
-  );
   let addedFeeds = 0;
 
   for (const feed of payload.feeds) {
-    if (feed.events.some((event) => knownEvents.has(event.id))) continue;
+    // Merge into an existing calendar when this payload continues one, rather
+    // than treating the feed as all-or-nothing.
+    //
+    // The old rule was `if any event is already known, skip the whole feed`,
+    // which broke the helper's entire workflow after the first send: it re-sends
+    // one "HuskyCT to-do" feed holding every outstanding deadline, so the second
+    // send always contained something already here, and every deadline that was
+    // new or rescheduled was dropped without a word.
+    const target = findReceivingSubscription(subscriptions, feed);
+
+    if (target) {
+      const merged = mergeFeedEvents(target.events, feed.events);
+      subscriptions[subscriptions.indexOf(target)] = { ...target, events: merged.events };
+      addedFeeds += merged.added > 0 ? 1 : 0;
+      continue;
+    }
+
     if (subscriptions.length >= MAX_SUBSCRIPTIONS) break;
 
     subscriptions.push({
@@ -98,7 +112,6 @@ export function mergeSyncPayload(
       lastError: null,
       events: feed.events,
     });
-    for (const event of feed.events) knownEvents.add(event.id);
     addedFeeds += 1;
   }
 
@@ -187,6 +200,94 @@ function resolveAnnouncementCourse(
   );
 
   return matches.length === 1 ? matches[0].id : null;
+}
+
+/**
+ * Which existing calendar should receive this feed's events.
+ *
+ * The rule the merge used to have — "if any event is already known, skip the
+ * feed" — is gone, but *something* still has to decide whether an incoming feed
+ * continues a calendar here or is a new one. That decision is now about the
+ * events rather than about a single one of them: a feed that shares no event
+ * with anything here is new; a feed that shares some is the same calendar
+ * arriving again.
+ *
+ * Name agreement is used only to break ties, and only when nothing overlaps,
+ * because the helper's two payloads are not guaranteed to share events at all —
+ * a to-do list where every deadline moved has entirely new ids.
+ */
+function findReceivingSubscription(
+  subscriptions: Subscription[],
+  feed: SyncFeed,
+): Subscription | null {
+  if (feed.events.length === 0) return null;
+
+  const incoming = new Set(feed.events.map((event) => event.id));
+
+  let best: Subscription | null = null;
+  let bestOverlap = 0;
+
+  for (const subscription of subscriptions) {
+    let overlap = 0;
+    for (const event of subscription.events) {
+      if (incoming.has(event.id)) overlap += 1;
+    }
+    if (overlap > bestOverlap) {
+      best = subscription;
+      bestOverlap = overlap;
+    }
+  }
+
+  if (best) return best;
+
+  // Nothing in common. The same named calendar arriving with a wholly different
+  // set of deadlines is still the same calendar, and starting a second "HuskyCT
+  // to-do" every time a deadline moves is worse than merging into the first.
+  if (!feed.name) return null;
+  return subscriptions.find((subscription) => subscription.name === feed.name) ?? null;
+}
+
+/**
+ * Folds a feed's events into the ones already on the calendar.
+ *
+ * Additive, like every other rule here: an incoming event replaces the one with
+ * the same id, and anything the payload does not mention is kept. A deadline the
+ * helper stopped mentioning is therefore still shown rather than vanishing —
+ * losing a deadline the user can still see in HuskyCT is the worse failure, and
+ * it is the one this function exists to stop.
+ */
+function mergeFeedEvents(
+  existing: CalendarTask[],
+  incoming: CalendarTask[],
+): { events: CalendarTask[]; added: number; updated: number } {
+  const byId = new Map(existing.map((event) => [event.id, event]));
+  let added = 0;
+  let updated = 0;
+
+  for (const event of incoming) {
+    const previous = byId.get(event.id);
+    if (!previous) {
+      added += 1;
+    } else if (!sameEvent(previous, event)) {
+      updated += 1;
+    }
+    byId.set(event.id, event);
+  }
+
+  return { events: [...byId.values()], added, updated };
+}
+
+/** Whether two copies of one event say the same thing, for counting updates. */
+function sameEvent(left: CalendarTask, right: CalendarTask): boolean {
+  return (
+    left.title === right.title &&
+    left.start === right.start &&
+    left.end === right.end &&
+    left.course === right.course &&
+    left.location === right.location &&
+    left.allDay === right.allDay &&
+    (left.kind ?? null) === (right.kind ?? null)
+  );
 }
 
 function mergeCourses(

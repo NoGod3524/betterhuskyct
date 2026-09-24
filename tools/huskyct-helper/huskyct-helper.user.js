@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.14.1
+// @version      0.14.2
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.14.1";
+  const VERSION = "0.14.2";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1474,11 +1474,21 @@
         try {
           const link = await huskypilotLink(records, undefined, announcements);
 
-          // `window.open` returns null when the popup is blocked, and it does so
-          // silently. The old code reported "Opened BetterHuskyCT" either way,
-          // which is the worst possible answer: the user is told it worked, sees
-          // no new tab, and has nothing to try next. Ask, and offer the link.
-          const opened = window.open(link, "_blank", "noopener");
+          /**
+           * Open the dashboard, and tell the truth about whether it opened.
+           *
+           * `window.open(url, "_blank", "noopener")` returns **null** even when it
+           * succeeds, because `noopener` severs the reference as part of its job.
+           * So testing the return value of a `noopener` call reports "blocked" on
+           * every successful send — which is exactly what 0.14.0 shipped. Measured
+           * in Chrome 152: `_blank` alone gives an object, `_blank` with
+           * `"noopener"` gives null, and both open a window.
+           *
+           * The fix keeps the isolation and makes null mean what it should: call
+           * without the flag, check the reference, then cut `opener` yourself.
+           */
+          const opened = window.open(link, "_blank");
+          if (opened) opened.opener = null;
 
           if (opened) {
             status.className = "note ok";
