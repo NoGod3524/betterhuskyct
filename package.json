@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test": "node --experimental-strip-types --import ./tests/support/register-tsx.mjs --test tests/*.test.ts",
     "course-map": "node scripts/build-course-map.mjs"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
+    "happy-dom": "^20.14.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
