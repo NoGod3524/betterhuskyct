@@ -1290,6 +1290,36 @@ test("a blocked new tab is reported instead of claimed as success", () => {
 });
 
 /**
+ * The trap that made the check above worthless.
+ *
+ * `window.open(url, "_blank", "noopener")` returns **null even on success**, so
+ * reading the return value is not enough — the *call shape* has to be right, or
+ * every successful send is reported as "your browser blocked the new tab". The
+ * check above passed while 0.14.0 shipped exactly that, because it only asserted
+ * that the value was read.
+ *
+ * Measured in Chrome 152: `_blank` alone returns an object, `_blank` with
+ * `"noopener"` returns null, and both open a window. So the features argument
+ * must not carry `noopener`; isolation is done by clearing `opener` afterwards.
+ */
+test("the popup is opened without the flag that would null the result", () => {
+  // Comments have to go first: the explanation above the call names `"noopener"`
+  // in prose, and matching that made this test fail on correct code. A check that
+  // the surrounding commentary can trip is not checking the code.
+  const code = SOURCE.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+
+  assert.ok(
+    !/window\.open\([^)]*"noopener"/.test(code),
+    "window.open is called with noopener, so a successful open returns null and reads as blocked",
+  );
+  assert.match(
+    code,
+    /if \(opened\) opened\.opener = null;/,
+    "opener is not cleared after opening, so the new tab keeps a handle on this page",
+  );
+});
+
+/**
  * The panel and the dashboard are on different origins, so neither can read the
  * other's localStorage. What they can do is agree — same key name, same two
  * values, same browser-derived default — and that is what these pin.
