@@ -68,7 +68,7 @@
     try {
       const stored = window.localStorage.getItem(LOCALE_KEY);
       if (LOCALES.indexOf(stored) !== -1) return stored;
-    } catch (error) {
+    } catch {
       /* a page that blocks storage still gets the browser's own answer */
     }
     const language = String(
@@ -83,7 +83,7 @@
     locale = LOCALES.indexOf(next) !== -1 ? next : "en";
     try {
       window.localStorage.setItem(LOCALE_KEY, locale);
-    } catch (error) {
+    } catch {
       /* not being able to remember it is not a reason to refuse to use it */
     }
   }
@@ -1328,7 +1328,7 @@
       let linksCount = 0;
       try {
         linksCount = calendarLinks().length;
-      } catch (error) {
+      } catch {
         /* a page that will not let us look is a page with no links we can use */
       }
 
