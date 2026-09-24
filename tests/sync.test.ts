@@ -9,6 +9,7 @@ import {
 import { EMPTY_COURSE_BOOK, addCourse, type CourseBook } from "../src/lib/courses.ts";
 import type { Subscription } from "../src/lib/subscriptions.ts";
 import {
+  MAX_UNPACKED_BYTES,
   SYNC_FRAGMENT,
   buildSyncPayload,
   decodeSyncPayload,
@@ -170,6 +171,42 @@ test("a corrupt link decodes to null instead of throwing", async () => {
   assert.equal(await decodeSyncPayload("aGVsbG8"), null);
   assert.equal(await decodeSyncPayload(""), null);
   assert.equal(await decodeSyncPayload("x".repeat(40_000)), null);
+});
+
+test("a link that expands into a bomb is refused, not parsed", async () => {
+  // 20 MB of one repeated character gzips to about 20 KB — inside the packed
+  // limit, so only a limit on the unpacked size stops it.
+  const bomb = await packSync(" ".repeat(20 * 1024 * 1024));
+  assert.ok(bomb.length < 32_768, `the bomb packed to ${bomb.length} characters`);
+
+  assert.equal(await decodeSyncPayload(bomb), null);
+  await assert.rejects(unpackSync(bomb), /size limit/);
+});
+
+test("a real full-size payload is well inside the unpacked limit", async () => {
+  // The worst case the caps allow for announcements, beside a term of deadlines.
+  const announcements = Array.from({ length: 400 }, (_, index) => ({
+    courseCode: `MATH ${1000 + (index % 8)}`,
+    title: `Announcement ${index}`,
+    body: "x".repeat(1_200),
+    posted: "Posted on 9/1/26",
+    announced: NOW.toISOString(),
+  }));
+  const payload = payloadOf({
+    feeds: [
+      {
+        name: "HuskyCT to-do",
+        courseId: null,
+        importedAt: NOW.toISOString(),
+        events: Array.from({ length: 120 }, (_, index) => task(`t${index}`)),
+      },
+    ],
+    announcements: parseAnnouncementCandidates(announcements, NOW),
+  });
+
+  const text = serialiseSyncPayload(payload);
+  assert.ok(text.length < MAX_UNPACKED_BYTES / 2, `a full payload is ${text.length} bytes`);
+  assert.deepEqual(await decodeSyncPayload(await encodeSyncPayload(payload)), payload);
 });
 
 test("the fragment helpers only accept our own fragment", () => {
