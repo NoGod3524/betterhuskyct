@@ -9,6 +9,91 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.6.7](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.7) — Sending twice works
+
+*Patch: the helper's Send deadlines only worked the first time, and a review of 1.6.6 turned up the rest of this list. PRs #44, #45, #46 and #47.*
+
+### Fixed
+
+- **A second Send deadlines lost every new deadline.** The helper re-sends one
+  "HuskyCT to-do" feed holding everything outstanding, and the merge skipped a
+  feed whole if *any* of its events was already on the device. So the second
+  send always matched something, and anything new or rescheduled was dropped
+  without a word. Feeds now merge into the calendar they continue, item by item.
+- **A rescheduled deadline showed up twice** — at the old time, where it later
+  sat in the plan as overdue, and at the new one. A task's id carries its start
+  time, so a moved deadline arrived with a new id. Calendars are now matched by
+  each item's source UID, which survives a move, and for every UID a link
+  mentions its copy replaces the one here. A deadline the helper stops listing
+  is still kept.
+- **Unrelated courses could be merged into one.** Blackboard names every course
+  feed "University of Connecticut", and the first version of the merge fell back
+  to matching by name, filing one course's deadlines under another's label.
+  Names are no longer used to match.
+- **Every successful send said the browser had blocked the new tab.**
+  `window.open` called with `"noopener"` returns `null` even when it succeeds,
+  so 1.6.6's new blocked-popup check was true every time. The panel now opens
+  the tab, checks the reference, and clears `opener` itself. The helper moves to
+  **0.14.2**.
+- **The date never changed while the app stayed open.** `now` was read once on
+  load, so an installed app left open overnight kept yesterday's "today", and
+  the due-soon reminder never fired for a task that came within 24 hours after
+  the page was opened — the case reminders exist for. It now moves every minute,
+  and at once when you come back to the tab.
+- **One recurring event could fail a whole import.** An `RRULE:FREQ=MINUTELY`
+  entry makes the calendar parser give up, and that failed the import with every
+  real deadline in it. Each recurring event is now expanded on its own, and one
+  the parser refuses is skipped. Each is also capped at 150 occurrences, so an
+  hourly event can no longer use up the 500-event budget and cut off everything
+  after its first three weeks.
+- **Offline, every page opened as the last one visited.** The service worker
+  stored every page under `/`, and stored error pages too, so a 500 could become
+  the offline app. Pages are now cached under their own path, only when they
+  loaded properly. The cache moves to v2, so installed copies drop the old one on
+  their next update.
+- **Accepting a sync link during the demo saved the demo's ticks** into your real
+  ones. The merge now starts from your saved ticks, whichever view is showing.
+- **A dropped connection read as "Failed to fetch"**, and a platform error page
+  as "Unexpected token '<'". Both now say, in English and Chinese, that the
+  import service could not be reached.
+
+### Changed
+
+- **The sync message counts what actually changed**: calendars added, then items
+  new and items updated. It used to call an existing calendar "added" whenever
+  it gained one item.
+
+### Security
+
+- **The calendar download has a total time limit.** Its 8-second timeout only
+  fired after 8 seconds of *silence*, so a server sending a byte every few
+  seconds could hold the function open indefinitely, and name lookup had no limit
+  at all. The whole fetch — lookup, every redirect, the body — now has 15
+  seconds, after which the connection is closed.
+- **A sync link is capped after unpacking, not only before.** 32 KB of link could
+  expand to tens of megabytes, parsed on the main thread of whoever opened it.
+  Unpacking now stops at 2 MB; a real worst case is under 1 MB.
+- **The import rate limit trusts the platform's address headers** over
+  `x-forwarded-for`, whose first entry a caller can write — a made-up address per
+  request used to mean a fresh allowance per request.
+
+### Notes
+
+- **Both halves of the send bug were in tested code.** The first merge fix (#44)
+  came with a test for a moved deadline, and it passed while moved deadlines were
+  still doubling: the test's ids did not carry a start time, and real ones do.
+  The tests now build every id the way the parser and the helper do. Every new
+  test in this release was also run against the code before its fix, and fails
+  there.
+- **The offline fix is tested by running the real `sw.js`.** The in-app browser
+  used during development refuses to register a service worker, so a new test
+  loads the worker in Node with an in-memory cache and a switchable network and
+  checks what each page returns offline.
+- **Two behaviours to know about.** A rescheduled deadline arrives under a new
+  id, so a tick on its old time does not carry over. And syncing a recurring
+  class from another device replaces its occurrences with that device's set, so
+  past meetings only this device held can drop away; deadlines are not affected.
+
 ## [1.6.6](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.6) — The panel comes back
 
 *Patch: the Send deadlines button could not be found, and then 0.14.0 shipped with the panel unable to mount at all.*
