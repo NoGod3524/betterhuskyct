@@ -19,6 +19,7 @@ import {
   saveRememberSource,
   saveSubscriptions,
   taskOwnerIndex,
+  ticksForTasks,
   updateSubscription,
   type Subscription,
 } from "../src/lib/subscriptions.ts";
@@ -293,6 +294,16 @@ test("latestImportAt returns the newest successful import", () => {
     ]),
     "2026-09-01T00:00:00.000Z",
   );
+});
+
+test("ticksForTasks keeps only ticks whose task is still on screen", () => {
+  const subscriptions = [feed("a", [task("t1"), task("t2")]), feed("b", [task("t3")])];
+
+  // t9 belonged to a task that has since gone from every feed.
+  const ticks = ticksForTasks(["t1", "t3", "t9"], subscriptions);
+
+  assert.deepEqual([...ticks].sort(), ["t1", "t3"]);
+  assert.deepEqual([...ticksForTasks(["t1"], [])], [], "no calendars means no ticks on screen");
 });
 
 test("the remember-links preference round-trips", () => {
