@@ -265,6 +265,21 @@ export function mergeTasks(subscriptions: Subscription[]): CalendarTask[] {
 }
 
 /**
+ * The ticks that still belong to a task on screen.
+ *
+ * A tick outlives its task in storage — the feed is re-imported without it, or
+ * the calendar is removed — and a tick with nothing to tick would still count
+ * towards "done" everywhere that counts. Storage keeps it; the screen does not.
+ */
+export function ticksForTasks(
+  ticks: Iterable<string>,
+  subscriptions: Subscription[],
+): Set<string> {
+  const present = new Set(mergeTasks(subscriptions).map((task) => task.id));
+  return new Set([...ticks].filter((id) => present.has(id)));
+}
+
+/**
  * Which subscription owns each task, so a row's course label can be found.
  *
  * Built once per render pass rather than searched per row: a semester's worth of

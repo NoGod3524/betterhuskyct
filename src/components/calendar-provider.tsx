@@ -32,11 +32,14 @@ import {
   saveRememberSource,
   saveSubscriptions,
   taskOwnerIndex,
+  ticksForTasks,
   updateSubscription,
   MAX_SUBSCRIPTIONS,
   type Subscription,
 } from "@/lib/subscriptions";
 import { CalendarFileError, readCalendarFile } from "@/lib/calendar-file";
+import { watchClock } from "@/lib/clock";
+import { requestCalendarImport, type ImportRequest } from "@/lib/import-client";
 import {
   buildSyncPayload,
   decodeSyncPayload,
@@ -45,7 +48,7 @@ import {
   syncLink,
   type SyncPayload,
 } from "@/lib/sync";
-import { mergeSyncPayload } from "@/lib/sync-merge";
+import { planSyncApply } from "@/lib/sync-apply";
 import {
   clearCompletedTaskIds,
   restoreCompletedTaskIds,
@@ -190,10 +193,6 @@ export function useCalendar(): CalendarContextValue {
   return value;
 }
 
-function taskIdsOf(subscriptions: Subscription[]): Set<string> {
-  return new Set(mergeTasks(subscriptions).map((task) => task.id));
-}
-
 /**
  * Holds every piece of calendar state for the whole app.
  *
@@ -308,13 +307,8 @@ export function CalendarProvider({
     commitSubscriptions(next);
     setDemoMode(false);
     setRestoredFromStorage(false);
-    const eventIds = taskIdsOf(next);
-    const restoredCompleted = restoreCompletedTaskIds(
-      window.localStorage,
-      "imported",
-    );
     setCompletedIds(
-      new Set([...restoredCompleted].filter((id) => eventIds.has(id))),
+      ticksForTasks(restoreCompletedTaskIds(window.localStorage, "imported"), next),
     );
     setNotice(
       t(
@@ -325,29 +319,11 @@ export function CalendarProvider({
     );
   }
 
-  async function requestImport(payload: { url: string } | { ics: string }) {
-    // Anything that is not this endpoint's own JSON — no connection, or a
-    // platform page for a timeout or an oversized body — used to reach the
-    // reader as the parser's words ("Failed to fetch", "Unexpected token '<'").
-    // Neither says what happened or what to do, so both become one sentence.
-    let result: CalendarImportResult & { error?: string };
-    let response: Response;
-    try {
-      response = await fetch("/api/calendar/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      result = await response.json();
-    } catch {
-      throw new Error(t(locale, "errors.importUnavailable"));
-    }
-
-    if (!response.ok) {
-      throw new Error(result.error ?? t(locale, "errors.importFailed"));
-    }
-
-    return result;
+  function requestImport(payload: ImportRequest) {
+    return requestCalendarImport(payload, {
+      unavailable: t(locale, "errors.importUnavailable"),
+      failed: t(locale, "errors.importFailed"),
+    });
   }
 
   function handleImport(event: FormEvent<HTMLFormElement>) {
@@ -483,10 +459,7 @@ export function CalendarProvider({
       }
     }
 
-    const merged = taskIdsOf(subscriptionsRef.current);
-    setCompletedIds((previous) =>
-      new Set([...previous].filter((id) => merged.has(id))),
-    );
+    setCompletedIds((previous) => ticksForTasks(previous, subscriptionsRef.current));
     setNotice(
       failures === 0
         ? t(activeLocale, "notices.autoRefreshed", { count: imported })
@@ -510,13 +483,11 @@ export function CalendarProvider({
       if (restored.subscriptions.length > 0) {
         setRestoredFromStorage(true);
         setNotice(t(restoredLocale, "notices.restoredImported"));
-        const eventIds = taskIdsOf(restored.subscriptions);
-        const restoredCompleted = restoreCompletedTaskIds(
-          window.localStorage,
-          "imported",
-        );
         setCompletedIds(
-          new Set([...restoredCompleted].filter((id) => eventIds.has(id))),
+          ticksForTasks(
+            restoreCompletedTaskIds(window.localStorage, "imported"),
+            restored.subscriptions,
+          ),
         );
       } else {
         if (restored.recoveredFromCorruptData) {
@@ -579,33 +550,9 @@ export function CalendarProvider({
     return () => window.removeEventListener("hashchange", offerSyncLink);
   }, []);
 
-  /**
-   * Keeps `now` moving while the app is open.
-   *
-   * It used to be read once on load, so an installed app left open overnight
-   * kept yesterday's "today", its plan never saw a deadline pass, and the
-   * due-soon reminder never fired for a task that entered its window after the
-   * page opened — the one case a reminder exists for.
-   *
-   * A minute is fine enough for anything shown here. Phones suspend timers in
-   * the background, so coming back to the tab refreshes it immediately rather
-   * than waiting for the next tick.
-   */
-  useEffect(() => {
-    const tick = () => setNow(new Date());
-    const onVisible = () => {
-      if (document.visibilityState === "visible") tick();
-    };
-
-    const timer = window.setInterval(tick, 60_000);
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", tick);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", tick);
-    };
-  }, []);
+  // Keeps `now` moving while the app is open; see `watchClock` for why. The
+  // returned cleanup is the effect's, so an unmounted provider stops ticking.
+  useEffect(() => watchClock(() => setNow(new Date()), window), []);
 
   const demoTasks = useMemo(() => createDemoTasks(now), [now]);
   const tasks = useMemo(
@@ -807,23 +754,21 @@ export function CalendarProvider({
   function applyPendingSync() {
     if (!pendingSync) return;
 
-    // While the demo is on screen, `completedIds` holds the demo's ticks, and
-    // merging those would write demo ids into the real saved set. The real
-    // ticks are the saved ones, whichever view is showing.
-    const localTicks = isImported
-      ? completedIds
-      : restoreCompletedTaskIds(window.localStorage, "imported");
-
-    const merged = mergeSyncPayload(
+    // Which ticks go into the merge and what the screen shows afterwards are
+    // decided by `planSyncApply`; this only writes the result.
+    const plan = planSyncApply(
       {
         courses: courseBook,
         efforts,
-        completedIds: localTicks,
         subscriptions: subscriptionsRef.current,
         announcements: announcementsRef.current,
+        showingImported: isImported,
+        ticksOnScreen: completedIds,
+        savedTicks: restoreCompletedTaskIds(window.localStorage, "imported"),
       },
       pendingSync,
     );
+    const { merged } = plan;
 
     commitSubscriptions(merged.subscriptions);
     commitCourseBook(merged.courses);
@@ -832,14 +777,10 @@ export function CalendarProvider({
     commitAnnouncements(merged.announcements);
     setEfforts(merged.efforts);
     saveEffortMap(window.localStorage, merged.efforts);
-    saveCompletedTaskIds(window.localStorage, "imported", merged.completedIds);
+    saveCompletedTaskIds(window.localStorage, "imported", plan.ticksToSave);
 
-    // Only switch what is on screen when there is a real calendar to show; a
-    // link with no calendars leaves the demo, and the demo's ticks, as they were.
-    if (merged.subscriptions.length > 0) {
-      setDemoMode(false);
-      setCompletedIds(merged.completedIds);
-    }
+    if (plan.showImported) setDemoMode(false);
+    if (plan.ticksOnScreen) setCompletedIds(plan.ticksOnScreen);
     setRestoredFromStorage(false);
     setPendingSync(null);
     setOutgoingSyncLink(null);
@@ -998,13 +939,11 @@ export function CalendarProvider({
 
     setDemoMode(false);
     setRestoredFromStorage(true);
-    const eventIds = taskIdsOf(subscriptionsRef.current);
-    const restoredCompleted = restoreCompletedTaskIds(
-      window.localStorage,
-      "imported",
-    );
     setCompletedIds(
-      new Set([...restoredCompleted].filter((id) => eventIds.has(id))),
+      ticksForTasks(
+        restoreCompletedTaskIds(window.localStorage, "imported"),
+        subscriptionsRef.current,
+      ),
     );
     setNotice(t(locale, "notices.savedImportRestored"));
     setError(null);
