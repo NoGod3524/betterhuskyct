@@ -237,7 +237,7 @@ test("merging brings the calendar across as a new subscription", () => {
   assert.equal(merged.subscriptions[0].url, null);
 });
 
-test("a calendar already on this device is left alone", () => {
+test("a calendar already on this device keeps its identity and is not duplicated", () => {
   const existing = feed("local-1", [task("a"), task("b")], { name: "Mine" });
 
   const merged = mergeSyncPayload(

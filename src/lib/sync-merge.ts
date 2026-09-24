@@ -39,8 +39,12 @@ export type MergedState = {
   efforts: EffortMap;
   completedIds: Set<string>;
   subscriptions: Subscription[];
-  /** How many calendars the link actually added. */
+  /** How many calendars the link actually added — new ones, not merged ones. */
   addedFeeds: number;
+  /** Items (counted by UID) that were not on this device before. */
+  addedEvents: number;
+  /** Items already here whose time or details the link changed. */
+  updatedEvents: number;
   /** The union, newest first, capped. */
   announcements: Announcement[];
   /** How many announcements the link actually added. */
@@ -57,9 +61,11 @@ export type MergedState = {
  *   never a reason to untick it here.
  * - **Courses and effort marks take the incoming value**, because importing a
  *   link is an explicit act — the user is saying "this is the set-up I want".
- * - **A calendar already here is left alone.** Matching is by UID, so a device
- *   that imported the same feed keeps its own copy, its own name, and its own
- *   remembered link rather than gaining a duplicate.
+ * - **A calendar already here is updated in place, never duplicated.** A feed
+ *   that shares a source UID with one here is merged into it, so the device
+ *   keeps its own name, course and remembered link. For each UID the link
+ *   mentions, its copy wins (that is how a moved deadline moves); a UID it
+ *   does not mention is kept.
  *
  * Course ids are per-device UUIDs, so incoming ids are remapped onto the local
  * course with the same code and component before anything is written.
@@ -81,6 +87,8 @@ export function mergeSyncPayload(
 
   const subscriptions = [...local.subscriptions];
   let addedFeeds = 0;
+  let addedEvents = 0;
+  let updatedEvents = 0;
 
   for (const feed of payload.feeds) {
     // Merge into an existing calendar when this payload continues one, rather
@@ -96,7 +104,8 @@ export function mergeSyncPayload(
     if (target) {
       const merged = mergeFeedEvents(target.events, feed.events);
       subscriptions[subscriptions.indexOf(target)] = { ...target, events: merged.events };
-      addedFeeds += merged.added > 0 ? 1 : 0;
+      addedEvents += merged.added;
+      updatedEvents += merged.updated;
       continue;
     }
 
@@ -113,6 +122,7 @@ export function mergeSyncPayload(
       events: feed.events,
     });
     addedFeeds += 1;
+    addedEvents += new Set(feed.events.map(eventUid)).size;
   }
 
   const { announcements, addedAnnouncements } = mergeAnnouncements(
@@ -128,6 +138,8 @@ export function mergeSyncPayload(
     completedIds,
     subscriptions,
     addedFeeds,
+    addedEvents,
+    updatedEvents,
     announcements,
     addedAnnouncements,
   };
@@ -203,18 +215,34 @@ function resolveAnnouncementCourse(
 }
 
 /**
+ * The source UID an event came from.
+ *
+ * Every producer builds a task id as `uid + ":" + start` — `parse-calendar` does
+ * for a feed or a file, and the helper does for its to-do list — so the UID is
+ * the id with that suffix taken off. Comparing by UID rather than by id is what
+ * lets a rescheduled deadline be recognised: its start moved, so its id changed,
+ * but it is still the same item. An id that does not end in its own start (an
+ * old payload, a hand-built one) is its own UID.
+ */
+export function eventUid(event: CalendarTask): string {
+  const suffix = `:${event.start}`;
+  return event.id.endsWith(suffix) && event.id.length > suffix.length
+    ? event.id.slice(0, -suffix.length)
+    : event.id;
+}
+
+/**
  * Which existing calendar should receive this feed's events.
  *
- * The rule the merge used to have — "if any event is already known, skip the
- * feed" — is gone, but *something* still has to decide whether an incoming feed
- * continues a calendar here or is a new one. That decision is now about the
- * events rather than about a single one of them: a feed that shares no event
- * with anything here is new; a feed that shares some is the same calendar
- * arriving again.
+ * A feed that shares a UID with a calendar here is that calendar arriving again;
+ * the one with the most shared UIDs wins. A feed that shares none is new.
  *
- * Name agreement is used only to break ties, and only when nothing overlaps,
- * because the helper's two payloads are not guaranteed to share events at all —
- * a to-do list where every deadline moved has entirely new ids.
+ * Deliberately not by name. The first version of this fell back to a name match
+ * when nothing overlapped, and Blackboard gives every course feed the same
+ * `X-WR-CALNAME` — "University of Connecticut" — so an unrelated course was
+ * folded into whichever one happened to be here, and took its course label.
+ * The case the name match was for, a to-do list whose deadlines all moved, is
+ * covered by comparing UIDs, which survive a move.
  */
 function findReceivingSubscription(
   subscriptions: Subscription[],
@@ -222,57 +250,66 @@ function findReceivingSubscription(
 ): Subscription | null {
   if (feed.events.length === 0) return null;
 
-  const incoming = new Set(feed.events.map((event) => event.id));
+  const incoming = new Set(feed.events.map(eventUid));
 
   let best: Subscription | null = null;
   let bestOverlap = 0;
 
   for (const subscription of subscriptions) {
-    let overlap = 0;
-    for (const event of subscription.events) {
-      if (incoming.has(event.id)) overlap += 1;
-    }
-    if (overlap > bestOverlap) {
+    const shared = new Set(
+      subscription.events.map(eventUid).filter((uid) => incoming.has(uid)),
+    );
+    if (shared.size > bestOverlap) {
       best = subscription;
-      bestOverlap = overlap;
+      bestOverlap = shared.size;
     }
   }
 
-  if (best) return best;
-
-  // Nothing in common. The same named calendar arriving with a wholly different
-  // set of deadlines is still the same calendar, and starting a second "HuskyCT
-  // to-do" every time a deadline moves is worse than merging into the first.
-  if (!feed.name) return null;
-  return subscriptions.find((subscription) => subscription.name === feed.name) ?? null;
+  return best;
 }
 
 /**
  * Folds a feed's events into the ones already on the calendar.
  *
- * Additive, like every other rule here: an incoming event replaces the one with
- * the same id, and anything the payload does not mention is kept. A deadline the
- * helper stopped mentioning is therefore still shown rather than vanishing —
- * losing a deadline the user can still see in HuskyCT is the worse failure, and
- * it is the one this function exists to stop.
+ * The incoming feed is authoritative *per UID*: for every UID it mentions, its
+ * instances replace the ones here. That is what moves a rescheduled deadline
+ * instead of showing it twice — once at the old time, where it would later sit
+ * in the plan as overdue, and once at the new one.
+ *
+ * Everything else stays additive. A UID the payload does not mention is kept,
+ * so a deadline the helper stopped listing is still shown rather than vanishing:
+ * losing one the user can still see in HuskyCT is the worse failure.
  */
 function mergeFeedEvents(
   existing: CalendarTask[],
   incoming: CalendarTask[],
 ): { events: CalendarTask[]; added: number; updated: number } {
-  const byId = new Map(existing.map((event) => [event.id, event]));
+  const incomingUids = new Set(incoming.map(eventUid));
+  const existingById = new Map(existing.map((event) => [event.id, event]));
+  const existingUids = new Set(existing.map(eventUid));
+
   let added = 0;
   let updated = 0;
+  // Counted once per UID, so a recurring event with many instances is one change.
+  const counted = new Set<string>();
 
   for (const event of incoming) {
-    const previous = byId.get(event.id);
-    if (!previous) {
+    const uid = eventUid(event);
+    if (counted.has(uid)) continue;
+
+    const previous = existingById.get(event.id);
+    if (!existingUids.has(uid)) {
       added += 1;
-    } else if (!sameEvent(previous, event)) {
+      counted.add(uid);
+    } else if (!previous || !sameEvent(previous, event)) {
       updated += 1;
+      counted.add(uid);
     }
-    byId.set(event.id, event);
   }
+
+  const kept = existing.filter((event) => !incomingUids.has(eventUid(event)));
+  const byId = new Map(kept.map((event) => [event.id, event]));
+  for (const event of incoming) byId.set(event.id, event);
 
   return { events: [...byId.values()], added, updated };
 }
