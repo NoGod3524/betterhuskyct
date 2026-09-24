@@ -326,14 +326,22 @@ export function CalendarProvider({
   }
 
   async function requestImport(payload: { url: string } | { ics: string }) {
-    const response = await fetch("/api/calendar/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const result = (await response.json()) as CalendarImportResult & {
-      error?: string;
-    };
+    // Anything that is not this endpoint's own JSON — no connection, or a
+    // platform page for a timeout or an oversized body — used to reach the
+    // reader as the parser's words ("Failed to fetch", "Unexpected token '<'").
+    // Neither says what happened or what to do, so both become one sentence.
+    let result: CalendarImportResult & { error?: string };
+    let response: Response;
+    try {
+      response = await fetch("/api/calendar/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      result = await response.json();
+    } catch {
+      throw new Error(t(locale, "errors.importUnavailable"));
+    }
 
     if (!response.ok) {
       throw new Error(result.error ?? t(locale, "errors.importFailed"));
@@ -799,11 +807,18 @@ export function CalendarProvider({
   function applyPendingSync() {
     if (!pendingSync) return;
 
+    // While the demo is on screen, `completedIds` holds the demo's ticks, and
+    // merging those would write demo ids into the real saved set. The real
+    // ticks are the saved ones, whichever view is showing.
+    const localTicks = isImported
+      ? completedIds
+      : restoreCompletedTaskIds(window.localStorage, "imported");
+
     const merged = mergeSyncPayload(
       {
         courses: courseBook,
         efforts,
-        completedIds,
+        completedIds: localTicks,
         subscriptions: subscriptionsRef.current,
         announcements: announcementsRef.current,
       },
@@ -817,10 +832,14 @@ export function CalendarProvider({
     commitAnnouncements(merged.announcements);
     setEfforts(merged.efforts);
     saveEffortMap(window.localStorage, merged.efforts);
-    setCompletedIds(merged.completedIds);
     saveCompletedTaskIds(window.localStorage, "imported", merged.completedIds);
 
-    if (merged.subscriptions.length > 0) setDemoMode(false);
+    // Only switch what is on screen when there is a real calendar to show; a
+    // link with no calendars leaves the demo, and the demo's ticks, as they were.
+    if (merged.subscriptions.length > 0) {
+      setDemoMode(false);
+      setCompletedIds(merged.completedIds);
+    }
     setRestoredFromStorage(false);
     setPendingSync(null);
     setOutgoingSyncLink(null);

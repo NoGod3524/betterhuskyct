@@ -5,6 +5,8 @@ import { isIP } from "node:net";
 const MAX_REDIRECTS = 3;
 const MAX_CALENDAR_BYTES = 2 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 8_000;
+/** The whole fetch, start to finish. */
+const TOTAL_TIMEOUT_MS = 15_000;
 
 export class SafeFetchError extends Error {
   constructor(message: string) {
@@ -81,11 +83,50 @@ async function resolvePublicAddress(hostname: string) {
   return answers[0];
 }
 
-async function download(url: URL, redirectsRemaining: number): Promise<string> {
-  const resolved = await resolvePublicAddress(url.hostname);
-  const originalHostname = url.hostname.replace(/^\[|\]$/g, "");
+/**
+ * `work`, or a `SafeFetchError` once `deadline` (an epoch ms) has passed.
+ *
+ * `onTimeout` is how the caller stops the work itself — a socket left open after
+ * the answer has been given up on is the resource this limit exists to free.
+ */
+export function withinDeadline<T>(
+  work: Promise<T>,
+  deadline: number,
+  onTimeout?: () => void,
+): Promise<T> {
+  // The losing side of the race still settles later; that must not surface as
+  // an unhandled rejection.
+  work.catch(() => undefined);
 
-  return new Promise((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      onTimeout?.();
+      reject(new SafeFetchError("The calendar server took too long to respond."));
+    }, Math.max(0, deadline - Date.now()));
+
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function download(
+  url: URL,
+  redirectsRemaining: number,
+  deadline: number,
+): Promise<string> {
+  const resolved = await withinDeadline(resolvePublicAddress(url.hostname), deadline);
+  const originalHostname = url.hostname.replace(/^\[|\]$/g, "");
+  let active: ReturnType<typeof httpsRequest> | undefined;
+
+  const transfer = new Promise<string>((resolve, reject) => {
     let settled = false;
     const fail = (error: Error) => {
       if (settled) return;
@@ -127,7 +168,8 @@ async function download(url: URL, redirectsRemaining: number): Promise<string> {
             return;
           }
 
-          download(redirectUrl, redirectsRemaining - 1).then(resolve, fail);
+          // The redirect spends the same budget, not a fresh one.
+          download(redirectUrl, redirectsRemaining - 1, deadline).then(resolve, fail);
           return;
         }
 
@@ -165,6 +207,9 @@ async function download(url: URL, redirectsRemaining: number): Promise<string> {
       },
     );
 
+    // An idle limit: fires only after this long with no bytes at all. A server
+    // that sends one byte every few seconds never trips it, which is what the
+    // overall deadline below is for.
     request.setTimeout(REQUEST_TIMEOUT_MS, () => {
       request.destroy(new SafeFetchError("The calendar server took too long to respond."));
     });
@@ -175,13 +220,18 @@ async function download(url: URL, redirectsRemaining: number): Promise<string> {
           : new SafeFetchError("The calendar could not be downloaded."),
       );
     });
+    active = request;
     request.end();
   });
+
+  return withinDeadline(transfer, deadline, () => active?.destroy());
 }
 
 export async function fetchCalendarText(rawUrl: string) {
   const url = validateCalendarUrl(rawUrl);
-  const body = await download(url, MAX_REDIRECTS);
+  // One budget for the whole fetch — DNS, every redirect and the body — so a
+  // slow-drip server cannot hold the function open past it.
+  const body = await download(url, MAX_REDIRECTS, Date.now() + TOTAL_TIMEOUT_MS);
 
   if (!/BEGIN:VCALENDAR/i.test(body) || !/END:VCALENDAR/i.test(body)) {
     throw new SafeFetchError(

@@ -63,9 +63,23 @@ export function createRateLimiter({
   };
 }
 
-/** The caller's address as seen through Vercel's proxy, or a shared bucket. */
+/**
+ * The caller's address as seen through Vercel's proxy, or a shared bucket.
+ *
+ * Headers the platform writes come first. `x-forwarded-for` is a list any
+ * client can start, so behind a proxy that appends rather than replaces it, its
+ * first entry is whatever the caller chose — and a fresh made-up address per
+ * request was a fresh bucket per request. It is kept last, for hosts that set
+ * nothing else.
+ */
 export function clientKey(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const first = forwarded?.split(",")[0]?.trim();
-  return first || request.headers.get("x-real-ip")?.trim() || "unknown";
+  const header = (name: string) =>
+    request.headers.get(name)?.split(",")[0]?.trim() || null;
+
+  return (
+    header("x-vercel-forwarded-for") ??
+    header("x-real-ip") ??
+    header("x-forwarded-for") ??
+    "unknown"
+  );
 }

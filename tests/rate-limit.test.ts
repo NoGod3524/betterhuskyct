@@ -67,3 +67,17 @@ test("clientKey prefers the first forwarded address", () => {
   // No address at all still yields a stable bucket rather than an exception.
   assert.equal(clientKey(request({})), "unknown");
 });
+
+test("clientKey trusts the platform's header over one a caller can write", () => {
+  const request = (headers: Record<string, string>) =>
+    new Request("https://example.com/api", { method: "POST", headers });
+
+  // A caller rotating a made-up x-forwarded-for must not get a new bucket each
+  // time when the platform has said who they really are.
+  const spoofed = { "x-forwarded-for": "1.2.3.4", "x-real-ip": "198.51.100.4" };
+  assert.equal(clientKey(request(spoofed)), "198.51.100.4");
+  assert.equal(
+    clientKey(request({ ...spoofed, "x-vercel-forwarded-for": "203.0.113.9" })),
+    "203.0.113.9",
+  );
+});

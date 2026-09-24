@@ -32,6 +32,17 @@ export const SYNC_FRAGMENT = "#sync=";
 /** A guard against a hostile link: this should never be anywhere near it. */
 const MAX_PACKED_LENGTH = 32_768;
 
+/**
+ * The same guard, after decompression.
+ *
+ * The packed limit alone does not bound what a link expands to: gzip can reach
+ * about 1000:1 on repetitive input, so 32 KB of link could become tens of
+ * megabytes of JSON parsed on the main thread of whoever opened it. A real
+ * worst case — 400 announcements at their full body length plus a term of
+ * deadlines — is well under half a megabyte.
+ */
+export const MAX_UNPACKED_BYTES = 2 * 1024 * 1024;
+
 export type SyncFeed = {
   name: string | null;
   courseId: string | null;
@@ -220,12 +231,45 @@ export async function packSync(text: string): Promise<string> {
   return toBase64Url(await through(stream));
 }
 
-export async function unpackSync(packed: string): Promise<string> {
+/** Reads a stream to the end, or throws as soon as it passes `limit` bytes. */
+async function throughAtMost(
+  stream: ReadableStream<Uint8Array>,
+  limit: number,
+): Promise<Uint8Array> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      // Stop decompressing now, not after the whole bomb has been expanded.
+      await reader.cancel();
+      throw new Error("The sync link expands past its size limit.");
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
+export async function unpackSync(
+  packed: string,
+  limit: number = MAX_UNPACKED_BYTES,
+): Promise<string> {
   const stream = new Blob([fromBase64Url(packed)])
     .stream()
     .pipeThrough(new DecompressionStream("gzip"));
 
-  return new TextDecoder().decode(await through(stream));
+  return new TextDecoder().decode(await throughAtMost(stream, limit));
 }
 
 export async function encodeSyncPayload(payload: SyncPayload): Promise<string> {
