@@ -174,3 +174,69 @@ test("rejects non-HTTPS and private-network calendar targets", async () => {
     (error) => error instanceof SafeFetchError && /not allowed/.test(error.message),
   );
 });
+
+/**
+ * A feed with one real deadline and one recurring event, as a string.
+ *
+ * The recurring event is the variable: each test picks a rule that used to hurt
+ * the deadline next to it.
+ */
+function feedWithRecurring(rule: string) {
+  return `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:real-deadline
+DTSTAMP:20260901T120000Z
+DTSTART:20261120T235900Z
+SUMMARY:Final project
+END:VEVENT
+BEGIN:VEVENT
+UID:noisy
+DTSTAMP:20260901T120000Z
+DTSTART:20260920T000000Z
+RRULE:${rule}
+SUMMARY:Office hours ping
+END:VEVENT
+END:VCALENDAR`;
+}
+
+test("a recurring rule the expander refuses costs that event, not the calendar", async () => {
+  // FREQ=MINUTELY trips node-ical's 10,000-iteration guard; this used to throw
+  // out of parseCalendar and fail the whole import with a 422.
+  const parsed = await parseCalendar(
+    feedWithRecurring("FREQ=MINUTELY"),
+    new Date("2026-09-24T12:00:00Z"),
+  );
+
+  assert.deepEqual(
+    parsed.events.map((event) => event.title),
+    ["Final project"],
+  );
+});
+
+test("one frequent recurring event cannot crowd real deadlines out of the import", async () => {
+  // Hourly from September: without a per-event cap it fills all 500 slots by
+  // mid-October, and a November deadline is cut off.
+  const parsed = await parseCalendar(
+    feedWithRecurring("FREQ=HOURLY"),
+    new Date("2026-09-24T12:00:00Z"),
+  );
+
+  assert.ok(
+    parsed.events.some((event) => event.title === "Final project"),
+    "the November deadline was truncated by the hourly event",
+  );
+  assert.ok(parsed.events.filter((event) => event.title === "Office hours ping").length <= 150);
+});
+
+test("a class meeting that recurs all term still arrives whole", async () => {
+  const parsed = await parseCalendar(
+    feedWithRecurring("FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=45"),
+    new Date("2026-09-20T00:00:00Z"),
+  );
+
+  assert.equal(
+    parsed.events.filter((event) => event.title === "Office hours ping").length,
+    45,
+  );
+});

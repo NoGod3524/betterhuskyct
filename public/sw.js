@@ -4,7 +4,9 @@
 // away, with the cached shell as the offline fallback), while hashed build
 // assets are cache-first because their URLs change whenever their content does.
 // Bump CACHE_VERSION when this caching behaviour changes.
-const CACHE_VERSION = "huskypilot-v1";
+// v2: pages are cached per route. Bumping clears v1, whose "/" entry may hold
+// another route's page or an error page.
+const CACHE_VERSION = "huskypilot-v2";
 const APP_SHELL = "/";
 
 self.addEventListener("install", (event) => {
@@ -40,15 +42,26 @@ self.addEventListener("fetch", (event) => {
   // Calendar imports must always hit the network, never the cache.
   if (url.pathname.startsWith("/api/")) return;
 
+  // Each route is cached under its own path. They all used to be written to "/",
+  // so offline, every route served whichever page was visited last — /plan's
+  // HTML at /tasks — and a 500 page could become the shell. Only a real page is
+  // kept; offline falls back to the route's own copy, then to the home page.
   if (request.mode === "navigate") {
+    const key = url.pathname;
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put(APP_SHELL, copy));
+          if (response.ok && !response.redirected) {
+            const copy = response.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put(key, copy));
+          }
           return response;
         })
-        .catch(() => caches.match(APP_SHELL)),
+        .catch(() =>
+          caches
+            .match(key)
+            .then((cached) => cached || caches.match(APP_SHELL)),
+        ),
     );
     return;
   }
@@ -62,10 +75,13 @@ self.addEventListener("fetch", (event) => {
         (cached) =>
           cached ||
           fetch(request).then((response) => {
-            const copy = response.clone();
-            caches
-              .open(CACHE_VERSION)
-              .then((cache) => cache.put(request, copy));
+            // Cache-first means a stored error would be served for good.
+            if (response.ok) {
+              const copy = response.clone();
+              caches
+                .open(CACHE_VERSION)
+                .then((cache) => cache.put(request, copy));
+            }
             return response;
           }),
       ),
