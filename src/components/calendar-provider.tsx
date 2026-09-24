@@ -571,7 +571,36 @@ export function CalendarProvider({
     return () => window.removeEventListener("hashchange", offerSyncLink);
   }, []);
 
-  const demoTasks = useMemo(() => createDemoTasks(now), [now]);  const tasks = useMemo(
+  /**
+   * Keeps `now` moving while the app is open.
+   *
+   * It used to be read once on load, so an installed app left open overnight
+   * kept yesterday's "today", its plan never saw a deadline pass, and the
+   * due-soon reminder never fired for a task that entered its window after the
+   * page opened — the one case a reminder exists for.
+   *
+   * A minute is fine enough for anything shown here. Phones suspend timers in
+   * the background, so coming back to the tab refreshes it immediately rather
+   * than waiting for the next tick.
+   */
+  useEffect(() => {
+    const tick = () => setNow(new Date());
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+
+    const timer = window.setInterval(tick, 60_000);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+    };
+  }, []);
+
+  const demoTasks = useMemo(() => createDemoTasks(now), [now]);
+  const tasks = useMemo(
     () => (isImported ? mergeTasks(subscriptions) : demoTasks),
     [isImported, subscriptions, demoTasks],
   );

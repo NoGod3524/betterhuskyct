@@ -9,6 +9,8 @@ import ical, {
 import type { CalendarImportResult, CalendarTask, TaskKind } from "./calendar-types.ts";
 
 const MAX_EVENTS = 500;
+/** A daily meeting for about five months; far more than any real class. */
+const MAX_INSTANCES_PER_EVENT = 150;
 const FUTURE_WINDOW_MS = 366 * 24 * 60 * 60 * 1000;
 
 type CalendarDate = Date & { dateOnly?: true; tz?: string };
@@ -140,6 +142,31 @@ function taskFromTodo(todo: VTodo) {
   } satisfies CalendarTask;
 }
 
+/**
+ * One recurring event's instances inside the window, contained.
+ *
+ * Contained in two ways, each for something measured:
+ *
+ * - **A rule the expander refuses costs that event, not the calendar.** An
+ *   `RRULE:FREQ=MINUTELY` makes the expander throw after its 10,000-iteration
+ *   guard, and that used to fail the whole import with a 422 — every real
+ *   deadline in the feed lost to one office-hours ping.
+ * - **No single event can use the calendar's whole budget.** The import keeps
+ *   the earliest `MAX_EVENTS`, so an hourly event filled all 500 slots within
+ *   three weeks and cut off every deadline after that. A class meeting on a
+ *   daily schedule for a whole term still fits under this cap.
+ */
+function expandRecurring(event: VEvent, from: Date, to: Date): CalendarTask[] {
+  try {
+    return ical
+      .expandRecurringEvent(event, { from, to })
+      .slice(0, MAX_INSTANCES_PER_EVENT)
+      .map(taskFromInstance);
+  } catch {
+    return [];
+  }
+}
+
 function isCalendarComponent(value: CalendarComponent | undefined): value is CalendarComponent {
   return Boolean(value && typeof value === "object" && "type" in value);
 }
@@ -160,8 +187,7 @@ export async function parseCalendar(
       if (component.status === "CANCELLED" || component.recurrenceid) continue;
 
       if (component.rrule) {
-        const instances = ical.expandRecurringEvent(component, { from, to });
-        tasks.push(...instances.map(taskFromInstance));
+        tasks.push(...expandRecurring(component, from, to));
       } else if (component.start >= from && component.start <= to) {
         tasks.push(
           taskFromEvent(
