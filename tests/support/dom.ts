@@ -11,6 +11,8 @@ export function installDom(url = "http://localhost/") {
   const window = new Window({ url });
   const globals: Record<string, unknown> = {
     window,
+    // Next's client code reads `self`, as browser code may.
+    self: window,
     document: window.document,
     navigator: window.navigator,
     localStorage: window.localStorage,

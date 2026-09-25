@@ -45,6 +45,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Due-soon reminders** — an in-app banner for anything due in the next 24 hours, plus optional browser notifications while the app is open
 - **Installable and offline** — add it to a phone's home screen as a PWA and keep reading saved tasks without a connection
 - **Announcements** — the browser helper brings your courses' announcements in on the same press as the deadlines, newest first and grouped by course
+- **On-device summaries** — pick a course and summarize its announcements into key points with Chrome's built-in AI. It runs on your own computer: no key, no server, and the announcements never leave the browser. Needs desktop Chrome or Edge 138+ on a machine that can run the model; elsewhere the page says why instead of showing the button
 - **Completion tracking** — tick tasks done; the state is saved in your browser and survives refresh
 - **Workload insights** — completion rate, tasks per course, and the next 7 days / 4 weeks at a glance
 - **English / 简体中文** — one-click language toggle, remembered across visits
@@ -134,6 +135,7 @@ Failures are logged without ever writing the private calendar URL to the log.
 | A dropped `.ics` file | Read in the page, sent to BetterHuskyCT's own endpoint to be parsed, and never written anywhere |
 | Parsed events | `localStorage`, in your browser only |
 | Course announcements | `localStorage`, in your browser only — sent over by the browser helper alongside your deadlines |
+| Announcement summaries | Made by Chrome's on-device model when you press **Summarize**; the text goes to no server. Kept in memory for the session, never saved |
 | Completed task IDs | `localStorage`, in your browser only |
 | Language choice | `localStorage`, in your browser only |
 

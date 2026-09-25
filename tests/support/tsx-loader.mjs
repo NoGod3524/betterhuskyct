@@ -24,6 +24,21 @@ function isFile(path) {
   return existsSync(path) && statSync(path).isFile();
 }
 
+/**
+ * `next/link` and friends: a package subpath with no `exports` map, which the
+ * bundler resolves to `link.js` and Node's ESM resolver refuses without the
+ * extension. Retrying with `.js` is what the bundler does.
+ */
+async function resolvePackageSubpath(specifier, context, nextResolve) {
+  try {
+    return await nextResolve(specifier, context);
+  } catch (error) {
+    const isSubpath = /^(@[^/]+\/)?[^./@][^/]*\/.+/.test(specifier) && !/\.[cm]?js$/.test(specifier);
+    if (error?.code !== "ERR_MODULE_NOT_FOUND" || !isSubpath) throw error;
+    return nextResolve(`${specifier}.js`, context);
+  }
+}
+
 export async function resolve(specifier, context, nextResolve) {
   let url = null;
   if (specifier.startsWith("@/")) {
@@ -31,7 +46,8 @@ export async function resolve(specifier, context, nextResolve) {
   } else if ((specifier.startsWith("./") || specifier.startsWith("../")) && context.parentURL) {
     url = new URL(specifier, context.parentURL);
   }
-  if (!url || url.protocol !== "file:") return nextResolve(specifier, context);
+  if (!url) return resolvePackageSubpath(specifier, context, nextResolve);
+  if (url.protocol !== "file:") return nextResolve(specifier, context);
 
   const path = fileURLToPath(url);
   if (!isFile(path)) {
