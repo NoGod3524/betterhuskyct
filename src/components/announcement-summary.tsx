@@ -1,53 +1,66 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type { Announcement } from "@/lib/announcements";
 import {
   SummaryError,
-  summarizeCourse,
-  summarizerFrom,
-  summaryAvailability,
+  buildSummaryRequest,
+  requestSummary,
   summarySignature,
-  type CourseSummary,
-  type SummaryAvailability,
   type SummaryProblem,
 } from "@/lib/announcement-summary";
 import { t, type Locale } from "@/lib/i18n";
+import type { ProviderId } from "@/lib/summary-models";
+
+type MadeSummary = {
+  text: string;
+  included: number;
+  omitted: number;
+  /** Which service wrote it; the credit line names it. */
+  provider: ProviderId | null;
+};
+
+const CREDIT_KEYS = {
+  glm: "summary.creditGlm",
+  gemini: "summary.creditGemini",
+} as const;
 
 /**
- * Summaries made this session, keyed by what they were made from, so moving
- * between courses does not redo the work. Deliberately not persisted: a summary
- * is derived, cheap to remake, and one more thing to store is one more thing to
- * go stale.
+ * Summaries made this session, keyed by what they were made from. Moving
+ * between courses — or back to one — shows the summary again without another
+ * request, which matters on a free model that serves one request at a time.
+ * Deliberately not persisted: a summary is derived and cheap to remake.
  */
-const made = new Map<string, CourseSummary>();
+const made = new Map<string, MadeSummary>();
 
 export type SummaryCourse = {
   /** Shown on the button and above the summary. */
   label: string;
-  /** Given to the model as context; always English, whatever the app shows. */
+  /** Given to the model as the course's name; always English. */
   modelLabel: string;
 };
 
+/** Pending work and failures, tied to what they were for. A finished summary lives in `made`. */
 type Status =
   | { kind: "idle" }
-  | { kind: "downloading"; fraction: number }
-  | { kind: "working" }
-  | { kind: "done"; summary: CourseSummary; signature: string }
-  | { kind: "error"; problem: SummaryProblem };
+  | { kind: "working"; signature: string }
+  | { kind: "error"; problem: SummaryProblem; signature: string };
 
 const PROBLEM_KEYS = {
+  busy: "summary.errorBusy",
+  "rate-limited": "summary.errorRateLimited",
+  refused: "summary.errorRefused",
   unavailable: "summary.errorUnavailable",
-  "too-long": "summary.errorTooLong",
   failed: "summary.errorFailed",
 } as const;
 
 /**
  * The summary panel above a course's announcements.
  *
- * On a device that cannot summarise, it says why in one line and offers no
- * button: a button that can only fail is worse than none.
+ * The line saying where the announcements go is always visible next to the
+ * button, not tucked behind a first-time dialog: sending them off the device is
+ * the one thing about this feature a reader has a right to know before pressing.
  */
 export function AnnouncementSummary({
   locale,
@@ -58,66 +71,35 @@ export function AnnouncementSummary({
   course: SummaryCourse | null;
   announcements: Announcement[];
 }) {
-  const [availability, setAvailability] = useState<SummaryAvailability | null>(null);
-  const signature = course ? `${course.modelLabel}\n${summarySignature(announcements)}` : null;
-  const [status, setStatus] = useState<Status>(() => {
-    const cached = signature ? made.get(signature) : undefined;
-    return cached && signature ? { kind: "done", summary: cached, signature } : { kind: "idle" };
-  });
+  const [status, setStatus] = useState<Status>({ kind: "idle" });
 
-  useEffect(() => {
-    let live = true;
-    void summaryAvailability(summarizerFrom(globalThis)).then((result) => {
-      if (live) setAvailability(result);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
-
-  // Asking the browser takes a moment; saying nothing until it answers avoids a
-  // note that flickers into a button.
-  if (availability === null) return null;
-
-  if (availability === "unsupported" || availability === "unavailable") {
-    return (
-      <p className="mt-4 text-xs text-[var(--muted)]">
-        {t(locale, availability === "unsupported" ? "summary.unsupported" : "summary.unavailable")}
-      </p>
-    );
-  }
-
-  if (!course || !signature) {
+  if (!course) {
     return <p className="mt-4 text-xs text-[var(--muted)]">{t(locale, "summary.pickCourse")}</p>;
   }
 
-  // A summary of a different set of announcements — the course gained one
-  // since — is not shown as if it were current.
-  const current = status.kind === "done" && status.signature !== signature ? { kind: "idle" as const } : status;
-  const busy = current.kind === "downloading" || current.kind === "working";
+  const signature = `${course.modelLabel}\n${summarySignature(announcements, locale)}`;
+  // Pending state for a different set of announcements, or a different
+  // language, is not this panel's any more.
+  const pending = status.kind !== "idle" && status.signature === signature ? status : null;
+  const summary = made.get(signature);
+  const working = pending?.kind === "working";
 
   async function summarize() {
-    const api = summarizerFrom(globalThis);
-    if (!api || !course || !signature) return;
-
-    setStatus(availability === "available" ? { kind: "working" } : { kind: "downloading", fraction: 0 });
+    if (!course) return;
+    const { request, omitted } = buildSummaryRequest(announcements, course.modelLabel, locale);
+    setStatus({ kind: "working", signature });
     try {
-      // Nothing is awaited before this call: a first-time model download is only
-      // allowed in direct response to the click.
-      const summary = await summarizeCourse(api, announcements, {
-        courseLabel: course.modelLabel,
-        onDownloadProgress: (fraction) =>
-          setStatus(fraction >= 1 ? { kind: "working" } : { kind: "downloading", fraction }),
-      });
-      made.set(signature, summary);
-      setAvailability("available");
-      setStatus({ kind: "done", summary, signature });
+      const { text, provider } = await requestSummary(request);
+      made.set(signature, { text, provider, included: request.announcements.length, omitted });
+      setStatus({ kind: "idle" });
     } catch (error) {
-      setStatus({ kind: "error", problem: error instanceof SummaryError ? error.problem : "failed" });
+      setStatus({
+        kind: "error",
+        problem: error instanceof SummaryError ? error.problem : "failed",
+        signature,
+      });
     }
   }
-
-  const language = t(locale, "summary.language");
 
   return (
     <div className="mt-4 rounded-[20px] border border-[#d7e1ec] bg-[#fafcff] p-5" aria-live="polite">
@@ -125,49 +107,34 @@ export function AnnouncementSummary({
         <button
           type="button"
           onClick={summarize}
-          disabled={busy}
+          disabled={working}
           className="inline-flex h-9 items-center rounded-lg bg-[var(--navy)] px-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
         >
-          {current.kind === "done"
-            ? t(locale, "summary.again")
-            : t(locale, "summary.button", { course: course.label })}
+          {summary ? t(locale, "summary.again") : t(locale, "summary.button", { course: course.label })}
         </button>
-        {current.kind === "downloading" ? (
-          <span className="text-sm text-[#31506f]">
-            {t(locale, "summary.downloading", { percent: Math.round(current.fraction * 100) })}
-          </span>
-        ) : null}
-        {current.kind === "working" ? (
-          <span className="text-sm text-[#31506f]">{t(locale, "summary.working")}</span>
-        ) : null}
+        {working ? <span className="text-sm text-[#31506f]">{t(locale, "summary.working")}</span> : null}
       </div>
+      <p className="mt-2 text-xs text-[var(--muted)]">{t(locale, "summary.disclosure")}</p>
 
-      {current.kind === "idle" && availability !== "available" ? (
-        <p className="mt-2 text-xs text-[var(--muted)]">{t(locale, "summary.downloadNote")}</p>
+      {pending?.kind === "error" ? (
+        <p className="mt-3 text-sm text-[#b3412e]">{t(locale, PROBLEM_KEYS[pending.problem])}</p>
       ) : null}
 
-      {current.kind === "error" ? (
-        <p className="mt-3 text-sm text-[#b3412e]">{t(locale, PROBLEM_KEYS[current.problem])}</p>
-      ) : null}
-
-      {current.kind === "done" ? (
+      {summary && !working ? (
         <div className="mt-4">
           <h3 className="font-display text-base font-semibold text-[#172b41]">
             {t(locale, "summary.title", { course: course.label })}
           </h3>
-          {/* Plain text from the model, shown as text: never parsed as HTML. */}
+          {/* The model's text, shown as text: never parsed as HTML. */}
           <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#31506f]" data-summary>
-            {current.summary.text}
+            {summary.text}
           </p>
           <p className="mt-3 text-xs text-[var(--muted)]">
-            {t(locale, "summary.basis", { count: current.summary.included })}
-            {current.summary.omitted > 0
-              ? ` ${t(locale, "summary.omitted", { count: current.summary.omitted })}`
-              : ""}
+            {t(locale, "summary.basis", { count: summary.included })}
+            {summary.omitted > 0 ? ` ${t(locale, "summary.omitted", { count: summary.omitted })}` : ""}
           </p>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            {t(locale, "summary.privacy")}
-            {language ? ` ${language}` : ""}
+            {t(locale, summary.provider ? CREDIT_KEYS[summary.provider] : "summary.creditOther")}
           </p>
         </div>
       ) : null}

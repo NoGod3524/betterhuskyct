@@ -45,7 +45,7 @@ BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好�
 - **到期提醒** —— 未来 24 小时有任务到期时显示横幅；可选开启浏览器通知（App 打开时生效）
 - **可安装 + 离线** —— 作为 PWA 加到手机主屏幕，没网也能看已保存的任务
 - **课程公告** —— 浏览器助手在送 deadline 的同一按里把课程公告一起带来，按课程分组、最新的在最前
-- **本机 AI 总结** —— 选一门课，用 Chrome 内置的 AI 把它的公告浓缩成要点。模型在你自己的电脑上运行：不要 key、不经服务器，公告不离开浏览器。需要桌面版 Chrome 或 Edge 138 以上、且电脑跑得动模型；其他情况下页面会说明原因，不显示按钮
+- **公告总结** —— 选一门课，按一下就把它的公告浓缩成要点（截止日期、考试、调课停课），用你的界面语言，任何设备都能用。由 Z.ai 的免费 GLM 模型生成，GLM 忙时改用 Google Gemini 免费版；按下之前页面就写明两家分别会怎么处理这些内容，不按就什么都不发
 - **完成勾选** —— 勾选任务；状态存在浏览器里，刷新不丢
 - **任务负担洞察** —— 完成率、各课程任务量、未来 7 天 / 4 周一览
 - **English / 简体中文** —— 一键切换语言，选择会被记住
@@ -135,7 +135,7 @@ flowchart TB
 | 拖入的 `.ics` 文件 | 在页面里读取，发给 BetterHuskyCT 自己的接口解析，不会被写到任何地方 |
 | 解析后的事件 | 只在你浏览器的 `localStorage` |
 | 课程公告 | 只在你浏览器的 `localStorage`（由浏览器助手随 deadline 一起送来） |
-| 公告总结 | 按下「总结」时由 Chrome 的本机模型生成，内容不发往任何服务器。只在本次会话的内存里保留，从不保存 |
+| 公告总结 | 只在你按下「总结」时：这门课的公告（标题、正文、发布时间——不含你的信息和日历链接），把邮箱、电话、链接替换掉之后，经 BetterHuskyCT 自己的接口发给 AI 服务。先发给 [Z.ai](https://z.ai)：它在新加坡运行 GLM，API 条款写明不保存内容。Z.ai 忙或出错时改用 [Google Gemini 免费版](https://ai.google.dev/gemini-api/terms)：其条款允许 Google 用这些内容改进模型、人工审核员可能会看；来自欧洲经济区、瑞士、英国的请求绝不会交给它。接口不记录任何公告文本。总结按公告内容的哈希值在服务器内存里最多保留 6 小时，发来同样公告的同学直接复用；从不写入磁盘 |
 | 已完成的任务 ID | 只在你浏览器的 `localStorage` |
 | 语言选择 | 只在你浏览器的 `localStorage` |
 
@@ -221,6 +221,21 @@ npm run lint
 npm run build
 npm run course-map   # 重新抓取 UConn 课程目录（每学期一次）
 ```
+
+### 公告总结（可选）
+
+总结功能按顺序使用两家的免费模型。配一个或两个 key 都可以；一个都不配的话，应用照常工作，只是不显示总结按钮。
+
+| 环境变量 | 服务方 | 模型（可用此变量替换） |
+|---|---|---|
+| `ZAI_API_KEY` | [Z.ai](https://z.ai)——优先使用 | `glm-4.7-flash`（`ZAI_MODEL`） |
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey)——Z.ai 忙或出错时使用 | `gemini-3.5-flash-lite`（`GEMINI_MODEL`） |
+
+1. 分别在两家的控制台里创建 key。
+2. 在 Vercel 的 **Settings → Environment Variables** 里添加，或者本地写进 `.env.local`（已被 git 忽略）。
+3. 重新部署（或重启 `npm run dev`）。公告页是预渲染的，key 在构建时才会被识别。
+
+key 只在服务端由 `src/app/api/announcements/summarize` 读取，从不发给页面。两家的免费版都不公布固定额度（写这段时大约各一天一千次，GLM 同一时间只处理一个请求）；有共享缓存，同一门课的公告不管多少同学按，都只算一次。
 
 `npm run course-map` 读的是 UConn 公开的选课搜索——不需要登录、不需要 token——重写 `src/lib/ucc-courses.json`。这张表就是「Environmental Science 自动认出 NRE 1000E」的依据。课号和课名几年才变一次，每学期跑一次足够。也可以只抓某个学期：`npm run course-map -- 1268`。
 

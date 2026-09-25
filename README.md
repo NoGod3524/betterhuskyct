@@ -45,7 +45,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Due-soon reminders** — an in-app banner for anything due in the next 24 hours, plus optional browser notifications while the app is open
 - **Installable and offline** — add it to a phone's home screen as a PWA and keep reading saved tasks without a connection
 - **Announcements** — the browser helper brings your courses' announcements in on the same press as the deadlines, newest first and grouped by course
-- **On-device summaries** — pick a course and summarize its announcements into key points with Chrome's built-in AI. It runs on your own computer: no key, no server, and the announcements never leave the browser. Needs desktop Chrome or Edge 138+ on a machine that can run the model; elsewhere the page says why instead of showing the button
+- **Announcement summaries** — pick a course and one press turns its announcements into key points (deadlines, exams, moved or cancelled classes) in your language, on any device. Written by Z.ai's free GLM model, with Google Gemini's free tier covering when GLM is busy; the page names both, and what each does with the text, before you press — and nothing is sent until you do
 - **Completion tracking** — tick tasks done; the state is saved in your browser and survives refresh
 - **Workload insights** — completion rate, tasks per course, and the next 7 days / 4 weeks at a glance
 - **English / 简体中文** — one-click language toggle, remembered across visits
@@ -135,7 +135,7 @@ Failures are logged without ever writing the private calendar URL to the log.
 | A dropped `.ics` file | Read in the page, sent to BetterHuskyCT's own endpoint to be parsed, and never written anywhere |
 | Parsed events | `localStorage`, in your browser only |
 | Course announcements | `localStorage`, in your browser only — sent over by the browser helper alongside your deadlines |
-| Announcement summaries | Made by Chrome's on-device model when you press **Summarize**; the text goes to no server. Kept in memory for the session, never saved |
+| Announcement summaries | Only when you press **Summarize**: that course's announcements (title, text, posted line — none of your details, no feed link), with email addresses, phone numbers and links replaced, go through BetterHuskyCT's own endpoint to an AI service. First [Z.ai](https://z.ai), which runs GLM from Singapore and states in its API terms that content is not saved. If Z.ai is busy or failing, [Google Gemini's free tier](https://ai.google.dev/gemini-api/terms), whose terms let Google use the content to improve its models and let reviewers read it; it is never used for readers in the EEA, Switzerland or the UK. The endpoint logs no text. A summary is held in the server's memory for up to 6 hours, keyed by a hash of the announcements, so classmates sending the same ones reuse it; it is never written to disk |
 | Completed task IDs | `localStorage`, in your browser only |
 | Language choice | `localStorage`, in your browser only |
 
@@ -221,6 +221,28 @@ npm run lint
 npm run build
 npm run course-map   # rebuild the UConn course catalogue (once a semester)
 ```
+
+### Announcement summaries (optional)
+
+Summaries use free models from two providers, tried in order. Set either key or
+both; with neither, the app works as before and simply shows no summary button.
+
+| Variable | Provider | Model (override with) |
+|---|---|---|
+| `ZAI_API_KEY` | [Z.ai](https://z.ai) — tried first | `glm-4.7-flash` (`ZAI_MODEL`) |
+| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) — when Z.ai is busy or failing | `gemini-3.5-flash-lite` (`GEMINI_MODEL`) |
+
+1. Create the keys in each provider's console.
+2. Add them in Vercel under **Settings → Environment Variables**, or locally in
+   `.env.local` (git-ignored).
+3. Redeploy (or restart `npm run dev`). The announcements page is prerendered, so
+   keys are noticed at build time.
+
+Keys are read only on the server, by `src/app/api/announcements/summarize`, and
+never sent to the page. Neither free tier publishes fixed quotas (roughly a
+thousand requests a day each at the time of writing, and GLM serves one at a
+time); the shared cache means one course's announcements cost one request however
+many classmates press.
 
 `npm run course-map` reads UConn's public class search — no login, no token — and
 rewrites `src/lib/ucc-courses.json`, which is what lets a class meeting named
