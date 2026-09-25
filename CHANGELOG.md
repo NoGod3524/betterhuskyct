@@ -9,6 +9,59 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.6.8](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.8) — Tested where it broke
+
+*Patch: nothing you can see. The file where 1.6.7's app bugs lived can now be tested, and the conventions the code keeps are enforced.*
+
+### Changed
+
+- **The provider's logic moved into `src/lib`, with tests.** `calendar-provider.tsx`
+  was the one file `npm test` could not reach — Node's type stripping does not
+  transform JSX — and both app-side bugs fixed in 1.6.7 were in it. The clock
+  (`watchClock`), the import request (`requestCalendarImport`), what accepting a
+  sync link does to the ticks (`planSyncApply`) and the tick filter it repeated
+  four times (`ticksForTasks`) are now plain modules, each tested. Nothing
+  behaves differently, and the context the pages read is unchanged. ([#50])
+- **The real provider is rendered in tests.** A small loader transpiles `.tsx`
+  with the `typescript` package the repo already had, and `happy-dom` supplies a
+  window, so `node:test` stays the runner. Five tests drive the provider through
+  the context its pages read; `npm test` goes from about 2 to about 5 seconds. ([#52])
+- **The code's habits are lint errors now**: no `any`, no `==`, no `var`, no
+  `let` that is never reassigned, and no `console` in code that runs in someone's
+  browser. Each had zero violations when added. Server routes may still log
+  errors, and the command-line scripts may print. ([#51])
+- **The source-reading provider check is gone**, replaced by the rendering tests
+  above. ([#53])
+- The helper drops three unused `catch` bindings. It stays at **0.14.2**:
+  nothing changed for anyone using it, so installed copies are not asked to
+  update. ([#49])
+
+### Fixed
+
+- **Every release link in this changelog from 1.1.1 on led nowhere.** The tags
+  they point at had never been made. They now exist, each on the commit that
+  ends its version, so every link here opens. 1.6.2 has a tag too, though still
+  no entry of its own.
+
+### Notes
+
+- **The rendering tests were checked against the bugs they are for.** Run against
+  the provider from before 1.6.7, all five fail with the original symptoms:
+  nothing kept `now` moving, focus was ignored, `demo-cse-problem-set` was saved
+  as a real tick, and a 504 page read as `Unexpected token '<'`. Before the
+  source check was removed, the current provider was broken three ways on
+  purpose: the rendering tests caught all three, and the source check missed the
+  one where the right function was called with the wrong ticks.
+- **Why the context is not memoised.** The idea was to stop every page
+  re-rendering once a minute. Measured with 150 deadlines, that re-render costs
+  about 19 ms on the dashboard and about 3 ms per keystroke in the link box. It
+  also would not have helped: `now` is part of the context value, so memoising
+  the value cannot skip the minute tick. What it would have added is
+  `useCallback` everywhere, and with it the stale-closure bugs this code has
+  already had.
+- **`noUncheckedIndexedAccess` is not on.** Turning it on raises 157 errors, 136 of
+  them in tests; enabling it for `src` alone would need a second tsconfig.
+
 ## [1.6.7](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.7) — Sending twice works
 
 *Patch: the helper's Send deadlines only worked the first time, and a review of 1.6.6 turned up the rest of this list. PRs #44, #45, #46 and #47.*
@@ -748,6 +801,11 @@ saying what to work on next.*
 [#37]: https://github.com/NoGod3524/betterhuskyct/pull/37
 [#38]: https://github.com/NoGod3524/betterhuskyct/pull/38
 [#39]: https://github.com/NoGod3524/betterhuskyct/pull/39
+[#49]: https://github.com/NoGod3524/betterhuskyct/pull/49
+[#50]: https://github.com/NoGod3524/betterhuskyct/pull/50
+[#51]: https://github.com/NoGod3524/betterhuskyct/pull/51
+[#52]: https://github.com/NoGod3524/betterhuskyct/pull/52
+[#53]: https://github.com/NoGod3524/betterhuskyct/pull/53
 
 
 
