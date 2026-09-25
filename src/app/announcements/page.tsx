@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AnnouncementsSection } from "@/components/announcements-section";
+import { providersFromEnv } from "@/lib/summary-models";
 
 export const metadata: Metadata = {
   title: "Announcements · BetterHuskyCT",
@@ -9,5 +10,8 @@ export const metadata: Metadata = {
 };
 
 export default function AnnouncementsPage() {
-  return <AnnouncementsSection />;
+  // Read on the server, where the keys live; only whether any exists reaches
+  // the page. Without one there is no summary button to fail. The page is
+  // prerendered, so adding a key takes effect on the next deploy.
+  return <AnnouncementsSection summariesEnabled={providersFromEnv(process.env).length > 0} />;
 }

@@ -41,7 +41,12 @@ function courseKeyOf(entry: Announcement): string {
  * alongside these keep coming from the to-do list, where they were structured
  * to begin with.
  */
-export function AnnouncementsSection() {
+export function AnnouncementsSection({
+  summariesEnabled = false,
+}: {
+  /** Whether this server can summarise: it has a model key. Off, the panel is not shown at all. */
+  summariesEnabled?: boolean;
+}) {
   const { locale, announcements, courses, clearAnnouncements } = useCalendar();
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -181,12 +186,14 @@ export function AnnouncementsSection() {
             </span>
           </div>
 
-          <AnnouncementSummary
-            key={courseFilter ?? "__all"}
-            locale={locale}
-            course={summaryCourseFor(courseFilter)}
-            announcements={visible}
-          />
+          {summariesEnabled ? (
+            <AnnouncementSummary
+              key={courseFilter ?? "__all"}
+              locale={locale}
+              course={summaryCourseFor(courseFilter)}
+              announcements={visible}
+            />
+          ) : null}
 
           <ul className="mt-4 space-y-3">
             {shown.map((entry) => (

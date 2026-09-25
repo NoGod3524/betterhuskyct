@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  MAX_SUMMARY_ANNOUNCEMENTS,
+  MAX_SUMMARY_CHARACTERS,
+  SUMMARY_ENDPOINT,
   SummaryError,
+  buildSummaryRequest,
   newestFirst,
-  summarizeCourse,
-  summarizerFrom,
-  summaryAvailability,
+  requestSummary,
   summarySignature,
-  type SummarizerApi,
-  type SummarizerOptions,
 } from "../src/lib/announcement-summary.ts";
 import type { Announcement } from "../src/lib/announcements.ts";
 
@@ -22,189 +22,104 @@ function announcement(n: number, patch: Partial<Announcement> = {}): Announcemen
     body: `Body of announcement ${n}.`,
     posted: `Posted on 9/${n}/26`,
     // Later n = newer.
-    announced: new Date(Date.UTC(2026, 8, n)).toISOString(),
+    announced: new Date(Date.UTC(2026, 8, 1) + n * 60_000).toISOString(),
     ...patch,
   };
 }
 
-/**
- * A stand-in for Chrome's `Summarizer`. Usage is measured by a function the test
- * picks, so the quota can be made to bite exactly where a test wants it to.
- */
-function fakeSummarizer(
-  options: {
-    availability?: Awaited<ReturnType<SummarizerApi["availability"]>>;
-    quota?: number;
-    usage?: (input: string) => number;
-    output?: string;
-    createFails?: boolean;
-    summarizeFails?: boolean;
-    progress?: number[];
-  } = {},
-) {
-  const calls = {
-    availability: [] as Array<Partial<SummarizerOptions> | undefined>,
-    create: [] as SummarizerOptions[],
-    summarize: [] as Array<{ input: string; context?: string }>,
-    destroyed: 0,
-  };
-
-  const api: SummarizerApi = {
-    async availability(requested) {
-      calls.availability.push(requested);
-      return options.availability ?? "available";
-    },
-    async create(requested) {
-      assert.ok(requested, "create was called without options");
-      calls.create.push(requested);
-      if (options.createFails) throw new Error("NotAllowedError");
-
-      const monitor = new EventTarget();
-      requested.monitor?.(monitor);
-      for (const loaded of options.progress ?? []) {
-        monitor.dispatchEvent(Object.assign(new Event("downloadprogress"), { loaded }));
-      }
-
-      return {
-        inputQuota: options.quota ?? 10_000,
-        async measureInputUsage(input) {
-          return (options.usage ?? ((text: string) => text.length))(input);
-        },
-        async summarize(input, summarizeOptions) {
-          calls.summarize.push({ input, context: summarizeOptions?.context });
-          if (options.summarizeFails) throw new Error("the model gave up");
-          return options.output ?? "* The midterm moves to October 14.";
-        },
-        destroy() {
-          calls.destroyed += 1;
-        },
-      };
-    },
-  };
-
-  return { api, calls };
-}
-
-test("no Summarizer in the browser means unsupported, not an error", async () => {
-  assert.equal(summarizerFrom({}), null);
-  assert.equal(summarizerFrom({ Summarizer: {} }), null, "an object without the API's methods is not the API");
-  assert.equal(await summaryAvailability(null), "unsupported");
-});
-
-test("availability is asked for the English summaries this app makes", async () => {
-  const { api, calls } = fakeSummarizer({ availability: "downloadable" });
-
-  assert.equal(summarizerFrom({ Summarizer: api }), api);
-  assert.equal(await summaryAvailability(api), "downloadable");
-  assert.equal(calls.availability[0]?.outputLanguage, "en");
-  assert.deepEqual(calls.availability[0]?.expectedInputLanguages, ["en"]);
-});
-
-test("a browser whose availability check throws counts as unavailable", async () => {
-  const api: SummarizerApi = {
-    async availability() {
-      throw new Error("NotSupportedError");
-    },
-    async create() {
-      throw new Error("unreachable");
-    },
-  };
-
-  assert.equal(await summaryAvailability(api), "unavailable");
-});
-
-test("a course's announcements are summarised newest first, with the course as context", async () => {
-  const { api, calls } = fakeSummarizer();
-  // Given oldest first, as nothing guarantees the caller's order.
-  const summary = await summarizeCourse(api, [announcement(1), announcement(3), announcement(2)], {
-    courseLabel: "MATH 1070Q",
-  });
-
-  assert.deepEqual(summary, { text: "* The midterm moves to October 14.", included: 3, omitted: 0 });
-
-  const { input, context } = calls.summarize[0];
-  assert.ok(
-    input.indexOf("Announcement 3") < input.indexOf("Announcement 2") &&
-      input.indexOf("Announcement 2") < input.indexOf("Announcement 1"),
-    "announcements were not given newest first",
+test("a request carries the course's announcements newest first", () => {
+  const { request, omitted } = buildSummaryRequest(
+    [announcement(1), announcement(3), announcement(2)],
+    "MATH 1070Q",
+    "zh-CN",
   );
-  assert.ok(input.includes("Posted on 9/3/26") && input.includes("Body of announcement 3."));
-  assert.equal(context, "Course: MATH 1070Q");
 
-  const created = calls.create[0];
-  assert.equal(created.type, "key-points");
-  assert.equal(created.format, "plain-text", "markdown would need rendering; plain text is shown as text");
-  assert.equal(created.outputLanguage, "en");
-  assert.match(created.sharedContext ?? "", /deadline/i);
-  assert.equal(calls.destroyed, 1, "the model was not released");
+  assert.deepEqual(
+    request.announcements.map((item) => item.title),
+    ["Announcement 3", "Announcement 2", "Announcement 1"],
+  );
+  assert.equal(request.courseLabel, "MATH 1070Q");
+  assert.equal(request.locale, "zh-CN");
+  assert.equal(omitted, 0);
+  // Only what the summary needs: no ids, course ids or collection times.
+  assert.deepEqual(Object.keys(request.announcements[0]).sort(), ["body", "posted", "title"]);
 });
 
-test("when the quota is full, the oldest announcements are the ones left out", async () => {
-  // Each announcement costs 100 units; the quota holds two.
-  const { api, calls } = fakeSummarizer({
-    quota: 250,
-    usage: (input) => (input.match(/Announcement \d/g) ?? []).length * 100,
-  });
+test("a long history is cut to the newest, and says how much was left out", () => {
+  const many = Array.from({ length: MAX_SUMMARY_ANNOUNCEMENTS + 5 }, (_, index) => announcement(index + 1));
+  const { request, omitted } = buildSummaryRequest(many, "MATH 1070Q", "en");
 
-  const summary = await summarizeCourse(api, [1, 2, 3, 4, 5].map((n) => announcement(n)), {
-    courseLabel: "MATH 1070Q",
-  });
-
-  assert.equal(summary.included, 2);
-  assert.equal(summary.omitted, 3);
-  const { input } = calls.summarize[0];
-  assert.ok(input.includes("Announcement 5") && input.includes("Announcement 4"));
-  assert.ok(!input.includes("Announcement 3"), "an older announcement was kept over a newer one");
+  assert.equal(request.announcements.length, MAX_SUMMARY_ANNOUNCEMENTS);
+  assert.equal(omitted, 5);
+  assert.equal(request.announcements[0].title, `Announcement ${MAX_SUMMARY_ANNOUNCEMENTS + 5}`);
 });
 
-test("if not even the newest announcement fits, it says so rather than summarising nothing", async () => {
-  const { api, calls } = fakeSummarizer({ quota: 10, usage: () => 1_000 });
+test("the character budget cuts the oldest, but never the newest", () => {
+  const long = (n: number) => announcement(n, { body: "x".repeat(MAX_SUMMARY_CHARACTERS / 2) });
+  const { request, omitted } = buildSummaryRequest([long(1), long(2), long(3)], "MATH 1070Q", "en");
+
+  assert.ok(request.announcements.length >= 1);
+  assert.equal(request.announcements[0].title, "Announcement 3");
+  assert.equal(request.announcements.length + omitted, 3);
+  assert.ok(omitted >= 1, "three half-budget announcements all fitted");
+});
+
+test("a summary comes back from the endpoint", async () => {
+  const calls: Array<{ url: string; init: RequestInit }> = [];
+  const fetchImpl = async (url: string, init: RequestInit) => {
+    calls.push({ url, init });
+    return Response.json({ summary: "  - Quiz on Friday.  ", provider: "gemini" });
+  };
+  const { request } = buildSummaryRequest([announcement(1)], "MATH 1070Q", "en");
+
+  assert.deepEqual(await requestSummary(request, fetchImpl), { text: "- Quiz on Friday.", provider: "gemini" });
+  assert.equal(calls[0].url, SUMMARY_ENDPOINT);
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), request);
+});
+
+test("a provider the page does not know is credited to no one in particular", async () => {
+  const { request } = buildSummaryRequest([announcement(1)], "MATH 1070Q", "en");
+  const answer = async () => Response.json({ summary: "- ok", provider: "somebody-new" });
+
+  assert.deepEqual(await requestSummary(request, answer), { text: "- ok", provider: null });
+});
+
+test("each problem the endpoint names becomes a reason the page can say", async () => {
+  const { request } = buildSummaryRequest([announcement(1)], "MATH 1070Q", "en");
+  const cases: Array<[Response, string]> = [
+    [Response.json({ problem: "busy" }, { status: 503 }), "busy"],
+    [Response.json({ problem: "rate-limited" }, { status: 429 }), "rate-limited"],
+    [Response.json({ problem: "refused" }, { status: 422 }), "refused"],
+    // A server with no key is, to the reader, a feature that isn't there.
+    [Response.json({ problem: "not-configured" }, { status: 503 }), "unavailable"],
+    [Response.json({ problem: "something-new" }, { status: 500 }), "failed"],
+    [Response.json({ summary: "   " }), "failed"],
+    // A platform error page instead of the endpoint's JSON.
+    [new Response("<html>504</html>", { status: 504 }), "unavailable"],
+  ];
+
+  for (const [response, expected] of cases) {
+    await assert.rejects(
+      requestSummary(request, async () => response),
+      (error) => error instanceof SummaryError && error.problem === expected,
+      `expected ${expected}`,
+    );
+  }
 
   await assert.rejects(
-    summarizeCourse(api, [announcement(1)], { courseLabel: "MATH 1070Q" }),
-    (error) => error instanceof SummaryError && error.problem === "too-long",
-  );
-  assert.equal(calls.summarize.length, 0);
-  assert.equal(calls.destroyed, 1, "the model was not released after the failure");
-});
-
-test("a model that cannot be created is reported as unavailable", async () => {
-  const { api } = fakeSummarizer({ createFails: true });
-
-  await assert.rejects(
-    summarizeCourse(api, [announcement(1)], { courseLabel: "MATH 1070Q" }),
+    requestSummary(request, async () => {
+      throw new TypeError("Failed to fetch");
+    }),
     (error) => error instanceof SummaryError && error.problem === "unavailable",
   );
 });
 
-test("a failed or empty summary is reported as failed, and the model is still released", async () => {
-  for (const options of [{ summarizeFails: true }, { output: "   " }]) {
-    const { api, calls } = fakeSummarizer(options);
-    await assert.rejects(
-      summarizeCourse(api, [announcement(1)], { courseLabel: "MATH 1070Q" }),
-      (error) => error instanceof SummaryError && error.problem === "failed",
-    );
-    assert.equal(calls.destroyed, 1);
-  }
-});
-
-test("download progress is passed on as a fraction", async () => {
-  const { api } = fakeSummarizer({ availability: "downloadable", progress: [0.25, 0.8, 1.5] });
-  const seen: number[] = [];
-
-  await summarizeCourse(api, [announcement(1)], {
-    courseLabel: "MATH 1070Q",
-    onDownloadProgress: (fraction) => seen.push(fraction),
-  });
-
-  assert.deepEqual(seen, [0.25, 0.8, 1], "progress past 1 should be clamped");
-});
-
-test("a summary's signature changes when the course gains an announcement, not when order changes", () => {
+test("a summary is reused only for the same announcements in the same language", () => {
   const two = [announcement(1), announcement(2)];
 
-  assert.equal(summarySignature(two), summarySignature([...two].reverse()));
-  assert.notEqual(summarySignature(two), summarySignature([...two, announcement(3)]));
+  assert.equal(summarySignature(two, "en"), summarySignature([...two].reverse(), "en"));
+  assert.notEqual(summarySignature(two, "en"), summarySignature([...two, announcement(3)], "en"));
+  assert.notEqual(summarySignature(two, "en"), summarySignature(two, "zh-CN"));
   assert.deepEqual(
     newestFirst(two).map((entry) => entry.id),
     ["a2", "a1"],
