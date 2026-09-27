@@ -95,18 +95,7 @@
       showPanel: "Show the HuskyCT Helper panel",
       hidePanel: "Hide the panel",
       sendDeadlines: "Send everything to BetterHuskyCT",
-      getCalendar: "Get this page's calendar",
-      exportCollected: "Export events collected so far",
-      clearCollected: "Clear collected",
-      collectCourse: "Collect this course: announcements + content",
-      copy: "Copy to clipboard",
-      copied: "Copied",
-      pressCtrlC: "Press Ctrl+C to copy",
-      calendarFootnote:
-        "Stay on the Calendar page and move through the term — every view you open is added as you go. This is the fallback for when the page exposes no feed links.",
       privacy: "Nothing is uploaded. Everything stays in this browser.",
-      collectedNone: "Collected 0 events.",
-      collectedSome: "Collected {count} event(s).",
       guideTodo:
         "Press Collect everything: the panel reads this to-do list and every course's announcements by itself.",
       guideCourse: "Press Collect everything to read every course's announcements, this one included.",
@@ -152,54 +141,16 @@
       leftOut: " {count} older announcement(s) stayed behind to keep the link small.",
       // Status and hint lines, reached through the panel rather than baked in at
       // the point of use, so nothing has to be re-translated after the fact.
-      noDeadlinesTitle: "No deadlines on this page.",
-      noDeadlinesHint:
-        "The to-do list lives on the Courses page (the HuskyCT home). Open it, then press this again.",
-      calendarBusy: "This page has a calendar but no events loaded yet — move through it first.",
-      calendarNone: "No calendar on this page. Open the Calendar page and try again.",
-      exported: "Exported {events} events, {withCourse} with a course code.",
-      pickedUp: "Picked up {count} more just now. ",
-      dropCalendar: "Drop huskyct-calendar.ics into BetterHuskyCT.",
       popupBlocked:
-        "Your browser blocked the new tab, so nothing opened. The link is below — copy it and open it yourself.",
+        "Your browser blocked the new tab, so nothing opened. Open it from here:",
       popupBlockedHint:
-        "Look for a popup-blocked icon in the address bar and allow popups for HuskyCT, or just paste the link.",
+        "Look for a popup-blocked icon in the address bar and allow popups for HuskyCT, or use the link above.",
       openedTitle: "Opened BetterHuskyCT with {deadlines} deadline(s){announcements}.",
       openedHint:
         "Press Apply there and they are in. Nothing was uploaded — the data travels inside the link.",
       sentWithAnnouncements: " and {count} announcement(s)",
       sendingTitle: "Sending {deadlines} deadline(s){announcements} to BetterHuskyCT…",
-      readingCalendars: "Reading {count} calendar(s)…",
       linkFailed: "Could not build the link: {message}",
-      acquireHintFeeds: "Feed links found here — the merged file can be pasted in as a link.",
-      acquireHintEvents: "No feed links on this page, so it will export what has been collected.",
-      acquireHintNeither: "No feed links here yet. The Calendar page is the one that usually has them.",
-      acquireOneFeed: "Get this page's calendar (1 feed link)",
-      acquireManyFeeds: "Get this page's calendar ({count} feed links)",
-      acquireEvents: "Get this page's calendar (events collected so far)",
-      acquirePlain: "Get this page's calendar",
-      mergedTitle: "Merged {calendars} calendar(s), {events} events. Check your downloads.",
-      mergedHint:
-        "Open huskyct-merged.ics and copy its contents into the dashboard's link box — that way it refreshes itself. Dropping the file works too, but only once.",
-      mergedHintFailed: "Could not read: {list}",
-      exportFallbackTitle: "No feed links here, so exported {events} collected events{withCourse}. Check your downloads.",
-      exportFallbackWithCourse: ", {count} with a course code",
-      exportFallbackHint:
-        "Drop huskyct-calendar.ics into BetterHuskyCT. A file cannot refresh itself — open the Calendar page for the feed links if you want that.",
-      noFeedNoEvents: "This page has a calendar but no events loaded yet — move through it first.",
-      noFeedNoCalendar: "No feed links and no calendar on this page.",
-      noFeedDetail:
-        "This button prefers links ending in .ics, and this page has none.\nIt falls back to the events the calendar has loaded, and there are none yet.\nThe Calendar page is the one that usually has the feed links.",
-      feedUnreadable: "Found {count} feed link(s) but could not read any of them.",
-      clearedPanel: "Cleared {count} collected event(s).",
-      nothingToCollect: "Nothing to collect on this page.",
-      nothingToCollectHint:
-        "Open the course's Announcements page, or its Content page, then press this again.",
-      collectedCourse:
-        "Collected {announcements} announcement(s), {content} content item(s), {files} file(s).",
-      collectedCourseHint:
-        "Saved as huskyct-course.md. Nothing was requested from UConn — this reads the page you are looking at.",
-      noFeedLinksTitle: "No .ics links on this page. Open the Calendar page, or a course's calendar settings.",
     },
     "zh-CN": {
       panelTitle: "HuskyCT 助手",
@@ -207,18 +158,7 @@
       showPanel: "显示 HuskyCT 助手面板",
       hidePanel: "收起面板",
       sendDeadlines: "全部发给 BetterHuskyCT",
-      getCalendar: "取这一页的日历",
-      exportCollected: "导出已采集的事件",
-      clearCollected: "清空已采集",
-      collectCourse: "采集这门课：公告 + 内容",
-      copy: "复制到剪贴板",
-      copied: "已复制",
-      pressCtrlC: "按 Ctrl+C 复制",
-      calendarFootnote:
-        "停在 Calendar 页，一路翻完整学期——每打开一个视图都会被记下来。这条是页面上没有订阅链接时的退路。",
       privacy: "不上传任何东西，全部留在这个浏览器里。",
-      collectedNone: "已采集 0 个事件。",
-      collectedSome: "已采集 {count} 个事件。",
       guideTodo: "按「一键收集全部」：面板会自己读取这里的待办和每门课的公告。",
       guideCourse: "按「一键收集全部」，读取每门课的公告，包括这一门。",
       guideAnnouncements: "这门课的公告已经收进篮子。",
@@ -258,47 +198,13 @@
       basketNothing: "还没有收集到任何内容。",
       basketNothingHint: "先按「一键收集全部」。",
       leftOut: "另有 {count} 条较早的公告为了让链接不太长没有带上。",
-      noDeadlinesTitle: "这一页没有 deadline。",
-      noDeadlinesHint: "待办列表在 Courses 页（HuskyCT 首页）。打开它，再按一次。",
-      calendarBusy: "这一页有日历，但还没加载出事件——先在日历里翻一翻。",
-      calendarNone: "这一页没有日历。打开 Calendar 页再试。",
-      exported: "已导出 {events} 个事件，其中 {withCourse} 个带课程代码。",
-      pickedUp: "刚刚又收到 {count} 个。",
-      dropCalendar: "把 huskyct-calendar.ics 拖进 BetterHuskyCT。",
-      popupBlocked: "浏览器拦下了新标签页，所以什么都没打开。链接在下面——复制出来自己打开。",
-      popupBlockedHint: "看看地址栏有没有「已拦截弹窗」的图标，允许 HuskyCT 弹窗；或者直接把链接粘过去。",
+      popupBlocked: "浏览器拦下了新标签页，所以什么都没打开。从这里打开：",
+      popupBlockedHint: "看看地址栏有没有「已拦截弹窗」的图标，允许 HuskyCT 弹窗；或者点上面的链接。",
       openedTitle: "已打开 BetterHuskyCT，带上了 {deadlines} 条 deadline{announcements}。",
       openedHint: "在那里按 Apply 就进去了。没有上传任何东西——数据就在链接里。",
       sentWithAnnouncements: "和 {count} 条公告",
       sendingTitle: "正在把 {deadlines} 条 deadline{announcements} 发给 BetterHuskyCT…",
-      readingCalendars: "正在读取 {count} 个日历…",
       linkFailed: "生成链接失败：{message}",
-      acquireHintFeeds: "这一页有订阅链接——合并出来的文件可以当链接贴进去。",
-      acquireHintEvents: "这一页没有订阅链接，所以会导出已经采集到的事件。",
-      acquireHintNeither: "这一页还没有订阅链接。通常 Calendar 页才有。",
-      acquireOneFeed: "取这一页的日历（1 个订阅链接）",
-      acquireManyFeeds: "取这一页的日历（{count} 个订阅链接）",
-      acquireEvents: "取这一页的日历（已采集的事件）",
-      acquirePlain: "取这一页的日历",
-      mergedTitle: "已合并 {calendars} 个日历、{events} 个事件。看看你的下载。",
-      mergedHint:
-        "打开 huskyct-merged.ics，把内容复制到仪表盘的链接框里——那样它以后会自己刷新。直接拖文件也行，但只有一次。",
-      mergedHintFailed: "读不出来：{list}",
-      exportFallbackTitle: "这一页没有订阅链接，已导出采集到的 {events} 个事件{withCourse}。看看你的下载。",
-      exportFallbackWithCourse: "，其中 {count} 个带课程代码",
-      exportFallbackHint:
-        "把 huskyct-calendar.ics 拖进 BetterHuskyCT。文件没法自己刷新——想要刷新就去 Calendar 页取订阅链接。",
-      noFeedNoEvents: "这一页有日历，但还没加载出事件——先在日历里翻一翻。",
-      noFeedNoCalendar: "这一页既没有订阅链接，也没有日历。",
-      noFeedDetail:
-        "这个按钮优先找 .ics 链接，而这一页没有。\n它退回到日历已经加载的事件，而目前一个都没有。\n通常 Calendar 页才有订阅链接。",
-      feedUnreadable: "找到 {count} 个订阅链接，但一个都读不出来。",
-      clearedPanel: "已清空 {count} 个已采集事件。",
-      nothingToCollect: "这一页没有可采集的内容。",
-      nothingToCollectHint: "打开这门课的公告页或内容页，再按一次。",
-      collectedCourse: "已采集 {announcements} 条公告、{content} 个内容条目、{files} 个文件。",
-      collectedCourseHint: "已存为 huskyct-course.md。没有向 UConn 发任何请求——读的就是你眼前这一页。",
-      noFeedLinksTitle: "这一页没有 .ics 链接。打开 Calendar 页，或某门课的日历设置。",
     },
   };
 
@@ -335,210 +241,9 @@
     else URL.revokeObjectURL(url);
   }
 
-  async function copy(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      return false;
-    }
-  }
 
-  // ------------------------------------------------------------ merging .ics
 
-  /** Unfold continuation lines, the way RFC 5545 requires. */
-  function unfold(text) {
-    return text.replace(/\r?\n[ \t]/g, "");
-  }
 
-  function blocks(text, name) {
-    const pattern = new RegExp("BEGIN:" + name + "[\\s\\S]*?END:" + name, "g");
-    return unfold(text).match(pattern) || [];
-  }
-
-  /**
-   * One calendar out of many.
-   *
-   * VTIMEZONE blocks have to come along: the events reference them by TZID, and
-   * a calendar that drops them has its times silently reinterpreted.
-   */
-  function mergeCalendars(name, texts) {
-    const events = new Map();
-    const timezones = new Map();
-
-    for (const text of texts) {
-      for (const block of blocks(text, "VEVENT")) {
-        const uid = (block.match(/^UID:(.*)$/m) || [])[1] || block.slice(0, 80);
-        if (!events.has(uid)) events.set(uid, block);
-      }
-      for (const block of blocks(text, "VTIMEZONE")) {
-        const tzid = (block.match(/^TZID:(.*)$/m) || [])[1] || block.slice(0, 80);
-        if (!timezones.has(tzid)) timezones.set(tzid, block);
-      }
-    }
-
-    return [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//BetterHuskyCT//HuskyCT Helper " + VERSION + "//EN",
-      "CALSCALE:GREGORIAN",
-      "X-WR-CALNAME:" + name,
-      ...timezones.values(),
-      ...events.values(),
-      "END:VCALENDAR",
-    ].join("\r\n");
-  }
-
-  /** Every same-origin link on this page that looks like a calendar feed. */
-  function calendarLinks() {
-    const found = new Map();
-    for (const anchor of document.querySelectorAll("a[href]")) {
-      const href = anchor.getAttribute("href") || "";
-      if (!/\.ics(\?|$)|ical|calendar/i.test(href)) continue;
-      try {
-        const url = new URL(href, window.location.href);
-        if (url.origin !== window.location.origin) continue;
-        if (!/\.ics(\?|$)/i.test(url.pathname + url.search)) continue;
-        const text = (anchor.textContent || "").replace(/\s+/g, " ").trim();
-        found.set(url.href, (text.length > 60 ? text.slice(0, 60) + "…" : text) || url.pathname);
-      } catch {
-        /* not a URL we can use */
-      }
-    }
-    return [...found.entries()];
-  }
-
-  // ------------------------------------------------------- collecting events
-
-  function kindFromSourceType(type) {
-    if (/GradableItem/.test(type || "")) return "assignment";
-    if (/CalendarEntry/.test(type || "")) return "class";
-    return null;
-  }
-
-  /** `2026-09-16T16:30:00.000Z` -> `20260916T163000Z` */
-  function utcStamp(iso) {
-    const date = new Date(iso);
-    if (Number.isNaN(date.valueOf())) return null;
-    return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  }
-
-  /** `2026-09-16T16:30:00.000Z` -> `20260916` */
-  function dateOnly(iso) {
-    const date = new Date(iso);
-    if (Number.isNaN(date.valueOf())) return null;
-    return date.toISOString().slice(0, 10).replace(/-/g, "");
-  }
-
-  function escapeIcs(text) {
-    return String(text)
-      .replace(/\\/g, "\\\\")
-      .replace(/;/g, "\\;")
-      .replace(/,/g, "\\,")
-      .replace(/\r?\n/g, "\\n");
-  }
-
-  /** RFC 5545 folds long lines at 75 octets with a leading space. */
-  function fold(line) {
-    if (line.length <= 73) return line;
-    const parts = [line.slice(0, 73)];
-    for (let index = 73; index < line.length; index += 72) {
-      parts.push(" " + line.slice(index, index + 72));
-    }
-    return parts.join("\r\n");
-  }
-
-  function eventToRecord(raw, event) {
-    const start = raw.startDate || event.start;
-    if (!start) return null;
-
-    const type = raw.itemSourceType || "";
-    const sourceId = raw.itemSourceId || event.id || "unknown";
-    const name =
-      (raw.calendarNameLocalizable && raw.calendarNameLocalizable.rawValue) ||
-      (raw.ui && raw.ui.calendarName) ||
-      null;
-
-    return {
-      // The type stays in the UID on purpose: BetterHuskyCT reads it back to tell
-      // a class meeting from an assignment, exactly as it does for a real feed.
-      uid: type + "-" + sourceId + "-" + (utcStamp(start) || ""),
-      title: raw.title || event.title || "Untitled",
-      course: courseCodeFromDisplay(name),
-      start,
-      end: raw.endDate || event.end || null,
-      location: raw.location || null,
-      allDay: Boolean(event.allDay),
-      kind: kindFromSourceType(type),
-    };
-  }
-
-  function recordsToIcs(records) {
-    const lines = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//BetterHuskyCT//HuskyCT Helper " + VERSION + "//EN",
-      "CALSCALE:GREGORIAN",
-      "X-WR-CALNAME:HuskyCT",
-    ];
-    const stamp = utcStamp(new Date().toISOString());
-
-    for (const record of records) {
-      lines.push("BEGIN:VEVENT");
-      lines.push("UID:" + escapeIcs(record.uid));
-      lines.push("DTSTAMP:" + stamp);
-      if (record.allDay) {
-        lines.push("DTSTART;VALUE=DATE:" + dateOnly(record.start));
-      } else {
-        lines.push("DTSTART:" + utcStamp(record.start));
-        if (record.end) lines.push("DTEND:" + utcStamp(record.end));
-      }
-      lines.push("SUMMARY:" + escapeIcs(record.title));
-      if (record.course) lines.push("CATEGORIES:" + escapeIcs(record.course));
-      if (record.location) lines.push("LOCATION:" + escapeIcs(record.location));
-      lines.push("END:VEVENT");
-    }
-
-    lines.push("END:VCALENDAR");
-    return lines.map(fold).join("\r\n");
-  }
-
-  // ------------------------------------------------------------- the harvest
-
-  /**
-   * FullCalendar only holds the events for the range it has loaded, so this
-   * accumulates everything ever seen rather than exporting one view's worth.
-   * Navigating the calendar is what fills it up; the count in the panel is how
-   * the user knows when to stop.
-   */
-  const collected = new Map();
-
-  function clientEvents() {
-    const jq = window.jQuery || window.$;
-    if (!jq) return null;
-    const containers = jq("#fullCalendar, .fullcalendar-container");
-    if (!containers.length) return null;
-    try {
-      return jq(containers[0]).fullCalendar("clientEvents") || [];
-    } catch {
-      return null;
-    }
-  }
-
-  function harvest() {
-    const events = clientEvents();
-    if (!events) return { total: collected.size, added: 0, available: false };
-
-    let added = 0;
-    for (const event of events) {
-      const record = eventToRecord(event.raw || {}, event);
-      if (!record || collected.has(record.uid)) continue;
-      collected.set(record.uid, record);
-      added += 1;
-    }
-
-    return { total: collected.size, added, available: true };
-  }
 
   // ------------------------------------------------- reading the course page
 
@@ -641,66 +346,10 @@
     return records;
   }
 
-  /**
-   * The course outline.
-   *
-   * Titles come from each item's accessibility label — "Status for Cengage
-   * WebAssign: Started" — not from a CSS class. Those class names carry build
-   * hashes (`makeStylescontentItemTitle-0-2-809`) and change every release,
-   * while an aria-label is part of the page's contract with screen readers and
-   * is far steadier.
-   */
-  function collectContentItems(root) {
-    const scope = root || document;
-    const items = [];
-    const seen = new Set();
-    for (const node of scope.querySelectorAll("[aria-label^='Status for ']")) {
-      const match = String(node.getAttribute("aria-label") || "").match(/^Status for (.+?):\s*(.+)$/);
-      if (!match) continue;
-      const title = match[1].trim();
-      if (seen.has(title)) continue;
-      seen.add(title);
-      items.push({ title, state: match[2].trim() });
-    }
-    return items;
-  }
-
   /** The course id out of a course URL, e.g. `/ultra/courses/_203765_1/outline`. */
   function currentCourseId() {
     const match = window.location.pathname.match(/\/ultra\/courses\/([^/]+)/);
     return match ? match[1] : null;
-  }
-
-  /**
-   * Documents the course page links to.
-   *
-   * The outline's items are found by accessibility label, which gives names but
-   * no addresses. A document is a real anchor — /ultra/courses/<id>/document/
-   * <fileId> — and a link is what makes an index useful. Only the path is kept;
-   * a query string can carry a token, and none of it is needed to open a file
-   * the reader is already entitled to.
-   */
-  function collectCourseFiles(root) {
-    const scope = root || document;
-    const files = [];
-    const seen = new Set();
-
-    for (const anchor of scope.querySelectorAll('a[href*="/document/"]')) {
-      const href = anchor.getAttribute("href") || "";
-      const title = textOf(anchor) || anchor.getAttribute("title") || "";
-      if (!title) continue;
-
-      // The id has to come out of the path, or there is nothing to list. The
-      // selector implies it will, but depending on the caller's selector for
-      // the shape of a record is how an empty entry reaches the output.
-      const id = (href.match(/\/document\/([^/?#]+)/) || [])[1];
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
-
-      files.push({ title, id, url: href.split("?")[0].split("#")[0] });
-    }
-
-    return files;
   }
 
   /** The course this page belongs to, from what its header renders. */
@@ -742,49 +391,6 @@
         announced: stamp,
       }));
   }
-
-  /**
-   * A plain-text digest of the course.
-   *
-   * Markdown on purpose: it reads fine in a message, it diffs, and there is no
-   * rendering to get wrong.
-   */
-  function courseDigestToMarkdown(digest) {
-    const lines = [];
-    const course = digest.course || {};
-
-    lines.push("# " + (course.code || course.heading || "HuskyCT course"));
-    if (course.title) lines.push("", course.title);
-    lines.push("", "Source: " + (digest.source || "(unknown page)"));
-
-    const announcements = digest.announcements || [];
-    if (announcements.length) {
-      lines.push("", "## Announcements (" + announcements.length + ")");
-      for (const item of announcements) {
-        lines.push("", "### " + item.title);
-        if (item.posted) lines.push("_" + item.posted + "_");
-        if (item.body) lines.push("", item.body);
-      }
-    }
-
-    const content = digest.content || [];
-    if (content.length) {
-      lines.push("", "## Course content (" + content.length + ")");
-      for (const item of content) {
-        lines.push("- " + item.title + (item.state ? "  (" + item.state + ")" : ""));
-      }
-    }
-
-    const files = digest.files || [];
-    if (files.length) {
-      lines.push("", "## Files (" + files.length + ")");
-      for (const file of files) lines.push("- [" + file.title + "](" + file.url + ")");
-    }
-
-    lines.push("");
-    return lines.join("\n");
-  }
-
 
   // ------------------------------------------------------- the to-do panel
 
@@ -2276,167 +1882,6 @@
     return t("guideNeither");
   }
 
-  /**
-   * What to call the calendar this produces.
-   *
-   * This exists because of a bug the old merge path had: with a single feed it
-   * passed a bare `""`, which wrote a bare `X-WR-CALNAME:` into the file. The
-   * dashboard reads that key as the calendar's name, so it got `""` rather than
-   * nothing and showed a blank name where it would otherwise have said
-   * "Unnamed calendar". A label is never empty now.
-   */
-  function calendarNameFor(links) {
-    if (links.length === 1) {
-      const label = (links[0][1] || "").replace(/\.ics$/i, "").trim();
-      if (label) return label;
-    }
-    if (links.length > 1) return "HuskyCT (" + links.length + " calendars)";
-    return "HuskyCT";
-  }
-
-  /**
-   * Which source this page offers, decided without doing any work.
-   *
-   * Split out from `acquireCalendar` so the decision can be tested on its own:
-   * the actions around it fetch other people's servers and write files, which
-   * makes them awkward to assert against, while the rule itself —
-   * feeds beat harvested events, and nothing is an honest answer — is the part
-   * that would break quietly.
-   */
-  function planCalendarAcquisition(linksCount, collectedCount, available) {
-    if (linksCount > 0) {
-      return {
-        source: "feeds",
-        filename: "huskyct-merged.ics",
-        message: null,
-      };
-    }
-
-    if (collectedCount > 0) {
-      return {
-        source: "events",
-        filename: "huskyct-calendar.ics",
-        message: null,
-      };
-    }
-
-    return {
-      source: null,
-      filename: null,
-      message: available ? t("noFeedNoEvents") : t("noFeedNoCalendar"),
-    };
-  }
-
-  /**
-   * The one action behind "give me this page's calendar".
-   *
-   * Feed links are preferred because they carry the original VEVENT blocks
-   * untouched and, more importantly, because the file they produce can be pasted
-   * into the dashboard as a *link* — a subscription that refreshes itself. The
-   * harvested events can only ever be dragged in as a file, because the app has
-   * no way to turn a file back into a feed URL, so that route is the fallback
-   * for a page that exposes no feeds at all.
-   */
-  async function acquireCalendar(options) {
-    const opts = options || {};
-    const links = calendarLinks();
-
-    if (links.length === 0) {
-      const result = harvest(opts.now);
-      const plan = planCalendarAcquisition(0, collected.size, result.available);
-
-      if (plan.source !== "events") {
-        return {
-          ok: false,
-          message: plan.message,
-          detail: t("noFeedDetail"),
-        };
-      }
-
-      const records = [...collected.values()];
-      const withCourse = records.filter((record) => record.course).length;
-      download(plan.filename, recordsToIcs(records), "text/calendar;charset=utf-8");
-
-      return {
-        ok: true,
-        source: "events",
-        message: t("exportFallbackTitle", {
-          events: records.length,
-          withCourse: withCourse
-            ? t("exportFallbackWithCourse", { count: withCourse })
-            : "",
-        }),
-        hint:
-          (result.added ? t("pickedUp", { count: result.added }) : "") +
-          t("exportFallbackHint"),
-      };
-    }
-
-    if (opts.status) {
-      opts.status.className = "note";
-      opts.status.textContent = t("readingCalendars", { count: links.length });
-    }
-
-    const texts = [];
-    const failed = [];
-    for (const [href, name] of links) {
-      try {
-        const response = await fetch(href, { credentials: "same-origin" });
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        texts.push(await response.text());
-      } catch (error) {
-        failed.push(name + " (" + error.message + ")");
-      }
-      // Deliberately slow: this is someone else's server.
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    }
-
-    if (texts.length === 0) {
-      return {
-        ok: false,
-        message: t("feedUnreadable", { count: links.length }),
-        detail: failed.join("\n"),
-      };
-    }
-
-    const plan = planCalendarAcquisition(links.length, collected.size, true);
-    const merged = mergeCalendars(calendarNameFor(links), texts);
-    const eventCount = (merged.match(/BEGIN:VEVENT/g) || []).length;
-    download(plan.filename, merged, "text/calendar;charset=utf-8");
-
-    return {
-      ok: true,
-      source: "feeds",
-      message: t("mergedTitle", { calendars: texts.length, events: eventCount }),
-      hint: failed.length
-        ? t("mergedHintFailed", { list: failed.join(", ") })
-        : t("mergedHint"),
-    };
-  }
-
-  /**
-   * Say which source this page will use, before the button is pressed.
-   *
-   * Without this the label would promise one thing and the button might do
-   * another, which is how the old two-button panel left people guessing. The
-   * text is deliberately about the *page*, not about feeds in the abstract.
-   */
-  function acquireLabelFor(linksCount, collectedCount) {
-    if (linksCount > 0) {
-      return linksCount === 1
-        ? t("acquireOneFeed")
-        : t("acquireManyFeeds", { count: linksCount });
-    }
-    if (collectedCount > 0) return t("acquireEvents");
-    return t("acquirePlain");
-  }
-
-  function acquireHintFor(linksCount, collectedCount) {
-    if (linksCount > 0) return t("acquireHintFeeds");
-    if (collectedCount > 0) return t("acquireHintEvents");
-    return t("acquireHintNeither");
-  }
-
   // -------------------------------------------------------------------- panel
 
   const style = `
@@ -2531,17 +1976,6 @@
         <div class="note" data-role="materials" hidden></div>
         <button class="act" data-act="savefiles" hidden></button>
         <button class="act" data-act="savelinks" hidden>${t("saveLinks")}</button>
-        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
-        <div class="note" data-role="count">${t("collectedNone")}</div>
-        <button class="act" data-act="acquire">${t("getCalendar")}</button>
-        <div class="note" data-role="acquire-hint"></div>
-        <button class="act" data-act="export">${t("exportCollected")}</button>
-        <div class="note calendar-note">${t("calendarFootnote")}</div>
-        <button class="act" data-act="clear">${t("clearCollected")}</button>
-        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
-        <button class="act" data-act="course">${t("collectCourse")}</button>
-        <textarea data-role="out" hidden></textarea>
-        <button class="act" data-act="copy" hidden>${t("copy")}</button>
         <div class="note" data-role="status">${t("privacy")}</div>
       </div>
     `;
@@ -2596,13 +2030,8 @@
 
     chip.addEventListener("click", () => setCollapsed(false));
 
-    const out = wrap.querySelector('[data-role="out"]');
     const status = wrap.querySelector('[data-role="status"]');
     const hint = wrap.querySelector('[data-role="hint"]');
-    const count = wrap.querySelector('[data-role="count"]');
-    const copyButton = wrap.querySelector('[data-act="copy"]');
-    const acquireButton = wrap.querySelector('[data-act="acquire"]');
-    const acquireHint = wrap.querySelector('[data-role="acquire-hint"]');
     const langButton = wrap.querySelector('[data-role="lang"]');
     const basketLine = wrap.querySelector('[data-role="basket"]');
     const collectButton = wrap.querySelector('[data-act="collectall"]');
@@ -2709,15 +2138,6 @@
       refreshGuidance();
     }
 
-    function refreshCount() {
-      const total = collected.size;
-      count.textContent =
-        total === 0
-          ? t("collectedNone")
-          : t("collectedSome", { count: total });
-      count.className = total === 0 ? "note" : "note ok";
-    }
-
     /**
      * Re-render every string in the panel from the current dictionary.
      *
@@ -2734,150 +2154,33 @@
       wrap.querySelector(".close").title = t("hidePanel");
 
       wrap.querySelector('[data-act="todos"]').textContent = t("sendDeadlines");
-      wrap.querySelector('[data-act="export"]').textContent = t("exportCollected");
-      wrap.querySelector('[data-act="clear"]').textContent = t("clearCollected");
-      wrap.querySelector('[data-act="course"]').textContent = t("collectCourse");
-      copyButton.textContent = t("copy");
-      wrap.querySelector(".calendar-note").textContent = t("calendarFootnote");
       wrap.querySelector('[data-role="status"]').textContent = t("privacy");
 
       chip.textContent = t("chip");
       chip.title = t("showPanel");
 
-      refreshCount();
-      refreshAcquireLabel();
       refreshGuidance();
       refreshBasket();
     }
 
-    /**
-     * Keep the acquire button honest about which source it is about to use.
-     *
-     * Read from the page each time rather than cached: HuskyCT is a single-page
-     * app, so the links under the panel change without it ever being remounted.
-     * A label that promised "1 feed link" after navigating away would be worse
-     * than no label at all.
-     */
-    function refreshAcquireLabel() {
-      let linksCount = 0;
-      try {
-        linksCount = calendarLinks().length;
-      } catch {
-        /* a page that will not let us look is a page with no links we can use */
-      }
 
-      acquireButton.textContent = acquireLabelFor(linksCount, collected.size);
-      acquireHint.textContent = acquireHintFor(linksCount, collected.size);
-    }
-
-    // Cheap: `clientEvents` reads an in-memory list, it does not make a request.
-    window.setInterval(() => {
-      if (harvest().added > 0) {
-        refreshCount();
-        refreshAcquireLabel();
-      }
-      captureTick();
-    }, 1500);
-    harvest();
+    // Reads only what is rendered; it makes no request.
+    window.setInterval(captureTick, 1500);
     captureTick();
-    // `relabel` sets every string, including the count, the acquire label and
-    // the page guidance, so it is the whole first render — the individual
-    // refreshes below would be undone by it.
+    // `relabel` sets every string, the page guidance included, so it is the
+    // whole first render.
     relabel();
 
     wrap.querySelector(".close").addEventListener("click", () => {
       setCollapsed(true);
     });
 
-    function show(text, className) {
-      out.hidden = false;
-      out.value = text;
-      out.select();
-      copyButton.hidden = false;
-      status.className = "note " + (className || "");
-    }
 
     wrap.addEventListener("click", async (event) => {
       const button = event.target.closest("button.act");
       if (!button) return;
 
       const act = button.dataset.act;
-
-      if (act === "copy") {
-        const ok = await copy(out.value);
-        button.textContent = ok ? "Copied" : "Press Ctrl+C to copy";
-        setTimeout(() => {
-          button.textContent = "Copy to clipboard";
-        }, 2000);
-        return;
-      }
-
-      if (act === "export") {
-        const result = harvest();
-        refreshCount();
-
-        if (collected.size === 0) {
-          status.className = "note warn";
-          status.textContent = result.available
-            ? "This page has a calendar but no events loaded yet — move through it first."
-            : "No calendar on this page. Open the Calendar page and try again.";
-          return;
-        }
-
-        const records = [...collected.values()];
-        const withCourse = records.filter((record) => record.course).length;
-        download(
-          "huskyct-calendar.ics",
-          recordsToIcs(records),
-          "text/calendar;charset=utf-8",
-        );
-
-        status.className = "note ok";
-        status.textContent = t("exported", { events: records.length, withCourse });
-        hint.textContent =
-          (result.added ? t("pickedUp", { count: result.added }) : "") + t("dropCalendar");
-        return;
-      }
-
-      if (act === "clear") {
-        const total = collected.size;
-        collected.clear();
-        refreshCount();
-        out.hidden = true;
-        copyButton.hidden = true;
-        status.className = "note";
-        status.textContent = t("clearedPanel", { count: total });
-        return;
-      }
-
-      if (act === "course") {
-        const digest = {
-          course: collectCourse(document),
-          announcements: collectAnnouncements(document),
-          content: collectContentItems(document),
-          files: collectCourseFiles(document),
-          source: window.location.pathname,
-        };
-        const markdown = courseDigestToMarkdown(digest);
-
-        if (!digest.announcements.length && !digest.content.length && !digest.files.length) {
-          status.className = "note warn";
-          status.textContent = t("nothingToCollect");
-          hint.textContent = t("nothingToCollectHint");
-          return;
-        }
-
-        download("huskyct-course.md", markdown, "text/markdown;charset=utf-8");
-        status.className = "note ok";
-        status.textContent = t("collectedCourse", {
-          announcements: digest.announcements.length,
-          content: digest.content.length,
-          files: digest.files.length,
-        });
-        hint.textContent = t("collectedCourseHint");
-        show(markdown, "ok");
-        return;
-      }
 
       if (act === "collectall") {
         // The same button stops a walk in progress. It finishes the page it is
@@ -3088,9 +2391,16 @@
             hint.textContent =
               t("openedHint") + (built.leftOut ? t("leftOut", { count: built.leftOut }) : "");
           } else {
-            show(link, "warn");
+            // The link itself, to click: the browser that blocked the tab
+            // lets a click the student makes through.
             status.className = "note warn";
-            status.textContent = t("popupBlocked");
+            status.textContent = t("popupBlocked") + " ";
+            const fallback = document.createElement("a");
+            fallback.href = link;
+            fallback.target = "betterhuskyct";
+            fallback.rel = "noopener";
+            fallback.textContent = "BetterHuskyCT →";
+            status.appendChild(fallback);
             hint.textContent = t("popupBlockedHint");
           }
         } catch (error) {
@@ -3102,28 +2412,6 @@
         return;
       }
 
-      if (act === "acquire") {
-        button.disabled = true;
-        try {
-          const result = await acquireCalendar({ status });
-
-          if (!result.ok) {
-            status.className = "note warn";
-            status.textContent = result.message;
-            if (result.detail) show(result.detail, "warn");
-            return;
-          }
-
-          status.className = "note ok";
-          status.textContent = result.message;
-          hint.textContent = result.hint || "";
-          refreshCount();
-          refreshAcquireLabel();
-        } finally {
-          button.disabled = false;
-        }
-        return;
-      }
     });
   }
 
@@ -3132,25 +2420,12 @@
   // calendar text rather than trusted because it looks right.
   if (typeof window !== "undefined") {
     window.__huskyctHelper = {
-      mergeCalendars,
-      calendarLinks,
-      calendarNameFor,
-      planCalendarAcquisition,
-      acquireCalendar,
-      acquireLabelFor,
-      acquireHintFor,
-      kindFromSourceType,
-      eventToRecord,
-      recordsToIcs,
-      utcStamp,
       currentCourseId,
       textOf,
       courseCodeFromDisplay,
       courseTitleFromDisplay,
       postedFromText,
       collectAnnouncements,
-      collectContentItems,
-      collectCourseFiles,
       collectCourse,
       announcementsToCandidates,
       BASKET_KEY,
@@ -3192,7 +2467,6 @@
       materialsLinksHtml,
       basketContents,
       basketLink,
-      courseDigestToMarkdown,
       todoFromLabel,
       dueDateFromText,
       collectTodos,
@@ -3201,8 +2475,6 @@
       taskFromRecord,
       syncPayload,
       huskypilotLink,
-      collect: harvest,
-      collected,
       VERSION,
       STRINGS,
       LOCALE_KEY,

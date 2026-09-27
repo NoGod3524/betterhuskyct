@@ -1,48 +1,36 @@
 # HuskyCT Helper
 
-A userscript that runs inside your own HuskyCT session and does three things:
+A userscript that runs inside your own HuskyCT session and does two things, each
+in one press:
 
-1. **Gets the calendar off the page you are looking at.** It prefers the `.ics`
-   feed links the page exposes, because the file that produces can be pasted into
-   BetterHuskyCT as a *link* — a subscription that refreshes itself. If the page
-   exposes none, it falls back to exporting the events the calendar has already
-   loaded, which can only be dropped in as a file.
-2. **Collects a course** — its announcements, its outline, and the files it links
-   to — as a Markdown digest.
-3. **Collects your deadlines and every course's announcements in one press,**
-   and sends the lot to BetterHuskyCT — no file to download, and nothing
-   uploaded.
+1. **Collect everything** — your deadlines for the whole term and every course's
+   announcements — then **send** the lot to BetterHuskyCT. No file to download,
+   and nothing uploaded.
+2. **Collect course materials** — every course's files, lecture videos, links and
+   tools — then save the files into a folder you pick, sorted by course, and the
+   links on one page.
 
 > **HuskyCT is Blackboard Ultra at `lms.uconn.edu`.** The script also matches
 > `huskyct.uconn.edu` in case that hostname still redirects, but `lms.uconn.edu`
 > is the one that matters.
 
-## Why there is one calendar button and not two
-
-There used to be two: *Merge .ics links* and *Export .ics*. Both produced a
-`.ics` file that you then dropped into the same place, so the reader had to work
-out which to press — when the real answer depended on whether the page happened
-to expose feed links, which is the script's business and not theirs.
-
-The two are not equivalent, and that is why the order is what it is. A merged
-feed file can be **pasted into the dashboard as a link**, and only a link can
-refresh itself later. The app has no way to turn a file back into a feed URL, so
-harvested events can only ever be a one-time file. Feeds win; harvesting is what
-happens when there are no feeds to win with.
-
-The button says which one it is about to do.
+There used to be more buttons: this page's calendar as an `.ics` file, the
+calendar events seen so far, one course's Markdown digest. Each worked on the one
+page in front of you, and the reader had to work out which page and which
+button. The two walks above do each of those jobs for every course at once, so
+0.17.0 took the single-page tools out.
 
 ## What it does not do
 
 - It never asks for, stores, or transmits your **NetID or password**. It uses the
   session your browser already has, exactly as the page itself does.
-- It never sends anything anywhere except `lms.uconn.edu`.
-- **It asks HuskyCT for nothing directly.** Everything it collects is read off a
-  page HuskyCT has rendered. *Collect everything* moves the tab through
-  HuskyCT's own pages, one at a time, the way its links do — HuskyCT loads each
-  one exactly as if you had clicked there. The only requests the script itself
-  makes are for the calendar feeds a page links to, one at a time, with a pause
-  between them.
+- It never sends anything anywhere except `lms.uconn.edu` and, when you save
+  course materials, the file store HuskyCT's own file links lead to.
+- **It asks HuskyCT for no data directly.** Everything it collects is read off a
+  page HuskyCT has rendered. Both walks move the tab through HuskyCT's own pages,
+  one at a time, the way its links do — HuskyCT loads each one exactly as if you
+  had clicked there. The only requests the script itself makes are for the
+  course files you ask it to save, one at a time, with a pause between them.
 
 ## Install
 
@@ -50,49 +38,26 @@ The button says which one it is about to do.
    Safari) or [Violentmonkey](https://violentmonkey.github.io/).
 2. Open the extension's dashboard → **Create a new script**.
 3. Delete the template, paste in the whole of `huskyct-helper.user.js`, and save.
-4. Open HuskyCT. A small panel appears in the bottom-right corner, and it says which button the page you are on wants.
+4. Open HuskyCT. A small panel appears in the bottom-right corner.
 
-## Use
+## Why it reads pages rather than asking HuskyCT
 
-**To get one calendar file:** open a HuskyCT page that lists your calendars —
-the Calendar page, or a course's calendar settings — and press
-*Merge .ics links on this page*. The merged file lands in your downloads. Drop it
-into [BetterHuskyCT](https://betterhuskyct.vercel.app/).
-
-If it says it found no `.ics` links, that page does not expose any on its own;
-try the Calendar page instead.
-
-## Collecting a course
-
-*Collect this course: announcements + content* reads the page you are looking at
-— the Announcements list, the course outline, or both — and saves a Markdown
-digest: the course's name, every announcement with its full text, the outline
-items, and the **files the course links to**, as links.
-
-It reads announcements from either place they appear — the Announcements page
-and the course page's own announcement dialog — because those are two different
-renderings of the same records, and reading only one of them makes the other
-look empty.
-
-It sends **no request at all**. Everything it writes is already on screen.
-
-That is a deliberate choice, and it comes from a measurement rather than a
-preference. HuskyCT's own API refuses scripts. Measured on 2026-09-19: a request
-the page itself made to `/learn/api/v1/users/me` returned 200, an
-identical-looking one from a script returned 403 with an S3-style `AccessDenied`
-body, and adding any header of our own reset the connection. A path that cannot
-exist returned the same 403 as a real one, so the edge in front of HuskyCT
-admits the application's own calls and refuses everything else regardless of the
-path.
+HuskyCT's own API refuses scripts. Measured on 2026-09-19: a request the page
+itself made to `/learn/api/v1/users/me` returned 200, an identical-looking one
+from a script returned 403 with an S3-style `AccessDenied` body, and adding any
+header of our own reset the connection. A path that cannot exist returned the
+same 403 as a real one, so the edge in front of HuskyCT admits the application's
+own calls and refuses everything else regardless of the path. Re-measured on
+2026-09-27 with the same result, and HuskyCT's pages refuse to load inside a
+frame too.
 
 Forging those calls would mean imitating the application against a system that
 is explicitly refusing to be scripted. Reading the rendered page needs no such
-thing, produces no traffic that could look like scraping, and keeps working when
-the internals change.
+thing, and keeps working when the internals change.
 
-Titles are read from each item's accessibility label — `Status for Cengage
-WebAssign: Started` — rather than from a CSS class, because those class names
-carry build hashes and change with every release.
+Content is found by accessibility label — `PDF, Section 5.1 Problem Solving
+Tips.pdf`, `Status for Cengage WebAssign: Started` — rather than by CSS class,
+because those class names carry build hashes and change with every release.
 
 ## Collect everything, then send
 
