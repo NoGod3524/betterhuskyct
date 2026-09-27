@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.15.0
+// @version      0.16.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.15.0";
+  const VERSION = "0.16.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -108,22 +108,27 @@
       collectedNone: "Collected 0 events.",
       collectedSome: "Collected {count} event(s).",
       guideTodo:
-        "Your courses and to-do list are in the basket. Next, open each course's announcements — the button below takes you there.",
-      guideCourse: "Open this course's Announcements tab — the panel collects them from there.",
+        "Press Collect everything: the panel reads this to-do list and every course's announcements by itself.",
+      guideCourse: "Press Collect everything to read every course's announcements, this one included.",
       guideAnnouncements: "This course's announcements are in the basket.",
       guideNeither:
-        "Open the Courses page first: the panel collects your courses and to-do list there.",
+        "Press Collect everything: the panel opens the Courses page and each course by itself, then brings you back here.",
       languageLabel: "中文",
       basketEmpty: "The basket is empty.",
       basketSummary:
         "In the basket: {deadlines} deadline(s) and {announcements} announcement(s), from {collected} of {courses} course(s).",
-      nextCourse: "Next: {course} announcements →",
-      allCoursesCollected: "Every course's announcements are in. Press Send.",
+      collectAll: "Collect everything",
+      stopCollecting: "Stop",
+      collectingCourses: "Reading your courses and to-do list…",
+      collectingCourse: "Reading {course} ({index} of {total})…",
+      collectedAll: "Done: {courses} course(s) read. Press Send to put them in BetterHuskyCT.",
+      collectSkipped: " Could not open: {courses}.",
+      collectStopped: "Stopped. What was read so far is in the basket.",
+      collectFailed: "Collecting stopped with an error: {message}",
       clearBasket: "Clear basket",
       basketCleared: "Basket cleared.",
       basketNothing: "Nothing collected yet.",
-      basketNothingHint:
-        "Open the Courses page and each course's Announcements tab — the panel collects what they show.",
+      basketNothingHint: "Press Collect everything first.",
       leftOut: " {count} older announcement(s) stayed behind to keep the link small.",
       // Status and hint lines, reached through the panel rather than baked in at
       // the point of use, so nothing has to be re-translated after the fact.
@@ -194,19 +199,25 @@
       privacy: "不上传任何东西，全部留在这个浏览器里。",
       collectedNone: "已采集 0 个事件。",
       collectedSome: "已采集 {count} 个事件。",
-      guideTodo: "你的课程和待办已经收进篮子。接下来逐门打开课程公告——下面的按钮会带你过去。",
-      guideCourse: "打开这门课的 Announcements 标签页——面板会从那里收集公告。",
+      guideTodo: "按「一键收集全部」：面板会自己读取这里的待办和每门课的公告。",
+      guideCourse: "按「一键收集全部」，读取每门课的公告，包括这一门。",
       guideAnnouncements: "这门课的公告已经收进篮子。",
-      guideNeither: "先打开 Courses 页：面板会在那里收集你的课程和待办。",
+      guideNeither: "按「一键收集全部」：面板会自己打开 Courses 页和每门课，收完再回到这里。",
       languageLabel: "English",
       basketEmpty: "篮子是空的。",
       basketSummary: "篮子里：{deadlines} 个 deadline、{announcements} 条公告，来自 {courses} 门课中的 {collected} 门。",
-      nextCourse: "下一门：{course} 的公告 →",
-      allCoursesCollected: "所有课程的公告都收齐了，按发送即可。",
+      collectAll: "一键收集全部",
+      stopCollecting: "停止",
+      collectingCourses: "正在读取课程列表和待办……",
+      collectingCourse: "正在读取 {course}（{index}/{total}）……",
+      collectedAll: "完成：读取了 {courses} 门课。按「全部发给 BetterHuskyCT」导入。",
+      collectSkipped: "打不开的课程：{courses}。",
+      collectStopped: "已停止。已经读到的内容都在篮子里。",
+      collectFailed: "收集时出错停止了：{message}",
       clearBasket: "清空篮子",
       basketCleared: "篮子已清空。",
       basketNothing: "还没有收集到任何内容。",
-      basketNothingHint: "打开 Courses 页和每门课的 Announcements 标签页——面板会收集它们显示的内容。",
+      basketNothingHint: "先按「一键收集全部」。",
       leftOut: "另有 {count} 条较早的公告为了让链接不太长没有带上。",
       noDeadlinesTitle: "这一页没有 deadline。",
       noDeadlinesHint: "待办列表在 Courses 页（HuskyCT 首页）。打开它，再按一次。",
@@ -1011,9 +1022,15 @@
 
     const match = String(pathname || "").match(/^\/ultra\/courses\/([^/]+)\/announcements/);
     if (match) {
+      // Moving between two courses can leave the last course's page on screen
+      // for a moment under the new address. A heading naming a different course
+      // than the one already known for this id means exactly that.
+      const code = collectCourse(scope).code;
+      const known = current.courses.find((course) => course.id === match[1]);
+      const mismatched = Boolean(code && known && known.code && known.code !== code);
       const rows = collectAnnouncements(scope);
-      if (rows.length > 0 || (listSettled && scope.querySelector(".announcement-list"))) {
-        apply(rememberAnnouncements(current, { id: match[1], code: collectCourse(scope).code }, rows, now));
+      if (!mismatched && (rows.length > 0 || (listSettled && scope.querySelector(".announcement-list")))) {
+        apply(rememberAnnouncements(current, { id: match[1], code }, rows, now));
       }
     }
 
@@ -1030,13 +1047,287 @@
     };
   }
 
-  /** The first course whose Announcements page has not been read, other than the one open. */
-  function nextCourseToCollect(basket, currentId) {
-    return basket.courses.find((course) => !course.announcementsAt && course.id !== currentId) || null;
-  }
-
   function announcementsPathFor(courseId) {
     return "/ultra/courses/" + courseId + "/announcements";
+  }
+
+  // --- collecting everything in one press -------------------------------------
+
+  /**
+   * The basket used to fill only as the student opened each course's
+   * Announcements tab by hand, which is the chore it was meant to remove.
+   * "Collect everything" walks HuskyCT itself instead: the Courses page for the
+   * to-do list and the full course list, then each course's Announcements page,
+   * then back to where the student was.
+   *
+   * It still reads only rendered pages. Two shortcuts were measured and ruled
+   * out on 2026-09-27: HuskyCT's API refuses scripts (403 `AccessDenied`), and
+   * its pages refuse to load in a frame, so a hidden iframe gets nothing. What
+   * remains is moving the tab through HuskyCT the way its own links do, one page
+   * at a time.
+   */
+
+  const VIEW_ALL_COURSES = '[data-analytics-id="base.courses.recentCoursesView.viewAllButton"]';
+
+  function pause(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /** Polls `check` until it returns something truthy, or gives up with null. */
+  async function waitFor(check, every, timeout) {
+    const started = Date.now();
+    for (;;) {
+      const value = check();
+      if (value) return value;
+      if (Date.now() - started >= timeout) return null;
+      await pause(every);
+    }
+  }
+
+  /**
+   * Moves HuskyCT to another of its own pages without reloading.
+   *
+   * HuskyCT is a single-page app that follows history changes, so pushing a path
+   * and announcing it is what its own links do. Measured on 2026-09-27: a
+   * course's Announcements page renders in 0.5-2.5 s this way, and the panel
+   * stays mounted. The document carries a <base> on Blackboard's CDN, so the path
+   * is made absolute first — a relative one resolves against the CDN and
+   * pushState refuses it.
+   */
+  function routeTo(path) {
+    window.history.pushState({}, "", window.location.origin + path);
+    window.dispatchEvent(new window.PopStateEvent("popstate", { state: {} }));
+  }
+
+  /**
+   * The course cards on the Courses page's "View All" list.
+   *
+   * The Courses page itself shows only the few courses opened most recently —
+   * four of six, on the account this was measured with. "View All" lists every
+   * one, as `article[data-course-id]` cards rendered as they scroll into view.
+   * The term comes from the course id's prefix: `1268-UCONN-NRE-1000E-…` is
+   * term 1268. A card HuskyCT marks inaccessible is left out; opening it would
+   * only time out.
+   */
+  function courseCardsOnPage(root) {
+    const scope = root || document;
+    const found = [];
+    for (const card of scope.querySelectorAll("article[data-course-id]")) {
+      const id = card.getAttribute("data-course-id");
+      if (!/^_\d+_\d+$/.test(String(id)) || card.classList.contains("inactive-link")) continue;
+      const text = textOf(card);
+      found.push({
+        id,
+        code: courseCodeFromDisplay(textOf(card.querySelector("h4"))) || courseCodeFromDisplay(text),
+        term: (text.match(/\b(\d{4})-UCONN-/) || [])[1] || null,
+      });
+    }
+    return found;
+  }
+
+  /**
+   * Which courses to read: this term's, and any later one's.
+   *
+   * "View All" lists past terms too, and reading every course someone has ever
+   * taken would be slow and pointless. The recently opened courses say which
+   * term is current; failing that, the newest term on the list does. A card
+   * whose term cannot be read is kept rather than guessed away.
+   */
+  function coursesToCollect(cards, recent) {
+    const recentIds = new Set(recent.map((course) => course.id));
+    const terms = cards.map((card) => Number(card.term)).filter(Boolean);
+    const recentTerms = cards
+      .filter((card) => recentIds.has(card.id))
+      .map((card) => Number(card.term))
+      .filter(Boolean);
+    const earliest = recentTerms.length ? Math.min(...recentTerms) : terms.length ? Math.max(...terms) : 0;
+
+    const chosen = new Map();
+    for (const card of cards) {
+      if (!card.term || Number(card.term) >= earliest) chosen.set(card.id, { id: card.id, code: card.code });
+    }
+    for (const course of recent) {
+      if (!chosen.has(course.id)) chosen.set(course.id, { id: course.id, code: course.code });
+    }
+    return [...chosen.values()];
+  }
+
+  /**
+   * Scrolls the "View All" list until every card has rendered.
+   *
+   * Measured on the live page: every card is there from the start as an
+   * `article` with an empty `data-course-id`, filled in once it has been
+   * scrolled into view, and never emptied again. So the list is done when no
+   * card is still empty — not when the count has held still, which stopped at
+   * four or five of six. The list scrolls inside its own panel, one screen at a
+   * time. A card only renders on a scroll, so the first one can be passed over;
+   * reaching the bottom with a card still empty goes back to the top for another
+   * pass, twice at most, in case a card never fills in at all.
+   */
+  async function loadEveryCourseCard(opts) {
+    const seen = new Map();
+    const started = Date.now();
+    let passes = 0;
+    let seenAtLastPass = -1;
+    while (Date.now() - started < opts.pageTimeout) {
+      for (const card of courseCardsOnPage(document)) seen.set(card.id, card);
+      const slots = [...document.querySelectorAll("article[data-course-id]")];
+      const pending = slots.filter((slot) => !slot.getAttribute("data-course-id")).length;
+      if (slots.length > 0 && pending === 0) break;
+
+      // Only real scrolling panels, and only real movement: the live page has
+      // small inner boxes that creep a pixel per scroll and never "finish".
+      const scrollers = [...document.querySelectorAll("main, main *, .panel-wrap, .hide-in-background")].filter(
+        (element) => element.clientHeight >= 150 && element.scrollHeight > element.clientHeight + 50,
+      );
+      let moved = false;
+      for (const element of scrollers) {
+        const before = element.scrollTop;
+        element.scrollTop = Math.min(before + element.clientHeight * 0.8, element.scrollHeight);
+        moved = moved || Math.abs(element.scrollTop - before) >= 10;
+      }
+      if (!moved && slots.length > 0) {
+        // On a screen tall enough that nothing scrolls, there are no passes to
+        // count: give the cards a few seconds to render on their own before
+        // settling for what is there.
+        const waited = Date.now() - started >= opts.every * 20;
+        const stalled = seen.size === seenAtLastPass;
+        seenAtLastPass = seen.size;
+        if (scrollers.length === 0) {
+          if (waited && stalled) break;
+        } else {
+          if (passes >= 2 || (waited && stalled)) break;
+          passes++;
+          for (const element of scrollers) element.scrollTop = 0;
+        }
+      }
+      await pause(opts.every * 2);
+    }
+    return [...seen.values()];
+  }
+
+  /**
+   * Opens one course's Announcements page and reads it once it is really that
+   * course's.
+   *
+   * Moving between two courses can leave the previous course's page on screen
+   * for a moment under the new address, and reading it would file one course's
+   * announcements under another. So the page counts only once its heading names
+   * this course, none of its rows was there before the move, and the row count
+   * has held still. An empty list counts only after it has stayed empty for
+   * `emptySettle`. Returns null if the page never settles — no access, or
+   * HuskyCT sent the student somewhere else.
+   */
+  async function readAnnouncementsOf(courseId, code, opts) {
+    const staleRows = new Set(document.querySelectorAll(".announcement-item-row"));
+    const staleList = document.querySelector(".announcement-list");
+    const path = announcementsPathFor(courseId);
+    routeTo(path);
+
+    const started = Date.now();
+    let lastCount = -1;
+    let steady = 0;
+    while (Date.now() - started < opts.pageTimeout) {
+      await pause(opts.every);
+      if (window.location.pathname.indexOf(path) !== 0) continue;
+      const list = document.querySelector(".announcement-list");
+      if (!list) continue;
+      const heading = collectCourse(document).code;
+      if (code && heading && heading !== code) continue;
+      const rows = [...document.querySelectorAll(".announcement-item-row")];
+      if (rows.some((row) => staleRows.has(row))) continue;
+
+      steady = rows.length === lastCount ? steady + 1 : 0;
+      lastCount = rows.length;
+      if (rows.length > 0 && steady >= 2) return collectAnnouncements(document);
+      // The same empty list element as the last course's gets twice as long,
+      // since it may not have been re-rendered yet.
+      const settle = list === staleList ? opts.emptySettle * 2 : opts.emptySettle;
+      if (rows.length === 0 && Date.now() - started >= settle) return [];
+    }
+    return null;
+  }
+
+  /**
+   * The whole walk. Writes to the basket as it goes, so stopping halfway keeps
+   * what was read.
+   */
+  async function collectEverything(options) {
+    const opts = Object.assign(
+      {
+        every: 300,
+        pageTimeout: 15000,
+        emptySettle: 4000,
+        todoSettle: 2500,
+        gap: 250,
+        onProgress() {},
+        shouldStop: () => false,
+      },
+      options,
+    );
+    const storage = window.localStorage;
+    const returnTo = window.location.pathname + window.location.search;
+    const report = { courses: 0, collected: 0, skipped: [], stopped: false };
+    const save = (result) => {
+      if (result.changed) writeBasket(storage, result.basket);
+      return result.basket;
+    };
+
+    try {
+      // 1. The Courses page: the to-do list, and the recently opened courses.
+      opts.onProgress({ step: "courses" });
+      routeTo("/ultra/course");
+      await waitFor(
+        () =>
+          window.location.pathname.indexOf("/ultra/course") === 0 &&
+          (document.querySelector(VIEW_ALL_COURSES) || document.querySelector('a[href*="/ultra/courses/"]')),
+        opts.every,
+        opts.pageTimeout,
+      );
+      // An empty week has no to-do items at all, so this simply runs out.
+      await waitFor(() => document.querySelector("[aria-label*=', due ']"), opts.every, opts.todoSettle);
+
+      const recent = courseLinksOnPage(document);
+      let basket = readBasket(storage);
+      basket = save(rememberTodos(basket, todosToRecords(collectTodos(document)), new Date()));
+      basket = save(rememberCourses(basket, recent));
+
+      // 2. "View All": every course, not only the recent ones.
+      const viewAll = document.querySelector(VIEW_ALL_COURSES);
+      let cards = [];
+      if (viewAll) {
+        viewAll.click();
+        cards = await loadEveryCourseCard(opts);
+      }
+      const queue = coursesToCollect(cards, recent);
+      save(rememberCourses(basket, queue));
+      report.courses = queue.length;
+
+      // 3. Each course's Announcements page, one at a time.
+      for (let index = 0; index < queue.length; index++) {
+        if (opts.shouldStop()) {
+          report.stopped = true;
+          break;
+        }
+        const course = queue[index];
+        opts.onProgress({ step: "course", course, index: index + 1, total: queue.length });
+
+        const rows = await readAnnouncementsOf(course.id, course.code, opts);
+        if (rows === null) {
+          report.skipped.push(course.code || course.id);
+          continue;
+        }
+        // Re-read first: the student may have cleared the basket, or another
+        // HuskyCT tab written to it, while this page loaded.
+        save(rememberAnnouncements(readBasket(storage), course, rows, new Date()));
+        report.collected++;
+        await pause(opts.gap);
+      }
+    } finally {
+      // 4. Back to the page the student pressed the button on.
+      routeTo(returnTo);
+    }
+    return report;
   }
 
   /**
@@ -1442,8 +1733,8 @@
       <div class="body">
         <div class="note" data-role="hint"></div>
         <div class="note" data-role="basket">${t("basketEmpty")}</div>
-        <button class="act primary" data-act="todos">${t("sendDeadlines")}</button>
-        <button class="act" data-act="nextcourse" hidden></button>
+        <button class="act primary" data-act="collectall">${t("collectAll")}</button>
+        <button class="act" data-act="todos">${t("sendDeadlines")}</button>
         <button class="act" data-act="emptybasket">${t("clearBasket")}</button>
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
         <div class="note" data-role="count">${t("collectedNone")}</div>
@@ -1519,8 +1810,13 @@
     const acquireHint = wrap.querySelector('[data-role="acquire-hint"]');
     const langButton = wrap.querySelector('[data-role="lang"]');
     const basketLine = wrap.querySelector('[data-role="basket"]');
-    const nextButton = wrap.querySelector('[data-act="nextcourse"]');
+    const collectButton = wrap.querySelector('[data-act="collectall"]');
+    const sendButton = wrap.querySelector('[data-act="todos"]');
     const emptyBasketButton = wrap.querySelector('[data-act="emptybasket"]');
+    // The walk in progress, if any. The timer's own capture stands aside while
+    // it runs: the walk reads each page itself, and knows when a page is really
+    // the course it asked for.
+    let walk = null;
     // The basket in memory, re-read from storage on every tick so two HuskyCT
     // tabs collecting at once do not overwrite each other's courses.
     let basket = readBasket(window.localStorage);
@@ -1550,7 +1846,10 @@
       hint.textContent = guidanceFor(document, currentCourseId(), window.location.pathname);
     }
 
-    /** The basket line, and the button to the next course still to collect. */
+    /**
+     * The basket line, and which button leads: Collect while there is nothing to
+     * send, Send once there is.
+     */
     function refreshBasket() {
       const summary = basketSummary(basket);
       const empty = summary.courses === 0 && summary.deadlines === 0;
@@ -1558,12 +1857,12 @@
       basketLine.className = empty ? "note" : "note ok";
       emptyBasketButton.textContent = t("clearBasket");
 
-      const next = nextCourseToCollect(basket, currentCourseId());
-      nextButton.hidden = summary.courses === 0;
-      nextButton.disabled = !next;
-      nextButton.textContent = next
-        ? t("nextCourse", { course: next.code || next.id })
-        : t("allCoursesCollected");
+      const ready = !walk && (summary.deadlines > 0 || summary.announcements > 0);
+      collectButton.textContent = walk ? t("stopCollecting") : t("collectAll");
+      collectButton.classList.toggle("primary", !ready);
+      sendButton.classList.toggle("primary", ready);
+      sendButton.disabled = Boolean(walk);
+      emptyBasketButton.disabled = Boolean(walk);
     }
 
     /**
@@ -1572,6 +1871,7 @@
      * It only reads what is rendered — no request is made.
      */
     function captureTick() {
+      if (walk) return;
       const path = window.location.pathname;
       const showingEmptyList =
         /\/announcements/.test(path) &&
@@ -1761,11 +2061,46 @@
         return;
       }
 
-      if (act === "nextcourse") {
-        const next = nextCourseToCollect(basket, currentCourseId());
-        // A plain navigation within HuskyCT, as if the student had clicked the
-        // course and then its Announcements tab — not a request for data.
-        if (next) window.location.assign(announcementsPathFor(next.id));
+      if (act === "collectall") {
+        // The same button stops a walk in progress. It finishes the page it is
+        // on rather than abandoning it mid-read.
+        if (walk) {
+          walk.stop = true;
+          button.disabled = true;
+          return;
+        }
+
+        walk = { stop: false };
+        refreshBasket();
+        status.className = "note";
+        try {
+          const report = await collectEverything({
+            shouldStop: () => walk.stop,
+            onProgress(progress) {
+              status.textContent =
+                progress.step === "courses"
+                  ? t("collectingCourses")
+                  : t("collectingCourse", {
+                      course: progress.course.code || progress.course.id,
+                      index: progress.index,
+                      total: progress.total,
+                    });
+            },
+          });
+          status.className = report.stopped ? "note" : "note ok";
+          status.textContent =
+            (report.stopped ? t("collectStopped") : t("collectedAll", { courses: report.collected })) +
+            (report.skipped.length ? t("collectSkipped", { courses: report.skipped.join(", ") }) : "");
+        } catch (error) {
+          status.className = "note warn";
+          status.textContent = t("collectFailed", { message: error.message });
+        } finally {
+          walk = null;
+          button.disabled = false;
+          basket = readBasket(window.localStorage);
+          refreshBasket();
+          refreshGuidance();
+        }
         return;
       }
 
@@ -1912,8 +2247,12 @@
       rememberTodos,
       captureIntoBasket,
       basketSummary,
-      nextCourseToCollect,
       announcementsPathFor,
+      routeTo,
+      courseCardsOnPage,
+      coursesToCollect,
+      readAnnouncementsOf,
+      collectEverything,
       basketContents,
       basketLink,
       courseDigestToMarkdown,

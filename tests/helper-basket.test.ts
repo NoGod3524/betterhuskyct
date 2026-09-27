@@ -56,7 +56,17 @@ type Helper = {
     listSettled: boolean,
   ) => { basket: Basket; changed: boolean };
   basketSummary: (basket: Basket) => { courses: number; collected: number; announcements: number; deadlines: number };
-  nextCourseToCollect: (basket: Basket, currentId: string | null) => { id: string; code: string | null } | null;
+  courseCardsOnPage: (root: unknown) => Array<{ id: string; code: string | null; term: string | null }>;
+  coursesToCollect: (
+    cards: Array<{ id: string; code: string | null; term: string | null }>,
+    recent: Array<{ id: string; code: string }>,
+  ) => Array<{ id: string; code: string | null }>;
+  collectEverything: (options?: Record<string, unknown>) => Promise<{
+    courses: number;
+    collected: number;
+    skipped: string[];
+    stopped: boolean;
+  }>;
   announcementsPathFor: (courseId: string) => string;
   basketContents: (basket: Basket) => { records: unknown[]; announcements: Array<{ courseCode: string; title: string }> };
   basketLink: (
@@ -190,8 +200,9 @@ test("the Courses page puts every course and the to-do list in the basket as soo
   );
   assert.equal(basket.todos.length, 1);
   assert.match(page.text('[data-role="basket"]'), /1 deadline\(s\) and 0 announcement\(s\), from 0 of 2 course/);
-  assert.equal(page.text('[data-act="nextcourse"]'), "Next: MATH 1070Q announcements →");
-  assert.equal(page.button("nextcourse").hidden, false);
+  // With something to send, Send takes over as the leading button.
+  assert.equal(page.button("todos").classList.contains("primary"), true);
+  assert.equal(page.button("collectall").classList.contains("primary"), false);
 });
 
 test("a course's Announcements page adds them, with the posted date the live page shows", () => {
@@ -217,12 +228,12 @@ test("a course's Announcements page adds them, with the posted date the live pag
   assert.match(page.text('[data-role="hint"]'), /announcements are in the basket/);
 });
 
-test("the course outline, which shows no announcements, collects none and points to the tab", () => {
+test("the course outline, which shows no announcements, collects none and points to Collect everything", () => {
   const outline = `<div class="courseTitle-abc">MATH-1070Q-Mathematics for Business and Economics-SEC100-1268</div>`;
   const page = openPage("https://lms.uconn.edu/ultra/courses/_203765_1/outline", outline);
 
   assert.equal(page.basket().courses.every((course) => !course.announcementsAt), true);
-  assert.match(page.text('[data-role="hint"]'), /Announcements tab/);
+  assert.match(page.text('[data-role="hint"]'), /Collect everything/);
 });
 
 test("announcements seen anywhere but a course's Announcements tab are left behind, not sent unattributed", () => {
@@ -383,22 +394,6 @@ test("a basket too big for one link keeps every course's newest announcements", 
   }
 });
 
-// --- the next course -------------------------------------------------------------
-
-test("the next course is the first not yet collected, skipping the one open", () => {
-  const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
-  const basket = basketWith([
-    { id: "_1_1", code: "MATH 1070Q", announcements: [], announcementsAt: "2026-09-27T12:00:00.000Z" },
-    { id: "_2_1", code: "ECON 1201", announcements: [], announcementsAt: null },
-    { id: "_3_1", code: "STAT 1000Q", announcements: [], announcementsAt: null },
-  ]);
-
-  assert.equal(helper.nextCourseToCollect(basket, null)?.code, "ECON 1201");
-  assert.equal(helper.nextCourseToCollect(basket, "_2_1")?.code, "STAT 1000Q");
-  assert.equal(helper.announcementsPathFor("_2_1"), "/ultra/courses/_2_1/announcements");
-  assert.equal(helper.basketSummary(basket).collected, 1);
-});
-
 test("Clear basket empties it", () => {
   const page = openPage("https://lms.uconn.edu/ultra/course", COURSES_PAGE);
   assert.equal(page.basket().courses.length, 2);
@@ -409,4 +404,197 @@ test("Clear basket empties it", () => {
 
   assert.deepEqual(quiet.basket(), plain(quiet.helper.emptyBasket()));
   assert.match(quiet.text('[data-role="status"]'), /Basket cleared/);
+});
+
+// --- collecting everything in one press ------------------------------------------
+
+/**
+ * A small stand-in for HuskyCT's single-page app, shaped like what was measured
+ * on 2026-09-27:
+ *
+ * - The Courses page shows only the recently opened courses, a to-do list and a
+ *   "View All" button. "View All" puts up one `article` per course with an empty
+ *   `data-course-id`, and fills them in a moment later — on the live page, as
+ *   they scroll into view. Past terms and inaccessible courses are listed too.
+ * - A course's Announcements page renders after a delay, and moving from one
+ *   course to another leaves the previous course's rows on screen for a while
+ *   under the new address — the case that must not be misfiled.
+ * - One course's page never renders at all.
+ */
+function card(id: string, idText: string, name: string, extraClass = "") {
+  return (
+    `<article class="element-card course-element-card ${extraClass}" data-course-id="${id}">` +
+    `<span id="course-id-${id}">${idText}</span><h4 id="course-name-${id}">${name}</h4></article>`
+  );
+}
+
+const ALL_COURSES = [
+  card("_203765_1", "1268-UCONN-MATH-1070Q-SEC100-1191", "MATH-1070Q-Mathematics for Business and Economics-SEC100-1268"),
+  card("_198430_1", "1268-UCONN-ECON-1201-SEC010-5757", "ECON-1201-Principles of Microeconomics-SEC010-1268"),
+  card("_200541_1", "1268-UCONN-NRE-1000E-SEC002-3874", "NRE-1000E-Environmental Science-SEC002-1268"),
+  card("_201693_1", "1268-UCONN-STAT-1000Q-SEC015D-3618", "STAT-1000Q-Introduction to Statistics I-SEC015D-1268"),
+  card("_201463_1", "1268-UCONN-SOCI-1501-SEC005-1068", "SOCI-1501-Race, Class, and Gender-SEC005-1268"),
+  card("_100001_1", "1263-UCONN-CHEM-1127Q-SEC001-1000", "CHEM-1127Q-General Chemistry-SEC001-1263"),
+  card("_200999_1", "1268-UCONN-HIST-1300-SEC001-2000", "HIST-1300-United States History-SEC001-1268", "inactive-link"),
+].join("");
+
+const RECENT_COURSES =
+  `<button data-analytics-id="base.courses.recentCoursesView.viewAllButton">View All</button>` +
+  MATH_LINK +
+  ECON_LINK +
+  `<h2>To Do</h2>${TODO}`;
+
+const NRE_ANNOUNCEMENTS = announcementsPage(
+  "NRE-1000E-Environmental Science-SEC002-1268 • 1268-UCONN-NRE-1000E-SEC002-3874",
+  "NRE-1000E-Environmental Science-",
+  "_200541_1",
+  [announcementRow("Field trip Friday", "9/23/26, 10:00 AM", "Meet at the Fenton River trailhead at 9.")],
+);
+
+const STAT_EMPTY = announcementsPage(
+  "STAT-1000Q-Introduction to Statistics I-SEC015D-1268",
+  "STAT-1000Q-Introduction to Statistics I-",
+  "_201693_1",
+  [],
+);
+
+function fakeHuskyct(window: Window, delays = { render: 40, stale: 150 }) {
+  const main = window.document.querySelector("main")!;
+  const visited: string[] = [];
+  let generation = 0;
+
+  const announcementPages: Record<string, string> = {
+    _203765_1: MATH_ANNOUNCEMENTS,
+    _198430_1: ECON_ANNOUNCEMENTS,
+    _200541_1: NRE_ANNOUNCEMENTS,
+    _201693_1: STAT_EMPTY,
+    // _201463_1 (SOCI) never renders.
+  };
+
+  window.addEventListener("popstate", () => {
+    const path = window.location.pathname;
+    visited.push(path);
+    const mine = ++generation;
+    const render = (html: string, after: number) =>
+      setTimeout(() => {
+        if (mine === generation) main.innerHTML = html;
+      }, after);
+
+    if (path === "/ultra/course") {
+      render(RECENT_COURSES, delays.render);
+      return;
+    }
+    const match = path.match(/^\/ultra\/courses\/([^/]+)\/announcements/);
+    if (match) {
+      const html = announcementPages[match[1]];
+      // The previous page stays up for a while under the new address.
+      if (html) render(html, delays.stale);
+      return;
+    }
+    render(`<p>${path}</p>`, delays.render);
+  });
+
+  window.document.addEventListener("click", (event) => {
+    const target = event.target as unknown as { getAttribute?: (name: string) => string | null };
+    if (target.getAttribute?.("data-analytics-id") === "base.courses.recentCoursesView.viewAllButton") {
+      setTimeout(() => {
+        main.innerHTML = `<article class="element-card inactive-link" data-course-id=""></article>`.repeat(7);
+      }, delays.render);
+      setTimeout(() => {
+        main.innerHTML = ALL_COURSES;
+      }, delays.render + 200);
+    }
+  });
+
+  return { visited };
+}
+
+const FAST = { every: 20, pageTimeout: 800, emptySettle: 250, todoSettle: 100, gap: 0 };
+
+test("one press reads the to-do list and every current course, then goes back where it started", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
+  const huskyct = fakeHuskyct(page.window);
+
+  const report = plain(await page.helper.collectEverything(FAST));
+
+  // Five current courses: the two recent ones and three found only under View All.
+  // The past-term CHEM course and the inaccessible HIST one are not visited.
+  assert.equal(report.courses, 5);
+  assert.equal(report.collected, 4);
+  assert.deepEqual(report.skipped, ["SOCI 1501"], "the course whose page never loads was not reported");
+  assert.ok(!huskyct.visited.some((path) => /_100001_1|_200999_1/.test(path)), "walked into a course it should skip");
+
+  const basket = page.basket();
+  const titles = (id: string) => basket.courses.find((course) => course.id === id)?.announcements.map((a) => a.title);
+  assert.deepEqual(titles("_203765_1"), ["Exam 1 is NEXT Tuesday!", "Office Hours"]);
+  assert.deepEqual(titles("_198430_1"), ["Quiz 2 moved"]);
+  // Reached straight from ECON's page, whose rows linger for a while: they must
+  // not be filed under NRE.
+  assert.deepEqual(titles("_200541_1"), ["Field trip Friday"]);
+  assert.ok(basket.courses.find((course) => course.id === "_201693_1")?.announcementsAt, "an empty course was not ticked off");
+  assert.equal(basket.courses.find((course) => course.id === "_201463_1")?.announcementsAt, null);
+  assert.equal(basket.todos.length, 1);
+
+  assert.equal(page.window.location.pathname, "/ultra/stream", "it did not go back to where it started");
+});
+
+test("stopping halfway keeps what was already read", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>");
+  fakeHuskyct(page.window);
+  let checks = 0;
+
+  const report = plain(await page.helper.collectEverything({ ...FAST, shouldStop: () => checks++ >= 1 }));
+
+  assert.equal(report.stopped, true);
+  assert.equal(report.collected, 1);
+  assert.equal(page.basket().courses.filter((course) => course.announcementsAt).length, 1);
+  assert.equal(page.window.location.pathname, "/ultra/stream");
+});
+
+test("the panel's Collect everything turns into Stop while it runs, and Send leads afterwards", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>");
+  fakeHuskyct(page.window);
+
+  page.button("collectall").click();
+  await until(() => page.text('[data-act="collectall"]') === "Stop");
+  assert.equal(page.button("todos").disabled, true, "Send stayed usable in the middle of a walk");
+  await until(() => /Reading/.test(page.text('[data-role="status"]')));
+
+  page.button("collectall").click();
+  await until(() => page.text('[data-act="collectall"]') === "Collect everything", 10000);
+
+  assert.match(page.text('[data-role="status"]'), /Stopped/);
+  assert.equal(page.button("todos").disabled, false);
+  // The to-do list was read before the stop, so there is something to send.
+  assert.equal(page.button("todos").classList.contains("primary"), true);
+});
+
+test("only this term's courses are read, and a later term's too", () => {
+  const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
+  const cards = [
+    { id: "_1_1", code: "MATH 1070Q", term: "1268" },
+    { id: "_2_1", code: "CHEM 1127Q", term: "1263" },
+    { id: "_3_1", code: "ECON 1202", term: "1273" },
+    { id: "_4_1", code: null, term: null },
+  ];
+
+  const chosen = plain(helper.coursesToCollect(cards, [{ id: "_1_1", code: "MATH 1070Q" }]));
+  assert.deepEqual(chosen.map((course) => course.id), ["_1_1", "_3_1", "_4_1"]);
+
+  // No recent course to go by: the newest term on the list stands in.
+  const newest = plain(helper.coursesToCollect(cards, []));
+  assert.deepEqual(newest.map((course) => course.id), ["_3_1", "_4_1"]);
+});
+
+test("a course page still showing the last course's heading is not filed under the new one", () => {
+  const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
+  const window = new Window({ url: "https://lms.uconn.edu/ultra/courses/_198430_1/announcements" });
+  windows.push(window);
+  // ECON's address, MATH's page: the moment between the two.
+  window.document.body.innerHTML = MATH_ANNOUNCEMENTS;
+  const basket = basketWith([{ id: "_198430_1", code: "ECON 1201", announcements: [], announcementsAt: null }]);
+
+  const result = helper.captureIntoBasket(basket, window.document, "/ultra/courses/_198430_1/announcements", new Date(), true);
+
+  assert.equal(plain(result.basket).courses[0].announcementsAt, null, "MATH's announcements were filed under ECON");
 });

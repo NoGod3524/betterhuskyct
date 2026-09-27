@@ -1005,28 +1005,28 @@ test("the panel says what this page is for", () => {
   const withTodo = { querySelector: (selector: string) => (selector.includes(", due ") ? {} : null) };
   const plain = { querySelector: () => null };
 
-  assert.match(guidanceFor(withTodo, null, "/ultra/course"), /courses and to-do list are in the basket/);
+  assert.match(guidanceFor(withTodo, null, "/ultra/course"), /reads this to-do list/);
   // The course outline does not show announcements — measured on the live page.
-  assert.match(guidanceFor(plain, "_203765_1", "/ultra/courses/_203765_1/outline"), /Announcements tab/);
+  assert.match(guidanceFor(plain, "_203765_1", "/ultra/courses/_203765_1/outline"), /this one included/);
   assert.match(
     guidanceFor(plain, "_203765_1", "/ultra/courses/_203765_1/announcements"),
     /announcements are in the basket/,
   );
-  assert.match(guidanceFor(plain, null, "/ultra/stream"), /Courses page first/);
+  assert.match(guidanceFor(plain, null, "/ultra/stream"), /brings you back here/);
 });
 
 test("the Courses page is recognised in a quiet week, when its to-do list is empty", () => {
   // Measured: the To Do list only shows a week either side of today, and in a
   // quiet week it has no ", due " items at all.
   const plain = { querySelector: () => null };
-  assert.match(guidanceFor(plain, null, "/ultra/course"), /courses and to-do list are in the basket/);
+  assert.match(guidanceFor(plain, null, "/ultra/course"), /reads this to-do list/);
 });
 
 test("a page with a to-do list wins over being inside a course", () => {
   const withTodo = { querySelector: (selector: string) => (selector.includes(", due ") ? {} : null) };
   assert.match(
     guidanceFor(withTodo, "_203765_1", "/ultra/courses/_203765_1/outline"),
-    /courses and to-do list are in the basket/,
+    /reads this to-do list/,
   );
 });
 
@@ -1336,7 +1336,13 @@ test("the panel markup renders in Chinese, with nothing left in English", () => 
 
   surface.setLocale("en");
   const english = surface.panelMarkup();
-  const englishLabels = ["Send everything to BetterHuskyCT", "Get this page's calendar", "Clear collected", "Clear basket"];
+  const englishLabels = [
+    "Collect everything",
+    "Send everything to BetterHuskyCT",
+    "Get this page's calendar",
+    "Clear collected",
+    "Clear basket",
+  ];
   for (const label of englishLabels) {
     assert.ok(english.includes(label), `the English panel lost: ${label}`);
   }
@@ -1345,7 +1351,7 @@ test("the panel markup renders in Chinese, with nothing left in English", () => 
   const chinese = surface.panelMarkup();
 
   // Every translated label must be present in the markup, in Chinese.
-  for (const key of ["sendDeadlines", "getCalendar", "clearCollected", "collectCourse", "copy", "clearBasket"]) {
+  for (const key of ["collectAll", "sendDeadlines", "getCalendar", "clearCollected", "collectCourse", "copy", "clearBasket"]) {
     const text = surface.t(key);
     assert.match(text, /[\u4e00-\u9fff]/, `not translated: ${key}`);
     assert.ok(chinese.includes(text), `the rendered panel is missing the translation for ${key}`);
@@ -1360,7 +1366,7 @@ test("the panel markup renders in Chinese, with nothing left in English", () => 
   surface.setLocale("en");
 });
 
-test("the panel leads with the guidance and the deadlines button", () => {
+test("the panel leads with the guidance and Collect everything", () => {
   // Anchored on the closing backtick of the template literal, not on the first
   // `</div>` — a comment inside the markup contains one, and slicing there cut
   // the panel down to 291 characters and made this test lie. (It did.)
@@ -1376,11 +1382,14 @@ test("the panel leads with the guidance and the deadlines button", () => {
   assert.ok(hintAt !== -1 && countAt !== -1, "the panel lost its hint or its count");
   assert.ok(hintAt < countAt, "the guidance is not at the top of the panel");
 
-  // Send deadlines leads and is the only primary, because it is the one action
-  // that needs no file and cannot be done by hand.
+  // Collect everything leads, then Send, both above the calendar tools. Collect
+  // is the primary to start with; the panel hands that to Send once the basket
+  // has something in it (tested on a mounted panel in helper-basket.test.ts).
+  const collectAt = panel.indexOf('data-act="collectall"');
   const todosAt = panel.indexOf('data-act="todos"');
   const acquireAt = panel.indexOf('data-act="acquire"');
-  assert.ok(todosAt !== -1 && acquireAt !== -1, "the panel lost a button");
-  assert.ok(todosAt < acquireAt, "Send deadlines is not the leading action");
-  assert.match(panel, /class="act primary" data-act="todos"/, "Send deadlines is not the primary button");
+  assert.ok(collectAt !== -1 && todosAt !== -1 && acquireAt !== -1, "the panel lost a button");
+  assert.ok(collectAt < todosAt && todosAt < acquireAt, "the panel's actions are out of order");
+  assert.match(panel, /class="act primary" data-act="collectall"/, "Collect everything is not the primary button");
+  assert.equal((panel.match(/class="act primary"/g) || []).length, 1, "more than one primary button to start with");
 });
