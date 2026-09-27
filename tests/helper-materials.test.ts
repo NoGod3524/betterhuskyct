@@ -5,6 +5,8 @@ import vm from "node:vm";
 
 import { Window } from "happy-dom";
 
+import { createMaterialsReceiver, memoryMaterialsStore, parseLinksPage } from "../src/lib/materials.ts";
+
 /**
  * "Collect course materials", run as shipped on pages shaped like the live
  * HuskyCT ones, measured on 2026-09-27:
@@ -58,6 +60,11 @@ type Helper = {
   classifyOutline: (root: unknown, courseId: string) => { files: unknown[]; unaddressed: number };
   problemsText: (problems: Array<{ key: string; params?: Record<string, unknown> }>) => string;
   DOCUMENTS_KEY: string;
+  sendMaterialsToBhc: (
+    target: { postMessage(message: unknown, origin: string): void },
+    manifest: Manifest,
+    options?: Record<string, unknown>,
+  ) => Promise<{ connected: boolean; sent: number; skipped: number; failed: number }>;
 };
 
 const windows: Window[] = [];
@@ -520,5 +527,105 @@ test("a file row with no download address is counted, so the panel can say so", 
   assert.match(helper.problemsText([{ key: "problemFileAddress", params: { count: 1 } }]), /^自检：有 1 个文件找不到下载地址/);
   helper.setLocale("en");
   assert.ok(window);
+});
+
+// --- into BetterHuskyCT ------------------------------------------------------------------
+
+/**
+ * The app's Materials page, as far as the helper can tell: its real receiver
+ * (the code the page runs), fed what the helper posts, answering back into the
+ * helper's window as a message from the app's origin.
+ */
+function appTab(window: Window) {
+  const store = memoryMaterialsStore();
+  const receive = createMaterialsReceiver({ store });
+  const posted: Array<{ kind: unknown; origin: string }> = [];
+  const target = {
+    postMessage(message: unknown, origin: string) {
+      posted.push({ kind: (message as { kind?: unknown }).kind, origin });
+      void receive({
+        origin: "https://lms.uconn.edu",
+        data: message,
+        source: {
+          postMessage(reply: unknown) {
+            window.dispatchEvent(new window.MessageEvent("message", { data: reply, origin: "https://betterhuskyct.vercel.app" }));
+          },
+        },
+      });
+    },
+  };
+  return { store, target, posted };
+}
+
+const SEND = { helloEvery: 20, connectTimeout: 1000, fileTimeout: 1000 };
+
+test("sent to BetterHuskyCT: every file stored there, then only what is new", async () => {
+  const { window, helper, store: fileStoreSeen } = openPage();
+  const manifest = await helper.collectMaterials(FAST);
+  const app = appTab(window);
+
+  const first = plain(await helper.sendMaterialsToBhc(app.target, manifest, SEND));
+
+  assert.deepEqual(first, { connected: true, sent: 6, skipped: 0, failed: 0 });
+  assert.ok(app.posted.every((post) => post.origin === "https://betterhuskyct.vercel.app"), "posted to another origin");
+  assert.equal((await app.store.keys()).length, 6);
+  const index = await app.store.getIndex();
+  assert.deepEqual(index?.courses.map((course) => course.code), ["ECON 1201", "MATH 1070Q"]);
+  const syllabus = (await app.store.files()).find((file) => file.name === "Syllabus Fall 2026.pdf");
+  assert.ok(syllabus, "the document's attachment did not arrive");
+  // Named as the file store names it when the title has no extension.
+  assert.ok((await app.store.files()).some((file) => /^MINITAB Data \d+\.csv$/.test(file.name)));
+
+  const fetchedBefore = fileStoreSeen.requests.length;
+  const second = plain(await helper.sendMaterialsToBhc(app.target, manifest, SEND));
+  assert.deepEqual(second, { connected: true, sent: 0, skipped: 6, failed: 0 });
+  assert.equal(fileStoreSeen.requests.length, fetchedBefore, "files the app already had were fetched again");
+});
+
+test("an app that never answers is reported, not waited on forever", async () => {
+  const { helper } = openPage();
+  const manifest = await helper.collectMaterials(FAST);
+  const silent = { postMessage() {} };
+
+  const result = plain(await helper.sendMaterialsToBhc(silent, manifest, { ...SEND, connectTimeout: 200 }));
+
+  assert.deepEqual(result, { connected: false, sent: 0, skipped: 0, failed: 0 });
+});
+
+test("a reply from any other page is ignored", async () => {
+  const { window, helper } = openPage();
+  const manifest = await helper.collectMaterials(FAST);
+  // Something else on the web answering "ready" must not start a delivery.
+  const impostor = {
+    postMessage() {
+      window.dispatchEvent(
+        new window.MessageEvent("message", {
+          data: { protocol: "betterhuskyct/materials@1", kind: "ready", have: [] },
+          origin: "https://evil.example",
+        }),
+      );
+    },
+  };
+
+  const result = plain(await helper.sendMaterialsToBhc(impostor, manifest, { ...SEND, connectTimeout: 200 }));
+
+  assert.equal(result.connected, false);
+});
+
+test("the saved links page reads back into the app with its courses, kinds and folders", async () => {
+  const { helper } = openPage();
+  const manifest = await helper.collectMaterials(FAST);
+  const html = helper.materialsLinksHtml(manifest);
+  const parser = new Window();
+  windows.push(parser);
+
+  const links = parseLinksPage(html, (source) => new parser.DOMParser().parseFromString(source, "text/html") as unknown as Document);
+
+  assert.deepEqual(Object.keys(links).sort(), ["ECON 1201", "MATH 1070Q"]);
+  assert.equal(links["MATH 1070Q"].id, "_203765_1");
+  assert.deepEqual(links["MATH 1070Q"].links.map((link) => link.kind).sort(), ["link", "link", "video"]);
+  assert.deepEqual(links["MATH 1070Q"].tools.map((tool) => tool.title), ["Cengage WebAssign"]);
+  const white = links["MATH 1070Q"].links.find((link) => /white/.test(link.url));
+  assert.deepEqual(white?.path, ["Problem-Solving Tips Blank Notes"]);
 });
 

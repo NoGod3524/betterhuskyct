@@ -174,7 +174,16 @@ tools in 6 courses."* Nothing is downloaded until you choose.
 
 Then:
 
-- **Save N files to a folder…** asks once where to put them and writes the
+- **Send to BetterHuskyCT** — the main one. It opens BetterHuskyCT's
+  **Materials** page and hands the files over tab to tab, with `postMessage`;
+  they are kept in that browser's own storage, and the page shows them by course
+  and folder, opens PDFs in place, and lists the videos, links and tools. The
+  app first says which files it already has, so pressing it next week sends only
+  what is new. Nothing goes through a server: the files are read here, because
+  only this page has HuskyCT's session, and stored there.
+- **Save N files to a folder…** — a copy on disk as well, or the way in when the
+  two tabs cannot reach each other; BetterHuskyCT's Materials page can import
+  the saved folder. asks once where to put them and writes the
   term's files by course and by the course's own folders. The picker opens on
   the Desktop, but Edge and Chrome refuse the Desktop itself ("contains system
   files"), so make a folder there — **New folder**, e.g. `HuskyCT` — and pick
@@ -192,11 +201,8 @@ Then:
   skipped without being fetched again, so pressing it next week saves only
   what is new. This needs Edge or Chrome; elsewhere the button offers **one ZIP**
   with the same folders instead.
-- **Save the links and videos** writes a page listing, by course and folder,
-  every embedded video (YouTube, Vidyard, Panopto…), every link out, and every
-  tool that only opens from HuskyCT (LTI links, Cengage), which links back to
-  its course.
-
+- The folder also gets a **links and videos** page — every video, link and tool
+  by course and folder — marked up so the Materials page can read it back.
 Assignments, quizzes, tests and discussions are work rather than material; they
 are counted and left alone.
 
