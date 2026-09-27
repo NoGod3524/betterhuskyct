@@ -32,8 +32,10 @@ type Basket = {
     announcements: Array<{ title: string; body: string; posted: string | null }>;
     announcementsAt: string | null;
   }>;
-  todos: Array<{ uid: string; start: string; title: string }>;
+  todos: Array<{ uid: string; start: string; title: string; course?: string | null }>;
   todosAt: string | null;
+  dueDates?: Array<{ uid: string; start: string; title: string; course?: string | null }>;
+  dueDatesAt?: string | null;
 };
 
 type Helper = {
@@ -63,9 +65,13 @@ type Helper = {
     now?: Date,
   ) => Array<{ id: string; code: string | null }>;
   termCodeFor: (date: Date) => number;
+  collectDueDates: (root: unknown) => Array<{ uid: string; title: string; course: string | null; due: Date }>;
+  rememberDueDates: (basket: Basket, records: Basket["todos"], now?: Date) => { basket: Basket; changed: boolean };
+  deadlineRecords: (basket: Basket) => Basket["todos"];
   collectEverything: (options?: Record<string, unknown>) => Promise<{
     courses: number;
     collected: number;
+    dueDates: number;
     skipped: string[];
     stopped: boolean;
   }>;
@@ -463,6 +469,26 @@ const STAT_EMPTY = announcementsPage(
 
 const WIDE_COURSES = ALL_COURSES + `<h2>To Do</h2>${TODO}`;
 
+/** A card from the Calendar's "Due dates" view, as the live page renders it. */
+function dueItem(title: string, due: string, courseId: string, courseText: string) {
+  return (
+    `<div class="element-card due-item element-card-deadline course-color-8"><div class="element-details">` +
+    `<div class="name"><a href="javascript:void(0);">${title}</a></div>` +
+    `<div class="content"><span>Due date: ${due}</span><span> ∙ </span>` +
+    `<a href="https://lms.uconn.edu/ultra//${courseId}/outline">${courseText}</a></div></div></div>`
+  );
+}
+
+const MATH_TEXT = "1268-UCONN-MATH-1070Q-SEC100-1191: MATH-1070Q-Mathematics for Business and Economics-SEC100-1268";
+const STAT_TEXT = "1268-UCONN-STAT-1000Q-SEC015D-3618: STAT-1000Q-Introduction to Statistics I-SEC015D-1268";
+const DUE_SOON = [
+  dueItem("Section 5.1 Homework", "10/2/26, 11:59 PM (EDT)", "_203765_1", MATH_TEXT),
+  dueItem("Assignment 2", "10/9/26, 11:59 PM (EDT)", "_201693_1", STAT_TEXT),
+].join("");
+// What the view adds once scrolled: the rest of the term, past the switch to EST.
+const DUE_LATER = dueItem("Assignment 9", "12/11/26, 11:59 PM (EST)", "_201693_1", STAT_TEXT);
+const CALENDAR = `<button id="bb-calendar1-deadline" analytics-id="components.directives.calendar.viewSwitch.deadline">Due Dates</button>`;
+
 function fakeHuskyct(window: Window, layout: "narrow" | "wide" = "narrow", delays = { render: 40, stale: 150 }) {
   const main = window.document.querySelector("main")!;
   const visited: string[] = [];
@@ -489,6 +515,10 @@ function fakeHuskyct(window: Window, layout: "narrow" | "wide" = "narrow", delay
       render(layout === "wide" ? WIDE_COURSES : RECENT_COURSES, delays.render);
       return;
     }
+    if (path === "/ultra/calendar") {
+      render(CALENDAR, delays.render);
+      return;
+    }
     const match = path.match(/^\/ultra\/courses\/([^/]+)\/announcements/);
     if (match) {
       const html = announcementPages[match[1]];
@@ -501,6 +531,15 @@ function fakeHuskyct(window: Window, layout: "narrow" | "wide" = "narrow", delay
 
   window.document.addEventListener("click", (event) => {
     const target = event.target as unknown as { getAttribute?: (name: string) => string | null };
+    if (target.getAttribute?.("id") === "bb-calendar1-deadline") {
+      // A few weeks first; the rest of the term arrives as the list scrolls.
+      setTimeout(() => {
+        main.innerHTML = CALENDAR + DUE_SOON;
+      }, delays.render);
+      setTimeout(() => {
+        main.innerHTML = CALENDAR + DUE_SOON + DUE_LATER;
+      }, delays.render + 120);
+    }
     if (target.getAttribute?.("data-analytics-id") === "base.courses.recentCoursesView.viewAllButton") {
       setTimeout(() => {
         main.innerHTML = `<article class="element-card inactive-link" data-course-id=""></article>`.repeat(7);
@@ -539,6 +578,10 @@ test("one press reads the to-do list and every current course, then goes back wh
   assert.ok(basket.courses.find((course) => course.id === "_201693_1")?.announcementsAt, "an empty course was not ticked off");
   assert.equal(basket.courses.find((course) => course.id === "_201463_1")?.announcementsAt, null);
   assert.equal(basket.todos.length, 1);
+  // The whole term's due dates, including the ones that only load on scrolling.
+  assert.equal(report.dueDates, 3);
+  assert.deepEqual(basket.dueDates?.map((item) => item.title), ["Section 5.1 Homework", "Assignment 2", "Assignment 9"]);
+  assert.equal(page.helper.basketSummary(basket).deadlines, 4);
 
   assert.equal(page.window.location.pathname, "/ultra/stream", "it did not go back to where it started");
 });
@@ -548,7 +591,7 @@ test("stopping halfway keeps what was already read", async () => {
   fakeHuskyct(page.window);
   let checks = 0;
 
-  const report = plain(await page.helper.collectEverything({ ...FAST, shouldStop: () => checks++ >= 1 }));
+  const report = plain(await page.helper.collectEverything({ ...FAST, shouldStop: () => checks++ >= 2 }));
 
   assert.equal(report.stopped, true);
   assert.equal(report.collected, 1);
@@ -640,4 +683,73 @@ test("opening the wide Courses page puts its course cards in the basket, this te
   assert.ok(ids.includes("_200541_1"), "a course listed only as a card was missed");
   assert.ok(!ids.includes("_100001_1"), "a past term's course was added");
   assert.ok(!ids.includes("_200999_1"), "an inaccessible course was added");
+});
+
+// --- the whole term's due dates ---------------------------------------------------
+
+test("a due time with its zone is read as that exact instant, wherever the reader is", () => {
+  const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
+  const window = new Window({ url: "https://lms.uconn.edu/ultra/calendar" });
+  windows.push(window);
+  window.document.body.innerHTML = DUE_SOON + DUE_LATER;
+
+  const items = helper.collectDueDates(window.document);
+
+  assert.deepEqual(
+    plain(items.map((item) => [item.title, item.course, new Date(item.due).toISOString()])),
+    [
+      ["Section 5.1 Homework", "MATH 1070Q", "2026-10-03T03:59:00.000Z"],
+      ["Assignment 2", "STAT 1000Q", "2026-10-10T03:59:00.000Z"],
+      // EST after the clocks change: an hour later in UTC.
+      ["Assignment 9", "STAT 1000Q", "2026-12-12T04:59:00.000Z"],
+    ],
+  );
+  assert.equal(items[0].uid, "huskyct-due-_203765_1-Section-5.1-Homework");
+});
+
+test("a partial look at the due dates does not drop the ones read before", () => {
+  const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
+  const record = (uid: string, start: string) => ({ uid, title: uid, start, course: "MATH 1070Q" });
+  const first = helper.rememberDueDates(helper.emptyBasket(), [record("a", "2026-10-03T03:59:00.000Z"), record("b", "2026-10-10T03:59:00.000Z")]);
+
+  // The view reopened at today shows only the first few weeks, one of them moved.
+  const later = helper.rememberDueDates(first.basket, [record("a", "2026-10-04T03:59:00.000Z")]);
+
+  assert.deepEqual(
+    plain(later.basket.dueDates)?.map((item) => [item.uid, item.start]),
+    [
+      ["a", "2026-10-04T03:59:00.000Z"],
+      ["b", "2026-10-10T03:59:00.000Z"],
+    ],
+  );
+  const same = helper.rememberDueDates(later.basket, [record("a", "2026-10-04T03:59:00.000Z")]);
+  assert.equal(same.changed, false, "an unchanged view rewrote storage");
+});
+
+test("a deadline on both the to-do list and the Calendar is sent once, as the to-do item", () => {
+  const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
+  const start = "2026-10-03T03:59:00.000Z";
+  const basket: Basket = {
+    ...helper.emptyBasket(),
+    todos: [{ uid: "huskyct-todo-_3867214_1", title: "Section 5.1 Homework", course: "MATH 1070Q", start }],
+    dueDates: [
+      { uid: "huskyct-due-_203765_1-Section-5.1-Homework", title: "Section 5.1 Homework", course: "MATH 1070Q", start },
+      { uid: "huskyct-due-_201693_1-Assignment-2", title: "Assignment 2", course: "STAT 1000Q", start },
+    ],
+  };
+
+  const records = plain(helper.deadlineRecords(basket));
+
+  assert.deepEqual(records.map((record) => record.uid), ["huskyct-todo-_3867214_1", "huskyct-due-_201693_1-Assignment-2"]);
+  assert.equal(helper.basketSummary(basket).deadlines, 2);
+});
+
+test("a basket saved before due dates existed still reads", () => {
+  const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
+  const old = JSON.stringify({ version: 1, courses: [], todos: [{ uid: "t", start: "2026-10-01T00:00:00.000Z", title: "HW" }], todosAt: null });
+
+  const basket = plain(helper.readBasket({ getItem: () => old }));
+
+  assert.equal(basket.todos.length, 1);
+  assert.deepEqual(basket.dueDates, []);
 });

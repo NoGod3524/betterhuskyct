@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.16.1
+// @version      0.16.2
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.16.1";
+  const VERSION = "0.16.2";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -120,6 +120,7 @@
       collectAll: "Collect everything",
       stopCollecting: "Stop",
       collectingCourses: "Reading your courses and to-do list…",
+      collectingDueDates: "Reading the term's due dates from the Calendar…",
       collectingCourse: "Reading {course} ({index} of {total})…",
       collectedAll: "Done: {courses} course(s) read. Press Send to put them in BetterHuskyCT.",
       collectSkipped: " Could not open: {courses}.",
@@ -209,6 +210,7 @@
       collectAll: "一键收集全部",
       stopCollecting: "停止",
       collectingCourses: "正在读取课程列表和待办……",
+      collectingDueDates: "正在从日历读取整个学期的截止日期……",
       collectingCourse: "正在读取 {course}（{index}/{total}）……",
       collectedAll: "完成：读取了 {courses} 门课。按「全部发给 BetterHuskyCT」导入。",
       collectSkipped: "打不开的课程：{courses}。",
@@ -783,23 +785,33 @@
     };
   }
 
+  /** Hours from UTC for the zone abbreviations HuskyCT prints after a due time. */
+  const ZONE_OFFSETS = { EDT: -4, EST: -5, CDT: -5, CST: -6, MDT: -6, MST: -7, PDT: -7, PST: -8, UTC: 0, GMT: 0 };
+
   /**
-   * `9/25/26, 11:59 PM` -> an instant, read in the reader's own timezone.
+   * `9/25/26, 11:59 PM` -> an instant.
    *
-   * The page shows a wall-clock time with no zone on it. Building the date from
-   * its parts lets the browser interpret it locally, which is right for someone
-   * sitting in the same timezone as their classes — and it is the only reading
-   * available from the page alone.
+   * The to-do list shows a wall-clock time with no zone on it, so that one is
+   * read in the reader's own timezone — right for someone sitting in the same
+   * timezone as their classes, and the only reading the page offers. The
+   * Calendar's due dates add the zone — `10/2/26, 11:59 PM (EDT)` — and then
+   * the instant is exact wherever the reader is.
    */
   function dueDateFromText(value) {
-    const match = String(value || "").match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4}),?\s+(\d{1,2}):(\d{2})\s*([AP])M/i);
+    const match = String(value || "").match(
+      /(\d{1,2})\/(\d{1,2})\/(\d{2,4}),?\s+(\d{1,2}):(\d{2})\s*([AP])M(?:\s*\(([A-Z]{2,4})\))?/i,
+    );
     if (!match) return null;
 
     const year = match[3].length === 2 ? 2000 + Number(match[3]) : Number(match[3]);
     // 12 AM is hour 0 and 12 PM is hour 12; the modulo handles both.
     const hour = (Number(match[4]) % 12) + (/p/i.test(match[6]) ? 12 : 0);
+    const zone = match[7] ? match[7].toUpperCase() : null;
 
-    const date = new Date(year, Number(match[1]) - 1, Number(match[2]), hour, Number(match[5]), 0, 0);
+    const date =
+      zone && Object.prototype.hasOwnProperty.call(ZONE_OFFSETS, zone)
+        ? new Date(Date.UTC(year, Number(match[1]) - 1, Number(match[2]), hour - ZONE_OFFSETS[zone], Number(match[5])))
+        : new Date(year, Number(match[1]) - 1, Number(match[2]), hour, Number(match[5]), 0, 0);
     return Number.isNaN(date.valueOf()) ? null : date;
   }
 
@@ -826,6 +838,43 @@
       const stable = analytics.split(".").pop() || todo.title + "@" + todo.dueText;
       todo.uid = "huskyct-todo-" + stable.replace(/[^\w.-]+/g, "-");
       records.push(todo);
+    }
+
+    return records;
+  }
+
+  /**
+   * The Calendar's "Due dates" view: every due date from today to the end of
+   * the term, across courses. The to-do list only reaches a week ahead, so in a
+   * quiet week it is empty while the term is full of deadlines — measured on
+   * 2026-09-27, an empty to-do list beside 29 due dates running to December 11.
+   *
+   * Each card has the item's name, `Due date: 10/2/26, 11:59 PM (EDT)`, and a
+   * link to its course. The date is found by its shape rather than by the
+   * words around it, which change with the interface language. HuskyCT gives
+   * the card no id, so the uid is the course and the title: a rescheduled item
+   * keeps it and simply takes the new time.
+   */
+  function collectDueDates(root) {
+    const scope = root || document;
+    const records = [];
+    const seen = new Set();
+
+    for (const card of scope.querySelectorAll(".element-card.due-item")) {
+      const title = textOf(card.querySelector(".name"));
+      const content = card.querySelector(".content");
+      const courseLink = content ? content.querySelector("a") : null;
+      const dueText =
+        (textOf(content).match(/\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}\s*[AP]M(?:\s*\([A-Z]{2,4}\))?/i) || [])[0] || "";
+      const due = dueDateFromText(dueText);
+      if (!title || !due) continue;
+
+      const courseId = (String((courseLink && courseLink.getAttribute("href")) || "").match(/(_\d+_\d+)/) || [])[1] || null;
+      const course = courseCodeFromDisplay(textOf(courseLink));
+      const uid = "huskyct-due-" + ((courseId || course || "course") + "-" + title).replace(/[^\w.-]+/g, "-");
+      if (seen.has(uid)) continue;
+      seen.add(uid);
+      records.push({ uid, title, course, courseId, dueText, due });
     }
 
     return records;
@@ -875,7 +924,7 @@
   const PACKED_LIMIT = 30000;
 
   function emptyBasket() {
-    return { version: BASKET_VERSION, courses: [], todos: [], todosAt: null };
+    return { version: BASKET_VERSION, courses: [], todos: [], todosAt: null, dueDates: [], dueDatesAt: null };
   }
 
   /**
@@ -904,6 +953,12 @@
           (todo) => todo && typeof todo.uid === "string" && typeof todo.start === "string",
         ),
         todosAt: typeof parsed.todosAt === "string" ? parsed.todosAt : null,
+        // Added in 0.16.2. A basket saved before then has none, which reads as
+        // "not collected yet" rather than as a broken basket.
+        dueDates: (Array.isArray(parsed.dueDates) ? parsed.dueDates : []).filter(
+          (item) => item && typeof item.uid === "string" && typeof item.start === "string",
+        ),
+        dueDatesAt: typeof parsed.dueDatesAt === "string" ? parsed.dueDatesAt : null,
       };
     } catch {
       return emptyBasket();
@@ -1002,6 +1057,45 @@
   }
 
   /**
+   * The Calendar's due dates, merged by uid rather than replaced.
+   *
+   * The view starts at today and loads more as it scrolls, so one look at it
+   * may show only part of the term; replacing would throw away the rest. A
+   * rescheduled item keeps its uid and takes its new time.
+   */
+  function rememberDueDates(basket, records, now) {
+    if (!records || records.length === 0) return { basket, changed: false };
+    const byUid = new Map((basket.dueDates || []).map((item) => [item.uid, item]));
+    let changed = false;
+    for (const record of records) {
+      const previous = byUid.get(record.uid);
+      if (!previous || JSON.stringify(previous) !== JSON.stringify(record)) {
+        byUid.set(record.uid, record);
+        changed = true;
+      }
+    }
+    if (!changed) return { basket, changed: false };
+    return {
+      basket: { ...basket, dueDates: [...byUid.values()], dueDatesAt: (now || new Date()).toISOString() },
+      changed: true,
+    };
+  }
+
+  /**
+   * Every deadline in the basket, once.
+   *
+   * The to-do list and the Calendar overlap for the coming week. The to-do
+   * list's copy wins — it carries HuskyCT's own item id, and it is the only one
+   * of the two that shows overdue work — and a due date is dropped when the
+   * to-do list has the same course, title and time.
+   */
+  function deadlineRecords(basket) {
+    const key = (record) => [record.course || "", record.title, record.start].join("|");
+    const fromTodos = new Set(basket.todos.map(key));
+    return basket.todos.concat((basket.dueDates || []).filter((record) => !fromTodos.has(key(record))));
+  }
+
+  /**
    * Reads the page into the basket.
    *
    * `listSettled` is the panel's word that an Announcements page has shown its
@@ -1021,6 +1115,7 @@
     apply(rememberCourses(current, links));
     apply(rememberCourses(current, coursesToCollect(courseCardsOnPage(scope), links, now)));
     apply(rememberTodos(current, todosToRecords(collectTodos(scope)), now));
+    apply(rememberDueDates(current, todosToRecords(collectDueDates(scope)), now));
 
     const match = String(pathname || "").match(/^\/ultra\/courses\/([^/]+)\/announcements/);
     if (match) {
@@ -1045,7 +1140,7 @@
       courses: basket.courses.length,
       collected: collected.length,
       announcements: collected.reduce((total, course) => total + course.announcements.length, 0),
-      deadlines: basket.todos.length,
+      deadlines: deadlineRecords(basket).length,
     };
   }
 
@@ -1070,6 +1165,7 @@
    */
 
   const VIEW_ALL_COURSES = '[data-analytics-id="base.courses.recentCoursesView.viewAllButton"]';
+  const DUE_DATES_VIEW = '#bb-calendar1-deadline, [analytics-id="components.directives.calendar.viewSwitch.deadline"]';
 
   function pause(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -1271,6 +1367,40 @@
   }
 
   /**
+   * Opens the Calendar's "Due dates" view and scrolls it to the end of the term.
+   *
+   * It shows about three weeks at first and loads the rest as it scrolls —
+   * 20 items, then 29, on 2026-09-27 — so it is scrolled until the count holds.
+   * A term with nothing due shows no cards at all, which simply reads as none.
+   */
+  async function readDueDates(opts) {
+    routeTo("/ultra/calendar");
+    const button = await waitFor(() => document.querySelector(DUE_DATES_VIEW), opts.every, opts.pageTimeout);
+    if (!button) return [];
+    button.click();
+    await waitFor(() => document.querySelector(".element-card.due-item"), opts.every, opts.emptySettle);
+
+    let lastCount = -1;
+    let steady = 0;
+    const started = Date.now();
+    while (Date.now() - started < opts.pageTimeout) {
+      const items = document.querySelectorAll(".element-card.due-item");
+      steady = items.length === lastCount ? steady + 1 : 0;
+      lastCount = items.length;
+      if (steady >= 3) break;
+      const last = items[items.length - 1];
+      if (last && typeof last.scrollIntoView === "function") last.scrollIntoView({ block: "end" });
+      for (const element of document.querySelectorAll("main, main *")) {
+        if (element.clientHeight >= 150 && element.scrollHeight > element.clientHeight + 50) {
+          element.scrollTop = element.scrollHeight;
+        }
+      }
+      await pause(opts.every * 2);
+    }
+    return collectDueDates(document);
+  }
+
+  /**
    * The whole walk. Writes to the basket as it goes, so stopping halfway keeps
    * what was read.
    */
@@ -1289,7 +1419,7 @@
     );
     const storage = window.localStorage;
     const returnTo = window.location.pathname + window.location.search;
-    const report = { courses: 0, collected: 0, skipped: [], stopped: false };
+    const report = { courses: 0, collected: 0, dueDates: 0, skipped: [], stopped: false };
     const save = (result) => {
       if (result.changed) writeBasket(storage, result.basket);
       return result.basket;
@@ -1331,7 +1461,16 @@
       save(rememberCourses(basket, queue));
       report.courses = queue.length;
 
-      // 3. Each course's Announcements page, one at a time.
+      // 3. The Calendar's due dates: the whole term, not just the week the
+      // to-do list covers.
+      if (!opts.shouldStop()) {
+        opts.onProgress({ step: "duedates" });
+        const dueDates = await readDueDates(opts);
+        report.dueDates = dueDates.length;
+        save(rememberDueDates(readBasket(storage), todosToRecords(dueDates), new Date()));
+      }
+
+      // 4. Each course's Announcements page, one at a time.
       for (let index = 0; index < queue.length; index++) {
         if (opts.shouldStop()) {
           report.stopped = true;
@@ -1352,7 +1491,7 @@
         await pause(opts.gap);
       }
     } finally {
-      // 4. Back to the page the student pressed the button on.
+      // 5. Back to the page the student pressed the button on.
       routeTo(returnTo);
     }
     return report;
@@ -1376,7 +1515,7 @@
     for (let rank = 0; rank < longest; rank += 1) {
       for (const list of perCourse) if (rank < list.length) announcements.push(list[rank]);
     }
-    return { records: basket.todos, announcements };
+    return { records: deadlineRecords(basket), announcements };
   }
 
   /**
@@ -2108,7 +2247,9 @@
               status.textContent =
                 progress.step === "courses"
                   ? t("collectingCourses")
-                  : t("collectingCourse", {
+                  : progress.step === "duedates"
+                    ? t("collectingDueDates")
+                    : t("collectingCourse", {
                       course: progress.course.code || progress.course.id,
                       index: progress.index,
                       total: progress.total,
@@ -2273,6 +2414,9 @@
       rememberCourses,
       rememberAnnouncements,
       rememberTodos,
+      rememberDueDates,
+      deadlineRecords,
+      collectDueDates,
       captureIntoBasket,
       basketSummary,
       announcementsPathFor,

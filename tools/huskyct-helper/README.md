@@ -103,15 +103,22 @@ them. So the helper goes and gets them.
 
 Press **Collect everything** and the panel walks HuskyCT in the tab you are in:
 
-1. **The Courses page**, for the to-do list.
+1. **The Courses page**, for the to-do list. It only covers a week either side
+   of today, and it is the one place overdue work shows.
 2. **Every course you are enrolled in.** On a wide screen the Courses page lists
    them all as cards; on a narrow one it shows only the few opened most recently
    (four of six on the account this was measured with) and the rest are behind
    **View All**, which the panel opens. Past terms are skipped — the current term
    comes from the recent courses, or from today's date when there are none.
-3. **Each course's Announcements page**, one after another: all the
+3. **The Calendar's "Due dates" view**, for every deadline from today to the
+   end of the term. In a quiet week the to-do list is empty while the term is
+   full of work — on 2026-09-27 it showed nothing, beside 29 due dates running
+   to December 11. The view loads more as it scrolls, so the panel scrolls it to
+   the end. Its times carry their zone, `10/2/26, 11:59 PM (EDT)`, so they are
+   exact wherever you are. A deadline on both lists is sent once.
+4. **Each course's Announcements page**, one after another: all the
    announcements it lists, up to 25 per course, with the date each was posted.
-4. **Back to the page you started on.**
+5. **Back to the page you started on.**
 
 It moves the way HuskyCT's own links do, without reloading, so the whole walk
 took 13–20 seconds for six courses on 2026-09-27, depending on the layout. The button turns into
