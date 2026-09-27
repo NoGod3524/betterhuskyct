@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.0.0
+// @version      1.1.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.0.0";
+  const VERSION = "1.1.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -111,6 +111,18 @@
       collectingCourses: "Reading your courses and to-do list…",
       collectingDueDates: "Reading the term's due dates from the Calendar…",
       collectMaterials: "Collect course materials",
+      materialsReused: " {count} document(s) came from last time's reading.",
+      pickFolderHint:
+        "Pick a folder for the files. Browsers do not allow the Desktop itself, so make a folder on it first (“New folder”, e.g. HuskyCT) and pick that.",
+      selfCheck: "Self-check: {problems}",
+      problemCoursesPage: "the Courses page did not show its course list — HuskyCT may have changed.",
+      problemNoCourses: "no current-term course was found on the Courses page.",
+      problemDueDatesView:
+        "the Calendar's Due dates view did not open — HuskyCT may have changed, so only this week's to-do list was read.",
+      problemOutlines: "these courses' content did not open: {courses}.",
+      problemDocuments: "{count} document(s) did not open.",
+      problemFileAddress: "{count} file(s) had no download address — HuskyCT may have changed.",
+      problemNoContent: "no course showed any content — HuskyCT may have changed.",
       materialsCourses: "Finding your courses…",
       materialsOutline: "Reading {course}'s content ({index} of {total})…",
       materialsDocument: "Opening {course}'s documents: {document} of {documents}…",
@@ -171,6 +183,16 @@
       collectingCourses: "正在读取课程列表和待办……",
       collectingDueDates: "正在从日历读取整个学期的截止日期……",
       collectMaterials: "收集课件",
+      materialsReused: "其中 {count} 个文档用的是上次读取的结果。",
+      pickFolderHint: "选一个保存文件的文件夹。浏览器不允许直接选桌面本身，请先在桌面上点「新建文件夹」（比如 HuskyCT），再选它。",
+      selfCheck: "自检：{problems}",
+      problemCoursesPage: "Courses 页没有显示课程列表——HuskyCT 可能改版了。",
+      problemNoCourses: "Courses 页上没有找到本学期的课程。",
+      problemDueDatesView: "打不开日历的 Due dates 视图——HuskyCT 可能改版了，所以只读到了本周的待办。",
+      problemOutlines: "这些课的内容页打不开：{courses}。",
+      problemDocuments: "有 {count} 个文档打不开。",
+      problemFileAddress: "有 {count} 个文件找不到下载地址——HuskyCT 可能改版了。",
+      problemNoContent: "所有课程的内容页都是空的——HuskyCT 可能改版了。",
       materialsCourses: "正在查找课程……",
       materialsOutline: "正在读取 {course} 的课程内容（{index}/{total}）……",
       materialsDocument: "正在打开 {course} 的文档（{document}/{documents}）……",
@@ -1023,7 +1045,9 @@
   async function readDueDates(opts) {
     routeTo("/ultra/calendar");
     const button = await waitFor(() => document.querySelector(DUE_DATES_VIEW), opts.every, opts.pageTimeout);
-    if (!button) return [];
+    // Null, not an empty list: a term with nothing due is fine, a view that is
+    // not there is HuskyCT having changed.
+    if (!button) return null;
     button.click();
     await waitFor(() => document.querySelector(".element-card.due-item"), opts.every, opts.emptySettle);
 
@@ -1057,13 +1081,20 @@
    * All" replaces it, for whatever else the caller wants from it.
    */
   async function findCourses(opts, onCoursesPage) {
+    // A course's own page is full of links into `/ultra/courses/`, and it stays
+    // on screen for a moment after the move. Taking it for the Courses page read
+    // one course, or none — so only what appears after the move counts, unless
+    // the walk started on the Courses page itself, which a move there does not
+    // redraw.
+    const markers = () => [
+      ...document.querySelectorAll(VIEW_ALL_COURSES + ', a[href*="/ultra/courses/"], article[data-course-id]'),
+    ];
+    const alreadyThere = /^\/ultra\/course\/?$/.test(window.location.pathname);
+    const stale = new Set(alreadyThere ? [] : markers());
     routeTo("/ultra/course");
-    await waitFor(
+    const pageFound = await waitFor(
       () =>
-        window.location.pathname.indexOf("/ultra/course") === 0 &&
-        (document.querySelector(VIEW_ALL_COURSES) ||
-          document.querySelector('a[href*="/ultra/courses/"]') ||
-          document.querySelector("article[data-course-id]")),
+        window.location.pathname.indexOf("/ultra/course") === 0 && markers().some((node) => !stale.has(node)),
       opts.every,
       opts.pageTimeout,
     );
@@ -1076,7 +1107,22 @@
     if (viewAll || document.querySelector("article[data-course-id]")) {
       cards = await loadEveryCourseCard(opts);
     }
-    return { recent, cards, queue: coursesToCollect(cards, recent, new Date()) };
+    return { recent, cards, queue: coursesToCollect(cards, recent, new Date()), pageFound: Boolean(pageFound) };
+  }
+
+  /**
+   * What a walk could not read, in words the student can pass on.
+   *
+   * Every step of a walk depends on how HuskyCT draws its pages, and Blackboard
+   * changes that with its releases. A step that finds nothing used to return
+   * nothing, so the panel said "Done" over an empty basket and nobody could
+   * tell which step had broken. Each walk now reports the steps that came back
+   * empty where they should not have, and the panel shows them.
+   */
+  function coursesProblems(found) {
+    if (!found.pageFound) return [{ key: "problemCoursesPage" }];
+    if (found.queue.length === 0) return [{ key: "problemNoCourses" }];
+    return [];
   }
 
   /**
@@ -1098,7 +1144,7 @@
     );
     const storage = window.localStorage;
     const returnTo = window.location.pathname + window.location.search;
-    const report = { courses: 0, collected: 0, dueDates: 0, skipped: [], stopped: false };
+    const report = { courses: 0, collected: 0, dueDates: 0, skipped: [], stopped: false, problems: [] };
     const save = (result) => {
       if (result.changed) writeBasket(storage, result.basket);
       return result.basket;
@@ -1109,12 +1155,14 @@
       // course, from the cards on screen or behind "View All".
       opts.onProgress({ step: "courses" });
       let basket = readBasket(storage);
-      const { queue } = await findCourses(opts, async (recent) => {
+      const found = await findCourses(opts, async (recent) => {
         // An empty week has no to-do items at all, so this simply runs out.
         await waitFor(() => document.querySelector("[aria-label*=', due ']"), opts.every, opts.todoSettle);
         basket = save(rememberTodos(basket, todosToRecords(collectTodos(document)), new Date()));
         basket = save(rememberCourses(basket, recent));
       });
+      const queue = found.queue;
+      report.problems.push(...coursesProblems(found));
       save(rememberCourses(basket, queue));
       report.courses = queue.length;
 
@@ -1123,8 +1171,9 @@
       if (!opts.shouldStop()) {
         opts.onProgress({ step: "duedates" });
         const dueDates = await readDueDates(opts);
-        report.dueDates = dueDates.length;
-        save(rememberDueDates(readBasket(storage), todosToRecords(dueDates), new Date()));
+        if (dueDates === null) report.problems.push({ key: "problemDueDatesView" });
+        report.dueDates = dueDates ? dueDates.length : 0;
+        save(rememberDueDates(readBasket(storage), todosToRecords(dueDates || []), new Date()));
       }
 
       // 4. Each course's Announcements page, one at a time.
@@ -1239,7 +1288,7 @@
    */
   function classifyOutline(root, courseId) {
     const scope = root || document;
-    const found = { files: [], documents: [], links: [], tools: [], activities: 0 };
+    const found = { files: [], documents: [], links: [], tools: [], activities: 0, unaddressed: 0 };
     const addresses = new Map();
     for (const anchor of scope.querySelectorAll("[data-ally-content-id][data-ally-file-preview-url]")) {
       addresses.set(anchor.getAttribute("data-ally-content-id"), anchor.getAttribute("data-ally-file-preview-url"));
@@ -1259,8 +1308,12 @@
       const file = /\/file\/(_\d+_\d+)/.exec(href);
       const doc = /\/document\/(_\d+_\d+)/.exec(href);
       if (file) {
-        const url = href.indexOf(own) !== -1 ? addresses.get(file[1]) : null;
+        if (href.indexOf(own) === -1) continue;
+        const url = addresses.get(file[1]);
+        // A file whose row carries no address is how a change to that hidden
+        // anchor would show up: counted, so the panel can say so.
         if (url) found.files.push({ path, title, url });
+        else found.unaddressed += 1;
         continue;
       }
       if (doc) {
@@ -1333,8 +1386,24 @@
       opts.documentTimeout,
     );
     if (!root) return null;
-    // Attachments and embeds render a moment after the text.
-    await pause(opts.documentSettle);
+    // Measured on 2026-09-27 across six documents: attachments, videos and
+    // links were all there the moment the page appeared. So rather than a fixed
+    // second's wait, the page is read once it has held still for one short
+    // look — which a slower page simply takes longer to pass.
+    const signature = () =>
+      [
+        root.querySelectorAll("[data-ally-file-preview-url]").length,
+        root.querySelectorAll('[data-bbtype="video"], iframe[src]').length,
+        root.querySelectorAll("a[href]").length,
+        root.textContent.length,
+      ].join(",");
+    const settleBy = Date.now() + opts.documentTimeout;
+    for (let last = signature(); Date.now() < settleBy; ) {
+      await pause(opts.documentSettle);
+      const now = signature();
+      if (now === last) break;
+      last = now;
+    }
 
     const files = [];
     for (const anchor of root.querySelectorAll("[data-ally-file-preview-url]")) {
@@ -1376,6 +1445,48 @@
   }
 
   /**
+   * What each document held, kept for a week.
+   *
+   * Opening documents is most of a materials walk — MATH 1070Q alone has 40 —
+   * and a document rarely changes once posted. So a document opened in the
+   * last week is not opened again: its attachments and links come from here.
+   * Anything new is opened as usual, and after a week every document is read
+   * afresh, so a late-added attachment is picked up within days.
+   */
+  const DOCUMENTS_KEY = "huskypilot.helper.documents.v1";
+  const DOCUMENTS_FRESH_DAYS = 7;
+  const DOCUMENTS_KEEP_DAYS = 60;
+
+  function readDocumentCache(storage) {
+    try {
+      const parsed = JSON.parse((storage && storage.getItem(DOCUMENTS_KEY)) || "null");
+      return parsed && parsed.version === 1 && parsed.documents && typeof parsed.documents === "object"
+        ? parsed
+        : { version: 1, documents: {} };
+    } catch {
+      return { version: 1, documents: {} };
+    }
+  }
+
+  function writeDocumentCache(storage, cache, now) {
+    const oldest = now.getTime() - DOCUMENTS_KEEP_DAYS * 86400000;
+    for (const [key, entry] of Object.entries(cache.documents)) {
+      if (!entry || Date.parse(entry.at) < oldest) delete cache.documents[key];
+    }
+    try {
+      storage.setItem(DOCUMENTS_KEY, JSON.stringify(cache));
+    } catch {
+      /* a full or blocked storage only means the next walk opens everything */
+    }
+  }
+
+  function freshDocument(cache, key, now) {
+    const entry = cache.documents[key];
+    if (!entry || !Array.isArray(entry.files) || !Array.isArray(entry.links)) return null;
+    return now.getTime() - Date.parse(entry.at) < DOCUMENTS_FRESH_DAYS * 86400000 ? entry : null;
+  }
+
+  /**
    * The walk for materials: every course's content, opened fully, and every
    * document in it. Nothing is downloaded here; this only lists.
    */
@@ -1387,19 +1498,26 @@
         outlineTimeout: 30000,
         expandPause: 1200,
         documentTimeout: 8000,
-        documentSettle: 1000,
-        gap: 250,
+        documentSettle: 150,
+        gap: 150,
+        useCache: true,
         onProgress() {},
         shouldStop: () => false,
       },
       options,
     );
     const returnTo = window.location.pathname + window.location.search;
-    const manifest = { term: null, courses: [], stopped: false };
+    const storage = window.localStorage;
+    const cache = opts.useCache ? readDocumentCache(storage) : { version: 1, documents: {} };
+    const manifest = { term: null, courses: [], stopped: false, reused: 0, problems: [] };
+    let documentsFailed = 0;
+    let unaddressed = 0;
 
     try {
       opts.onProgress({ step: "courses" });
-      const { cards, queue } = await findCourses(opts);
+      const found = await findCourses(opts);
+      const { cards, queue } = found;
+      manifest.problems.push(...coursesProblems(found));
       const terms = cards
         .filter((card) => queue.some((course) => course.id === card.id))
         .map((card) => Number(card.term))
@@ -1423,6 +1541,7 @@
         entry.links = outline.links;
         entry.tools = outline.tools;
         entry.activities = outline.activities;
+        unaddressed += outline.unaddressed;
 
         for (let d = 0; d < outline.documents.length; d++) {
           if (opts.shouldStop()) {
@@ -1430,20 +1549,45 @@
             break;
           }
           const documentItem = outline.documents[d];
-          opts.onProgress({ step: "document", ...where, document: d + 1, documents: outline.documents.length });
-          const found = await readDocument(documentItem, opts);
-          if (!found) continue;
+          const cacheKey = course.id + "/" + documentItem.id;
+          let found = opts.useCache ? freshDocument(cache, cacheKey, new Date()) : null;
+          if (found) {
+            manifest.reused += 1;
+          } else {
+            opts.onProgress({ step: "document", ...where, document: d + 1, documents: outline.documents.length });
+            found = await readDocument(documentItem, opts);
+            if (!found) {
+              documentsFailed += 1;
+              continue;
+            }
+            cache.documents[cacheKey] = { at: new Date().toISOString(), files: found.files, links: found.links };
+            await pause(opts.gap);
+          }
           // A document's attachments go in the folder the document sits in.
           for (const file of found.files) entry.files.push({ path: documentItem.path, title: file.title, url: file.url });
           for (const link of found.links) entry.links.push({ path: documentItem.path, ...link });
-          await pause(opts.gap);
         }
+        if (opts.useCache) writeDocumentCache(storage, cache, new Date());
         if (manifest.stopped) break;
       }
     } finally {
       routeTo(returnTo);
     }
+
+    const skipped = manifest.courses.filter((course) => course.skipped).map((course) => course.code || course.id);
+    if (skipped.length) manifest.problems.push({ key: "problemOutlines", params: { courses: skipped.join(", ") } });
+    if (documentsFailed) manifest.problems.push({ key: "problemDocuments", params: { count: documentsFailed } });
+    if (unaddressed) manifest.problems.push({ key: "problemFileAddress", params: { count: unaddressed } });
+    const read = manifest.courses.filter((course) => !course.skipped);
+    const empty = read.every((course) => !course.files.length && !course.links.length && !course.tools.length && !course.activities);
+    if (read.length > 0 && empty) manifest.problems.push({ key: "problemNoContent" });
     return manifest;
+  }
+
+  /** A walk's problems as one line for the panel, or "" when there are none. */
+  function problemsText(problems) {
+    if (!problems || problems.length === 0) return "";
+    return t("selfCheck", { problems: problems.map((problem) => t(problem.key, problem.params)).join(" ") });
   }
 
   function materialsSummary(manifest) {
@@ -2210,10 +2354,12 @@
                     });
             },
           });
-          status.className = report.stopped ? "note" : "note ok";
+          const selfCheck = problemsText(report.problems);
+          status.className = selfCheck ? "note warn" : report.stopped ? "note" : "note ok";
           status.textContent =
             (report.stopped ? t("collectStopped") : t("collectedAll", { courses: report.collected })) +
-            (report.skipped.length ? t("collectSkipped", { courses: report.skipped.join(", ") }) : "");
+            (report.skipped.length ? t("collectSkipped", { courses: report.skipped.join(", ") }) : "") +
+            (selfCheck ? " " + selfCheck : "");
         } catch (error) {
           status.className = "note warn";
           status.textContent = t("collectFailed", { message: error.message });
@@ -2251,9 +2397,13 @@
             },
           });
           materials = manifest;
-          materialsLine.className = "note ok";
+          const selfCheck = problemsText(manifest.problems);
+          materialsLine.className = selfCheck ? "note warn" : "note ok";
           materialsLine.textContent =
-            (manifest.stopped ? t("materialsStopped") + " " : "") + t("materialsFound", materialsSummary(manifest));
+            (manifest.stopped ? t("materialsStopped") + " " : "") +
+            t("materialsFound", materialsSummary(manifest)) +
+            (manifest.reused ? t("materialsReused", { count: manifest.reused }) : "") +
+            (selfCheck ? " " + selfCheck : "");
         } catch (error) {
           materialsLine.className = "note warn";
           materialsLine.textContent = t("materialsFailed", { message: error.message });
@@ -2293,12 +2443,16 @@
           return;
         }
 
+        // Said before the picker opens, because the browser's own refusal —
+        // "this folder contains system files" — does not say what to do instead.
+        materialsLine.className = "note";
+        materialsLine.textContent = t("pickFolderHint");
         let root;
         try {
           // The one prompt: the student picks where the term's folder goes.
           root = await window.showDirectoryPicker({ id: "huskyct-materials", mode: "readwrite", startIn: "desktop" });
         } catch {
-          return; // closed without picking
+          return; // closed without picking; the hint stays up
         }
         walk = { stop: false, kind: "save" };
         refreshBasket();
@@ -2456,6 +2610,8 @@
       readDocument,
       collectMaterials,
       materialsSummary,
+      problemsText,
+      DOCUMENTS_KEY,
       termLabel,
       safeName,
       nameFromStoreUrl,

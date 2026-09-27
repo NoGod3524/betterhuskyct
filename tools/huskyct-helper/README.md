@@ -174,9 +174,11 @@ tools in 6 courses."* Nothing is downloaded until you choose.
 
 Then:
 
-- **Save N files to a folder…** asks once where to put them (the Desktop is
-  offered first) and writes the term's files by course and by the course's own
-  folders:
+- **Save N files to a folder…** asks once where to put them and writes the
+  term's files by course and by the course's own folders. The picker opens on
+  the Desktop, but Edge and Chrome refuse the Desktop itself ("contains system
+  files"), so make a folder there — **New folder**, e.g. `HuskyCT` — and pick
+  that; the panel says so before the picker opens:
 
       HuskyCT Fall 2026/
         MATH 1070Q/
@@ -197,6 +199,14 @@ Then:
 
 Assignments, quizzes, tests and discussions are work rather than material; they
 are counted and left alone.
+
+**A second walk within a week is quick.** Opening documents is most of the
+time — MATH 1070Q alone has 40, at a second or two each — and a document rarely
+changes once posted. What each one held is kept for a week, so the next walk
+opens only the documents that are new; after a week every document is read
+afresh. The panel says how many came from the last reading. A document is read
+the moment its page holds still, rather than after a fixed second: measured on
+2026-09-27, attachments and videos were there as soon as the page appeared.
 
 What was measured on 2026-09-27, and what it decided:
 
@@ -221,6 +231,23 @@ What was measured on 2026-09-27, and what it decided:
   whose query carries the student's email address. The list unwraps them, so the
   address never lands in a file on the desktop.
 - Course materials are for your own use. Keep them that way.
+
+## When something does not work: the self-check
+
+Both walks depend on how HuskyCT draws its pages, and Blackboard changes that
+with its releases. A step that finds nothing where there should be something is
+named on the panel, in a line starting **Self-check:** —
+
+- the Courses page did not show its course list;
+- no current-term course was found;
+- the Calendar's Due dates view did not open (only this week's to-do list was
+  read);
+- a course's content, or some of its documents, did not open;
+- files were listed with no download address;
+- no course showed any content at all.
+
+Most of these mean HuskyCT changed. The line is written to be passed on as it
+is, with the version the panel shows.
 
 ## Versions
 
