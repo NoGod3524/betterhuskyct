@@ -200,6 +200,63 @@ someone sitting in the same timezone as their classes.
 purpose: a sync link is untrusted input. The helper could set a flag meaning
 "this one is safe", but anyone could set that flag too, so it does not.
 
+## Course materials
+
+**Collect course materials** walks every current course's content — every
+folder and learning module opened, every "Load more" pressed, every document
+opened — and lists what it found: *"Found 57 files, 29 videos, 22 links and 30
+tools in 6 courses."* Nothing is downloaded until you choose.
+
+Then:
+
+- **Save N files to a folder…** asks once where to put them (the Desktop is
+  offered first) and writes the term's files by course and by the course's own
+  folders:
+
+      HuskyCT Fall 2026/
+        MATH 1070Q/
+          Weekly Lectures, Problem-Solving Tips and HW Links/
+            Week 1 - Section 4.1/Section 4.1 PDF.pdf
+          Problem-Solving Tips Blank Notes/Section 5.1 Problem Solving Tips.pdf
+        ECON 1201/…
+        links and videos.html
+
+  One file at a time, with a pause between them. A file already there is
+  skipped without being fetched again, so pressing it next week saves only
+  what is new. This needs Edge or Chrome; elsewhere the button offers **one ZIP**
+  with the same folders instead.
+- **Save the links and videos** writes a page listing, by course and folder,
+  every embedded video (YouTube, Vidyard, Panopto…), every link out, and every
+  tool that only opens from HuskyCT (LTI links, Cengage), which links back to
+  its course.
+
+Assignments, quizzes, tests and discussions are work rather than material; they
+are counted and left alone.
+
+What was measured on 2026-09-27, and what it decided:
+
+- **What an item is comes from where it links**, not from its label. The label
+  is the file's kind — a CSV reads "Text Document" — while the address says
+  `/file/`, `/document/`, `/assessment/`, `/discussion/`, `#` for a tool, or a
+  link out.
+- **A file's real address is already on the page.** Its row carries a hidden
+  anchor with `/bbcswebdav/...`, keyed by the item's id, so no file has to be
+  opened to be found.
+- **Reading the file works — sent the right way.** That address redirects to
+  Blackboard's file store, which answers any origin but refuses a request that
+  carries credentials. An ordinary request sends HuskyCT's cookie to HuskyCT and
+  nothing to the store, whose signed address is the permission: a 1.7 MB lecture
+  PDF came back whole in 0.3 s, named as the course names it.
+- **Documents are opened one by one**, about 1.5 s each, because their
+  attachments and embedded videos only render on their own page. An attachment's
+  id starts with its document's, so a page still showing the previous document
+  is never mistaken for the next. MATH 1070Q's 40 documents gave 36 attachments
+  and 29 lecture videos; the whole course took about 65 s.
+- **Links pasted from a UConn mailbox arrive wrapped** in Outlook's safe-links,
+  whose query carries the student's email address. The list unwraps them, so the
+  address never lands in a file on the desktop.
+- Course materials are for your own use. Keep them that way.
+
 ## Status
 
 Early, and deliberately small. Every reader here was written against markup

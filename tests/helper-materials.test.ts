@@ -1,0 +1,445 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { after, test } from "node:test";
+import vm from "node:vm";
+
+import { Window } from "happy-dom";
+
+/**
+ * "Collect course materials", run as shipped on pages shaped like the live
+ * HuskyCT ones, measured on 2026-09-27:
+ *
+ * - A content item is a link labelled "Type, Title"; where it links says what
+ *   it is — `/file/`, `/document/`, `/assessment/`, `#` for a tool, or out.
+ * - A file's row carries its real address on an anchor keyed by the item id.
+ * - Folders fill in when opened; a list ends in "Load more", disabled at the end.
+ * - A document's attachments carry an id starting with the document's own.
+ */
+const SOURCE = readFileSync(
+  new URL("../tools/huskyct-helper/huskyct-helper.user.js", import.meta.url),
+  "utf8",
+);
+
+type Link = { path: string[]; title: string; url: string; kind: string };
+type Manifest = {
+  term: string | null;
+  stopped: boolean;
+  courses: Array<{
+    id: string;
+    code: string | null;
+    files: Array<{ path: string[]; title: string; url: string }>;
+    links: Link[];
+    tools: Array<{ path: string[]; title: string; type: string }>;
+    activities: number;
+    skipped: boolean;
+  }>;
+};
+
+type Helper = {
+  collectMaterials: (options?: Record<string, unknown>) => Promise<Manifest>;
+  materialsSummary: (manifest: Manifest) => { courses: number; files: number; videos: number; links: number; tools: number };
+  saveMaterialsToFolder: (
+    root: unknown,
+    manifest: Manifest,
+    options?: Record<string, unknown>,
+  ) => Promise<{ saved: number; skipped: number; failed: number; folder: string | null }>;
+  materialsZip: (manifest: Manifest, options?: Record<string, unknown>) => Promise<{ blob: Blob; saved: number; failed: number; name: string }>;
+  materialsLinksHtml: (manifest: Manifest) => string;
+  unwrapLink: (href: string) => string;
+  splitItemLabel: (label: string) => { type: string; title: string };
+  safeName: (name: string, fallback: string) => string;
+  nameFromStoreUrl: (url: string) => string | null;
+  termLabel: (code: number) => string | null;
+  crc32: (bytes: Uint8Array) => number;
+  zipStored: (entries: Array<{ name: string; bytes: Uint8Array }>) => Blob;
+  setLocale: (locale: string) => void;
+};
+
+const windows: Window[] = [];
+after(async () => {
+  for (const window of windows) await window.happyDOM.close();
+});
+
+const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+
+// --- the fake HuskyCT ----------------------------------------------------------------
+
+const MATH = "_203765_1";
+const ECON = "_198430_1";
+const LOAD_MORE = "components.directives.content.content-outline.infiniteScroll.content.loadMoreButton.label.plural";
+
+function item(type: string, title: string, href: string, analytics = "content.item.course.outline.courseContent.link") {
+  return `<a aria-label="${type}, ${title}" data-analytics-id="${analytics}" href="${href}">${title}</a>`;
+}
+
+let pid = 100;
+/** A file row: its link, and the hidden anchor that carries its real address. */
+function fileRow(course: string, type: string, title: string) {
+  const id = `_${++pid}_1`;
+  return (
+    `<div>${item(type, title, `https://lms.uconn.edu/ultra/courses/${course}/file/${id}?courseId=${course}`)}` +
+    `<a data-ally-content-id="${id}" data-ally-file-preview-url="https://lms.uconn.edu/bbcswebdav/pid-${pid}-dt-content-rid-${pid}_1/xid-${pid}_1" style="display:none"></a></div>`
+  );
+}
+
+function folder(id: string, title: string, kind: "folder" | "learning-module" = "folder") {
+  return (
+    `<h3><button id="${kind}-title-${id}" aria-expanded="false" aria-controls="${kind}-contents-${id}">${title}</button></h3>` +
+    `<div id="${kind}-contents-${id}"></div>`
+  );
+}
+
+const loadMore = (enabled: boolean) =>
+  `<button data-analytics-id="${LOAD_MORE}"${enabled ? "" : " disabled"}>${enabled ? "Load 10 more content items" : "No more content items to load"}</button>`;
+
+const DOCUMENT_ID = "_14409752_1";
+
+function mathOutline() {
+  return (
+    `<div class="courseTitle-x">MATH-1070Q-Mathematics for Business and Economics-SEC100-1268</div>` +
+    item("LTI Link", "Cengage WebAssign", "#") +
+    item(
+      "Text Document",
+      "Course Information and Syllabus",
+      `https://lms.uconn.edu/ultra/courses/${MATH}/document/${DOCUMENT_ID}?view=content&state=view`,
+      "content.item.coures.outline.document.link",
+    ) +
+    folder("_1_1", "Problem-Solving Tips Blank Notes") +
+    loadMore(false) +
+    // The instructor's message link is not course material.
+    `<a aria-label="Send message to Nicole Massarelli" data-analytics-id="courseCore.components.courseInstructors.link" href="https://lms.uconn.edu/ultra/courses/${MATH}/outline/message">x</a>`
+  );
+}
+
+const FOLDER_CONTENTS: Record<string, () => string> = {
+  "folder-contents-_1_1": () =>
+    fileRow(MATH, "PDF", "Section 5.1 Problem Solving Tips.pdf") +
+    // Same name as the one above, from another item: saved as "(2)".
+    fileRow(MATH, "PDF", "Section 5.1 Problem Solving Tips.pdf") +
+    item(
+      "Practice Test",
+      "Practice Test for Ch 4",
+      `https://lms.uconn.edu/ultra/courses/${MATH}/assessment/_9_1/overview`,
+      "content.item.courses.outline.gradebook.item.assessment.readOnly.link",
+    ) +
+    item(
+      "Link",
+      "How the Irish Became White",
+      "https://nam10.safelinks.protection.outlook.com/?url=https%3A%2F%2Fsites.pitt.edu%2Fwhite.html&data=05%7Cbxi25003%40uconn.edu",
+    ) +
+    folder("_2_1", "Week 1", "learning-module") +
+    `<div class="more-slot"></div>` +
+    loadMore(true),
+  "learning-module-contents-_2_1": () =>
+    // A CSV reads "Text Document" but links to /file/: it is a file. Its title
+    // has no extension here, so its name comes from the file store.
+    fileRow(MATH, "Text Document", "Minitab data") + loadMore(false),
+};
+
+function econOutline() {
+  return (
+    `<div class="courseTitle-x">ECON-1201-Principles of Microeconomics-SEC010-1268</div>` +
+    fileRow(ECON, "Presentation", "Micro.Lect.No.1.pptx") +
+    item("Link", "Marginal Revolution University Videos", "https://www.youtube.com/watch?v=mru") +
+    loadMore(false)
+  );
+}
+
+const DOCUMENT_PAGE =
+  `<div class="bbml-editor-parent"><div class="bbml-editor">` +
+  `<div role="region" aria-label="File"><a data-ally-content-id="${DOCUMENT_ID}:r207:" data-ally-file-preview-url="https://lms.uconn.edu/bbcswebdav/pid-900-dt-content-rid-900_1/xid-900_1"></a>` +
+  `<div role="button" aria-label="Preview File Syllabus Fall 2026.pdf"><span>Syllabus Fall 2026.pdf</span></div></div>` +
+  `<div class="bb-editor-root"><div data-bbtype="video" data-bbfile='{"src":"https://www.youtube.com/embed/mcpGpSSYq8E"}'></div>` +
+  `<a href="https://nam10.safelinks.protection.outlook.com/?url=https%3A%2F%2Fexample.com%2Freading&amp;data=bxi25003%40uconn.edu">Reading</a></div>` +
+  `</div></div>`;
+
+const COURSE_CARDS =
+  `<article class="element-card" data-course-id="${MATH}"><span>1268-UCONN-MATH-1070Q-SEC100-1191</span><h4>MATH-1070Q-Mathematics for Business and Economics-SEC100-1268</h4></article>` +
+  `<article class="element-card" data-course-id="${ECON}"><span>1268-UCONN-ECON-1201-SEC010-5757</span><h4>ECON-1201-Principles of Microeconomics-SEC010-1268</h4></article>`;
+
+function fakeHuskyct(window: Window) {
+  const main = window.document.querySelector("main")!;
+  let generation = 0;
+  window.addEventListener("popstate", () => {
+    const path = window.location.pathname;
+    const mine = ++generation;
+    // The previous page stays up for a while under the new address.
+    const render = (html: string) =>
+      setTimeout(() => {
+        if (mine === generation) main.innerHTML = html;
+      }, 60);
+    if (path === "/ultra/course") render(COURSE_CARDS);
+    else if (path === `/ultra/courses/${MATH}/outline`) render(mathOutline());
+    else if (path === `/ultra/courses/${ECON}/outline`) render(econOutline());
+    else if (path === `/ultra/courses/${MATH}/document/${DOCUMENT_ID}`) render(DOCUMENT_PAGE);
+    else render(`<p>${path}</p>`);
+  });
+
+  window.document.addEventListener("click", (event) => {
+    const target = event.target as unknown as HTMLElement;
+    const controls = target.getAttribute?.("aria-controls");
+    if (controls && FOLDER_CONTENTS[controls] && target.getAttribute("aria-expanded") === "false") {
+      setTimeout(() => {
+        target.setAttribute("aria-expanded", "true");
+        window.document.getElementById(controls)!.innerHTML = FOLDER_CONTENTS[controls]();
+      }, 30);
+    }
+    if (target.getAttribute?.("data-analytics-id") === LOAD_MORE && !(target as unknown as HTMLButtonElement).disabled) {
+      setTimeout(() => {
+        const slot = target.parentElement!.querySelector(".more-slot");
+        if (slot) slot.innerHTML = fileRow(MATH, "PDF", "Section 5.2 Problem Solving Tips.pdf");
+        (target as unknown as HTMLButtonElement).disabled = true;
+      }, 30);
+    }
+  });
+}
+
+// --- the file store and the picked folder -------------------------------------------
+
+/** Stands in for HuskyCT's redirect to the file store: the final URL names the file. */
+function fileStore() {
+  const requests: string[] = [];
+  const fetchImpl = async (url: string) => {
+    requests.push(url);
+    const rid = (url.match(/rid-(\d+)_1/) || [])[1] || "0";
+    const storeUrl =
+      `https://learn-us-east-1-prod-fleet01-beaker-xythos.content.blackboardcdn.com/x/${rid}` +
+      `?response-content-disposition=${encodeURIComponent(`inline; filename*=UTF-8''MINITAB%20Data%20${rid}.csv`)}`;
+    return { ok: true, status: 200, url: storeUrl, blob: async () => new Blob([`file ${rid}`]) };
+  };
+  return { fetchImpl, requests };
+}
+
+class MemoryDirectory {
+  readonly dirs = new Map<string, MemoryDirectory>();
+  readonly files = new Map<string, string>();
+  async getDirectoryHandle(name: string, options?: { create?: boolean }) {
+    if (!this.dirs.has(name)) {
+      if (!options?.create) throw new Error("NotFoundError");
+      this.dirs.set(name, new MemoryDirectory());
+    }
+    return this.dirs.get(name)!;
+  }
+  async getFileHandle(name: string, options?: { create?: boolean }) {
+    if (!this.files.has(name) && !options?.create) throw new Error("NotFoundError");
+    const files = this.files;
+    return {
+      async createWritable() {
+        let written: unknown = "";
+        return {
+          async write(data: unknown) {
+            written = data;
+          },
+          async close() {
+            files.set(name, typeof written === "string" ? written : await (written as Blob).text());
+          },
+        };
+      },
+    };
+  }
+  /** Every file under this folder, as "a/b/name". */
+  list(prefix = ""): string[] {
+    const out = [...this.files.keys()].map((name) => prefix + name);
+    for (const [name, dir] of this.dirs) out.push(...dir.list(prefix + name + "/"));
+    return out.sort();
+  }
+}
+
+// --- the page ---------------------------------------------------------------------
+
+function openPage() {
+  const window = new Window({ url: "https://lms.uconn.edu/ultra/stream" });
+  windows.push(window);
+  window.document.body.innerHTML = "<main><p>Activity stream</p></main>";
+  const store = fileStore();
+  (window as unknown as { fetch: unknown }).fetch = store.fetchImpl;
+
+  const sandbox = {
+    window,
+    document: window.document,
+    navigator: window.navigator,
+    localStorage: window.localStorage,
+    Blob,
+    CompressionStream,
+    Response,
+    TextEncoder,
+    btoa,
+    URL,
+    console,
+    setTimeout,
+    clearTimeout,
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(SOURCE, sandbox);
+  const helper = (window as unknown as { __huskyctHelper: Helper }).__huskyctHelper;
+  helper.setLocale("en");
+  fakeHuskyct(window);
+  return { window, helper, store };
+}
+
+const FAST = {
+  every: 20,
+  pageTimeout: 1500,
+  outlineTimeout: 3000,
+  expandPause: 120,
+  documentTimeout: 1000,
+  documentSettle: 40,
+  gap: 0,
+};
+
+// --- walking the courses -------------------------------------------------------------
+
+test("every course's files, links, videos and tools are found, folders and documents included", async () => {
+  const { window, helper } = openPage();
+
+  const manifest = plain(await helper.collectMaterials(FAST));
+
+  assert.equal(manifest.term, "Fall 2026");
+  assert.deepEqual(manifest.courses.map((course) => course.code), ["MATH 1070Q", "ECON 1201"]);
+  const math = manifest.courses[0];
+
+  const byPath = (a: string[], b: string[]) => a.join("|").localeCompare(b.join("|"));
+  assert.deepEqual(
+    math.files.map((file) => [file.path.join(" / "), file.title]).sort(byPath),
+    [
+      ["Problem-Solving Tips Blank Notes", "Section 5.1 Problem Solving Tips.pdf"],
+      ["Problem-Solving Tips Blank Notes", "Section 5.1 Problem Solving Tips.pdf"],
+      // Behind "Load more".
+      ["Problem-Solving Tips Blank Notes", "Section 5.2 Problem Solving Tips.pdf"],
+      // Inside a nested learning module.
+      ["Problem-Solving Tips Blank Notes / Week 1", "Minitab data"],
+      // The document's attachment, in the folder the document sits in.
+      ["", "Syllabus Fall 2026.pdf"],
+    ].sort(byPath),
+  );
+
+  assert.deepEqual(
+    math.links.map((link) => [link.kind, link.url]).sort(),
+    [
+      ["link", "https://example.com/reading"],
+      ["link", "https://sites.pitt.edu/white.html"],
+      ["video", "https://www.youtube.com/embed/mcpGpSSYq8E"],
+    ],
+  );
+  assert.ok(!JSON.stringify(math.links).includes("uconn.edu"), "a safe-links wrapper, and the email in it, survived");
+  assert.deepEqual(math.tools.map((tool) => tool.title), ["Cengage WebAssign"]);
+  assert.equal(math.activities, 1, "the practice test was not counted as work");
+
+  const econ = manifest.courses[1];
+  assert.deepEqual(econ.files.map((file) => file.title), ["Micro.Lect.No.1.pptx"]);
+  assert.deepEqual(econ.links.map((link) => link.kind), ["video"]);
+  // A page still showing MATH's outline while ECON's loaded added nothing of MATH's.
+  assert.ok(!econ.files.some((file) => /Section/.test(file.title)));
+
+  assert.deepEqual(plain(helper.materialsSummary(manifest)), { courses: 2, files: 6, videos: 2, links: 2, tools: 1 });
+  assert.equal(window.location.pathname, "/ultra/stream", "it did not go back to where it started");
+});
+
+test("stopping keeps what was found so far", async () => {
+  const { helper } = openPage();
+  let checks = 0;
+
+  const manifest = plain(await helper.collectMaterials({ ...FAST, shouldStop: () => checks++ >= 1 }));
+
+  assert.equal(manifest.stopped, true);
+  assert.equal(manifest.courses.length, 1);
+});
+
+// --- saving ---------------------------------------------------------------------------
+
+test("files are saved into term / course / folder, and a second run fetches nothing already there", async () => {
+  const { helper, store } = openPage();
+  const manifest = await helper.collectMaterials(FAST);
+  const root = new MemoryDirectory();
+
+  const first = plain(await helper.saveMaterialsToFolder(root, manifest, { gap: 0 }));
+
+  assert.deepEqual(first, { saved: 6, skipped: 0, failed: 0, folder: "HuskyCT Fall 2026" });
+  assert.deepEqual(root.list(), [
+    "HuskyCT Fall 2026/ECON 1201/Micro.Lect.No.1.pptx",
+    "HuskyCT Fall 2026/MATH 1070Q/Problem-Solving Tips Blank Notes/Section 5.1 Problem Solving Tips (2).pdf",
+    "HuskyCT Fall 2026/MATH 1070Q/Problem-Solving Tips Blank Notes/Section 5.1 Problem Solving Tips.pdf",
+    "HuskyCT Fall 2026/MATH 1070Q/Problem-Solving Tips Blank Notes/Section 5.2 Problem Solving Tips.pdf",
+    // No extension in its title: named as the file store names it.
+    `HuskyCT Fall 2026/MATH 1070Q/Problem-Solving Tips Blank Notes/Week 1/${root.dirs.get("HuskyCT Fall 2026")!.dirs.get("MATH 1070Q")!.dirs.get("Problem-Solving Tips Blank Notes")!.dirs.get("Week 1")!.list()[0]}`,
+    "HuskyCT Fall 2026/MATH 1070Q/Syllabus Fall 2026.pdf",
+  ]);
+  assert.match(root.list()[4], /Week 1\/MINITAB Data \d+\.csv$/);
+
+  const fetchedBefore = store.requests.length;
+  const second = plain(await helper.saveMaterialsToFolder(root, manifest, { gap: 0 }));
+  assert.equal(second.saved, 0);
+  assert.equal(second.skipped, 6);
+  // Only the file with no extension in its title has to be fetched to learn its name.
+  assert.equal(store.requests.length - fetchedBefore, 1, "files already saved were downloaded again");
+});
+
+test("without a folder picker the same files arrive as one ZIP", async () => {
+  const { helper } = openPage();
+  const manifest = await helper.collectMaterials(FAST);
+
+  const zip = await helper.materialsZip(manifest, { gap: 0 });
+
+  assert.equal(zip.saved, 6);
+  assert.equal(zip.name, "HuskyCT Fall 2026.zip");
+  const bytes = new Uint8Array(await zip.blob.arrayBuffer());
+  const text = new TextDecoder("latin1").decode(bytes);
+  assert.equal(new DataView(bytes.buffer).getUint32(0, true), 0x04034b50, "not a ZIP");
+  assert.ok(text.includes("HuskyCT Fall 2026/MATH 1070Q/Problem-Solving Tips Blank Notes/Section 5.1 Problem Solving Tips.pdf"));
+  // The end record counts every entry.
+  const end = bytes.length - 22;
+  assert.equal(new DataView(bytes.buffer).getUint16(end + 10, true), 6);
+});
+
+test("the ZIP's checksums are the standard CRC-32", () => {
+  const { helper } = openPage();
+  assert.equal(helper.crc32(new TextEncoder().encode("hello")), 0x3610a686);
+  assert.equal(helper.crc32(new Uint8Array()), 0);
+});
+
+test("the links page lists videos, links and tools by course, with no email in it", async () => {
+  const { helper } = openPage();
+  const manifest = await helper.collectMaterials(FAST);
+
+  const html = helper.materialsLinksHtml(manifest);
+
+  assert.ok(html.includes("https://www.youtube.com/embed/mcpGpSSYq8E"));
+  assert.ok(html.includes("https://sites.pitt.edu/white.html"));
+  assert.ok(html.includes(`/ultra/courses/${MATH}/outline`), "a tool does not lead back to its course");
+  assert.ok(html.indexOf("MATH 1070Q") < html.indexOf("ECON 1201"));
+  assert.ok(!/bxi25003|%40uconn/.test(html), "the student's email address is in the file");
+});
+
+// --- the small pieces -------------------------------------------------------------------
+
+test("names are made safe for every desktop", () => {
+  const { helper } = openPage();
+  assert.equal(helper.safeName('Week 1: "Intro"/Notes?.pdf', "x"), "Week 1_ _Intro__Notes_.pdf");
+  assert.equal(helper.safeName("Notes. ", "x"), "Notes");
+  assert.equal(helper.safeName("CON", "fallback"), "fallback");
+  assert.equal(helper.safeName("", "fallback"), "fallback");
+});
+
+test("an item's label splits into its kind and a title that may hold commas", () => {
+  const { helper } = openPage();
+  assert.deepEqual(plain(helper.splitItemLabel("Link, Race, Class, and Gender")), { type: "Link", title: "Race, Class, and Gender" });
+  assert.deepEqual(plain(helper.splitItemLabel("Syllabus")), { type: "", title: "Syllabus" });
+});
+
+test("term codes read as seasons", () => {
+  const { helper } = openPage();
+  assert.equal(helper.termLabel(1268), "Fall 2026");
+  assert.equal(helper.termLabel(1273), "Spring 2027");
+  assert.equal(helper.termLabel(1275), "Summer 2027");
+  assert.equal(helper.termLabel(1261), null);
+});
+
+test("the file store's signed address names the file", () => {
+  const { helper } = openPage();
+  const url =
+    "https://x.blackboardcdn.com/y?response-content-disposition=" +
+    encodeURIComponent("inline; filename*=UTF-8''Section%205.1%20Problem%20Solving%20Tips.pdf") +
+    "&X-Amz-Signature=abc";
+  assert.equal(helper.nameFromStoreUrl(url), "Section 5.1 Problem Solving Tips.pdf");
+  assert.equal(helper.nameFromStoreUrl("https://x/y"), null);
+});
