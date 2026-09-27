@@ -21,16 +21,6 @@ const SOURCE = readFileSync(
 
 /** The surface the userscript attaches for exactly this purpose. */
 type HelperSurface = {
-  mergeCalendars: (name: string, texts: string[]) => string;
-  calendarLinks: () => Array<[string, string]>;
-  calendarNameFor: (links: Array<[string, string]>) => string;
-  planCalendarAcquisition: (
-    linksCount: number,
-    collectedCount: number,
-    available: boolean,
-  ) => { source: string | null; filename: string | null; message: string | null };
-  acquireLabelFor: (linksCount: number, collectedCount: number) => string;
-  acquireHintFor: (linksCount: number, collectedCount: number) => string;
   STRINGS: Record<string, Record<string, string>>;
   LOCALE_KEY: string;
   detectLocale: () => string;
@@ -38,23 +28,16 @@ type HelperSurface = {
   getLocale: () => string;
   t: (key: string, params?: Record<string, string | number>) => string;
   otherLocale: () => string;
-  kindFromSourceType: (type: string) => string | null;
-  eventToRecord: (raw: Record<string, unknown>, event: Record<string, unknown>) => Record<string, unknown> | null;
-  recordsToIcs: (records: Array<Record<string, unknown>>) => string;
-  utcStamp: (iso: string) => string | null;
   currentCourseId: () => string | null;
   courseCodeFromDisplay: (value: string | null) => string | null;
   courseTitleFromDisplay: (value: string | null) => string | null;
   postedFromText: (value: string) => string | null;
   collectAnnouncements: (root: unknown) => Array<{ title: string; body: string; posted: string | null }>;
-  collectContentItems: (root: unknown) => Array<{ title: string; state: string }>;
-  collectCourseFiles: (root: unknown) => Array<{ title: string; id: string; url: string }>;
   announcementsToCandidates: (
     records: Array<{ title: string; body?: string; posted?: string | null }>,
     courseCode: string | null,
     now?: Date,
   ) => Array<Record<string, unknown>>;
-  courseDigestToMarkdown: (digest: Record<string, unknown>) => string;
   todoFromLabel: (label: string) => Record<string, unknown> | null;
   dueDateFromText: (value: string) => Date | null;
   collectTodos: (root: unknown) => Array<Record<string, unknown>>;
@@ -121,15 +104,9 @@ function helperAt(href: string, pathname: string, origin: string): HelperSurface
   return box.__huskyctHelper as HelperSurface;
 }
 
-import { parseCalendar } from "../src/lib/parse-calendar.ts";
 import { decodeSyncPayload } from "../src/lib/sync.ts";
 
 const {
-  mergeCalendars,
-  calendarNameFor,
-  planCalendarAcquisition,
-  acquireLabelFor,
-  acquireHintFor,
   STRINGS,
   detectLocale,
   setLocale,
@@ -137,16 +114,11 @@ const {
   t,
   otherLocale,
   VERSION,
-  eventToRecord,
-  recordsToIcs,
   courseCodeFromDisplay,
   courseTitleFromDisplay,
   postedFromText,
   collectAnnouncements,
-  collectContentItems,
-  collectCourseFiles,
   announcementsToCandidates,
-  courseDigestToMarkdown,
   todoFromLabel,
   dueDateFromText,
   collectTodos,
@@ -158,7 +130,8 @@ const {
 } = sandbox.__huskyctHelper as HelperSurface;
 
 test("the userscript parses and exposes its helpers", () => {
-  assert.equal(typeof mergeCalendars, "function");
+  assert.equal(typeof collectAnnouncements, "function");
+  assert.equal(typeof huskypilotLink, "function");
   assert.match(VERSION, /^\d+\.\d+\.\d+$/);
 });
 
@@ -173,112 +146,7 @@ test("the panel version matches the version in the metadata block", () => {
   assert.equal(VERSION, declared);
 });
 
-const CALENDAR_A = [
-  "BEGIN:VCALENDAR",
-  "VERSION:2.0",
-  "PRODID:-//Blackboard//EN",
-  "BEGIN:VTIMEZONE",
-  "TZID:America/New_York",
-  "BEGIN:STANDARD",
-  "DTSTART:19701101T020000",
-  "END:STANDARD",
-  "END:VTIMEZONE",
-  "BEGIN:VEVENT",
-  "UID:event-1",
-  "DTSTART;TZID=America/New_York:20260918T235900",
-  "SUMMARY:Section 4.4 Homework",
-  "END:VEVENT",
-  "BEGIN:VEVENT",
-  "UID:event-2",
-  "DTSTART;TZID=America/New_York:20260919T235900",
-  "SUMMARY:Section 4.5 Homework",
-  "END:VEVENT",
-  "END:VCALENDAR",
-].join("\r\n");
 
-const CALENDAR_B = [
-  "BEGIN:VCALENDAR",
-  "VERSION:2.0",
-  "PRODID:-//Blackboard//EN",
-  "BEGIN:VTIMEZONE",
-  "TZID:America/New_York",
-  "BEGIN:STANDARD",
-  "DTSTART:19701101T020000",
-  "END:STANDARD",
-  "END:VTIMEZONE",
-  "BEGIN:VEVENT",
-  "UID:event-1",
-  "DTSTART;TZID=America/New_York:20260918T235900",
-  "SUMMARY:Section 4.4 Homework (the same one)",
-  "END:VEVENT",
-  "BEGIN:VEVENT",
-  "UID:event-3",
-  "DTSTART;TZID=America/New_York:20260920T235900",
-  "SUMMARY:Section 4.6 Homework",
-  "END:VEVENT",
-  "END:VCALENDAR",
-].join("\r\n");
-
-test("merging keeps one calendar wrapper and every distinct event", () => {
-  const merged = mergeCalendars("Merged", [CALENDAR_A, CALENDAR_B]);
-
-  assert.equal((merged.match(/BEGIN:VCALENDAR/g) || []).length, 1);
-  assert.equal((merged.match(/END:VCALENDAR/g) || []).length, 1);
-  assert.equal((merged.match(/BEGIN:VEVENT/g) || []).length, 3);
-  assert.match(merged, /UID:event-1/);
-  assert.match(merged, /UID:event-3/);
-  assert.match(merged, /X-WR-CALNAME:Merged/);
-});
-
-test("an event that appears in two calendars is kept once", () => {
-  const merged = mergeCalendars("Merged", [CALENDAR_A, CALENDAR_B]);
-
-  assert.equal((merged.match(/UID:event-1/g) || []).length, 1);
-});
-
-test("the timezone definition travels with the events that reference it", () => {
-  const merged = mergeCalendars("Merged", [CALENDAR_A, CALENDAR_B]);
-
-  // Without this, every TZID reference becomes an uninterpretable time.
-  assert.equal((merged.match(/BEGIN:VTIMEZONE/g) || []).length, 1);
-  assert.match(merged, /TZID:America\/New_York/);
-  assert.ok(
-    merged.indexOf("BEGIN:VTIMEZONE") < merged.indexOf("BEGIN:VEVENT"),
-    "timezones must be declared before the events that use them",
-  );
-});
-
-test("a folded line is joined before it is matched", () => {
-  const folded = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "BEGIN:VEVENT",
-    "UID:folded-1",
-    "DTSTART;TZID=America/New_York:20260918T235900",
-    "SUMMARY:A very long summary that Blackboard",
-    "  wrapped across two lines",
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].join("\r\n");
-
-  const merged = mergeCalendars("Merged", [folded]);
-
-  assert.match(merged, /SUMMARY:A very long summary that Blackboard wrapped across two lines/);
-});
-
-test("merging an empty set still produces a valid calendar", () => {
-  const merged = mergeCalendars("Nothing", []);
-
-  assert.match(merged, /^BEGIN:VCALENDAR/);
-  assert.match(merged, /END:VCALENDAR$/);
-  assert.equal((merged.match(/BEGIN:VEVENT/g) || []).length, 0);
-});
-
-test("every line ends CRLF, as the format requires", () => {
-  const merged = mergeCalendars("Merged", [CALENDAR_A]);
-
-  assert.ok(!/[^\r]\n/.test(merged), "found a bare LF");
-});
 
 // ---------------------------------------------------------- the Blackboard side
 
@@ -289,25 +157,7 @@ const MATH_NAME =
 const NRE_NAME =
   "1268-UCONN-NRE-1000E-SEC002-3874: NRE-1000E-Environmental Science-SEC002-1268";
 
-const HOMEWORK_RAW = {
-  itemSourceType: "blackboard.platform.gradebook2.GradableItem",
-  itemSourceId: "_3867211_1",
-  calendarNameLocalizable: { rawValue: MATH_NAME },
-  title: "Section 4.4 Homework",
-  location: null,
-  startDate: "2026-09-19T03:59:00.000Z",
-  endDate: "2026-09-19T03:59:00.000Z",
-};
 
-const LECTURE_RAW = {
-  itemSourceType: "blackboard.data.calendar.CalendarEntry",
-  itemSourceId: "_1019037_1",
-  calendarNameLocalizable: { rawValue: NRE_NAME },
-  title: "Environmental Science",
-  location: "ARJ 105",
-  startDate: "2026-09-14T16:30:00.000Z",
-  endDate: "2026-09-14T17:45:00.000Z",
-};
 
 test("the course code is read out of the calendar name", () => {
   // The calendar feed's name and the page's own name are parsed by one
@@ -316,69 +166,6 @@ test("the course code is read out of the calendar name", () => {
   assert.equal(courseCodeFromDisplay(NRE_NAME), "NRE 1000E");
   assert.equal(courseCodeFromDisplay(null), null);
   assert.equal(courseCodeFromDisplay("nothing useful"), null);
-});
-
-test("the record carries the kind BetterHuskyCT already understands", () => {
-  const homework = eventToRecord(HOMEWORK_RAW, { allDay: false })!;
-  const lecture = eventToRecord(LECTURE_RAW, { allDay: false })!;
-
-  assert.equal(homework.kind, "assignment");
-  assert.equal(lecture.kind, "class");
-  assert.equal(homework.course, "MATH 1070Q");
-  assert.equal(lecture.course, "NRE 1000E");
-  assert.equal(lecture.location, "ARJ 105");
-  assert.equal(homework.start, "2026-09-19T03:59:00.000Z");
-
-  // The UID has to keep the source type: that substring is how BetterHuskyCT tells
-  // a class meeting from a graded item, exactly as it does for a real feed.
-  assert.match(homework.uid as string, /\.gradebook2\.GradableItem-/);
-  assert.match(lecture.uid as string, /\.calendar\.CalendarEntry-/);
-});
-
-test("the exported calendar parses back through BetterHuskyCT's own parser", async () => {
-  const records = [
-    eventToRecord(HOMEWORK_RAW, { allDay: false })!,
-    eventToRecord(LECTURE_RAW, { allDay: false })!,
-  ];
-
-  const parsed = await parseCalendar(recordsToIcs(records), new Date("2026-09-13T12:00:00Z"));
-
-  assert.equal(parsed.events.length, 2);
-
-  const homework = parsed.events.find((event) => event.title === "Section 4.4 Homework");
-  const lecture = parsed.events.find((event) => event.title === "Environmental Science");
-
-  // The whole point: an assignment arrives with its course attached, which the
-  // ICS feed itself never manages.
-  assert.equal(homework?.course, "MATH 1070Q");
-  assert.equal(homework?.kind, "assignment");
-  assert.equal(homework?.start, "2026-09-19T03:59:00.000Z");
-
-  assert.equal(lecture?.course, "NRE 1000E");
-  assert.equal(lecture?.kind, "class");
-  assert.equal(lecture?.location, "ARJ 105");
-});
-
-test("the exported file is a well-formed calendar", () => {
-  const ics = recordsToIcs([eventToRecord(HOMEWORK_RAW, { allDay: false })!]);
-
-  assert.match(ics, /^BEGIN:VCALENDAR/);
-  assert.match(ics, /END:VCALENDAR$/);
-  assert.match(ics, /DTSTART:20260919T035900Z/);
-  assert.match(ics, /CATEGORIES:MATH 1070Q/);
-  assert.ok(!/[^\r]\n/.test(ics), "found a bare LF");
-  for (const line of ics.split("\r\n")) {
-    assert.ok(line.length <= 75, `line too long: ${line.slice(0, 40)}…`);
-  }
-});
-
-test("a comma or semicolon in a title cannot break the calendar", () => {
-  const ics = recordsToIcs([
-    eventToRecord({ ...HOMEWORK_RAW, title: "Reading; chapters 1, 2 & 3" }, { allDay: false })!,
-  ]);
-
-  assert.match(ics, /SUMMARY:Reading\\; chapters 1\\, 2 & 3/);
-  assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 1);
 });
 
 // ------------------------------------------------- the endpoint recorder
@@ -458,66 +245,6 @@ test("announcements are read from the rows the page renders", () => {
   assert.equal(records[0].title, "Virtual Office Hours Today");
   assert.equal(records[0].body, "Sorry for being late!");
   assert.equal(records[0].posted, "7 hours ago, at 5:31 PM");
-});
-
-/**
- * Titles come from the accessibility label rather than a class name, because
- * those class names carry build hashes that change with every release.
- */
-test("content items are read from their accessibility labels", () => {
-  const label = (value: string) => ({ getAttribute: () => value });
-
-  const items = collectContentItems({
-    querySelectorAll: () => [
-      label("Status for Cengage WebAssign: Started"),
-      label("Status for Course Information and Syllabus: Started"),
-      // The same title twice must not produce two entries.
-      label("Status for Cengage WebAssign: Started"),
-      label("Mark as complete"),
-      { getAttribute: () => null },
-    ],
-  });
-
-  // Array.from builds this in the host realm; the array came out of the VM, and
-  // a strict deep comparison also checks prototypes.
-  assert.deepEqual(
-    Array.from(items, (item) => ({ title: item.title, state: item.state })),
-    [
-      { title: "Cengage WebAssign", state: "Started" },
-      { title: "Course Information and Syllabus", state: "Started" },
-    ],
-  );
-});
-
-test("the digest carries the course, its announcements and its content", () => {
-  const markdown = courseDigestToMarkdown({
-    course: { code: "MATH 1070Q", title: "Mathematics for Business and Economics" },
-    source: "/ultra/courses/_203765_1/announcements",
-    announcements: [{ title: "Reminder Exam 1", posted: "11 hours ago, at 12:45 PM", body: "Covers Chapter 4." }],
-    content: [{ title: "Cengage WebAssign", state: "Started" }],
-  });
-
-  assert.match(markdown, /^# MATH 1070Q/);
-  assert.match(markdown, /Mathematics for Business and Economics/);
-  assert.match(markdown, /## Announcements \(1\)/);
-  assert.match(markdown, /### Reminder Exam 1/);
-  assert.match(markdown, /Covers Chapter 4\./);
-  assert.match(markdown, /## Course content \(1\)/);
-  assert.match(markdown, /- Cengage WebAssign {2}\(Started\)/);
-});
-
-test("a digest of an empty page still says which course it came from", () => {
-  const markdown = courseDigestToMarkdown({
-    course: { code: "STAT 1000Q", title: null },
-    source: "/ultra/courses/_1_1/outline",
-    announcements: [],
-    content: [],
-  });
-
-  assert.match(markdown, /^# STAT 1000Q/);
-  // Nothing collected means no empty section heading claiming otherwise.
-  assert.ok(!markdown.includes("## Announcements"));
-  assert.ok(!markdown.includes("## Course content"));
 });
 
 // --------------------------------------------------------------- to-do panel
@@ -639,32 +366,6 @@ test("a to-do becomes a calendar record BetterHuskyCT reads as a deadline", () =
   assert.equal(typeof records[0].start, "string", "the writer expects an ISO string");
 });
 
-test("the exported to-do calendar parses back through BetterHuskyCT's own parser", async () => {
-  const todos = collectTodos({
-    querySelectorAll: () => [
-      { getAttribute: (name: string) => (name === "aria-label" ? TODO_LABEL : name === "data-analytics-id" ? "student-todo.item._3867214_1" : null) },
-    ],
-  });
-
-  const ics = recordsToIcs(todosToRecords(todos));
-  const parsed = await parseCalendar(ics, new Date("2026-09-20T12:00:00Z"));
-
-  assert.equal(parsed.events.length, 1);
-  assert.equal(parsed.events[0].title, "Section 4.7 Homework");
-  assert.equal(parsed.events[0].course, "MATH 1070Q");
-});
-
-test("a title with a comma survives the round trip through the calendar", async () => {
-  const label = "Reading, chapters 1-3, Homework · NRE-1000E-Environmental Science-SEC002-1268 · _1_1, due 1/2/27, 12:05 AM";
-  const todos = collectTodos({
-    querySelectorAll: () => [{ getAttribute: (name: string) => (name === "aria-label" ? label : null) }],
-  });
-
-  const parsed = await parseCalendar(recordsToIcs(todosToRecords(todos)), new Date("2026-09-20T12:00:00Z"));
-  assert.equal(parsed.events.length, 1);
-  assert.equal(parsed.events[0].title, "Reading, chapters 1-3");
-});
-
 /**
  * The course page shows the same announcements the Announcements page does, in
  * a dialog with different class names. Both renderings have to be read, or the
@@ -712,73 +413,6 @@ test("the same announcement rendered twice is collected once", () => {
   assert.equal(records.length, 1);
 });
 
-/**
- * A folder's name comes from an accessibility label, but only a real anchor
- * carries an address, and a link is what makes an index usable.
- */
-test("the files a course links to are read, with their paths", () => {
-  const link = (href: string | null, text: string) => ({
-    getAttribute: (name: string) => (name === "href" ? href : null),
-    textContent: text,
-  });
-
-  const files = collectCourseFiles({
-    querySelectorAll: () => [
-      link("https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409752_1?view=content&state=view", "Course Information and Syllabus"),
-      // The same document linked twice must not be listed twice.
-      link("https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409752_1?view=content", "Course Information and Syllabus"),
-      link("https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409753_1?view=content", "Office Hours"),
-      link(null, "no address"),
-      link("https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409754_1", ""),
-    ],
-  });
-
-  assert.deepEqual(
-    Array.from(files, (file) => ({ title: file.title, id: file.id, url: file.url })),
-    [
-      {
-        title: "Course Information and Syllabus",
-        id: "_14409752_1",
-        url: "https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409752_1",
-      },
-      {
-        title: "Office Hours",
-        id: "_14409753_1",
-        url: "https://lms.uconn.edu/ultra/courses/_203765_1/document/_14409753_1",
-      },
-    ],
-  );
-});
-
-/** A query string can carry a token, and none of it is needed to open a file. */
-test("a file's query string is dropped", () => {
-  const files = collectCourseFiles({
-    querySelectorAll: () => [
-      {
-        getAttribute: (name: string) => (name === "href" ? "/document/_1_1?token=SECRET&x=1#frag" : null),
-        textContent: "Syllabus",
-      },
-    ],
-  });
-
-  assert.equal(files.length, 1);
-  assert.equal(files[0].url, "/document/_1_1");
-  assert.ok(!JSON.stringify(files).includes("SECRET"));
-});
-
-test("the digest lists files as links", () => {
-  const markdown = courseDigestToMarkdown({
-    course: { code: "MATH 1070Q", title: null },
-    source: "/ultra/courses/_203765_1/outline",
-    announcements: [],
-    content: [{ title: "Cengage WebAssign", state: "Started" }],
-    files: [{ title: "Course Information and Syllabus", url: "https://lms.uconn.edu/x/document/_1_1" }],
-  });
-
-  assert.match(markdown, /## Files \(1\)/);
-  assert.match(markdown, /- \[Course Information and Syllabus\]\(https:\/\/lms\.uconn\.edu\/x\/document\/_1_1\)/);
-});
-
 // --------------------------------------------------------- sending to BetterHuskyCT
 //
 // The payload has to satisfy the dashboard's own reader, which drops anything
@@ -816,19 +450,6 @@ test("a collected deadline becomes a task in the dashboard's own shape", () => {
   assert.equal(task.allDay, false);
   assert.equal(task.location, null);
   assert.equal(task.kind, "assignment");
-});
-
-/**
- * This is what stops a deadline arriving twice. The dashboard derives a task id
- * as `uid + ":" + start` when it reads a calendar file; the link has to produce
- * the same string or the two paths would both add the same homework.
- */
-test("the id matches what the dashboard builds from the calendar file", async () => {
-  const records = collectedRecords();
-  const parsed = await parseCalendar(recordsToIcs(records), new Date("2026-09-20T12:00:00Z"));
-
-  assert.equal(parsed.events.length, 1);
-  assert.equal(taskFromRecord(records[0]).id, parsed.events[0].id);
 });
 
 test("the payload says nothing about the parts it did not collect", () => {
@@ -1033,69 +654,6 @@ test("a page with a to-do list wins over being inside a course", () => {
 // ------------------------------------------- one button for the page's calendar
 
 /**
- * The bug this guards: with a single feed, the old merge path passed a bare
- * `""` as the calendar's name, which wrote a bare `X-WR-CALNAME:` into the file.
- * The dashboard reads that key as the name and got `""` rather than null, so it
- * showed a blank name where it would otherwise have said "Unnamed calendar".
- */
-test("the merged calendar is never given an empty name", () => {
-  assert.equal(calendarNameFor([]), "HuskyCT");
-
-  const single: Array<[string, string]> = [["https://lms.uconn.edu/f.ics", ""]];
-  assert.ok(calendarNameFor(single).length > 0, "an unnamed single feed produced an empty name");
-  assert.equal(calendarNameFor(single), "HuskyCT");
-
-  // A single feed that does carry a label uses it, minus the extension.
-  assert.equal(
-    calendarNameFor([["https://lms.uconn.edu/f.ics", "MATH 1070Q.ics"]]),
-    "MATH 1070Q",
-  );
-
-  // Several feeds get a count, because no single label would be honest.
-  assert.equal(
-    calendarNameFor([
-      ["https://lms.uconn.edu/a.ics", "A"],
-      ["https://lms.uconn.edu/b.ics", "B"],
-    ]),
-    "HuskyCT (2 calendars)",
-  );
-});
-
-test("a feed link beats harvested events, and neither beats nothing", () => {
-  // Feeds win: the file they produce can be pasted in as a subscription, so it
-  // refreshes. A file of harvested events can only ever be dropped in once.
-  const feeds = planCalendarAcquisition(2, 0, false);
-  assert.equal(feeds.source, "feeds");
-  assert.equal(feeds.filename, "huskyct-merged.ics");
-
-  const events = planCalendarAcquisition(0, 12, true);
-  assert.equal(events.source, "events");
-  assert.equal(events.filename, "huskyct-calendar.ics");
-
-  // A calendar that exists but has loaded nothing yet is "move through it
-  // first", not "no calendar here" — different advice for the reader.
-  const empty = planCalendarAcquisition(0, 0, true);
-  assert.equal(empty.source, null);
-  assert.match(empty.message ?? "", /move through it first/);
-
-  const absent = planCalendarAcquisition(0, 0, false);
-  assert.equal(absent.source, null);
-  assert.match(absent.message ?? "", /No feed links and no calendar/);
-});
-
-test("the button says which source it is about to use", () => {
-  assert.match(acquireLabelFor(1, 0), /1 feed link/);
-  assert.match(acquireLabelFor(3, 0), /3 feed links/);
-  assert.match(acquireLabelFor(0, 8), /events collected/);
-  // Nothing to work with: still one label, but no promise attached.
-  assert.equal(acquireLabelFor(0, 0), "Get this page's calendar");
-
-  assert.match(acquireHintFor(2, 0), /pasted in as a link/);
-  assert.match(acquireHintFor(0, 4), /export what has been collected/);
-  assert.match(acquireHintFor(0, 0), /Calendar page/);
-});
-
-/**
  * The panel lives in a template string, which means a mismatch between a button
  * and its handler is invisible: no test builds the panel, so a selector that
  * matches nothing would be a null dereference on every page load rather than a
@@ -1119,22 +677,16 @@ test("every panel button has a handler, and the labels match", () => {
     );
   }
 
-  // The one-button promise: the *merge* action is gone, folded into `acquire`.
-  // `export` stays, because it is the labelled fallback for a page with no feeds
-  // — what is gone is having two file buttons with no way to tell them apart.
-  assert.ok(
-    !actions.includes("merge"),
-    "the panel has its own merge button again instead of routing through acquire",
-  );
-  assert.ok(
-    actions.includes("acquire"),
-    "the acquire button is missing",
-  );
-
-  // And the label the code will write is the label the markup ships.
-  assert.ok(
-    SOURCE.includes(acquireLabelFor(0, 0)),
-    "the markup's acquire label and acquireLabelFor(0, 0) disagree",
+  // One-press actions only. The single-page tools — this page's calendar,
+  // exporting harvested events, one course's digest — went in 0.17.0: Collect
+  // everything and Collect course materials do each of their jobs for every
+  // course at once, and having both left the reader to guess which to press.
+  for (const gone of ["acquire", "export", "clear", "course", "copy", "merge"]) {
+    assert.ok(!actions.includes(gone), `the single-page "${gone}" button is back`);
+  }
+  assert.deepEqual(
+    [...new Set(actions)].sort(),
+    ["collectall", "emptybasket", "materials", "savefiles", "savelinks", "todos"],
   );
 });
 
@@ -1289,12 +841,6 @@ test("the Chinese dictionary is actually Chinese, not copied English", () => {
   assert.ok(!/[\u4e00-\u9fff]/.test(t("sendDeadlines")), "English picked up Chinese text");
 });
 
-test("a placeholder with no value supplied does not leak braces", () => {
-  setLocale("en");
-  assert.match(t("collectedSome", { count: 3 }), /3 event/);
-  assert.ok(!t("collectedSome", { count: 3 }).includes("{"), "an unfilled placeholder leaked");
-});
-
 test("the language defaults to the browser and is remembered once chosen", () => {
   // The sandbox has no localStorage and a bare navigator, so this exercises the
   // fallback path: no stored choice means ask the browser, and no browser answer
@@ -1339,9 +885,9 @@ test("the panel markup renders in Chinese, with nothing left in English", () => 
   const englishLabels = [
     "Collect everything",
     "Send everything to BetterHuskyCT",
-    "Get this page's calendar",
-    "Clear collected",
     "Clear basket",
+    "Collect course materials",
+    "Save the links and videos",
   ];
   for (const label of englishLabels) {
     assert.ok(english.includes(label), `the English panel lost: ${label}`);
@@ -1351,7 +897,7 @@ test("the panel markup renders in Chinese, with nothing left in English", () => 
   const chinese = surface.panelMarkup();
 
   // Every translated label must be present in the markup, in Chinese.
-  for (const key of ["collectAll", "sendDeadlines", "getCalendar", "clearCollected", "collectCourse", "copy", "clearBasket"]) {
+  for (const key of ["collectAll", "sendDeadlines", "clearBasket", "collectMaterials", "saveLinks"]) {
     const text = surface.t(key);
     assert.match(text, /[\u4e00-\u9fff]/, `not translated: ${key}`);
     assert.ok(chinese.includes(text), `the rendered panel is missing the translation for ${key}`);
@@ -1378,18 +924,17 @@ test("the panel leads with the guidance and Collect everything", () => {
   // The guidance first: it is what says which button this page wants, and it
   // used to be the last element in the panel.
   const hintAt = panel.indexOf('data-role="hint"');
-  const countAt = panel.indexOf('data-role="count"');
-  assert.ok(hintAt !== -1 && countAt !== -1, "the panel lost its hint or its count");
-  assert.ok(hintAt < countAt, "the guidance is not at the top of the panel");
-
-  // Collect everything leads, then Send, both above the calendar tools. Collect
-  // is the primary to start with; the panel hands that to Send once the basket
-  // has something in it (tested on a mounted panel in helper-basket.test.ts).
   const collectAt = panel.indexOf('data-act="collectall"');
+  assert.ok(hintAt !== -1, "the panel lost its hint");
+  assert.ok(hintAt < collectAt, "the guidance is not at the top of the panel");
+
+  // Collect everything leads, then Send, then course materials. Collect is the
+  // primary to start with; the panel hands that to Send once the basket has
+  // something in it (tested on a mounted panel in helper-basket.test.ts).
   const todosAt = panel.indexOf('data-act="todos"');
-  const acquireAt = panel.indexOf('data-act="acquire"');
-  assert.ok(collectAt !== -1 && todosAt !== -1 && acquireAt !== -1, "the panel lost a button");
-  assert.ok(collectAt < todosAt && todosAt < acquireAt, "the panel's actions are out of order");
+  const materialsAt = panel.indexOf('data-act="materials"');
+  assert.ok(collectAt !== -1 && todosAt !== -1 && materialsAt !== -1, "the panel lost a button");
+  assert.ok(collectAt < todosAt && todosAt < materialsAt, "the panel's actions are out of order");
   assert.match(panel, /class="act primary" data-act="collectall"/, "Collect everything is not the primary button");
   assert.equal((panel.match(/class="act primary"/g) || []).length, 1, "more than one primary button to start with");
 });

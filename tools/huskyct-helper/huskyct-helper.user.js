@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.16.2
+// @version      0.17.1
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.16.2";
+  const VERSION = "0.17.1";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -95,18 +95,7 @@
       showPanel: "Show the HuskyCT Helper panel",
       hidePanel: "Hide the panel",
       sendDeadlines: "Send everything to BetterHuskyCT",
-      getCalendar: "Get this page's calendar",
-      exportCollected: "Export events collected so far",
-      clearCollected: "Clear collected",
-      collectCourse: "Collect this course: announcements + content",
-      copy: "Copy to clipboard",
-      copied: "Copied",
-      pressCtrlC: "Press Ctrl+C to copy",
-      calendarFootnote:
-        "Stay on the Calendar page and move through the term — every view you open is added as you go. This is the fallback for when the page exposes no feed links.",
       privacy: "Nothing is uploaded. Everything stays in this browser.",
-      collectedNone: "Collected 0 events.",
-      collectedSome: "Collected {count} event(s).",
       guideTodo:
         "Press Collect everything: the panel reads this to-do list and every course's announcements by itself.",
       guideCourse: "Press Collect everything to read every course's announcements, this one included.",
@@ -121,6 +110,25 @@
       stopCollecting: "Stop",
       collectingCourses: "Reading your courses and to-do list…",
       collectingDueDates: "Reading the term's due dates from the Calendar…",
+      collectMaterials: "Collect course materials",
+      materialsCourses: "Finding your courses…",
+      materialsOutline: "Reading {course}'s content ({index} of {total})…",
+      materialsDocument: "Opening {course}'s documents: {document} of {documents}…",
+      materialsFound:
+        "Found {files} file(s), {videos} video(s), {links} link(s) and {tools} tool(s) in {courses} course(s).",
+      materialsStopped: "Stopped. What was found so far is below.",
+      materialsFailed: "Collecting materials stopped with an error: {message}",
+      saveFiles: "Save {count} file(s) to a folder…",
+      saveFilesZip: "Download {count} file(s) as a ZIP",
+      saveLinks: "Save the links and videos",
+      savingFile: "Saving {index} of {total}: {name}",
+      filesSaved: "Saved {saved} file(s) in “{folder}”. {skipped} were already there; {failed} failed.",
+      zipSaved: "Downloaded {name} with {saved} file(s). {failed} failed.",
+      linksTitle: "Links and videos",
+      linksVideos: "Videos",
+      linksLinks: "Links",
+      linksTools: "Open in HuskyCT",
+      linksFileName: "links and videos.html",
       collectingCourse: "Reading {course} ({index} of {total})…",
       collectedAll: "Done: {courses} course(s) read. Press Send to put them in BetterHuskyCT.",
       collectSkipped: " Could not open: {courses}.",
@@ -133,54 +141,16 @@
       leftOut: " {count} older announcement(s) stayed behind to keep the link small.",
       // Status and hint lines, reached through the panel rather than baked in at
       // the point of use, so nothing has to be re-translated after the fact.
-      noDeadlinesTitle: "No deadlines on this page.",
-      noDeadlinesHint:
-        "The to-do list lives on the Courses page (the HuskyCT home). Open it, then press this again.",
-      calendarBusy: "This page has a calendar but no events loaded yet — move through it first.",
-      calendarNone: "No calendar on this page. Open the Calendar page and try again.",
-      exported: "Exported {events} events, {withCourse} with a course code.",
-      pickedUp: "Picked up {count} more just now. ",
-      dropCalendar: "Drop huskyct-calendar.ics into BetterHuskyCT.",
       popupBlocked:
-        "Your browser blocked the new tab, so nothing opened. The link is below — copy it and open it yourself.",
+        "Your browser blocked the new tab, so nothing opened. Open it from here:",
       popupBlockedHint:
-        "Look for a popup-blocked icon in the address bar and allow popups for HuskyCT, or just paste the link.",
+        "Look for a popup-blocked icon in the address bar and allow popups for HuskyCT, or use the link above.",
       openedTitle: "Opened BetterHuskyCT with {deadlines} deadline(s){announcements}.",
       openedHint:
         "Press Apply there and they are in. Nothing was uploaded — the data travels inside the link.",
       sentWithAnnouncements: " and {count} announcement(s)",
       sendingTitle: "Sending {deadlines} deadline(s){announcements} to BetterHuskyCT…",
-      readingCalendars: "Reading {count} calendar(s)…",
       linkFailed: "Could not build the link: {message}",
-      acquireHintFeeds: "Feed links found here — the merged file can be pasted in as a link.",
-      acquireHintEvents: "No feed links on this page, so it will export what has been collected.",
-      acquireHintNeither: "No feed links here yet. The Calendar page is the one that usually has them.",
-      acquireOneFeed: "Get this page's calendar (1 feed link)",
-      acquireManyFeeds: "Get this page's calendar ({count} feed links)",
-      acquireEvents: "Get this page's calendar (events collected so far)",
-      acquirePlain: "Get this page's calendar",
-      mergedTitle: "Merged {calendars} calendar(s), {events} events. Check your downloads.",
-      mergedHint:
-        "Open huskyct-merged.ics and copy its contents into the dashboard's link box — that way it refreshes itself. Dropping the file works too, but only once.",
-      mergedHintFailed: "Could not read: {list}",
-      exportFallbackTitle: "No feed links here, so exported {events} collected events{withCourse}. Check your downloads.",
-      exportFallbackWithCourse: ", {count} with a course code",
-      exportFallbackHint:
-        "Drop huskyct-calendar.ics into BetterHuskyCT. A file cannot refresh itself — open the Calendar page for the feed links if you want that.",
-      noFeedNoEvents: "This page has a calendar but no events loaded yet — move through it first.",
-      noFeedNoCalendar: "No feed links and no calendar on this page.",
-      noFeedDetail:
-        "This button prefers links ending in .ics, and this page has none.\nIt falls back to the events the calendar has loaded, and there are none yet.\nThe Calendar page is the one that usually has the feed links.",
-      feedUnreadable: "Found {count} feed link(s) but could not read any of them.",
-      clearedPanel: "Cleared {count} collected event(s).",
-      nothingToCollect: "Nothing to collect on this page.",
-      nothingToCollectHint:
-        "Open the course's Announcements page, or its Content page, then press this again.",
-      collectedCourse:
-        "Collected {announcements} announcement(s), {content} content item(s), {files} file(s).",
-      collectedCourseHint:
-        "Saved as huskyct-course.md. Nothing was requested from UConn — this reads the page you are looking at.",
-      noFeedLinksTitle: "No .ics links on this page. Open the Calendar page, or a course's calendar settings.",
     },
     "zh-CN": {
       panelTitle: "HuskyCT 助手",
@@ -188,18 +158,7 @@
       showPanel: "显示 HuskyCT 助手面板",
       hidePanel: "收起面板",
       sendDeadlines: "全部发给 BetterHuskyCT",
-      getCalendar: "取这一页的日历",
-      exportCollected: "导出已采集的事件",
-      clearCollected: "清空已采集",
-      collectCourse: "采集这门课：公告 + 内容",
-      copy: "复制到剪贴板",
-      copied: "已复制",
-      pressCtrlC: "按 Ctrl+C 复制",
-      calendarFootnote:
-        "停在 Calendar 页，一路翻完整学期——每打开一个视图都会被记下来。这条是页面上没有订阅链接时的退路。",
       privacy: "不上传任何东西，全部留在这个浏览器里。",
-      collectedNone: "已采集 0 个事件。",
-      collectedSome: "已采集 {count} 个事件。",
       guideTodo: "按「一键收集全部」：面板会自己读取这里的待办和每门课的公告。",
       guideCourse: "按「一键收集全部」，读取每门课的公告，包括这一门。",
       guideAnnouncements: "这门课的公告已经收进篮子。",
@@ -211,6 +170,24 @@
       stopCollecting: "停止",
       collectingCourses: "正在读取课程列表和待办……",
       collectingDueDates: "正在从日历读取整个学期的截止日期……",
+      collectMaterials: "收集课件",
+      materialsCourses: "正在查找课程……",
+      materialsOutline: "正在读取 {course} 的课程内容（{index}/{total}）……",
+      materialsDocument: "正在打开 {course} 的文档（{document}/{documents}）……",
+      materialsFound: "在 {courses} 门课里找到 {files} 个文件、{videos} 个视频、{links} 个链接、{tools} 个工具。",
+      materialsStopped: "已停止。下面是目前找到的内容。",
+      materialsFailed: "收集课件时出错停止了：{message}",
+      saveFiles: "把 {count} 个文件保存到文件夹……",
+      saveFilesZip: "把 {count} 个文件打包成 ZIP 下载",
+      saveLinks: "保存链接与视频清单",
+      savingFile: "正在保存 {index}/{total}：{name}",
+      filesSaved: "已保存 {saved} 个文件到「{folder}」，{skipped} 个已存在跳过，{failed} 个失败。",
+      zipSaved: "已下载 {name}，包含 {saved} 个文件，{failed} 个失败。",
+      linksTitle: "链接与视频",
+      linksVideos: "视频",
+      linksLinks: "链接",
+      linksTools: "在 HuskyCT 里打开",
+      linksFileName: "链接与视频.html",
       collectingCourse: "正在读取 {course}（{index}/{total}）……",
       collectedAll: "完成：读取了 {courses} 门课。按「全部发给 BetterHuskyCT」导入。",
       collectSkipped: "打不开的课程：{courses}。",
@@ -221,47 +198,13 @@
       basketNothing: "还没有收集到任何内容。",
       basketNothingHint: "先按「一键收集全部」。",
       leftOut: "另有 {count} 条较早的公告为了让链接不太长没有带上。",
-      noDeadlinesTitle: "这一页没有 deadline。",
-      noDeadlinesHint: "待办列表在 Courses 页（HuskyCT 首页）。打开它，再按一次。",
-      calendarBusy: "这一页有日历，但还没加载出事件——先在日历里翻一翻。",
-      calendarNone: "这一页没有日历。打开 Calendar 页再试。",
-      exported: "已导出 {events} 个事件，其中 {withCourse} 个带课程代码。",
-      pickedUp: "刚刚又收到 {count} 个。",
-      dropCalendar: "把 huskyct-calendar.ics 拖进 BetterHuskyCT。",
-      popupBlocked: "浏览器拦下了新标签页，所以什么都没打开。链接在下面——复制出来自己打开。",
-      popupBlockedHint: "看看地址栏有没有「已拦截弹窗」的图标，允许 HuskyCT 弹窗；或者直接把链接粘过去。",
+      popupBlocked: "浏览器拦下了新标签页，所以什么都没打开。从这里打开：",
+      popupBlockedHint: "看看地址栏有没有「已拦截弹窗」的图标，允许 HuskyCT 弹窗；或者点上面的链接。",
       openedTitle: "已打开 BetterHuskyCT，带上了 {deadlines} 条 deadline{announcements}。",
       openedHint: "在那里按 Apply 就进去了。没有上传任何东西——数据就在链接里。",
       sentWithAnnouncements: "和 {count} 条公告",
       sendingTitle: "正在把 {deadlines} 条 deadline{announcements} 发给 BetterHuskyCT…",
-      readingCalendars: "正在读取 {count} 个日历…",
       linkFailed: "生成链接失败：{message}",
-      acquireHintFeeds: "这一页有订阅链接——合并出来的文件可以当链接贴进去。",
-      acquireHintEvents: "这一页没有订阅链接，所以会导出已经采集到的事件。",
-      acquireHintNeither: "这一页还没有订阅链接。通常 Calendar 页才有。",
-      acquireOneFeed: "取这一页的日历（1 个订阅链接）",
-      acquireManyFeeds: "取这一页的日历（{count} 个订阅链接）",
-      acquireEvents: "取这一页的日历（已采集的事件）",
-      acquirePlain: "取这一页的日历",
-      mergedTitle: "已合并 {calendars} 个日历、{events} 个事件。看看你的下载。",
-      mergedHint:
-        "打开 huskyct-merged.ics，把内容复制到仪表盘的链接框里——那样它以后会自己刷新。直接拖文件也行，但只有一次。",
-      mergedHintFailed: "读不出来：{list}",
-      exportFallbackTitle: "这一页没有订阅链接，已导出采集到的 {events} 个事件{withCourse}。看看你的下载。",
-      exportFallbackWithCourse: "，其中 {count} 个带课程代码",
-      exportFallbackHint:
-        "把 huskyct-calendar.ics 拖进 BetterHuskyCT。文件没法自己刷新——想要刷新就去 Calendar 页取订阅链接。",
-      noFeedNoEvents: "这一页有日历，但还没加载出事件——先在日历里翻一翻。",
-      noFeedNoCalendar: "这一页既没有订阅链接，也没有日历。",
-      noFeedDetail:
-        "这个按钮优先找 .ics 链接，而这一页没有。\n它退回到日历已经加载的事件，而目前一个都没有。\n通常 Calendar 页才有订阅链接。",
-      feedUnreadable: "找到 {count} 个订阅链接，但一个都读不出来。",
-      clearedPanel: "已清空 {count} 个已采集事件。",
-      nothingToCollect: "这一页没有可采集的内容。",
-      nothingToCollectHint: "打开这门课的公告页或内容页，再按一次。",
-      collectedCourse: "已采集 {announcements} 条公告、{content} 个内容条目、{files} 个文件。",
-      collectedCourseHint: "已存为 huskyct-course.md。没有向 UConn 发任何请求——读的就是你眼前这一页。",
-      noFeedLinksTitle: "这一页没有 .ics 链接。打开 Calendar 页，或某门课的日历设置。",
     },
   };
 
@@ -283,7 +226,8 @@
   // ---------------------------------------------------------------- utilities
 
   function download(filename, text, type) {
-    const blob = new Blob([text], { type: type || "text/plain;charset=utf-8" });
+    const isBlob = typeof Blob !== "undefined" && text instanceof Blob;
+    const blob = isBlob ? text : new Blob([text], { type: type || "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -291,213 +235,15 @@
     document.body.appendChild(link);
     link.click();
     link.remove();
-    URL.revokeObjectURL(url);
+    // A large file may still be streaming out of the blob when the click
+    // returns, so a blob handed in whole is released a little later.
+    if (isBlob) setTimeout(() => URL.revokeObjectURL(url), 30000);
+    else URL.revokeObjectURL(url);
   }
 
-  async function copy(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      return false;
-    }
-  }
 
-  // ------------------------------------------------------------ merging .ics
 
-  /** Unfold continuation lines, the way RFC 5545 requires. */
-  function unfold(text) {
-    return text.replace(/\r?\n[ \t]/g, "");
-  }
 
-  function blocks(text, name) {
-    const pattern = new RegExp("BEGIN:" + name + "[\\s\\S]*?END:" + name, "g");
-    return unfold(text).match(pattern) || [];
-  }
-
-  /**
-   * One calendar out of many.
-   *
-   * VTIMEZONE blocks have to come along: the events reference them by TZID, and
-   * a calendar that drops them has its times silently reinterpreted.
-   */
-  function mergeCalendars(name, texts) {
-    const events = new Map();
-    const timezones = new Map();
-
-    for (const text of texts) {
-      for (const block of blocks(text, "VEVENT")) {
-        const uid = (block.match(/^UID:(.*)$/m) || [])[1] || block.slice(0, 80);
-        if (!events.has(uid)) events.set(uid, block);
-      }
-      for (const block of blocks(text, "VTIMEZONE")) {
-        const tzid = (block.match(/^TZID:(.*)$/m) || [])[1] || block.slice(0, 80);
-        if (!timezones.has(tzid)) timezones.set(tzid, block);
-      }
-    }
-
-    return [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//BetterHuskyCT//HuskyCT Helper " + VERSION + "//EN",
-      "CALSCALE:GREGORIAN",
-      "X-WR-CALNAME:" + name,
-      ...timezones.values(),
-      ...events.values(),
-      "END:VCALENDAR",
-    ].join("\r\n");
-  }
-
-  /** Every same-origin link on this page that looks like a calendar feed. */
-  function calendarLinks() {
-    const found = new Map();
-    for (const anchor of document.querySelectorAll("a[href]")) {
-      const href = anchor.getAttribute("href") || "";
-      if (!/\.ics(\?|$)|ical|calendar/i.test(href)) continue;
-      try {
-        const url = new URL(href, window.location.href);
-        if (url.origin !== window.location.origin) continue;
-        if (!/\.ics(\?|$)/i.test(url.pathname + url.search)) continue;
-        const text = (anchor.textContent || "").replace(/\s+/g, " ").trim();
-        found.set(url.href, (text.length > 60 ? text.slice(0, 60) + "…" : text) || url.pathname);
-      } catch {
-        /* not a URL we can use */
-      }
-    }
-    return [...found.entries()];
-  }
-
-  // ------------------------------------------------------- collecting events
-
-  function kindFromSourceType(type) {
-    if (/GradableItem/.test(type || "")) return "assignment";
-    if (/CalendarEntry/.test(type || "")) return "class";
-    return null;
-  }
-
-  /** `2026-09-16T16:30:00.000Z` -> `20260916T163000Z` */
-  function utcStamp(iso) {
-    const date = new Date(iso);
-    if (Number.isNaN(date.valueOf())) return null;
-    return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  }
-
-  /** `2026-09-16T16:30:00.000Z` -> `20260916` */
-  function dateOnly(iso) {
-    const date = new Date(iso);
-    if (Number.isNaN(date.valueOf())) return null;
-    return date.toISOString().slice(0, 10).replace(/-/g, "");
-  }
-
-  function escapeIcs(text) {
-    return String(text)
-      .replace(/\\/g, "\\\\")
-      .replace(/;/g, "\\;")
-      .replace(/,/g, "\\,")
-      .replace(/\r?\n/g, "\\n");
-  }
-
-  /** RFC 5545 folds long lines at 75 octets with a leading space. */
-  function fold(line) {
-    if (line.length <= 73) return line;
-    const parts = [line.slice(0, 73)];
-    for (let index = 73; index < line.length; index += 72) {
-      parts.push(" " + line.slice(index, index + 72));
-    }
-    return parts.join("\r\n");
-  }
-
-  function eventToRecord(raw, event) {
-    const start = raw.startDate || event.start;
-    if (!start) return null;
-
-    const type = raw.itemSourceType || "";
-    const sourceId = raw.itemSourceId || event.id || "unknown";
-    const name =
-      (raw.calendarNameLocalizable && raw.calendarNameLocalizable.rawValue) ||
-      (raw.ui && raw.ui.calendarName) ||
-      null;
-
-    return {
-      // The type stays in the UID on purpose: BetterHuskyCT reads it back to tell
-      // a class meeting from an assignment, exactly as it does for a real feed.
-      uid: type + "-" + sourceId + "-" + (utcStamp(start) || ""),
-      title: raw.title || event.title || "Untitled",
-      course: courseCodeFromDisplay(name),
-      start,
-      end: raw.endDate || event.end || null,
-      location: raw.location || null,
-      allDay: Boolean(event.allDay),
-      kind: kindFromSourceType(type),
-    };
-  }
-
-  function recordsToIcs(records) {
-    const lines = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//BetterHuskyCT//HuskyCT Helper " + VERSION + "//EN",
-      "CALSCALE:GREGORIAN",
-      "X-WR-CALNAME:HuskyCT",
-    ];
-    const stamp = utcStamp(new Date().toISOString());
-
-    for (const record of records) {
-      lines.push("BEGIN:VEVENT");
-      lines.push("UID:" + escapeIcs(record.uid));
-      lines.push("DTSTAMP:" + stamp);
-      if (record.allDay) {
-        lines.push("DTSTART;VALUE=DATE:" + dateOnly(record.start));
-      } else {
-        lines.push("DTSTART:" + utcStamp(record.start));
-        if (record.end) lines.push("DTEND:" + utcStamp(record.end));
-      }
-      lines.push("SUMMARY:" + escapeIcs(record.title));
-      if (record.course) lines.push("CATEGORIES:" + escapeIcs(record.course));
-      if (record.location) lines.push("LOCATION:" + escapeIcs(record.location));
-      lines.push("END:VEVENT");
-    }
-
-    lines.push("END:VCALENDAR");
-    return lines.map(fold).join("\r\n");
-  }
-
-  // ------------------------------------------------------------- the harvest
-
-  /**
-   * FullCalendar only holds the events for the range it has loaded, so this
-   * accumulates everything ever seen rather than exporting one view's worth.
-   * Navigating the calendar is what fills it up; the count in the panel is how
-   * the user knows when to stop.
-   */
-  const collected = new Map();
-
-  function clientEvents() {
-    const jq = window.jQuery || window.$;
-    if (!jq) return null;
-    const containers = jq("#fullCalendar, .fullcalendar-container");
-    if (!containers.length) return null;
-    try {
-      return jq(containers[0]).fullCalendar("clientEvents") || [];
-    } catch {
-      return null;
-    }
-  }
-
-  function harvest() {
-    const events = clientEvents();
-    if (!events) return { total: collected.size, added: 0, available: false };
-
-    let added = 0;
-    for (const event of events) {
-      const record = eventToRecord(event.raw || {}, event);
-      if (!record || collected.has(record.uid)) continue;
-      collected.set(record.uid, record);
-      added += 1;
-    }
-
-    return { total: collected.size, added, available: true };
-  }
 
   // ------------------------------------------------- reading the course page
 
@@ -600,66 +346,10 @@
     return records;
   }
 
-  /**
-   * The course outline.
-   *
-   * Titles come from each item's accessibility label — "Status for Cengage
-   * WebAssign: Started" — not from a CSS class. Those class names carry build
-   * hashes (`makeStylescontentItemTitle-0-2-809`) and change every release,
-   * while an aria-label is part of the page's contract with screen readers and
-   * is far steadier.
-   */
-  function collectContentItems(root) {
-    const scope = root || document;
-    const items = [];
-    const seen = new Set();
-    for (const node of scope.querySelectorAll("[aria-label^='Status for ']")) {
-      const match = String(node.getAttribute("aria-label") || "").match(/^Status for (.+?):\s*(.+)$/);
-      if (!match) continue;
-      const title = match[1].trim();
-      if (seen.has(title)) continue;
-      seen.add(title);
-      items.push({ title, state: match[2].trim() });
-    }
-    return items;
-  }
-
   /** The course id out of a course URL, e.g. `/ultra/courses/_203765_1/outline`. */
   function currentCourseId() {
     const match = window.location.pathname.match(/\/ultra\/courses\/([^/]+)/);
     return match ? match[1] : null;
-  }
-
-  /**
-   * Documents the course page links to.
-   *
-   * The outline's items are found by accessibility label, which gives names but
-   * no addresses. A document is a real anchor — /ultra/courses/<id>/document/
-   * <fileId> — and a link is what makes an index useful. Only the path is kept;
-   * a query string can carry a token, and none of it is needed to open a file
-   * the reader is already entitled to.
-   */
-  function collectCourseFiles(root) {
-    const scope = root || document;
-    const files = [];
-    const seen = new Set();
-
-    for (const anchor of scope.querySelectorAll('a[href*="/document/"]')) {
-      const href = anchor.getAttribute("href") || "";
-      const title = textOf(anchor) || anchor.getAttribute("title") || "";
-      if (!title) continue;
-
-      // The id has to come out of the path, or there is nothing to list. The
-      // selector implies it will, but depending on the caller's selector for
-      // the shape of a record is how an empty entry reaches the output.
-      const id = (href.match(/\/document\/([^/?#]+)/) || [])[1];
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
-
-      files.push({ title, id, url: href.split("?")[0].split("#")[0] });
-    }
-
-    return files;
   }
 
   /** The course this page belongs to, from what its header renders. */
@@ -701,49 +391,6 @@
         announced: stamp,
       }));
   }
-
-  /**
-   * A plain-text digest of the course.
-   *
-   * Markdown on purpose: it reads fine in a message, it diffs, and there is no
-   * rendering to get wrong.
-   */
-  function courseDigestToMarkdown(digest) {
-    const lines = [];
-    const course = digest.course || {};
-
-    lines.push("# " + (course.code || course.heading || "HuskyCT course"));
-    if (course.title) lines.push("", course.title);
-    lines.push("", "Source: " + (digest.source || "(unknown page)"));
-
-    const announcements = digest.announcements || [];
-    if (announcements.length) {
-      lines.push("", "## Announcements (" + announcements.length + ")");
-      for (const item of announcements) {
-        lines.push("", "### " + item.title);
-        if (item.posted) lines.push("_" + item.posted + "_");
-        if (item.body) lines.push("", item.body);
-      }
-    }
-
-    const content = digest.content || [];
-    if (content.length) {
-      lines.push("", "## Course content (" + content.length + ")");
-      for (const item of content) {
-        lines.push("- " + item.title + (item.state ? "  (" + item.state + ")" : ""));
-      }
-    }
-
-    const files = digest.files || [];
-    if (files.length) {
-      lines.push("", "## Files (" + files.length + ")");
-      for (const file of files) lines.push("- [" + file.title + "](" + file.url + ")");
-    }
-
-    lines.push("");
-    return lines.join("\n");
-  }
-
 
   // ------------------------------------------------------- the to-do panel
 
@@ -1401,6 +1048,38 @@
   }
 
   /**
+   * The Courses page, read for the courses to visit.
+   *
+   * It has two layouts. On a wide screen it lists every course as a card
+   * straight away; on a narrow one it shows the few opened recently, as links,
+   * with a "View All" button for the rest. Measured on 2026-09-27 at 1440 and
+   * 398 pixels wide. `onCoursesPage` runs while the page is up, before "View
+   * All" replaces it, for whatever else the caller wants from it.
+   */
+  async function findCourses(opts, onCoursesPage) {
+    routeTo("/ultra/course");
+    await waitFor(
+      () =>
+        window.location.pathname.indexOf("/ultra/course") === 0 &&
+        (document.querySelector(VIEW_ALL_COURSES) ||
+          document.querySelector('a[href*="/ultra/courses/"]') ||
+          document.querySelector("article[data-course-id]")),
+      opts.every,
+      opts.pageTimeout,
+    );
+    const recent = courseLinksOnPage(document);
+    if (onCoursesPage) await onCoursesPage(recent);
+
+    const viewAll = document.querySelector(VIEW_ALL_COURSES);
+    if (viewAll) viewAll.click();
+    let cards = [];
+    if (viewAll || document.querySelector("article[data-course-id]")) {
+      cards = await loadEveryCourseCard(opts);
+    }
+    return { recent, cards, queue: coursesToCollect(cards, recent, new Date()) };
+  }
+
+  /**
    * The whole walk. Writes to the basket as it goes, so stopping halfway keeps
    * what was read.
    */
@@ -1426,38 +1105,16 @@
     };
 
     try {
-      // 1. The Courses page: the to-do list, and the courses. It has two
-      // layouts. On a wide screen it lists every course as a card straight away;
-      // on a narrow one it shows the few opened recently, as links, with a
-      // "View All" button for the rest. Measured on 2026-09-27 at 1440 and 398
-      // pixels wide.
+      // 1 and 2. The Courses page: the to-do list while it is up, then every
+      // course, from the cards on screen or behind "View All".
       opts.onProgress({ step: "courses" });
-      routeTo("/ultra/course");
-      await waitFor(
-        () =>
-          window.location.pathname.indexOf("/ultra/course") === 0 &&
-          (document.querySelector(VIEW_ALL_COURSES) ||
-            document.querySelector('a[href*="/ultra/courses/"]') ||
-            document.querySelector("article[data-course-id]")),
-        opts.every,
-        opts.pageTimeout,
-      );
-      // An empty week has no to-do items at all, so this simply runs out.
-      await waitFor(() => document.querySelector("[aria-label*=', due ']"), opts.every, opts.todoSettle);
-
-      const recent = courseLinksOnPage(document);
       let basket = readBasket(storage);
-      basket = save(rememberTodos(basket, todosToRecords(collectTodos(document)), new Date()));
-      basket = save(rememberCourses(basket, recent));
-
-      // 2. Every course: the cards already on screen, or behind "View All".
-      const viewAll = document.querySelector(VIEW_ALL_COURSES);
-      if (viewAll) viewAll.click();
-      let cards = [];
-      if (viewAll || document.querySelector("article[data-course-id]")) {
-        cards = await loadEveryCourseCard(opts);
-      }
-      const queue = coursesToCollect(cards, recent, new Date());
+      const { queue } = await findCourses(opts, async (recent) => {
+        // An empty week has no to-do items at all, so this simply runs out.
+        await waitFor(() => document.querySelector("[aria-label*=', due ']"), opts.every, opts.todoSettle);
+        basket = save(rememberTodos(basket, todosToRecords(collectTodos(document)), new Date()));
+        basket = save(rememberCourses(basket, recent));
+      });
       save(rememberCourses(basket, queue));
       report.courses = queue.length;
 
@@ -1495,6 +1152,578 @@
       routeTo(returnTo);
     }
     return report;
+  }
+
+  // --- course materials ---------------------------------------------------------
+
+  /**
+   * Every file, document, video, link and tool in each course's content, and
+   * the files saved into a folder the student picks.
+   *
+   * Measured on 2026-09-27 across six courses:
+   *
+   * - A course's content page lists items as links whose accessibility label is
+   *   "Type, Title" — "PDF, Section 5.1 Problem Solving Tips.pdf". The type is
+   *   the file's kind, not the item's: a CSV reads "Text Document". What an item
+   *   is comes from where it links. `/file/` is a file, `/document/` a page that
+   *   holds attachments and embedded videos, `/assessment/` and `/discussion/`
+   *   are work to do rather than material, `#` is a tool launched from HuskyCT
+   *   (LTI links, Cengage homework), and anything else is a link out.
+   * - A file's row carries its real address, `/bbcswebdav/...`, on an anchor
+   *   keyed by the item's id; it redirects to Blackboard's file store, which
+   *   answers any origin. So the file can be read with an ordinary request that
+   *   sends HuskyCT's cookie to HuskyCT only. With the cookie sent on to the
+   *   store as well, the store refuses — that is the one way to get it wrong.
+   * - Folders and learning modules load their contents when opened, and each
+   *   list ends in a "Load more" button that is disabled once nothing is left.
+   * - A document's attachments carry an id that starts with the document's own,
+   *   so a page still showing the previous document cannot be mistaken for it.
+   */
+
+  const OUTLINE_ITEMS = 'a[aria-label][data-analytics-id^="content.item"], a[aria-label][data-analytics-id^="course.link.item"]';
+  const OUTLINE_TOGGLES =
+    'button[aria-expanded="false"][id^="folder-title-"], button[aria-expanded="false"][id^="learning-module-title-"]';
+  const LOAD_MORE =
+    'button[data-analytics-id="components.directives.content.content-outline.infiniteScroll.content.loadMoreButton.label.plural"]';
+  const ACTIVITY_TYPES = /^(assignment|quiz|test|practice test|homework|discussion|journal|survey|assessment|exam)$/i;
+  const VIDEO_HOSTS = /(youtube\.com|youtu\.be|vimeo\.com|vidyard\.com|panopto|kaltura|mediaspace|zoom\.us\/rec)/i;
+  const TERM_SEASONS = { 3: "Spring", 5: "Summer", 8: "Fall" };
+
+  /** "PDF, Section 5.1 Problem Solving Tips.pdf" -> { type: "PDF", title: "Section 5.1 …" } */
+  function splitItemLabel(label) {
+    const text = String(label || "").trim();
+    const comma = text.indexOf(", ");
+    return comma === -1
+      ? { type: "", title: text }
+      : { type: text.slice(0, comma).trim(), title: text.slice(comma + 2).trim() };
+  }
+
+  /**
+   * A link without Outlook's safe-links wrapper. Links pasted in from a UConn
+   * mailbox arrive wrapped, and the wrapper carries the student's own email
+   * address in its query — not something to put in a file on the desktop.
+   */
+  function unwrapLink(href) {
+    try {
+      const url = new URL(href);
+      if (/safelinks\.protection\.outlook\.com$/i.test(url.hostname) && url.searchParams.get("url")) {
+        return url.searchParams.get("url");
+      }
+      return url.href;
+    } catch {
+      return String(href || "");
+    }
+  }
+
+  function isVideoLink(url) {
+    return VIDEO_HOSTS.test(String(url || ""));
+  }
+
+  /** The folders an outline item sits in, outermost first. */
+  function outlinePathOf(element) {
+    const owner = element.ownerDocument || document;
+    const path = [];
+    for (let node = element.parentElement; node; node = node.parentElement) {
+      const match = /^(folder|learning-module)-contents-(.+)$/.exec(node.id || "");
+      if (!match) continue;
+      const title = owner.getElementById(match[1] + "-title-" + match[2]);
+      if (title) path.unshift(textOf(title));
+    }
+    return path;
+  }
+
+  /**
+   * Sorts a course's opened content page into files, documents to open, links,
+   * tools and work. Only items linking into this course count as its files and
+   * documents, so a page still showing another course adds nothing of it.
+   */
+  function classifyOutline(root, courseId) {
+    const scope = root || document;
+    const found = { files: [], documents: [], links: [], tools: [], activities: 0 };
+    const addresses = new Map();
+    for (const anchor of scope.querySelectorAll("[data-ally-content-id][data-ally-file-preview-url]")) {
+      addresses.set(anchor.getAttribute("data-ally-content-id"), anchor.getAttribute("data-ally-file-preview-url"));
+    }
+
+    const own = "/ultra/courses/" + courseId + "/";
+    const seen = new Set();
+    for (const anchor of scope.querySelectorAll(OUTLINE_ITEMS)) {
+      const href = anchor.getAttribute("href") || "";
+      const { type, title } = splitItemLabel(anchor.getAttribute("aria-label"));
+      if (!title) continue;
+      const path = outlinePathOf(anchor);
+      const key = href + "|" + title + "|" + path.join("/");
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const file = /\/file\/(_\d+_\d+)/.exec(href);
+      const doc = /\/document\/(_\d+_\d+)/.exec(href);
+      if (file) {
+        const url = href.indexOf(own) !== -1 ? addresses.get(file[1]) : null;
+        if (url) found.files.push({ path, title, url });
+        continue;
+      }
+      if (doc) {
+        if (href.indexOf(own) === -1) continue;
+        const address = new URL(href, window.location.origin);
+        found.documents.push({ path, title, id: doc[1], route: address.pathname + address.search });
+        continue;
+      }
+      if (ACTIVITY_TYPES.test(type) || /\/(assessment|discussion)\//.test(href)) {
+        found.activities += 1;
+        continue;
+      }
+      if (/^https?:/i.test(href) && !/lms\.uconn\.edu\/ultra\//i.test(href)) {
+        const url = unwrapLink(href);
+        found.links.push({ path, title, url, kind: isVideoLink(url) ? "video" : "link" });
+        continue;
+      }
+      found.tools.push({ path, title, type });
+    }
+    return found;
+  }
+
+  /** Opens every folder and learning module, and presses every live "Load more". */
+  async function expandOutline(opts) {
+    const started = Date.now();
+    while (Date.now() - started < opts.outlineTimeout) {
+      const closed = [...document.querySelectorAll(OUTLINE_TOGGLES)];
+      const more = [...document.querySelectorAll(LOAD_MORE)].filter((button) => !button.disabled);
+      if (closed.length === 0 && more.length === 0) return true;
+      for (const button of closed) button.click();
+      for (const button of more) button.click();
+      await pause(opts.expandPause);
+    }
+    return false;
+  }
+
+  /** A course's content page, opened fully and sorted. Null if it never loaded. */
+  async function readOutlineOf(courseId, code, opts) {
+    const stale = new Set(document.querySelectorAll(OUTLINE_ITEMS + ", " + LOAD_MORE));
+    const path = "/ultra/courses/" + courseId + "/outline";
+    routeTo(path);
+    const ready = await waitFor(
+      () => {
+        if (window.location.pathname.indexOf(path) !== 0) return false;
+        const heading = collectCourse(document).code;
+        if (code && heading && heading !== code) return false;
+        return [...document.querySelectorAll(OUTLINE_ITEMS + ", " + LOAD_MORE)].some((node) => !stale.has(node));
+      },
+      opts.every,
+      opts.pageTimeout,
+    );
+    if (!ready) return null;
+    await expandOutline(opts);
+    return classifyOutline(document, courseId);
+  }
+
+  /**
+   * One document's attachments, embedded videos and links. Null if the page
+   * never showed.
+   */
+  async function readDocument(documentItem, opts) {
+    const staleRoots = new Set(document.querySelectorAll(".bbml-editor-parent"));
+    routeTo(documentItem.route);
+    const root = await waitFor(
+      () => {
+        if (window.location.pathname.indexOf("/document/" + documentItem.id) === -1) return null;
+        return [...document.querySelectorAll(".bbml-editor-parent")].find((node) => !staleRoots.has(node)) || null;
+      },
+      opts.every,
+      opts.documentTimeout,
+    );
+    if (!root) return null;
+    // Attachments and embeds render a moment after the text.
+    await pause(opts.documentSettle);
+
+    const files = [];
+    for (const anchor of root.querySelectorAll("[data-ally-file-preview-url]")) {
+      if (String(anchor.getAttribute("data-ally-content-id") || "").indexOf(documentItem.id) !== 0) continue;
+      const region = (anchor.closest && anchor.closest('[role="region"]')) || anchor.parentElement;
+      const name =
+        textOf(region && region.querySelector('[role="button"] span')) ||
+        textOf(region && region.querySelector("span")) ||
+        documentItem.title;
+      files.push({ title: name, url: anchor.getAttribute("data-ally-file-preview-url") });
+    }
+
+    const links = [];
+    const seen = new Set();
+    const addLink = (href, title) => {
+      if (!/^https?:/i.test(String(href || "")) || /lms\.uconn\.edu\/(ultra|bbcswebdav)/i.test(href)) return;
+      const url = unwrapLink(href);
+      if (seen.has(url)) return;
+      seen.add(url);
+      links.push({ title: title || documentItem.title, url, kind: isVideoLink(url) ? "video" : "link" });
+    };
+    for (const video of root.querySelectorAll('[data-bbtype="video"]')) {
+      try {
+        addLink(JSON.parse(video.getAttribute("data-bbfile") || "{}").src, documentItem.title);
+      } catch {
+        /* an embed whose description does not parse is left out */
+      }
+    }
+    for (const frame of root.querySelectorAll("iframe[src]")) addLink(frame.getAttribute("src"), documentItem.title);
+    for (const anchor of root.querySelectorAll("a[href]")) addLink(anchor.getAttribute("href"), textOf(anchor));
+    return { files, links };
+  }
+
+  /** `1268` -> "Fall 2026". */
+  function termLabel(code) {
+    const value = Number(code);
+    const season = TERM_SEASONS[value % 10];
+    return season ? season + " " + (2000 + Math.floor((value % 1000) / 10)) : null;
+  }
+
+  /**
+   * The walk for materials: every course's content, opened fully, and every
+   * document in it. Nothing is downloaded here; this only lists.
+   */
+  async function collectMaterials(options) {
+    const opts = Object.assign(
+      {
+        every: 300,
+        pageTimeout: 15000,
+        outlineTimeout: 30000,
+        expandPause: 1200,
+        documentTimeout: 8000,
+        documentSettle: 1000,
+        gap: 250,
+        onProgress() {},
+        shouldStop: () => false,
+      },
+      options,
+    );
+    const returnTo = window.location.pathname + window.location.search;
+    const manifest = { term: null, courses: [], stopped: false };
+
+    try {
+      opts.onProgress({ step: "courses" });
+      const { cards, queue } = await findCourses(opts);
+      const terms = cards
+        .filter((card) => queue.some((course) => course.id === card.id))
+        .map((card) => Number(card.term))
+        .filter(Boolean);
+      manifest.term = termLabel(terms.length ? Math.min(...terms) : termCodeFor(new Date()));
+
+      for (let index = 0; index < queue.length; index++) {
+        if (opts.shouldStop()) {
+          manifest.stopped = true;
+          break;
+        }
+        const course = queue[index];
+        const where = { course, index: index + 1, total: queue.length };
+        opts.onProgress({ step: "outline", ...where });
+
+        const outline = await readOutlineOf(course.id, course.code, opts);
+        const entry = { id: course.id, code: course.code, files: [], links: [], tools: [], activities: 0, skipped: !outline };
+        manifest.courses.push(entry);
+        if (!outline) continue;
+        entry.files = outline.files;
+        entry.links = outline.links;
+        entry.tools = outline.tools;
+        entry.activities = outline.activities;
+
+        for (let d = 0; d < outline.documents.length; d++) {
+          if (opts.shouldStop()) {
+            manifest.stopped = true;
+            break;
+          }
+          const documentItem = outline.documents[d];
+          opts.onProgress({ step: "document", ...where, document: d + 1, documents: outline.documents.length });
+          const found = await readDocument(documentItem, opts);
+          if (!found) continue;
+          // A document's attachments go in the folder the document sits in.
+          for (const file of found.files) entry.files.push({ path: documentItem.path, title: file.title, url: file.url });
+          for (const link of found.links) entry.links.push({ path: documentItem.path, ...link });
+          await pause(opts.gap);
+        }
+        if (manifest.stopped) break;
+      }
+    } finally {
+      routeTo(returnTo);
+    }
+    return manifest;
+  }
+
+  function materialsSummary(manifest) {
+    const courses = manifest.courses.filter((course) => !course.skipped);
+    const count = (pick) => courses.reduce((total, course) => total + pick(course), 0);
+    return {
+      courses: courses.length,
+      files: count((course) => course.files.length),
+      videos: count((course) => course.links.filter((link) => link.kind === "video").length),
+      links: count((course) => course.links.filter((link) => link.kind !== "video").length),
+      tools: count((course) => course.tools.length),
+    };
+  }
+
+  /** A name Windows, macOS and Linux will all take for a file or folder. */
+  function safeName(name, fallback) {
+    const cleaned = String(name || "")
+      .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[. ]+$/, "")
+      .slice(0, 120);
+    if (!cleaned || /^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(cleaned)) return fallback;
+    return cleaned;
+  }
+
+  function hasExtension(name) {
+    return /\.[A-Za-z0-9]{2,5}$/.test(String(name || ""));
+  }
+
+  /** The file name the store was asked to give the file, from its signed address. */
+  function nameFromStoreUrl(url) {
+    try {
+      const disposition = new URL(url).searchParams.get("response-content-disposition") || "";
+      const star = /filename\*=UTF-8''([^;]+)/i.exec(disposition);
+      if (star) return decodeURIComponent(star[1]);
+      const plain = /filename="?([^";]+)"?/i.exec(disposition);
+      return plain ? plain[1] : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Every file to save, with the folders it goes in: term, course, then the
+   * course's own folders. The same file reached twice in one folder is saved
+   * once.
+   */
+  function plannedFiles(manifest) {
+    const top = safeName("HuskyCT " + (manifest.term || ""), "HuskyCT");
+    const planned = [];
+    for (const course of manifest.courses) {
+      const seen = new Set();
+      for (const file of course.files) {
+        const folders = [top, safeName(course.code || course.id, "Course")].concat(
+          file.path.map((part) => safeName(part, "Folder")),
+        );
+        const key = folders.join("/") + "|" + file.url;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        planned.push({ folders, title: file.title, url: file.url });
+      }
+    }
+    return planned;
+  }
+
+  /**
+   * Picks a file's name, keeping names unique within a folder: a second
+   * "Notes.pdf" becomes "Notes (2).pdf". The order is the walk's, so the same
+   * file gets the same name on every run and a rerun recognises it.
+   */
+  function uniqueName(used, folderKey, name) {
+    const taken = used.get(folderKey) || new Set();
+    used.set(folderKey, taken);
+    let candidate = name;
+    for (let n = 2; taken.has(candidate.toLowerCase()); n++) {
+      const dot = name.lastIndexOf(".");
+      candidate = dot > 0 ? name.slice(0, dot) + " (" + n + ")" + name.slice(dot) : name + " (" + n + ")";
+    }
+    taken.add(candidate.toLowerCase());
+    return candidate;
+  }
+
+  /**
+   * One file's bytes. The default request sends HuskyCT's cookie to HuskyCT and
+   * nothing to the file store it redirects to — the store's signed address is
+   * the permission, and it refuses a request that carries credentials.
+   */
+  async function fetchMaterial(url) {
+    const response = await window.fetch(url);
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const blob = await response.blob();
+    return { blob, name: nameFromStoreUrl(response.url) };
+  }
+
+  /**
+   * Saves the files into a folder the student picked, one at a time, skipping
+   * any already there — so a second run next week fetches only what is new.
+   */
+  async function saveMaterialsToFolder(root, manifest, opts) {
+    const options = Object.assign({ gap: 250, onProgress() {}, shouldStop: () => false }, opts);
+    const planned = plannedFiles(manifest);
+    const used = new Map();
+    const result = { saved: 0, skipped: 0, failed: 0, folder: planned.length ? planned[0].folders[0] : null };
+
+    for (let index = 0; index < planned.length; index++) {
+      if (options.shouldStop()) break;
+      const file = planned[index];
+      const folderKey = file.folders.join("/");
+      options.onProgress({ index: index + 1, total: planned.length, name: file.title });
+      try {
+        let dir = root;
+        for (const name of file.folders) dir = await dir.getDirectoryHandle(name, { create: true });
+
+        // A title with an extension is the name, so a file already saved is
+        // recognised without fetching it again.
+        let name = hasExtension(file.title) ? uniqueName(used, folderKey, safeName(file.title, "file")) : null;
+        if (name && (await folderHas(dir, name))) {
+          result.skipped++;
+          continue;
+        }
+        const fetched = await fetchMaterial(file.url);
+        if (!name) name = uniqueName(used, folderKey, safeName(fetched.name || file.title, "file"));
+        if (await folderHas(dir, name)) {
+          result.skipped++;
+          continue;
+        }
+        const handle = await dir.getFileHandle(name, { create: true });
+        const writable = await handle.createWritable();
+        await writable.write(fetched.blob);
+        await writable.close();
+        result.saved++;
+      } catch {
+        result.failed++;
+      }
+      await pause(options.gap);
+    }
+    return result;
+  }
+
+  async function folderHas(dir, name) {
+    try {
+      await dir.getFileHandle(name);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(bytes) {
+    let c = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+
+  /**
+   * A ZIP of stored entries, for browsers that cannot write into a folder
+   * (Firefox, Safari). Stored rather than compressed: course files are PDFs,
+   * slides and archives, which are compressed already.
+   */
+  function zipStored(entries) {
+    const encoder = new TextEncoder();
+    const parts = [];
+    const central = [];
+    let offset = 0;
+    for (const entry of entries) {
+      const name = encoder.encode(entry.name);
+      const crc = crc32(entry.bytes);
+      const size = entry.bytes.length;
+
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true);
+      local.setUint16(4, 20, true);
+      local.setUint16(6, 0x0800, true); // names are UTF-8
+      local.setUint16(12, 0x21, true); // 1980-01-01
+      local.setUint32(14, crc, true);
+      local.setUint32(18, size, true);
+      local.setUint32(22, size, true);
+      local.setUint16(26, name.length, true);
+      parts.push(new Uint8Array(local.buffer), name, entry.bytes);
+
+      const record = new DataView(new ArrayBuffer(46));
+      record.setUint32(0, 0x02014b50, true);
+      record.setUint16(4, 20, true);
+      record.setUint16(6, 20, true);
+      record.setUint16(8, 0x0800, true);
+      record.setUint16(14, 0x21, true);
+      record.setUint32(16, crc, true);
+      record.setUint32(20, size, true);
+      record.setUint32(24, size, true);
+      record.setUint16(28, name.length, true);
+      record.setUint32(42, offset, true);
+      central.push(new Uint8Array(record.buffer), name);
+
+      offset += 30 + name.length + size;
+    }
+    const centralSize = central.reduce((total, part) => total + part.length, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(8, entries.length, true);
+    end.setUint16(10, entries.length, true);
+    end.setUint32(12, centralSize, true);
+    end.setUint32(16, offset, true);
+    return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: "application/zip" });
+  }
+
+  /** Every file fetched into one ZIP, with the same folders a picked folder would get. */
+  async function materialsZip(manifest, opts) {
+    const options = Object.assign({ gap: 250, onProgress() {}, shouldStop: () => false }, opts);
+    const planned = plannedFiles(manifest);
+    const used = new Map();
+    const entries = [];
+    let failed = 0;
+    for (let index = 0; index < planned.length; index++) {
+      if (options.shouldStop()) break;
+      const file = planned[index];
+      options.onProgress({ index: index + 1, total: planned.length, name: file.title });
+      try {
+        const fetched = await fetchMaterial(file.url);
+        const base = hasExtension(file.title) ? file.title : fetched.name || file.title;
+        const name = uniqueName(used, file.folders.join("/"), safeName(base, "file"));
+        entries.push({ name: file.folders.concat(name).join("/"), bytes: new Uint8Array(await fetched.blob.arrayBuffer()) });
+      } catch {
+        failed++;
+      }
+      await pause(options.gap);
+    }
+    return { blob: zipStored(entries), saved: entries.length, failed, name: (planned[0] ? planned[0].folders[0] : "HuskyCT") + ".zip" };
+  }
+
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? "" : value).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+    );
+  }
+
+  /**
+   * The links and videos, grouped by course and folder, as a page to keep.
+   * Tools open from HuskyCT itself, so they link to the course's content page.
+   */
+  function materialsLinksHtml(manifest) {
+    const sections = [];
+    for (const course of manifest.courses) {
+      const rows = [];
+      const group = (items, heading, render) => {
+        if (items.length === 0) return;
+        rows.push("<h3>" + escapeHtml(heading) + "</h3><ul>");
+        for (const item of items) rows.push("<li>" + render(item) + "</li>");
+        rows.push("</ul>");
+      };
+      const where = (item) => (item.path.length ? '<span class="path">' + escapeHtml(item.path.join(" / ")) + "</span> " : "");
+      const outlink = (item) => where(item) + '<a href="' + escapeHtml(item.url) + '">' + escapeHtml(item.title) + "</a>";
+      group(course.links.filter((link) => link.kind === "video"), t("linksVideos"), outlink);
+      group(course.links.filter((link) => link.kind !== "video"), t("linksLinks"), outlink);
+      const outline = window.location.origin + "/ultra/courses/" + course.id + "/outline";
+      group(course.tools, t("linksTools"), (tool) => where(tool) + '<a href="' + escapeHtml(outline) + '">' + escapeHtml(tool.title) + "</a>");
+      if (rows.length) sections.push("<h2>" + escapeHtml(course.code || course.id) + "</h2>" + rows.join(""));
+    }
+    const title = "HuskyCT " + (manifest.term || "") + " — " + t("linksTitle");
+    return (
+      '<!doctype html><html><head><meta charset="utf-8"><title>' +
+      escapeHtml(title) +
+      "</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#1f2a37}" +
+      "h2{margin-top:32px;border-top:1px solid #dde3ea;padding-top:16px}h3{font-size:15px;color:#51606f}" +
+      ".path{color:#7a8794;font-size:13px}a{color:#0b5cad}</style></head><body><h1>" +
+      escapeHtml(title) +
+      "</h1>" +
+      (sections.join("") || "<p>—</p>") +
+      "</body></html>"
+    );
   }
 
   /**
@@ -1653,167 +1882,6 @@
     return t("guideNeither");
   }
 
-  /**
-   * What to call the calendar this produces.
-   *
-   * This exists because of a bug the old merge path had: with a single feed it
-   * passed a bare `""`, which wrote a bare `X-WR-CALNAME:` into the file. The
-   * dashboard reads that key as the calendar's name, so it got `""` rather than
-   * nothing and showed a blank name where it would otherwise have said
-   * "Unnamed calendar". A label is never empty now.
-   */
-  function calendarNameFor(links) {
-    if (links.length === 1) {
-      const label = (links[0][1] || "").replace(/\.ics$/i, "").trim();
-      if (label) return label;
-    }
-    if (links.length > 1) return "HuskyCT (" + links.length + " calendars)";
-    return "HuskyCT";
-  }
-
-  /**
-   * Which source this page offers, decided without doing any work.
-   *
-   * Split out from `acquireCalendar` so the decision can be tested on its own:
-   * the actions around it fetch other people's servers and write files, which
-   * makes them awkward to assert against, while the rule itself —
-   * feeds beat harvested events, and nothing is an honest answer — is the part
-   * that would break quietly.
-   */
-  function planCalendarAcquisition(linksCount, collectedCount, available) {
-    if (linksCount > 0) {
-      return {
-        source: "feeds",
-        filename: "huskyct-merged.ics",
-        message: null,
-      };
-    }
-
-    if (collectedCount > 0) {
-      return {
-        source: "events",
-        filename: "huskyct-calendar.ics",
-        message: null,
-      };
-    }
-
-    return {
-      source: null,
-      filename: null,
-      message: available ? t("noFeedNoEvents") : t("noFeedNoCalendar"),
-    };
-  }
-
-  /**
-   * The one action behind "give me this page's calendar".
-   *
-   * Feed links are preferred because they carry the original VEVENT blocks
-   * untouched and, more importantly, because the file they produce can be pasted
-   * into the dashboard as a *link* — a subscription that refreshes itself. The
-   * harvested events can only ever be dragged in as a file, because the app has
-   * no way to turn a file back into a feed URL, so that route is the fallback
-   * for a page that exposes no feeds at all.
-   */
-  async function acquireCalendar(options) {
-    const opts = options || {};
-    const links = calendarLinks();
-
-    if (links.length === 0) {
-      const result = harvest(opts.now);
-      const plan = planCalendarAcquisition(0, collected.size, result.available);
-
-      if (plan.source !== "events") {
-        return {
-          ok: false,
-          message: plan.message,
-          detail: t("noFeedDetail"),
-        };
-      }
-
-      const records = [...collected.values()];
-      const withCourse = records.filter((record) => record.course).length;
-      download(plan.filename, recordsToIcs(records), "text/calendar;charset=utf-8");
-
-      return {
-        ok: true,
-        source: "events",
-        message: t("exportFallbackTitle", {
-          events: records.length,
-          withCourse: withCourse
-            ? t("exportFallbackWithCourse", { count: withCourse })
-            : "",
-        }),
-        hint:
-          (result.added ? t("pickedUp", { count: result.added }) : "") +
-          t("exportFallbackHint"),
-      };
-    }
-
-    if (opts.status) {
-      opts.status.className = "note";
-      opts.status.textContent = t("readingCalendars", { count: links.length });
-    }
-
-    const texts = [];
-    const failed = [];
-    for (const [href, name] of links) {
-      try {
-        const response = await fetch(href, { credentials: "same-origin" });
-        if (!response.ok) throw new Error("HTTP " + response.status);
-        texts.push(await response.text());
-      } catch (error) {
-        failed.push(name + " (" + error.message + ")");
-      }
-      // Deliberately slow: this is someone else's server.
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    }
-
-    if (texts.length === 0) {
-      return {
-        ok: false,
-        message: t("feedUnreadable", { count: links.length }),
-        detail: failed.join("\n"),
-      };
-    }
-
-    const plan = planCalendarAcquisition(links.length, collected.size, true);
-    const merged = mergeCalendars(calendarNameFor(links), texts);
-    const eventCount = (merged.match(/BEGIN:VEVENT/g) || []).length;
-    download(plan.filename, merged, "text/calendar;charset=utf-8");
-
-    return {
-      ok: true,
-      source: "feeds",
-      message: t("mergedTitle", { calendars: texts.length, events: eventCount }),
-      hint: failed.length
-        ? t("mergedHintFailed", { list: failed.join(", ") })
-        : t("mergedHint"),
-    };
-  }
-
-  /**
-   * Say which source this page will use, before the button is pressed.
-   *
-   * Without this the label would promise one thing and the button might do
-   * another, which is how the old two-button panel left people guessing. The
-   * text is deliberately about the *page*, not about feeds in the abstract.
-   */
-  function acquireLabelFor(linksCount, collectedCount) {
-    if (linksCount > 0) {
-      return linksCount === 1
-        ? t("acquireOneFeed")
-        : t("acquireManyFeeds", { count: linksCount });
-    }
-    if (collectedCount > 0) return t("acquireEvents");
-    return t("acquirePlain");
-  }
-
-  function acquireHintFor(linksCount, collectedCount) {
-    if (linksCount > 0) return t("acquireHintFeeds");
-    if (collectedCount > 0) return t("acquireHintEvents");
-    return t("acquireHintNeither");
-  }
-
   // -------------------------------------------------------------------- panel
 
   const style = `
@@ -1904,16 +1972,10 @@
         <button class="act" data-act="todos">${t("sendDeadlines")}</button>
         <button class="act" data-act="emptybasket">${t("clearBasket")}</button>
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
-        <div class="note" data-role="count">${t("collectedNone")}</div>
-        <button class="act" data-act="acquire">${t("getCalendar")}</button>
-        <div class="note" data-role="acquire-hint"></div>
-        <button class="act" data-act="export">${t("exportCollected")}</button>
-        <div class="note calendar-note">${t("calendarFootnote")}</div>
-        <button class="act" data-act="clear">${t("clearCollected")}</button>
-        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
-        <button class="act" data-act="course">${t("collectCourse")}</button>
-        <textarea data-role="out" hidden></textarea>
-        <button class="act" data-act="copy" hidden>${t("copy")}</button>
+        <button class="act" data-act="materials">${t("collectMaterials")}</button>
+        <div class="note" data-role="materials" hidden></div>
+        <button class="act" data-act="savefiles" hidden></button>
+        <button class="act" data-act="savelinks" hidden>${t("saveLinks")}</button>
         <div class="note" data-role="status">${t("privacy")}</div>
       </div>
     `;
@@ -1968,22 +2030,24 @@
 
     chip.addEventListener("click", () => setCollapsed(false));
 
-    const out = wrap.querySelector('[data-role="out"]');
     const status = wrap.querySelector('[data-role="status"]');
     const hint = wrap.querySelector('[data-role="hint"]');
-    const count = wrap.querySelector('[data-role="count"]');
-    const copyButton = wrap.querySelector('[data-act="copy"]');
-    const acquireButton = wrap.querySelector('[data-act="acquire"]');
-    const acquireHint = wrap.querySelector('[data-role="acquire-hint"]');
     const langButton = wrap.querySelector('[data-role="lang"]');
     const basketLine = wrap.querySelector('[data-role="basket"]');
     const collectButton = wrap.querySelector('[data-act="collectall"]');
     const sendButton = wrap.querySelector('[data-act="todos"]');
     const emptyBasketButton = wrap.querySelector('[data-act="emptybasket"]');
-    // The walk in progress, if any. The timer's own capture stands aside while
+    const materialsButton = wrap.querySelector('[data-act="materials"]');
+    const materialsLine = wrap.querySelector('[data-role="materials"]');
+    const saveFilesButton = wrap.querySelector('[data-act="savefiles"]');
+    const saveLinksButton = wrap.querySelector('[data-act="savelinks"]');
+    // The walk in progress, if any — `kind` says which button started it, and
+    // that button becomes its Stop. The timer's own capture stands aside while
     // it runs: the walk reads each page itself, and knows when a page is really
     // the course it asked for.
     let walk = null;
+    // The last materials walk, kept for the save buttons.
+    let materials = null;
     // The basket in memory, re-read from storage on every tick so two HuskyCT
     // tabs collecting at once do not overwrite each other's courses.
     let basket = readBasket(window.localStorage);
@@ -2025,11 +2089,27 @@
       emptyBasketButton.textContent = t("clearBasket");
 
       const ready = !walk && (summary.deadlines > 0 || summary.announcements > 0);
-      collectButton.textContent = walk ? t("stopCollecting") : t("collectAll");
+      const basketWalk = Boolean(walk && walk.kind === "basket");
+      const materialsWalk = Boolean(walk && walk.kind === "materials");
+      collectButton.textContent = basketWalk ? t("stopCollecting") : t("collectAll");
+      collectButton.disabled = materialsWalk;
       collectButton.classList.toggle("primary", !ready);
       sendButton.classList.toggle("primary", ready);
       sendButton.disabled = Boolean(walk);
       emptyBasketButton.disabled = Boolean(walk);
+
+      materialsButton.textContent = materialsWalk ? t("stopCollecting") : t("collectMaterials");
+      materialsButton.disabled = basketWalk;
+      const found = materials ? materialsSummary(materials) : null;
+      const canSaveFolder = typeof window.showDirectoryPicker === "function";
+      saveFilesButton.hidden = !found || found.files === 0;
+      saveFilesButton.disabled = Boolean(walk);
+      saveFilesButton.textContent = found
+        ? t(canSaveFolder ? "saveFiles" : "saveFilesZip", { count: found.files })
+        : "";
+      saveLinksButton.hidden = !found || found.videos + found.links + found.tools === 0;
+      saveLinksButton.disabled = Boolean(walk);
+      saveLinksButton.textContent = t("saveLinks");
     }
 
     /**
@@ -2058,15 +2138,6 @@
       refreshGuidance();
     }
 
-    function refreshCount() {
-      const total = collected.size;
-      count.textContent =
-        total === 0
-          ? t("collectedNone")
-          : t("collectedSome", { count: total });
-      count.className = total === 0 ? "note" : "note ok";
-    }
-
     /**
      * Re-render every string in the panel from the current dictionary.
      *
@@ -2083,150 +2154,33 @@
       wrap.querySelector(".close").title = t("hidePanel");
 
       wrap.querySelector('[data-act="todos"]').textContent = t("sendDeadlines");
-      wrap.querySelector('[data-act="export"]').textContent = t("exportCollected");
-      wrap.querySelector('[data-act="clear"]').textContent = t("clearCollected");
-      wrap.querySelector('[data-act="course"]').textContent = t("collectCourse");
-      copyButton.textContent = t("copy");
-      wrap.querySelector(".calendar-note").textContent = t("calendarFootnote");
       wrap.querySelector('[data-role="status"]').textContent = t("privacy");
 
       chip.textContent = t("chip");
       chip.title = t("showPanel");
 
-      refreshCount();
-      refreshAcquireLabel();
       refreshGuidance();
       refreshBasket();
     }
 
-    /**
-     * Keep the acquire button honest about which source it is about to use.
-     *
-     * Read from the page each time rather than cached: HuskyCT is a single-page
-     * app, so the links under the panel change without it ever being remounted.
-     * A label that promised "1 feed link" after navigating away would be worse
-     * than no label at all.
-     */
-    function refreshAcquireLabel() {
-      let linksCount = 0;
-      try {
-        linksCount = calendarLinks().length;
-      } catch {
-        /* a page that will not let us look is a page with no links we can use */
-      }
 
-      acquireButton.textContent = acquireLabelFor(linksCount, collected.size);
-      acquireHint.textContent = acquireHintFor(linksCount, collected.size);
-    }
-
-    // Cheap: `clientEvents` reads an in-memory list, it does not make a request.
-    window.setInterval(() => {
-      if (harvest().added > 0) {
-        refreshCount();
-        refreshAcquireLabel();
-      }
-      captureTick();
-    }, 1500);
-    harvest();
+    // Reads only what is rendered; it makes no request.
+    window.setInterval(captureTick, 1500);
     captureTick();
-    // `relabel` sets every string, including the count, the acquire label and
-    // the page guidance, so it is the whole first render — the individual
-    // refreshes below would be undone by it.
+    // `relabel` sets every string, the page guidance included, so it is the
+    // whole first render.
     relabel();
 
     wrap.querySelector(".close").addEventListener("click", () => {
       setCollapsed(true);
     });
 
-    function show(text, className) {
-      out.hidden = false;
-      out.value = text;
-      out.select();
-      copyButton.hidden = false;
-      status.className = "note " + (className || "");
-    }
 
     wrap.addEventListener("click", async (event) => {
       const button = event.target.closest("button.act");
       if (!button) return;
 
       const act = button.dataset.act;
-
-      if (act === "copy") {
-        const ok = await copy(out.value);
-        button.textContent = ok ? "Copied" : "Press Ctrl+C to copy";
-        setTimeout(() => {
-          button.textContent = "Copy to clipboard";
-        }, 2000);
-        return;
-      }
-
-      if (act === "export") {
-        const result = harvest();
-        refreshCount();
-
-        if (collected.size === 0) {
-          status.className = "note warn";
-          status.textContent = result.available
-            ? "This page has a calendar but no events loaded yet — move through it first."
-            : "No calendar on this page. Open the Calendar page and try again.";
-          return;
-        }
-
-        const records = [...collected.values()];
-        const withCourse = records.filter((record) => record.course).length;
-        download(
-          "huskyct-calendar.ics",
-          recordsToIcs(records),
-          "text/calendar;charset=utf-8",
-        );
-
-        status.className = "note ok";
-        status.textContent = t("exported", { events: records.length, withCourse });
-        hint.textContent =
-          (result.added ? t("pickedUp", { count: result.added }) : "") + t("dropCalendar");
-        return;
-      }
-
-      if (act === "clear") {
-        const total = collected.size;
-        collected.clear();
-        refreshCount();
-        out.hidden = true;
-        copyButton.hidden = true;
-        status.className = "note";
-        status.textContent = t("clearedPanel", { count: total });
-        return;
-      }
-
-      if (act === "course") {
-        const digest = {
-          course: collectCourse(document),
-          announcements: collectAnnouncements(document),
-          content: collectContentItems(document),
-          files: collectCourseFiles(document),
-          source: window.location.pathname,
-        };
-        const markdown = courseDigestToMarkdown(digest);
-
-        if (!digest.announcements.length && !digest.content.length && !digest.files.length) {
-          status.className = "note warn";
-          status.textContent = t("nothingToCollect");
-          hint.textContent = t("nothingToCollectHint");
-          return;
-        }
-
-        download("huskyct-course.md", markdown, "text/markdown;charset=utf-8");
-        status.className = "note ok";
-        status.textContent = t("collectedCourse", {
-          announcements: digest.announcements.length,
-          content: digest.content.length,
-          files: digest.files.length,
-        });
-        hint.textContent = t("collectedCourseHint");
-        show(markdown, "ok");
-        return;
-      }
 
       if (act === "collectall") {
         // The same button stops a walk in progress. It finishes the page it is
@@ -2237,7 +2191,7 @@
           return;
         }
 
-        walk = { stop: false };
+        walk = { stop: false, kind: "basket" };
         refreshBasket();
         status.className = "note";
         try {
@@ -2269,6 +2223,102 @@
           basket = readBasket(window.localStorage);
           refreshBasket();
           refreshGuidance();
+        }
+        return;
+      }
+
+      if (act === "materials") {
+        if (walk) {
+          walk.stop = true;
+          button.disabled = true;
+          return;
+        }
+        walk = { stop: false, kind: "materials" };
+        refreshBasket();
+        materialsLine.hidden = false;
+        materialsLine.className = "note";
+        try {
+          const manifest = await collectMaterials({
+            shouldStop: () => walk.stop,
+            onProgress(progress) {
+              const course = progress.course ? progress.course.code || progress.course.id : "";
+              materialsLine.textContent =
+                progress.step === "courses"
+                  ? t("materialsCourses")
+                  : progress.step === "outline"
+                    ? t("materialsOutline", { course, index: progress.index, total: progress.total })
+                    : t("materialsDocument", { course, document: progress.document, documents: progress.documents });
+            },
+          });
+          materials = manifest;
+          materialsLine.className = "note ok";
+          materialsLine.textContent =
+            (manifest.stopped ? t("materialsStopped") + " " : "") + t("materialsFound", materialsSummary(manifest));
+        } catch (error) {
+          materialsLine.className = "note warn";
+          materialsLine.textContent = t("materialsFailed", { message: error.message });
+        } finally {
+          walk = null;
+          button.disabled = false;
+          refreshBasket();
+          refreshGuidance();
+        }
+        return;
+      }
+
+      if (act === "savelinks") {
+        if (materials) download(t("linksFileName"), materialsLinksHtml(materials), "text/html;charset=utf-8");
+        return;
+      }
+
+      if (act === "savefiles") {
+        if (!materials) return;
+        const progress = (step) => {
+          materialsLine.className = "note";
+          materialsLine.textContent = t("savingFile", step);
+        };
+
+        if (typeof window.showDirectoryPicker !== "function") {
+          walk = { stop: false, kind: "save" };
+          refreshBasket();
+          try {
+            const zip = await materialsZip(materials, { onProgress: progress });
+            download(zip.name, zip.blob);
+            materialsLine.className = "note ok";
+            materialsLine.textContent = t("zipSaved", zip);
+          } finally {
+            walk = null;
+            refreshBasket();
+          }
+          return;
+        }
+
+        let root;
+        try {
+          // The one prompt: the student picks where the term's folder goes.
+          root = await window.showDirectoryPicker({ id: "huskyct-materials", mode: "readwrite", startIn: "desktop" });
+        } catch {
+          return; // closed without picking
+        }
+        walk = { stop: false, kind: "save" };
+        refreshBasket();
+        try {
+          const result = await saveMaterialsToFolder(root, materials, { onProgress: progress });
+          // The links travel with the files, in the term's folder.
+          try {
+            const top = await root.getDirectoryHandle(result.folder || "HuskyCT", { create: true });
+            const handle = await top.getFileHandle(t("linksFileName"), { create: true });
+            const writable = await handle.createWritable();
+            await writable.write(materialsLinksHtml(materials));
+            await writable.close();
+          } catch {
+            /* the files are what matter; the list can be saved on its own */
+          }
+          materialsLine.className = result.failed ? "note warn" : "note ok";
+          materialsLine.textContent = t("filesSaved", result);
+        } finally {
+          walk = null;
+          refreshBasket();
         }
         return;
       }
@@ -2341,9 +2391,16 @@
             hint.textContent =
               t("openedHint") + (built.leftOut ? t("leftOut", { count: built.leftOut }) : "");
           } else {
-            show(link, "warn");
+            // The link itself, to click: the browser that blocked the tab
+            // lets a click the student makes through.
             status.className = "note warn";
-            status.textContent = t("popupBlocked");
+            status.textContent = t("popupBlocked") + " ";
+            const fallback = document.createElement("a");
+            fallback.href = link;
+            fallback.target = "betterhuskyct";
+            fallback.rel = "noopener";
+            fallback.textContent = "BetterHuskyCT →";
+            status.appendChild(fallback);
             hint.textContent = t("popupBlockedHint");
           }
         } catch (error) {
@@ -2355,28 +2412,6 @@
         return;
       }
 
-      if (act === "acquire") {
-        button.disabled = true;
-        try {
-          const result = await acquireCalendar({ status });
-
-          if (!result.ok) {
-            status.className = "note warn";
-            status.textContent = result.message;
-            if (result.detail) show(result.detail, "warn");
-            return;
-          }
-
-          status.className = "note ok";
-          status.textContent = result.message;
-          hint.textContent = result.hint || "";
-          refreshCount();
-          refreshAcquireLabel();
-        } finally {
-          button.disabled = false;
-        }
-        return;
-      }
     });
   }
 
@@ -2385,25 +2420,12 @@
   // calendar text rather than trusted because it looks right.
   if (typeof window !== "undefined") {
     window.__huskyctHelper = {
-      mergeCalendars,
-      calendarLinks,
-      calendarNameFor,
-      planCalendarAcquisition,
-      acquireCalendar,
-      acquireLabelFor,
-      acquireHintFor,
-      kindFromSourceType,
-      eventToRecord,
-      recordsToIcs,
-      utcStamp,
       currentCourseId,
       textOf,
       courseCodeFromDisplay,
       courseTitleFromDisplay,
       postedFromText,
       collectAnnouncements,
-      collectContentItems,
-      collectCourseFiles,
       collectCourse,
       announcementsToCandidates,
       BASKET_KEY,
@@ -2426,9 +2448,25 @@
       termCodeFor,
       readAnnouncementsOf,
       collectEverything,
+      findCourses,
+      splitItemLabel,
+      unwrapLink,
+      classifyOutline,
+      readOutlineOf,
+      readDocument,
+      collectMaterials,
+      materialsSummary,
+      termLabel,
+      safeName,
+      nameFromStoreUrl,
+      plannedFiles,
+      saveMaterialsToFolder,
+      crc32,
+      zipStored,
+      materialsZip,
+      materialsLinksHtml,
       basketContents,
       basketLink,
-      courseDigestToMarkdown,
       todoFromLabel,
       dueDateFromText,
       collectTodos,
@@ -2437,8 +2475,6 @@
       taskFromRecord,
       syncPayload,
       huskypilotLink,
-      collect: harvest,
-      collected,
       VERSION,
       STRINGS,
       LOCALE_KEY,
