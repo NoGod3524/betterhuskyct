@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.1.0
+// @version      1.2.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.1.0";
+  const VERSION = "1.2.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -133,6 +133,12 @@
       saveFiles: "Save {count} file(s) to a folder…",
       saveFilesZip: "Download {count} file(s) as a ZIP",
       saveLinks: "Save the links and videos",
+      sendMaterials: "Send to BetterHuskyCT ({count} file(s))",
+      connectingBhc: "Opening BetterHuskyCT…",
+      sendingMaterial: "Sending {index} of {total}: {name}",
+      materialsSent: "In BetterHuskyCT: {sent} new file(s) sent, {skipped} already there, {failed} failed.",
+      bhcNoAnswer:
+        "BetterHuskyCT did not answer. Leave its tab open and press this again — or save the files to a folder and import them on its Materials page.",
       savingFile: "Saving {index} of {total}: {name}",
       filesSaved: "Saved {saved} file(s) in “{folder}”. {skipped} were already there; {failed} failed.",
       zipSaved: "Downloaded {name} with {saved} file(s). {failed} failed.",
@@ -202,6 +208,11 @@
       saveFiles: "把 {count} 个文件保存到文件夹……",
       saveFilesZip: "把 {count} 个文件打包成 ZIP 下载",
       saveLinks: "保存链接与视频清单",
+      sendMaterials: "发送到 BetterHuskyCT（{count} 个文件）",
+      connectingBhc: "正在打开 BetterHuskyCT……",
+      sendingMaterial: "正在发送 {index}/{total}：{name}",
+      materialsSent: "BetterHuskyCT 里：新发送 {sent} 个文件，{skipped} 个已存在，{failed} 个失败。",
+      bhcNoAnswer: "BetterHuskyCT 没有响应。让它的标签页开着，再按一次；或者先保存到文件夹，再到它的「课件」页导入。",
       savingFile: "正在保存 {index}/{total}：{name}",
       filesSaved: "已保存 {saved} 个文件到「{folder}」，{skipped} 个已存在跳过，{failed} 个失败。",
       zipSaved: "已下载 {name}，包含 {saved} 个文件，{failed} 个失败。",
@@ -1842,10 +1853,21 @@
     const sections = [];
     for (const course of manifest.courses) {
       const rows = [];
-      const group = (items, heading, render) => {
+      // Each item carries its course, kind and folder as data, so importing the
+      // saved folder into BetterHuskyCT reads them back without parsing the
+      // headings, which change with the language.
+      const group = (items, heading, render, kind) => {
         if (items.length === 0) return;
         rows.push("<h3>" + escapeHtml(heading) + "</h3><ul>");
-        for (const item of items) rows.push("<li>" + render(item) + "</li>");
+        for (const item of items) {
+          const itemKind = kind || item.kind;
+          rows.push(
+            '<li data-course="' + escapeHtml(course.code || course.id) + '" data-course-id="' + escapeHtml(course.id) +
+              '" data-kind="' + escapeHtml(itemKind) + '" data-path="' + escapeHtml(JSON.stringify(item.path)) + '">' +
+              render(item) +
+              "</li>",
+          );
+        }
         rows.push("</ul>");
       };
       const where = (item) => (item.path.length ? '<span class="path">' + escapeHtml(item.path.join(" / ")) + "</span> " : "");
@@ -1853,7 +1875,12 @@
       group(course.links.filter((link) => link.kind === "video"), t("linksVideos"), outlink);
       group(course.links.filter((link) => link.kind !== "video"), t("linksLinks"), outlink);
       const outline = window.location.origin + "/ultra/courses/" + course.id + "/outline";
-      group(course.tools, t("linksTools"), (tool) => where(tool) + '<a href="' + escapeHtml(outline) + '">' + escapeHtml(tool.title) + "</a>");
+      group(
+        course.tools,
+        t("linksTools"),
+        (tool) => where(tool) + '<a href="' + escapeHtml(outline) + '">' + escapeHtml(tool.title) + "</a>",
+        "tool",
+      );
       if (rows.length) sections.push("<h2>" + escapeHtml(course.code || course.id) + "</h2>" + rows.join(""));
     }
     const title = "HuskyCT " + (manifest.term || "") + " — " + t("linksTitle");
@@ -1868,6 +1895,133 @@
       (sections.join("") || "<p>—</p>") +
       "</body></html>"
     );
+  }
+
+  // --- sending materials to BetterHuskyCT ---------------------------------------
+
+  /**
+   * Course materials delivered straight into BetterHuskyCT, tab to tab.
+   *
+   * The files can only be read here — HuskyCT's session is this page's — and
+   * the app keeps them in its own browser storage, so they cross between the two
+   * tabs with `postMessage`, never through a server. The app opened by the
+   * button answers from its own origin; everything else is ignored. The app
+   * first says which files it already holds, so a second send carries only what
+   * is new, and it acknowledges each file once stored, so the next is fetched
+   * only then and neither tab holds a term's files at once.
+   *
+   * Nothing here waits on a timer while files are moving: the app's tab comes
+   * to the front and this one goes to the back, where browsers slow timers to
+   * a crawl. Fetches and messages are not slowed.
+   */
+  const MATERIALS_PROTOCOL = "betterhuskyct/materials@1";
+
+  function bhcOrigin() {
+    return new URL(HUSKYPILOT_URL).origin;
+  }
+
+  /** The manifest in the shape the app's Materials page reads. */
+  function materialsIndexFrom(manifest) {
+    return {
+      version: 1,
+      term: manifest.term || null,
+      updatedAt: new Date().toISOString(),
+      courses: manifest.courses
+        .filter((course) => !course.skipped)
+        .map((course) => {
+          const seen = new Set();
+          const files = [];
+          for (const file of course.files) {
+            if (seen.has(file.url)) continue;
+            seen.add(file.url);
+            files.push({ key: file.url, path: file.path, title: file.title });
+          }
+          return {
+            id: course.id,
+            code: course.code || null,
+            files,
+            links: course.links.map((link) => ({ path: link.path, title: link.title, url: link.url, kind: link.kind })),
+            tools: course.tools.map((tool) => ({ path: tool.path, title: tool.title })),
+          };
+        }),
+    };
+  }
+
+  /** The next message of `kind` from the app, or null after `timeout`. */
+  function nextFromApp(kind, key, timeout) {
+    const origin = bhcOrigin();
+    return new Promise((resolve) => {
+      const finish = (value) => {
+        window.removeEventListener("message", listen);
+        clearTimeout(timer);
+        resolve(value);
+      };
+      const listen = (event) => {
+        if (event.origin !== origin) return;
+        const data = event.data;
+        if (!data || data.protocol !== MATERIALS_PROTOCOL || data.kind !== kind) return;
+        if (key && data.key !== key) return;
+        finish(data);
+      };
+      window.addEventListener("message", listen);
+      const timer = setTimeout(() => finish(null), timeout);
+    });
+  }
+
+  async function sendMaterialsToBhc(target, manifest, opts) {
+    const options = Object.assign(
+      { helloEvery: 500, connectTimeout: 30000, fileTimeout: 120000, onProgress() {}, shouldStop: () => false },
+      opts,
+    );
+    const origin = bhcOrigin();
+    const post = (message) => target.postMessage(Object.assign({ protocol: MATERIALS_PROTOCOL }, message), origin);
+    const result = { connected: false, sent: 0, skipped: 0, failed: 0 };
+
+    // The app's page may still be loading: say hello until it answers.
+    const ready = nextFromApp("ready", null, options.connectTimeout);
+    const hello = () => {
+      try {
+        post({ kind: "hello" });
+      } catch {
+        /* not there yet */
+      }
+    };
+    hello();
+    const greeting = window.setInterval(hello, options.helloEvery);
+    const answer = await ready;
+    window.clearInterval(greeting);
+    if (!answer) return result;
+    result.connected = true;
+
+    const have = new Set(Array.isArray(answer.have) ? answer.have : []);
+    const index = materialsIndexFrom(manifest);
+    const toSend = [];
+    for (const course of index.courses) {
+      for (const file of course.files) {
+        if (have.has(file.key)) result.skipped++;
+        else toSend.push(file);
+      }
+    }
+    post({ kind: "index", index, sending: toSend.length });
+
+    for (let i = 0; i < toSend.length; i++) {
+      if (options.shouldStop()) break;
+      const file = toSend[i];
+      options.onProgress({ index: i + 1, total: toSend.length, name: file.title });
+      try {
+        const fetched = await fetchMaterial(file.key);
+        const name = safeName(hasExtension(file.title) ? file.title : fetched.name || file.title, "file");
+        const stored = nextFromApp("stored", file.key, options.fileTimeout);
+        post({ kind: "file", key: file.key, name, type: fetched.blob.type || "", blob: fetched.blob });
+        const ack = await stored;
+        if (ack && ack.ok) result.sent++;
+        else result.failed++;
+      } catch {
+        result.failed++;
+      }
+    }
+    post({ kind: "done", complete: !manifest.stopped && !options.shouldStop() && result.failed === 0 });
+    return result;
   }
 
   /**
@@ -2118,8 +2272,8 @@
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
         <button class="act" data-act="materials">${t("collectMaterials")}</button>
         <div class="note" data-role="materials" hidden></div>
+        <button class="act primary" data-act="sendmaterials" hidden></button>
         <button class="act" data-act="savefiles" hidden></button>
-        <button class="act" data-act="savelinks" hidden>${t("saveLinks")}</button>
         <div class="note" data-role="status">${t("privacy")}</div>
       </div>
     `;
@@ -2184,7 +2338,7 @@
     const materialsButton = wrap.querySelector('[data-act="materials"]');
     const materialsLine = wrap.querySelector('[data-role="materials"]');
     const saveFilesButton = wrap.querySelector('[data-act="savefiles"]');
-    const saveLinksButton = wrap.querySelector('[data-act="savelinks"]');
+    const sendMaterialsButton = wrap.querySelector('[data-act="sendmaterials"]');
     // The walk in progress, if any — `kind` says which button started it, and
     // that button becomes its Stop. The timer's own capture stands aside while
     // it runs: the walk reads each page itself, and knows when a page is really
@@ -2251,9 +2405,9 @@
       saveFilesButton.textContent = found
         ? t(canSaveFolder ? "saveFiles" : "saveFilesZip", { count: found.files })
         : "";
-      saveLinksButton.hidden = !found || found.videos + found.links + found.tools === 0;
-      saveLinksButton.disabled = Boolean(walk);
-      saveLinksButton.textContent = t("saveLinks");
+      sendMaterialsButton.hidden = !found || found.files + found.videos + found.links + found.tools === 0;
+      sendMaterialsButton.disabled = Boolean(walk);
+      sendMaterialsButton.textContent = found ? t("sendMaterials", { count: found.files }) : "";
     }
 
     /**
@@ -2416,8 +2570,32 @@
         return;
       }
 
-      if (act === "savelinks") {
-        if (materials) download(t("linksFileName"), materialsLinksHtml(materials), "text/html;charset=utf-8");
+      if (act === "sendmaterials") {
+        if (!materials || walk) return;
+        // Opened here, on the click, before anything is awaited: a tab opened
+        // later is a popup the browser blocks.
+        const target = window.open(HUSKYPILOT_URL + "materials", "betterhuskyct");
+        if (!target) {
+          materialsLine.className = "note warn";
+          materialsLine.textContent = t("popupBlocked");
+          return;
+        }
+        walk = { stop: false, kind: "send" };
+        refreshBasket();
+        materialsLine.className = "note";
+        materialsLine.textContent = t("connectingBhc");
+        try {
+          const result = await sendMaterialsToBhc(target, materials, {
+            onProgress: (step) => {
+              materialsLine.textContent = t("sendingMaterial", step);
+            },
+          });
+          materialsLine.className = !result.connected || result.failed ? "note warn" : "note ok";
+          materialsLine.textContent = result.connected ? t("materialsSent", result) : t("bhcNoAnswer");
+        } finally {
+          walk = null;
+          refreshBasket();
+        }
         return;
       }
 
@@ -2621,6 +2799,9 @@
       zipStored,
       materialsZip,
       materialsLinksHtml,
+      MATERIALS_PROTOCOL,
+      materialsIndexFrom,
+      sendMaterialsToBhc,
       basketContents,
       basketLink,
       todoFromLabel,

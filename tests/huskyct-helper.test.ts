@@ -686,7 +686,7 @@ test("every panel button has a handler, and the labels match", () => {
   }
   assert.deepEqual(
     [...new Set(actions)].sort(),
-    ["collectall", "emptybasket", "materials", "savefiles", "savelinks", "todos"],
+    ["collectall", "emptybasket", "materials", "savefiles", "sendmaterials", "todos"],
   );
 });
 
@@ -887,7 +887,6 @@ test("the panel markup renders in Chinese, with nothing left in English", () => 
     "Send everything to BetterHuskyCT",
     "Clear basket",
     "Collect course materials",
-    "Save the links and videos",
   ];
   for (const label of englishLabels) {
     assert.ok(english.includes(label), `the English panel lost: ${label}`);
@@ -897,7 +896,7 @@ test("the panel markup renders in Chinese, with nothing left in English", () => 
   const chinese = surface.panelMarkup();
 
   // Every translated label must be present in the markup, in Chinese.
-  for (const key of ["collectAll", "sendDeadlines", "clearBasket", "collectMaterials", "saveLinks"]) {
+  for (const key of ["collectAll", "sendDeadlines", "clearBasket", "collectMaterials"]) {
     const text = surface.t(key);
     assert.match(text, /[\u4e00-\u9fff]/, `not translated: ${key}`);
     assert.ok(chinese.includes(text), `the rendered panel is missing the translation for ${key}`);
@@ -936,5 +935,14 @@ test("the panel leads with the guidance and Collect everything", () => {
   assert.ok(collectAt !== -1 && todosAt !== -1 && materialsAt !== -1, "the panel lost a button");
   assert.ok(collectAt < todosAt && todosAt < materialsAt, "the panel's actions are out of order");
   assert.match(panel, /class="act primary" data-act="collectall"/, "Collect everything is not the primary button");
-  assert.equal((panel.match(/class="act primary"/g) || []).length, 1, "more than one primary button to start with");
+  // Two primaries in the markup, one of them hidden until materials are
+  // collected: only one ever shows before then.
+  const primaries = [...panel.matchAll(/class="act primary" data-act="([a-z]+)"( hidden)?/g)];
+  assert.deepEqual(
+    primaries.map((match) => [match[1], Boolean(match[2])]),
+    [
+      ["collectall", false],
+      ["sendmaterials", true],
+    ],
+  );
 });
