@@ -498,6 +498,45 @@ export function groupByFolder<T extends { path: string[] }>(items: T[]): Array<{
   return [...groups.values()];
 }
 
+export type FolderNode<T> = {
+  name: string;
+  path: string[];
+  /** The files directly in this folder. */
+  items: T[];
+  children: FolderNode<T>[];
+  /** Every file in this folder and the folders under it. */
+  total: number;
+};
+
+/**
+ * A course's files as a folder tree, in the course's own order. A flat list
+ * repeats every parent — "Weekly Lectures, Problem-Solving Tips and HW Links /
+ * Week 1 - Section 4.1" — on every line; a tree names each folder once.
+ */
+export function folderTree<T extends { path: string[] }>(items: T[]): FolderNode<T> {
+  const root: FolderNode<T> = { name: "", path: [], items: [], children: [], total: 0 };
+  for (const item of items) {
+    let node = root;
+    node.total++;
+    item.path.forEach((name, depth) => {
+      let child = node.children.find((candidate) => candidate.name === name);
+      if (!child) {
+        child = { name, path: item.path.slice(0, depth + 1), items: [], children: [], total: 0 };
+        node.children.push(child);
+      }
+      child.total++;
+      node = child;
+    });
+    node.items.push(item);
+  }
+  return root;
+}
+
+/** Every folder under a node, the node's own children first. */
+export function foldersIn<T>(node: FolderNode<T>): FolderNode<T>[] {
+  return node.children.flatMap((child) => [child, ...foldersIn(child)]);
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB"];

@@ -6,6 +6,8 @@ import { Window } from "happy-dom";
 import {
   MATERIALS_PROTOCOL,
   createMaterialsReceiver,
+  folderTree,
+  foldersIn,
   formatBytes,
   groupByFolder,
   huskyctCourseUrl,
@@ -252,3 +254,31 @@ test("sizes read as people read them", () => {
   assert.equal(formatBytes(1689443), "1.6 MB");
   assert.equal(formatBytes(250 * 1024 * 1024), "250 MB");
 });
+
+test("files make a folder tree that names each folder once", () => {
+  const tree = folderTree([
+    { path: [], title: "Syllabus.pdf" },
+    { path: ["Weekly Lectures", "Week 1"], title: "4.1.pdf" },
+    { path: ["Weekly Lectures", "Week 1"], title: "4.1 notes.pdf" },
+    { path: ["Weekly Lectures", "Week 2"], title: "4.2.pdf" },
+    { path: ["Practice Tests"], title: "Ch 4.pdf" },
+  ]);
+
+  assert.deepEqual(tree.items.map((item) => item.title), ["Syllabus.pdf"]);
+  assert.deepEqual(tree.children.map((child) => [child.name, child.total]), [
+    ["Weekly Lectures", 3],
+    ["Practice Tests", 1],
+  ]);
+  assert.deepEqual(tree.children[0].children.map((child) => [child.name, child.items.length]), [
+    ["Week 1", 2],
+    ["Week 2", 1],
+  ]);
+  assert.equal(tree.total, 5);
+  assert.deepEqual(foldersIn(tree).map((folder) => folder.path.join("/")), [
+    "Weekly Lectures",
+    "Weekly Lectures/Week 1",
+    "Weekly Lectures/Week 2",
+    "Practice Tests",
+  ]);
+});
+
