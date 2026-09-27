@@ -6,8 +6,82 @@ that merge.
 
 The scheme is deliberately simple:
 
-- **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
+- **Major** (`1.0.0`, `2.0.0`) — a big change: a rebuilt product, or one that changes how it is used.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
+- **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
+
+HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
+by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
+which helper version they ship.
+
+## [1.9.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.9.0) — HuskyCT Helper 1.0
+
+*Minor: new capabilities. The helper reaches its first release, 1.0.0: one press collects the whole term, another the course materials.*
+
+### Added
+
+- **Collect everything, in one press.** The helper walks HuskyCT itself — the
+  Courses page, every course's Announcements page, the Calendar — then goes back
+  to the page you were on. No more opening each course by hand. It moves the way
+  HuskyCT's own links do, without reloading: six courses took 13–20 s live.
+  ([#60])
+- **The whole term's deadlines.** The to-do list only spans a week either side
+  of today, so in a quiet week nothing came through. The walk now also reads the
+  Calendar's "Due dates" view to the end of the term — 29 items through December
+  11 on the account it was measured with — with EDT/EST read as exact instants.
+  A deadline on both lists is sent once. ([#60])
+- **Collect course materials.** A second walk opens every folder and every
+  document in every course and lists the files, lecture videos, links and tools
+  it finds; nothing is downloaded until you choose. ([#61], [#62])
+  - **Save the files into a folder you pick** — the Desktop is offered first —
+    sorted as `HuskyCT Fall 2026/<course>/<the course's own folders>/`. One file
+    at a time; a file already there is skipped, so next week's press saves only
+    what is new. Edge and Chrome write straight into the folder; other browsers
+    get one ZIP with the same folders.
+  - **Save the links and videos** as one page, by course and folder, with tools
+    that only open from HuskyCT linking back to their course.
+
+### Changed
+
+- **The helper panel keeps only the two walks.** "Get this page's calendar",
+  "Export events collected so far" and "Collect this course" each worked on the
+  one page in front of you; the walks do their jobs for every course at once.
+  The FullCalendar harvest that polled every page went with them. ([#62])
+- **Summaries are written in the page's language.** The free models tended to
+  answer in the language they read, so English announcements came back in
+  English on a Chinese page. The language now leads the prompt, named in the
+  language itself, and a summary in the wrong language is not shown: the other
+  model is asked instead. ([#60])
+
+### Fixed
+
+- **Announcements from the helper were all under "No course".** The page filed
+  one under a course only when the import page's course list held exactly one
+  course with its code, so without that list — or with a lecture and a
+  discussion under one code — every row landed there while still naming its
+  course. They are grouped by their course code now. ([#60])
+- **Collect everything read nothing on a wide screen.** There the Courses page
+  lists every course as a card, with no "View All" button; the walk waited for
+  one. Both layouts are read now. ([#60])
+- **Announcement bodies no longer repeat their title**, and they arrive with the
+  date they were posted. ([#60])
+
+### Notes
+
+- **Still no request for data of its own.** HuskyCT's API refuses scripts and its
+  pages refuse to load in a frame, both re-measured on 2026-09-27. The walks read
+  the pages HuskyCT renders for you, one at a time. The one request the helper
+  makes itself is for a course file you asked to save: HuskyCT's file address
+  redirects to Blackboard's file store, which answers any origin as long as no
+  credentials are sent to it.
+- **A page between two courses is never misread.** Moving from one course to the
+  next can leave the last one's page on screen under the new address, so a page
+  counts only once its heading names the course being read and none of it is
+  left over from before.
+- **Links from a UConn mailbox are unwrapped** from Outlook's safe-links, whose
+  query carries the student's email address, before they go in a file.
+- **Update the helper to get this.** Tampermonkey picks up 1.0.0 by itself within
+  a day, or at once from its dashboard's update check.
 
 ## [1.8.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.8.0) — Collected as you browse
 
@@ -910,6 +984,9 @@ saying what to work on next.*
 [#55]: https://github.com/NoGod3524/betterhuskyct/pull/55
 [#56]: https://github.com/NoGod3524/betterhuskyct/pull/56
 [#58]: https://github.com/NoGod3524/betterhuskyct/pull/58
+[#60]: https://github.com/NoGod3524/betterhuskyct/pull/60
+[#61]: https://github.com/NoGod3524/betterhuskyct/pull/61
+[#62]: https://github.com/NoGod3524/betterhuskyct/pull/62
 
 
 

@@ -222,6 +222,18 @@ What was measured on 2026-09-27, and what it decided:
   address never lands in a file on the desktop.
 - Course materials are for your own use. Keep them that way.
 
+## Versions
+
+1.0.0 is the helper's first release. From there it follows the same rules as
+BetterHuskyCT:
+
+- **Major** (`2.0.0`) — a big change to what it is or how it is used.
+- **Minor** (`1.1.0`) — a new capability.
+- **Patch** (`1.0.1`) — a fix or a small addition.
+
+The panel shows the version it is running. Tampermonkey only offers an update
+when `@version` goes up, so every change that ships raises it.
+
 ## Status
 
 Early, and deliberately small. Every reader here was written against markup
