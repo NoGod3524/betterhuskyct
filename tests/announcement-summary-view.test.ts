@@ -212,3 +212,26 @@ test("the 'No course' filter shows the announcements filed under no course", asy
   assert.ok(!view.text().includes("Filed under a course"));
   await view.unmount();
 });
+
+test("announcements whose course is not on the import page are grouped by their code, not under 'No course'", async () => {
+  unique += 1;
+  // What the helper sends when the import page's course list is empty, or has
+  // the lecture and the discussion under one code: a code, and no local course.
+  seedAnnouncements([
+    announcement("econ-1", { courseId: null, courseCode: "ECON 1201", title: "Quiz 2 moved" }),
+    announcement("econ-2", { courseId: null, courseCode: "ECON 1201", title: "New assignment posted" }),
+    announcement("stat", { courseId: null, courseCode: "STAT 1000Q", title: "Exam 1" }),
+    announcement("loose", { courseId: null, courseCode: null, title: "Filed under nothing" }),
+  ]);
+  const view = await render(page(false));
+
+  assert.ok(view.button("ECON 1201"), "no ECON 1201 chip");
+  assert.ok(view.button("STAT 1000Q"), "no STAT 1000Q chip");
+  const uncoursed = view.button(t("en", "announcements.uncoursed"));
+  assert.ok(uncoursed?.textContent?.endsWith("1"), "announcements with a course code were counted as 'No course'");
+
+  await act(async () => view.button("ECON 1201")!.click());
+  assert.ok(view.text().includes("Quiz 2 moved") && view.text().includes("New assignment posted"));
+  assert.ok(!view.text().includes("Exam 1") && !view.text().includes("Filed under nothing"));
+  await view.unmount();
+});
