@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.15.0
+// @version      0.16.2
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.15.0";
+  const VERSION = "0.16.2";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -108,22 +108,28 @@
       collectedNone: "Collected 0 events.",
       collectedSome: "Collected {count} event(s).",
       guideTodo:
-        "Your courses and to-do list are in the basket. Next, open each course's announcements — the button below takes you there.",
-      guideCourse: "Open this course's Announcements tab — the panel collects them from there.",
+        "Press Collect everything: the panel reads this to-do list and every course's announcements by itself.",
+      guideCourse: "Press Collect everything to read every course's announcements, this one included.",
       guideAnnouncements: "This course's announcements are in the basket.",
       guideNeither:
-        "Open the Courses page first: the panel collects your courses and to-do list there.",
+        "Press Collect everything: the panel opens the Courses page and each course by itself, then brings you back here.",
       languageLabel: "中文",
       basketEmpty: "The basket is empty.",
       basketSummary:
         "In the basket: {deadlines} deadline(s) and {announcements} announcement(s), from {collected} of {courses} course(s).",
-      nextCourse: "Next: {course} announcements →",
-      allCoursesCollected: "Every course's announcements are in. Press Send.",
+      collectAll: "Collect everything",
+      stopCollecting: "Stop",
+      collectingCourses: "Reading your courses and to-do list…",
+      collectingDueDates: "Reading the term's due dates from the Calendar…",
+      collectingCourse: "Reading {course} ({index} of {total})…",
+      collectedAll: "Done: {courses} course(s) read. Press Send to put them in BetterHuskyCT.",
+      collectSkipped: " Could not open: {courses}.",
+      collectStopped: "Stopped. What was read so far is in the basket.",
+      collectFailed: "Collecting stopped with an error: {message}",
       clearBasket: "Clear basket",
       basketCleared: "Basket cleared.",
       basketNothing: "Nothing collected yet.",
-      basketNothingHint:
-        "Open the Courses page and each course's Announcements tab — the panel collects what they show.",
+      basketNothingHint: "Press Collect everything first.",
       leftOut: " {count} older announcement(s) stayed behind to keep the link small.",
       // Status and hint lines, reached through the panel rather than baked in at
       // the point of use, so nothing has to be re-translated after the fact.
@@ -194,19 +200,26 @@
       privacy: "不上传任何东西，全部留在这个浏览器里。",
       collectedNone: "已采集 0 个事件。",
       collectedSome: "已采集 {count} 个事件。",
-      guideTodo: "你的课程和待办已经收进篮子。接下来逐门打开课程公告——下面的按钮会带你过去。",
-      guideCourse: "打开这门课的 Announcements 标签页——面板会从那里收集公告。",
+      guideTodo: "按「一键收集全部」：面板会自己读取这里的待办和每门课的公告。",
+      guideCourse: "按「一键收集全部」，读取每门课的公告，包括这一门。",
       guideAnnouncements: "这门课的公告已经收进篮子。",
-      guideNeither: "先打开 Courses 页：面板会在那里收集你的课程和待办。",
+      guideNeither: "按「一键收集全部」：面板会自己打开 Courses 页和每门课，收完再回到这里。",
       languageLabel: "English",
       basketEmpty: "篮子是空的。",
       basketSummary: "篮子里：{deadlines} 个 deadline、{announcements} 条公告，来自 {courses} 门课中的 {collected} 门。",
-      nextCourse: "下一门：{course} 的公告 →",
-      allCoursesCollected: "所有课程的公告都收齐了，按发送即可。",
+      collectAll: "一键收集全部",
+      stopCollecting: "停止",
+      collectingCourses: "正在读取课程列表和待办……",
+      collectingDueDates: "正在从日历读取整个学期的截止日期……",
+      collectingCourse: "正在读取 {course}（{index}/{total}）……",
+      collectedAll: "完成：读取了 {courses} 门课。按「全部发给 BetterHuskyCT」导入。",
+      collectSkipped: "打不开的课程：{courses}。",
+      collectStopped: "已停止。已经读到的内容都在篮子里。",
+      collectFailed: "收集时出错停止了：{message}",
       clearBasket: "清空篮子",
       basketCleared: "篮子已清空。",
       basketNothing: "还没有收集到任何内容。",
-      basketNothingHint: "打开 Courses 页和每门课的 Announcements 标签页——面板会收集它们显示的内容。",
+      basketNothingHint: "先按「一键收集全部」。",
       leftOut: "另有 {count} 条较早的公告为了让链接不太长没有带上。",
       noDeadlinesTitle: "这一页没有 deadline。",
       noDeadlinesHint: "待办列表在 Courses 页（HuskyCT 首页）。打开它，再按一次。",
@@ -772,23 +785,33 @@
     };
   }
 
+  /** Hours from UTC for the zone abbreviations HuskyCT prints after a due time. */
+  const ZONE_OFFSETS = { EDT: -4, EST: -5, CDT: -5, CST: -6, MDT: -6, MST: -7, PDT: -7, PST: -8, UTC: 0, GMT: 0 };
+
   /**
-   * `9/25/26, 11:59 PM` -> an instant, read in the reader's own timezone.
+   * `9/25/26, 11:59 PM` -> an instant.
    *
-   * The page shows a wall-clock time with no zone on it. Building the date from
-   * its parts lets the browser interpret it locally, which is right for someone
-   * sitting in the same timezone as their classes — and it is the only reading
-   * available from the page alone.
+   * The to-do list shows a wall-clock time with no zone on it, so that one is
+   * read in the reader's own timezone — right for someone sitting in the same
+   * timezone as their classes, and the only reading the page offers. The
+   * Calendar's due dates add the zone — `10/2/26, 11:59 PM (EDT)` — and then
+   * the instant is exact wherever the reader is.
    */
   function dueDateFromText(value) {
-    const match = String(value || "").match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4}),?\s+(\d{1,2}):(\d{2})\s*([AP])M/i);
+    const match = String(value || "").match(
+      /(\d{1,2})\/(\d{1,2})\/(\d{2,4}),?\s+(\d{1,2}):(\d{2})\s*([AP])M(?:\s*\(([A-Z]{2,4})\))?/i,
+    );
     if (!match) return null;
 
     const year = match[3].length === 2 ? 2000 + Number(match[3]) : Number(match[3]);
     // 12 AM is hour 0 and 12 PM is hour 12; the modulo handles both.
     const hour = (Number(match[4]) % 12) + (/p/i.test(match[6]) ? 12 : 0);
+    const zone = match[7] ? match[7].toUpperCase() : null;
 
-    const date = new Date(year, Number(match[1]) - 1, Number(match[2]), hour, Number(match[5]), 0, 0);
+    const date =
+      zone && Object.prototype.hasOwnProperty.call(ZONE_OFFSETS, zone)
+        ? new Date(Date.UTC(year, Number(match[1]) - 1, Number(match[2]), hour - ZONE_OFFSETS[zone], Number(match[5])))
+        : new Date(year, Number(match[1]) - 1, Number(match[2]), hour, Number(match[5]), 0, 0);
     return Number.isNaN(date.valueOf()) ? null : date;
   }
 
@@ -815,6 +838,43 @@
       const stable = analytics.split(".").pop() || todo.title + "@" + todo.dueText;
       todo.uid = "huskyct-todo-" + stable.replace(/[^\w.-]+/g, "-");
       records.push(todo);
+    }
+
+    return records;
+  }
+
+  /**
+   * The Calendar's "Due dates" view: every due date from today to the end of
+   * the term, across courses. The to-do list only reaches a week ahead, so in a
+   * quiet week it is empty while the term is full of deadlines — measured on
+   * 2026-09-27, an empty to-do list beside 29 due dates running to December 11.
+   *
+   * Each card has the item's name, `Due date: 10/2/26, 11:59 PM (EDT)`, and a
+   * link to its course. The date is found by its shape rather than by the
+   * words around it, which change with the interface language. HuskyCT gives
+   * the card no id, so the uid is the course and the title: a rescheduled item
+   * keeps it and simply takes the new time.
+   */
+  function collectDueDates(root) {
+    const scope = root || document;
+    const records = [];
+    const seen = new Set();
+
+    for (const card of scope.querySelectorAll(".element-card.due-item")) {
+      const title = textOf(card.querySelector(".name"));
+      const content = card.querySelector(".content");
+      const courseLink = content ? content.querySelector("a") : null;
+      const dueText =
+        (textOf(content).match(/\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}\s*[AP]M(?:\s*\([A-Z]{2,4}\))?/i) || [])[0] || "";
+      const due = dueDateFromText(dueText);
+      if (!title || !due) continue;
+
+      const courseId = (String((courseLink && courseLink.getAttribute("href")) || "").match(/(_\d+_\d+)/) || [])[1] || null;
+      const course = courseCodeFromDisplay(textOf(courseLink));
+      const uid = "huskyct-due-" + ((courseId || course || "course") + "-" + title).replace(/[^\w.-]+/g, "-");
+      if (seen.has(uid)) continue;
+      seen.add(uid);
+      records.push({ uid, title, course, courseId, dueText, due });
     }
 
     return records;
@@ -864,7 +924,7 @@
   const PACKED_LIMIT = 30000;
 
   function emptyBasket() {
-    return { version: BASKET_VERSION, courses: [], todos: [], todosAt: null };
+    return { version: BASKET_VERSION, courses: [], todos: [], todosAt: null, dueDates: [], dueDatesAt: null };
   }
 
   /**
@@ -893,6 +953,12 @@
           (todo) => todo && typeof todo.uid === "string" && typeof todo.start === "string",
         ),
         todosAt: typeof parsed.todosAt === "string" ? parsed.todosAt : null,
+        // Added in 0.16.2. A basket saved before then has none, which reads as
+        // "not collected yet" rather than as a broken basket.
+        dueDates: (Array.isArray(parsed.dueDates) ? parsed.dueDates : []).filter(
+          (item) => item && typeof item.uid === "string" && typeof item.start === "string",
+        ),
+        dueDatesAt: typeof parsed.dueDatesAt === "string" ? parsed.dueDatesAt : null,
       };
     } catch {
       return emptyBasket();
@@ -991,6 +1057,45 @@
   }
 
   /**
+   * The Calendar's due dates, merged by uid rather than replaced.
+   *
+   * The view starts at today and loads more as it scrolls, so one look at it
+   * may show only part of the term; replacing would throw away the rest. A
+   * rescheduled item keeps its uid and takes its new time.
+   */
+  function rememberDueDates(basket, records, now) {
+    if (!records || records.length === 0) return { basket, changed: false };
+    const byUid = new Map((basket.dueDates || []).map((item) => [item.uid, item]));
+    let changed = false;
+    for (const record of records) {
+      const previous = byUid.get(record.uid);
+      if (!previous || JSON.stringify(previous) !== JSON.stringify(record)) {
+        byUid.set(record.uid, record);
+        changed = true;
+      }
+    }
+    if (!changed) return { basket, changed: false };
+    return {
+      basket: { ...basket, dueDates: [...byUid.values()], dueDatesAt: (now || new Date()).toISOString() },
+      changed: true,
+    };
+  }
+
+  /**
+   * Every deadline in the basket, once.
+   *
+   * The to-do list and the Calendar overlap for the coming week. The to-do
+   * list's copy wins — it carries HuskyCT's own item id, and it is the only one
+   * of the two that shows overdue work — and a due date is dropped when the
+   * to-do list has the same course, title and time.
+   */
+  function deadlineRecords(basket) {
+    const key = (record) => [record.course || "", record.title, record.start].join("|");
+    const fromTodos = new Set(basket.todos.map(key));
+    return basket.todos.concat((basket.dueDates || []).filter((record) => !fromTodos.has(key(record))));
+  }
+
+  /**
    * Reads the page into the basket.
    *
    * `listSettled` is the panel's word that an Announcements page has shown its
@@ -1006,14 +1111,23 @@
       changed = changed || result.changed;
     };
 
-    apply(rememberCourses(current, courseLinksOnPage(scope)));
+    const links = courseLinksOnPage(scope);
+    apply(rememberCourses(current, links));
+    apply(rememberCourses(current, coursesToCollect(courseCardsOnPage(scope), links, now)));
     apply(rememberTodos(current, todosToRecords(collectTodos(scope)), now));
+    apply(rememberDueDates(current, todosToRecords(collectDueDates(scope)), now));
 
     const match = String(pathname || "").match(/^\/ultra\/courses\/([^/]+)\/announcements/);
     if (match) {
+      // Moving between two courses can leave the last course's page on screen
+      // for a moment under the new address. A heading naming a different course
+      // than the one already known for this id means exactly that.
+      const code = collectCourse(scope).code;
+      const known = current.courses.find((course) => course.id === match[1]);
+      const mismatched = Boolean(code && known && known.code && known.code !== code);
       const rows = collectAnnouncements(scope);
-      if (rows.length > 0 || (listSettled && scope.querySelector(".announcement-list"))) {
-        apply(rememberAnnouncements(current, { id: match[1], code: collectCourse(scope).code }, rows, now));
+      if (!mismatched && (rows.length > 0 || (listSettled && scope.querySelector(".announcement-list")))) {
+        apply(rememberAnnouncements(current, { id: match[1], code }, rows, now));
       }
     }
 
@@ -1026,17 +1140,361 @@
       courses: basket.courses.length,
       collected: collected.length,
       announcements: collected.reduce((total, course) => total + course.announcements.length, 0),
-      deadlines: basket.todos.length,
+      deadlines: deadlineRecords(basket).length,
     };
-  }
-
-  /** The first course whose Announcements page has not been read, other than the one open. */
-  function nextCourseToCollect(basket, currentId) {
-    return basket.courses.find((course) => !course.announcementsAt && course.id !== currentId) || null;
   }
 
   function announcementsPathFor(courseId) {
     return "/ultra/courses/" + courseId + "/announcements";
+  }
+
+  // --- collecting everything in one press -------------------------------------
+
+  /**
+   * The basket used to fill only as the student opened each course's
+   * Announcements tab by hand, which is the chore it was meant to remove.
+   * "Collect everything" walks HuskyCT itself instead: the Courses page for the
+   * to-do list and the full course list, then each course's Announcements page,
+   * then back to where the student was.
+   *
+   * It still reads only rendered pages. Two shortcuts were measured and ruled
+   * out on 2026-09-27: HuskyCT's API refuses scripts (403 `AccessDenied`), and
+   * its pages refuse to load in a frame, so a hidden iframe gets nothing. What
+   * remains is moving the tab through HuskyCT the way its own links do, one page
+   * at a time.
+   */
+
+  const VIEW_ALL_COURSES = '[data-analytics-id="base.courses.recentCoursesView.viewAllButton"]';
+  const DUE_DATES_VIEW = '#bb-calendar1-deadline, [analytics-id="components.directives.calendar.viewSwitch.deadline"]';
+
+  function pause(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /** Polls `check` until it returns something truthy, or gives up with null. */
+  async function waitFor(check, every, timeout) {
+    const started = Date.now();
+    for (;;) {
+      const value = check();
+      if (value) return value;
+      if (Date.now() - started >= timeout) return null;
+      await pause(every);
+    }
+  }
+
+  /**
+   * Moves HuskyCT to another of its own pages without reloading.
+   *
+   * HuskyCT is a single-page app that follows history changes, so pushing a path
+   * and announcing it is what its own links do. Measured on 2026-09-27: a
+   * course's Announcements page renders in 0.5-2.5 s this way, and the panel
+   * stays mounted. The document carries a <base> on Blackboard's CDN, so the path
+   * is made absolute first — a relative one resolves against the CDN and
+   * pushState refuses it.
+   */
+  function routeTo(path) {
+    window.history.pushState({}, "", window.location.origin + path);
+    window.dispatchEvent(new window.PopStateEvent("popstate", { state: {} }));
+  }
+
+  /**
+   * The course cards on the Courses page's "View All" list.
+   *
+   * The Courses page itself shows only the few courses opened most recently —
+   * four of six, on the account this was measured with. "View All" lists every
+   * one, as `article[data-course-id]` cards rendered as they scroll into view.
+   * The term comes from the course id's prefix: `1268-UCONN-NRE-1000E-…` is
+   * term 1268. A card HuskyCT marks inaccessible is left out; opening it would
+   * only time out.
+   */
+  function courseCardsOnPage(root) {
+    const scope = root || document;
+    const found = [];
+    for (const card of scope.querySelectorAll("article[data-course-id]")) {
+      const id = card.getAttribute("data-course-id");
+      if (!/^_\d+_\d+$/.test(String(id)) || card.classList.contains("inactive-link")) continue;
+      const text = textOf(card);
+      found.push({
+        id,
+        code: courseCodeFromDisplay(textOf(card.querySelector("h4"))) || courseCodeFromDisplay(text),
+        term: (text.match(/\b(\d{4})-UCONN-/) || [])[1] || null,
+      });
+    }
+    return found;
+  }
+
+  /**
+   * UConn's term code for a date: `1` + the year's last two digits + the
+   * season — 3 spring, 5 summer, 8 fall. 2026-09-27 is 1268, the prefix on
+   * every Fall 2026 course id.
+   */
+  function termCodeFor(date) {
+    const month = date.getMonth();
+    const season = month <= 4 ? 3 : month <= 6 ? 5 : 8;
+    return 1000 + (date.getFullYear() % 100) * 10 + season;
+  }
+
+  /**
+   * Which courses to read: this term's, and any later one's.
+   *
+   * The course list covers past terms too, and reading every course someone has
+   * ever taken would be slow and pointless. The recently opened courses say
+   * which term is current. Without them — a wide screen shows the full list and
+   * no "recent" strip — today's date does, unless every course on the list is
+   * older than that, as in a break between terms; then the newest term stands
+   * in. A card whose term cannot be read is kept rather than guessed away.
+   */
+  function coursesToCollect(cards, recent, now) {
+    const recentIds = new Set(recent.map((course) => course.id));
+    const terms = cards.map((card) => Number(card.term)).filter(Boolean);
+    const recentTerms = cards
+      .filter((card) => recentIds.has(card.id))
+      .map((card) => Number(card.term))
+      .filter(Boolean);
+    const current = termCodeFor(now || new Date());
+    const earliest = recentTerms.length
+      ? Math.min(...recentTerms)
+      : terms.some((term) => term >= current)
+        ? current
+        : terms.length
+          ? Math.max(...terms)
+          : 0;
+
+    const chosen = new Map();
+    for (const card of cards) {
+      if (!card.term || Number(card.term) >= earliest) chosen.set(card.id, { id: card.id, code: card.code });
+    }
+    for (const course of recent) {
+      if (!chosen.has(course.id)) chosen.set(course.id, { id: course.id, code: course.code });
+    }
+    return [...chosen.values()];
+  }
+
+  /**
+   * Scrolls the "View All" list until every card has rendered.
+   *
+   * Measured on the live page: every card is there from the start as an
+   * `article` with an empty `data-course-id`, filled in once it has been
+   * scrolled into view, and never emptied again. So the list is done when no
+   * card is still empty — not when the count has held still, which stopped at
+   * four or five of six. The list scrolls inside its own panel, one screen at a
+   * time. A card only renders on a scroll, so the first one can be passed over;
+   * reaching the bottom with a card still empty goes back to the top for another
+   * pass, twice at most, in case a card never fills in at all.
+   */
+  async function loadEveryCourseCard(opts) {
+    const seen = new Map();
+    const started = Date.now();
+    let passes = 0;
+    let seenAtLastPass = -1;
+    while (Date.now() - started < opts.pageTimeout) {
+      for (const card of courseCardsOnPage(document)) seen.set(card.id, card);
+      const slots = [...document.querySelectorAll("article[data-course-id]")];
+      const pending = slots.filter((slot) => !slot.getAttribute("data-course-id")).length;
+      if (slots.length > 0 && pending === 0) break;
+
+      // Only real scrolling panels, and only real movement: the live page has
+      // small inner boxes that creep a pixel per scroll and never "finish".
+      const scrollers = [...document.querySelectorAll("main, main *, .panel-wrap, .hide-in-background")].filter(
+        (element) => element.clientHeight >= 150 && element.scrollHeight > element.clientHeight + 50,
+      );
+      let moved = false;
+      for (const element of scrollers) {
+        const before = element.scrollTop;
+        element.scrollTop = Math.min(before + element.clientHeight * 0.8, element.scrollHeight);
+        moved = moved || Math.abs(element.scrollTop - before) >= 10;
+      }
+      if (!moved && slots.length > 0) {
+        // On a screen tall enough that nothing scrolls, there are no passes to
+        // count: give the cards a few seconds to render on their own before
+        // settling for what is there.
+        const waited = Date.now() - started >= opts.every * 20;
+        const stalled = seen.size === seenAtLastPass;
+        seenAtLastPass = seen.size;
+        if (scrollers.length === 0) {
+          if (waited && stalled) break;
+        } else {
+          if (passes >= 2 || (waited && stalled)) break;
+          passes++;
+          for (const element of scrollers) element.scrollTop = 0;
+        }
+      }
+      await pause(opts.every * 2);
+    }
+    return [...seen.values()];
+  }
+
+  /**
+   * Opens one course's Announcements page and reads it once it is really that
+   * course's.
+   *
+   * Moving between two courses can leave the previous course's page on screen
+   * for a moment under the new address, and reading it would file one course's
+   * announcements under another. So the page counts only once its heading names
+   * this course, none of its rows was there before the move, and the row count
+   * has held still. An empty list counts only after it has stayed empty for
+   * `emptySettle`. Returns null if the page never settles — no access, or
+   * HuskyCT sent the student somewhere else.
+   */
+  async function readAnnouncementsOf(courseId, code, opts) {
+    const staleRows = new Set(document.querySelectorAll(".announcement-item-row"));
+    const staleList = document.querySelector(".announcement-list");
+    const path = announcementsPathFor(courseId);
+    routeTo(path);
+
+    const started = Date.now();
+    let lastCount = -1;
+    let steady = 0;
+    while (Date.now() - started < opts.pageTimeout) {
+      await pause(opts.every);
+      if (window.location.pathname.indexOf(path) !== 0) continue;
+      const list = document.querySelector(".announcement-list");
+      if (!list) continue;
+      const heading = collectCourse(document).code;
+      if (code && heading && heading !== code) continue;
+      const rows = [...document.querySelectorAll(".announcement-item-row")];
+      if (rows.some((row) => staleRows.has(row))) continue;
+
+      steady = rows.length === lastCount ? steady + 1 : 0;
+      lastCount = rows.length;
+      if (rows.length > 0 && steady >= 2) return collectAnnouncements(document);
+      // The same empty list element as the last course's gets twice as long,
+      // since it may not have been re-rendered yet.
+      const settle = list === staleList ? opts.emptySettle * 2 : opts.emptySettle;
+      if (rows.length === 0 && Date.now() - started >= settle) return [];
+    }
+    return null;
+  }
+
+  /**
+   * Opens the Calendar's "Due dates" view and scrolls it to the end of the term.
+   *
+   * It shows about three weeks at first and loads the rest as it scrolls —
+   * 20 items, then 29, on 2026-09-27 — so it is scrolled until the count holds.
+   * A term with nothing due shows no cards at all, which simply reads as none.
+   */
+  async function readDueDates(opts) {
+    routeTo("/ultra/calendar");
+    const button = await waitFor(() => document.querySelector(DUE_DATES_VIEW), opts.every, opts.pageTimeout);
+    if (!button) return [];
+    button.click();
+    await waitFor(() => document.querySelector(".element-card.due-item"), opts.every, opts.emptySettle);
+
+    let lastCount = -1;
+    let steady = 0;
+    const started = Date.now();
+    while (Date.now() - started < opts.pageTimeout) {
+      const items = document.querySelectorAll(".element-card.due-item");
+      steady = items.length === lastCount ? steady + 1 : 0;
+      lastCount = items.length;
+      if (steady >= 3) break;
+      const last = items[items.length - 1];
+      if (last && typeof last.scrollIntoView === "function") last.scrollIntoView({ block: "end" });
+      for (const element of document.querySelectorAll("main, main *")) {
+        if (element.clientHeight >= 150 && element.scrollHeight > element.clientHeight + 50) {
+          element.scrollTop = element.scrollHeight;
+        }
+      }
+      await pause(opts.every * 2);
+    }
+    return collectDueDates(document);
+  }
+
+  /**
+   * The whole walk. Writes to the basket as it goes, so stopping halfway keeps
+   * what was read.
+   */
+  async function collectEverything(options) {
+    const opts = Object.assign(
+      {
+        every: 300,
+        pageTimeout: 15000,
+        emptySettle: 4000,
+        todoSettle: 2500,
+        gap: 250,
+        onProgress() {},
+        shouldStop: () => false,
+      },
+      options,
+    );
+    const storage = window.localStorage;
+    const returnTo = window.location.pathname + window.location.search;
+    const report = { courses: 0, collected: 0, dueDates: 0, skipped: [], stopped: false };
+    const save = (result) => {
+      if (result.changed) writeBasket(storage, result.basket);
+      return result.basket;
+    };
+
+    try {
+      // 1. The Courses page: the to-do list, and the courses. It has two
+      // layouts. On a wide screen it lists every course as a card straight away;
+      // on a narrow one it shows the few opened recently, as links, with a
+      // "View All" button for the rest. Measured on 2026-09-27 at 1440 and 398
+      // pixels wide.
+      opts.onProgress({ step: "courses" });
+      routeTo("/ultra/course");
+      await waitFor(
+        () =>
+          window.location.pathname.indexOf("/ultra/course") === 0 &&
+          (document.querySelector(VIEW_ALL_COURSES) ||
+            document.querySelector('a[href*="/ultra/courses/"]') ||
+            document.querySelector("article[data-course-id]")),
+        opts.every,
+        opts.pageTimeout,
+      );
+      // An empty week has no to-do items at all, so this simply runs out.
+      await waitFor(() => document.querySelector("[aria-label*=', due ']"), opts.every, opts.todoSettle);
+
+      const recent = courseLinksOnPage(document);
+      let basket = readBasket(storage);
+      basket = save(rememberTodos(basket, todosToRecords(collectTodos(document)), new Date()));
+      basket = save(rememberCourses(basket, recent));
+
+      // 2. Every course: the cards already on screen, or behind "View All".
+      const viewAll = document.querySelector(VIEW_ALL_COURSES);
+      if (viewAll) viewAll.click();
+      let cards = [];
+      if (viewAll || document.querySelector("article[data-course-id]")) {
+        cards = await loadEveryCourseCard(opts);
+      }
+      const queue = coursesToCollect(cards, recent, new Date());
+      save(rememberCourses(basket, queue));
+      report.courses = queue.length;
+
+      // 3. The Calendar's due dates: the whole term, not just the week the
+      // to-do list covers.
+      if (!opts.shouldStop()) {
+        opts.onProgress({ step: "duedates" });
+        const dueDates = await readDueDates(opts);
+        report.dueDates = dueDates.length;
+        save(rememberDueDates(readBasket(storage), todosToRecords(dueDates), new Date()));
+      }
+
+      // 4. Each course's Announcements page, one at a time.
+      for (let index = 0; index < queue.length; index++) {
+        if (opts.shouldStop()) {
+          report.stopped = true;
+          break;
+        }
+        const course = queue[index];
+        opts.onProgress({ step: "course", course, index: index + 1, total: queue.length });
+
+        const rows = await readAnnouncementsOf(course.id, course.code, opts);
+        if (rows === null) {
+          report.skipped.push(course.code || course.id);
+          continue;
+        }
+        // Re-read first: the student may have cleared the basket, or another
+        // HuskyCT tab written to it, while this page loaded.
+        save(rememberAnnouncements(readBasket(storage), course, rows, new Date()));
+        report.collected++;
+        await pause(opts.gap);
+      }
+    } finally {
+      // 5. Back to the page the student pressed the button on.
+      routeTo(returnTo);
+    }
+    return report;
   }
 
   /**
@@ -1057,7 +1515,7 @@
     for (let rank = 0; rank < longest; rank += 1) {
       for (const list of perCourse) if (rank < list.length) announcements.push(list[rank]);
     }
-    return { records: basket.todos, announcements };
+    return { records: deadlineRecords(basket), announcements };
   }
 
   /**
@@ -1442,8 +1900,8 @@
       <div class="body">
         <div class="note" data-role="hint"></div>
         <div class="note" data-role="basket">${t("basketEmpty")}</div>
-        <button class="act primary" data-act="todos">${t("sendDeadlines")}</button>
-        <button class="act" data-act="nextcourse" hidden></button>
+        <button class="act primary" data-act="collectall">${t("collectAll")}</button>
+        <button class="act" data-act="todos">${t("sendDeadlines")}</button>
         <button class="act" data-act="emptybasket">${t("clearBasket")}</button>
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
         <div class="note" data-role="count">${t("collectedNone")}</div>
@@ -1519,8 +1977,13 @@
     const acquireHint = wrap.querySelector('[data-role="acquire-hint"]');
     const langButton = wrap.querySelector('[data-role="lang"]');
     const basketLine = wrap.querySelector('[data-role="basket"]');
-    const nextButton = wrap.querySelector('[data-act="nextcourse"]');
+    const collectButton = wrap.querySelector('[data-act="collectall"]');
+    const sendButton = wrap.querySelector('[data-act="todos"]');
     const emptyBasketButton = wrap.querySelector('[data-act="emptybasket"]');
+    // The walk in progress, if any. The timer's own capture stands aside while
+    // it runs: the walk reads each page itself, and knows when a page is really
+    // the course it asked for.
+    let walk = null;
     // The basket in memory, re-read from storage on every tick so two HuskyCT
     // tabs collecting at once do not overwrite each other's courses.
     let basket = readBasket(window.localStorage);
@@ -1550,7 +2013,10 @@
       hint.textContent = guidanceFor(document, currentCourseId(), window.location.pathname);
     }
 
-    /** The basket line, and the button to the next course still to collect. */
+    /**
+     * The basket line, and which button leads: Collect while there is nothing to
+     * send, Send once there is.
+     */
     function refreshBasket() {
       const summary = basketSummary(basket);
       const empty = summary.courses === 0 && summary.deadlines === 0;
@@ -1558,12 +2024,12 @@
       basketLine.className = empty ? "note" : "note ok";
       emptyBasketButton.textContent = t("clearBasket");
 
-      const next = nextCourseToCollect(basket, currentCourseId());
-      nextButton.hidden = summary.courses === 0;
-      nextButton.disabled = !next;
-      nextButton.textContent = next
-        ? t("nextCourse", { course: next.code || next.id })
-        : t("allCoursesCollected");
+      const ready = !walk && (summary.deadlines > 0 || summary.announcements > 0);
+      collectButton.textContent = walk ? t("stopCollecting") : t("collectAll");
+      collectButton.classList.toggle("primary", !ready);
+      sendButton.classList.toggle("primary", ready);
+      sendButton.disabled = Boolean(walk);
+      emptyBasketButton.disabled = Boolean(walk);
     }
 
     /**
@@ -1572,6 +2038,7 @@
      * It only reads what is rendered — no request is made.
      */
     function captureTick() {
+      if (walk) return;
       const path = window.location.pathname;
       const showingEmptyList =
         /\/announcements/.test(path) &&
@@ -1761,11 +2228,48 @@
         return;
       }
 
-      if (act === "nextcourse") {
-        const next = nextCourseToCollect(basket, currentCourseId());
-        // A plain navigation within HuskyCT, as if the student had clicked the
-        // course and then its Announcements tab — not a request for data.
-        if (next) window.location.assign(announcementsPathFor(next.id));
+      if (act === "collectall") {
+        // The same button stops a walk in progress. It finishes the page it is
+        // on rather than abandoning it mid-read.
+        if (walk) {
+          walk.stop = true;
+          button.disabled = true;
+          return;
+        }
+
+        walk = { stop: false };
+        refreshBasket();
+        status.className = "note";
+        try {
+          const report = await collectEverything({
+            shouldStop: () => walk.stop,
+            onProgress(progress) {
+              status.textContent =
+                progress.step === "courses"
+                  ? t("collectingCourses")
+                  : progress.step === "duedates"
+                    ? t("collectingDueDates")
+                    : t("collectingCourse", {
+                      course: progress.course.code || progress.course.id,
+                      index: progress.index,
+                      total: progress.total,
+                    });
+            },
+          });
+          status.className = report.stopped ? "note" : "note ok";
+          status.textContent =
+            (report.stopped ? t("collectStopped") : t("collectedAll", { courses: report.collected })) +
+            (report.skipped.length ? t("collectSkipped", { courses: report.skipped.join(", ") }) : "");
+        } catch (error) {
+          status.className = "note warn";
+          status.textContent = t("collectFailed", { message: error.message });
+        } finally {
+          walk = null;
+          button.disabled = false;
+          basket = readBasket(window.localStorage);
+          refreshBasket();
+          refreshGuidance();
+        }
         return;
       }
 
@@ -1910,10 +2414,18 @@
       rememberCourses,
       rememberAnnouncements,
       rememberTodos,
+      rememberDueDates,
+      deadlineRecords,
+      collectDueDates,
       captureIntoBasket,
       basketSummary,
-      nextCourseToCollect,
       announcementsPathFor,
+      routeTo,
+      courseCardsOnPage,
+      coursesToCollect,
+      termCodeFor,
+      readAnnouncementsOf,
+      collectEverything,
       basketContents,
       basketLink,
       courseDigestToMarkdown,

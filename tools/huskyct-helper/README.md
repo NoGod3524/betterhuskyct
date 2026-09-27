@@ -9,9 +9,9 @@ A userscript that runs inside your own HuskyCT session and does three things:
    loaded, which can only be dropped in as a file.
 2. **Collects a course** — its announcements, its outline, and the files it links
    to — as a Markdown digest.
-3. **Collects your deadlines and every course's announcements as you browse,**
-   and sends the lot to BetterHuskyCT in one press — no file to download, and
-   nothing uploaded.
+3. **Collects your deadlines and every course's announcements in one press,**
+   and sends the lot to BetterHuskyCT — no file to download, and nothing
+   uploaded.
 
 > **HuskyCT is Blackboard Ultra at `lms.uconn.edu`.** The script also matches
 > `huskyct.uconn.edu` in case that hostname still redirects, but `lms.uconn.edu`
@@ -37,9 +37,12 @@ The button says which one it is about to do.
 - It never asks for, stores, or transmits your **NetID or password**. It uses the
   session your browser already has, exactly as the page itself does.
 - It never sends anything anywhere except `lms.uconn.edu`.
-- **It asks HuskyCT for nothing.** Everything it collects is read off the page
-  already on screen. The only requests it ever makes are for the calendar feeds
-  that page itself links to — one at a time, with a pause between them.
+- **It asks HuskyCT for nothing directly.** Everything it collects is read off a
+  page HuskyCT has rendered. *Collect everything* moves the tab through
+  HuskyCT's own pages, one at a time, the way its links do — HuskyCT loads each
+  one exactly as if you had clicked there. The only requests the script itself
+  makes are for the calendar feeds a page links to, one at a time, with a pause
+  between them.
 
 ## Install
 
@@ -91,30 +94,50 @@ Titles are read from each item's accessibility label — `Status for Cengage
 WebAssign: Started` — rather than from a CSS class, because those class names
 carry build hashes and change with every release.
 
-## The basket: everything to BetterHuskyCT in one press
+## Collect everything, then send
 
 Nothing on HuskyCT shows everything at once. The to-do list is on the Courses
 page and only spans a week either side of today; each course's announcements are
 on that course's own Announcements tab, and the course outline shows none of
-them. So the helper does not ask you to press a button on each page. **It
-collects as you browse.**
+them. So the helper goes and gets them.
 
-Whenever a HuskyCT page is open, the panel reads it every second and a half and
-keeps what it finds in a basket, in this browser's storage for `lms.uconn.edu`:
+Press **Collect everything** and the panel walks HuskyCT in the tab you are in:
 
-- **The Courses page** puts in every course you are enrolled in, and the to-do
-  list.
-- **A course's Announcements tab** puts in that course's announcements — all the
-  page lists, up to 25, with the date each was posted.
+1. **The Courses page**, for the to-do list. It only covers a week either side
+   of today, and it is the one place overdue work shows.
+2. **Every course you are enrolled in.** On a wide screen the Courses page lists
+   them all as cards; on a narrow one it shows only the few opened most recently
+   (four of six on the account this was measured with) and the rest are behind
+   **View All**, which the panel opens. Past terms are skipped — the current term
+   comes from the recent courses, or from today's date when there are none.
+3. **The Calendar's "Due dates" view**, for every deadline from today to the
+   end of the term. In a quiet week the to-do list is empty while the term is
+   full of work — on 2026-09-27 it showed nothing, beside 29 due dates running
+   to December 11. The view loads more as it scrolls, so the panel scrolls it to
+   the end. Its times carry their zone, `10/2/26, 11:59 PM (EDT)`, so they are
+   exact wherever you are. A deadline on both lists is sent once.
+4. **Each course's Announcements page**, one after another: all the
+   announcements it lists, up to 25 per course, with the date each was posted.
+5. **Back to the page you started on.**
 
-The panel shows what is in the basket — "12 deadlines and 31 announcements, from
-3 of 5 courses" — and a **Next: ECON 1201 announcements →** button that walks you
-through the courses you have not opened yet. Visiting the five tabs is five
-clicks on one button.
+It moves the way HuskyCT's own links do, without reloading, so the whole walk
+took 13–20 seconds for six courses on 2026-09-27, depending on the layout. The button turns into
+**Stop** while it runs; stopping keeps what was already read. A course whose page
+never loads is skipped and named in the panel.
 
-*Send everything to BetterHuskyCT* then opens the dashboard with all of it in the
-link, in the same dashboard tab every time rather than a new one. Press **Add it
-here** there and it is in.
+Then press **Send everything to BetterHuskyCT**. It opens the dashboard with all
+of it in the link, in the same dashboard tab every time rather than a new one.
+Press **Add it here** there and it is in. The panel makes Send the leading
+button as soon as there is something to send.
+
+Why walk the pages rather than ask HuskyCT for the data? Because both ways of
+asking were measured and are closed: HuskyCT's API refuses scripts (403
+`AccessDenied`, re-measured 2026-09-27), and its pages refuse to load inside a
+frame, so a hidden frame gets nothing. Reading the pages HuskyCT renders for you,
+one at a time, is what is left.
+
+The panel also keeps reading the page you are on while you browse normally, so
+opening a course's Announcements tab by hand updates that course too.
 
 A few rules keep the basket honest:
 
@@ -125,6 +148,10 @@ A few rules keep the basket honest:
 - **An empty to-do list is ignored.** It only spans a week either side of today,
   so an empty one — or one that has not rendered yet — is not evidence that
   nothing is due, and must not wipe deadlines already collected.
+- **A page counts only once it is really that course's.** Moving between two
+  courses can leave the last one's page on screen for a moment under the new
+  address. Its heading has to name the course being read, and none of its rows
+  may be left over from the page before.
 - **An empty Announcements tab counts only once it stays empty** for a few
   seconds, so a list still loading is not mistaken for a course with nothing to
   say.

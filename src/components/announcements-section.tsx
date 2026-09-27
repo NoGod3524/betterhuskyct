@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AnnouncementSummary, type SummaryCourse } from "@/components/announcement-summary";
 import { useCalendar } from "@/components/calendar-provider";
 import type { Announcement } from "@/lib/announcements";
+import { normaliseCourseCode } from "@/lib/courses";
 import { intlLocale, t } from "@/lib/i18n";
 
 /**
@@ -22,14 +23,24 @@ const COLLAPSED_COUNT = 12;
 const NO_COURSE = "__none";
 
 /**
- * The one key both the filter chips and the filter itself use.
+ * The one key both the filter chips and the filter itself use: the course code.
  *
  * They used to compute it separately — the chips from `courseId ?? "__none"`,
  * the filter from `courseId` alone — so "No course" matched nothing and showed
  * an empty list.
+ *
+ * And it used to be the local course id, which an announcement only has when
+ * the course list on the import page holds exactly one course with its code.
+ * Someone who never filled that list in — or has a lecture and a discussion
+ * under one code — saw every announcement under "No course", each one still
+ * labelled with the course it came from. The code is what every announcement
+ * from the helper carries, so it is what groups them; "No course" is left for
+ * the ones that really have none.
  */
-function courseKeyOf(entry: Announcement): string {
-  return entry.courseId ?? NO_COURSE;
+function courseKeyOf(entry: Announcement, codeForId: (courseId: string) => string | null): string {
+  const code = entry.courseCode ?? (entry.courseId ? codeForId(entry.courseId) : null);
+  const normalised = code ? normaliseCourseCode(code).toUpperCase() : "";
+  return normalised || NO_COURSE;
 }
 
 /**
@@ -59,9 +70,9 @@ export function AnnouncementsSection({
   const visible = useMemo(
     () =>
       courseFilter
-        ? announcements.filter((entry) => courseKeyOf(entry) === courseFilter)
+        ? announcements.filter((entry) => courseKeyOf(entry, courseNameFor) === courseFilter)
         : announcements,
-    [announcements, courseFilter],
+    [announcements, courseFilter, courseNameFor],
   );
 
   /**
@@ -71,11 +82,11 @@ export function AnnouncementsSection({
   const filterOptions = useMemo(() => {
     const counts = new Map<string, number>();
     for (const entry of announcements) {
-      const key = courseKeyOf(entry);
+      const key = courseKeyOf(entry, courseNameFor);
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     return [...counts.entries()];
-  }, [announcements]);
+  }, [announcements, courseNameFor]);
 
   const shown = expanded ? visible : visible.slice(0, COLLAPSED_COUNT);
 
@@ -97,15 +108,12 @@ export function AnnouncementsSection({
         modelLabel: "announcements not filed under a course",
       };
     }
-    const code = courseNameFor(key) ?? key;
-    return { label: code, modelLabel: code };
+    return { label: key, modelLabel: key };
   }
 
   function labelFor(entry: Announcement): string {
-    if (entry.courseId) {
-      return courseNameFor(entry.courseId) ?? t(locale, "announcements.uncoursed");
-    }
-    return entry.courseCode ?? t(locale, "announcements.uncoursed");
+    const key = courseKeyOf(entry, courseNameFor);
+    return key === NO_COURSE ? t(locale, "announcements.uncoursed") : key;
   }
 
   return (
@@ -175,9 +183,7 @@ export function AnnouncementsSection({
                     : "border border-[#cdd9e6] bg-white text-[#4e647b] hover:border-[#9fb7d1]"
                 }`}
               >
-                {key === NO_COURSE
-                  ? t(locale, "announcements.uncoursed")
-                  : (courseNameFor(key) ?? key)}
+                {key === NO_COURSE ? t(locale, "announcements.uncoursed") : key}
                 <span className="opacity-70">{count}</span>
               </button>
             ))}
