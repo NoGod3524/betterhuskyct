@@ -14,6 +14,36 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.9.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.9.1) — The helper checks itself
+
+*Patch: HuskyCT Helper 1.1.0 — a self-check, a fix it caught, and a faster second walk. The dashboard itself is unchanged.*
+
+### Added
+
+- **A self-check.** Each walk now names the step that came back empty where it
+  should not have — the Courses page, the Calendar's Due dates view, a course's
+  content, documents that did not open, files with no download address — in a
+  line starting "Self-check:", instead of saying "Done" over an empty result.
+  Blackboard changes its pages with its releases; this is how that will show.
+  ([#64])
+
+### Fixed
+
+- **A walk started on a course's page read one course, or none.** That page,
+  still on screen for a moment after the move and full of links into the
+  course, was taken for the Courses page. Only what appears after the move
+  counts now; live, starting from ECON 1201's page, all six courses. The
+  self-check found it. ([#64])
+- **Saving to the Desktop said it "contains system files".** Edge and Chrome do
+  not let a page pick the Desktop itself. The panel now says, before the picker
+  opens, to make a folder on the Desktop and pick that. ([#64])
+
+### Changed
+
+- **A second materials walk within a week is quick.** What each document held is
+  kept for a week, so the next walk opens only new documents, and a document is
+  read the moment its page holds still rather than after a fixed second. ([#64])
+
 ## [1.9.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.9.0) — HuskyCT Helper 1.0
 
 *Minor: new capabilities. The helper reaches its first release, 1.0.0: one press collects the whole term, another the course materials.*
@@ -987,6 +1017,7 @@ saying what to work on next.*
 [#60]: https://github.com/NoGod3524/betterhuskyct/pull/60
 [#61]: https://github.com/NoGod3524/betterhuskyct/pull/61
 [#62]: https://github.com/NoGod3524/betterhuskyct/pull/62
+[#64]: https://github.com/NoGod3524/betterhuskyct/pull/64
 
 
 
