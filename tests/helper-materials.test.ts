@@ -24,6 +24,8 @@ type Link = { path: string[]; title: string; url: string; kind: string };
 type Manifest = {
   term: string | null;
   stopped: boolean;
+  reused: number;
+  problems: Array<{ key: string; params?: Record<string, unknown> }>;
   courses: Array<{
     id: string;
     code: string | null;
@@ -53,6 +55,9 @@ type Helper = {
   crc32: (bytes: Uint8Array) => number;
   zipStored: (entries: Array<{ name: string; bytes: Uint8Array }>) => Blob;
   setLocale: (locale: string) => void;
+  classifyOutline: (root: unknown, courseId: string) => { files: unknown[]; unaddressed: number };
+  problemsText: (problems: Array<{ key: string; params?: Record<string, unknown> }>) => string;
+  DOCUMENTS_KEY: string;
 };
 
 const windows: Window[] = [];
@@ -157,11 +162,12 @@ const COURSE_CARDS =
   `<article class="element-card" data-course-id="${MATH}"><span>1268-UCONN-MATH-1070Q-SEC100-1191</span><h4>MATH-1070Q-Mathematics for Business and Economics-SEC100-1268</h4></article>` +
   `<article class="element-card" data-course-id="${ECON}"><span>1268-UCONN-ECON-1201-SEC010-5757</span><h4>ECON-1201-Principles of Microeconomics-SEC010-1268</h4></article>`;
 
-function fakeHuskyct(window: Window) {
+function fakeHuskyct(window: Window, visited: string[]) {
   const main = window.document.querySelector("main")!;
   let generation = 0;
   window.addEventListener("popstate", () => {
     const path = window.location.pathname;
+    visited.push(path);
     const mine = ++generation;
     // The previous page stays up for a while under the new address.
     const render = (html: string) =>
@@ -251,6 +257,9 @@ function openPage() {
   const window = new Window({ url: "https://lms.uconn.edu/ultra/stream" });
   windows.push(window);
   window.document.body.innerHTML = "<main><p>Activity stream</p></main>";
+  // happy-dom shares one storage between windows on the same origin, so a
+  // document cached by one test would be found by the next.
+  window.localStorage.clear();
   const store = fileStore();
   (window as unknown as { fetch: unknown }).fetch = store.fetchImpl;
 
@@ -273,8 +282,9 @@ function openPage() {
   vm.runInContext(SOURCE, sandbox);
   const helper = (window as unknown as { __huskyctHelper: Helper }).__huskyctHelper;
   helper.setLocale("en");
-  fakeHuskyct(window);
-  return { window, helper, store };
+  const visited: string[] = [];
+  fakeHuskyct(window, visited);
+  return { window, helper, store, visited };
 }
 
 const FAST = {
@@ -443,3 +453,72 @@ test("the file store's signed address names the file", () => {
   assert.equal(helper.nameFromStoreUrl(url), "Section 5.1 Problem Solving Tips.pdf");
   assert.equal(helper.nameFromStoreUrl("https://x/y"), null);
 });
+
+// --- a faster second walk -------------------------------------------------------------
+
+const documentVisits = (visited: string[]) => visited.filter((path) => path.includes("/document/")).length;
+
+test("a second walk within a week does not open the documents again", async () => {
+  const { helper, visited } = openPage();
+  const first = plain(await helper.collectMaterials(FAST));
+  assert.equal(documentVisits(visited), 1);
+  assert.equal(first.reused, 0);
+
+  const second = plain(await helper.collectMaterials(FAST));
+
+  assert.equal(documentVisits(visited), 1, "the document was opened again");
+  assert.equal(second.reused, 1);
+  // Same result, the attachment and the video included.
+  assert.deepEqual(
+    second.courses[0].files.map((file) => file.title).sort(),
+    first.courses[0].files.map((file) => file.title).sort(),
+  );
+  assert.deepEqual(second.courses[0].links, first.courses[0].links);
+});
+
+test("after a week every document is read afresh", async () => {
+  const { window, helper, visited } = openPage();
+  await helper.collectMaterials(FAST);
+
+  const cache = JSON.parse(window.localStorage.getItem(helper.DOCUMENTS_KEY)!);
+  for (const entry of Object.values(cache.documents) as Array<{ at: string }>) {
+    entry.at = new Date(Date.now() - 8 * 86400000).toISOString();
+  }
+  window.localStorage.setItem(helper.DOCUMENTS_KEY, JSON.stringify(cache));
+
+  const again = plain(await helper.collectMaterials(FAST));
+
+  assert.equal(documentVisits(visited), 2, "a week-old reading was trusted");
+  assert.equal(again.reused, 0);
+});
+
+// --- the self-check ----------------------------------------------------------------------
+
+test("a walk with nothing wrong reports no problems", async () => {
+  const { helper } = openPage();
+  const manifest = plain(await helper.collectMaterials(FAST));
+  assert.deepEqual(manifest.problems, []);
+});
+
+test("a file row with no download address is counted, so the panel can say so", () => {
+  const { window, helper } = openPage();
+  const page = new Window({ url: "https://lms.uconn.edu/ultra/courses/_1_1/outline" });
+  windows.push(page);
+  // HuskyCT moving the hidden address anchor would look like this: a file link, no address.
+  page.document.body.innerHTML =
+    item("PDF", "Notes.pdf", "https://lms.uconn.edu/ultra/courses/_1_1/file/_5_1?courseId=_1_1") + fileRow("_1_1", "PDF", "Kept.pdf");
+
+  const found = plain(helper.classifyOutline(page.document, "_1_1"));
+
+  assert.equal(found.files.length, 1);
+  assert.equal(found.unaddressed, 1);
+  assert.equal(
+    helper.problemsText([{ key: "problemFileAddress", params: { count: 1 } }]),
+    "Self-check: 1 file(s) had no download address — HuskyCT may have changed.",
+  );
+  helper.setLocale("zh-CN");
+  assert.match(helper.problemsText([{ key: "problemFileAddress", params: { count: 1 } }]), /^自检：有 1 个文件找不到下载地址/);
+  helper.setLocale("en");
+  assert.ok(window);
+});
+

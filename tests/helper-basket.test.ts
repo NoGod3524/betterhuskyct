@@ -74,7 +74,9 @@ type Helper = {
     dueDates: number;
     skipped: string[];
     stopped: boolean;
+    problems: Array<{ key: string; params?: Record<string, unknown> }>;
   }>;
+  problemsText: (problems: Array<{ key: string; params?: Record<string, unknown> }>) => string;
   announcementsPathFor: (courseId: string) => string;
   basketContents: (basket: Basket) => { records: unknown[]; announcements: Array<{ courseCode: string; title: string }> };
   basketLink: (
@@ -489,7 +491,15 @@ const DUE_SOON = [
 const DUE_LATER = dueItem("Assignment 9", "12/11/26, 11:59 PM (EST)", "_201693_1", STAT_TEXT);
 const CALENDAR = `<button id="bb-calendar1-deadline" analytics-id="components.directives.calendar.viewSwitch.deadline">Due Dates</button>`;
 
-function fakeHuskyct(window: Window, layout: "narrow" | "wide" = "narrow", delays = { render: 40, stale: 150 }) {
+/**
+ * `broken` stands for a HuskyCT release that changed the Courses page past
+ * recognition; `nocalendar` for one that moved the Calendar's Due dates view.
+ */
+function fakeHuskyct(
+  window: Window,
+  layout: "narrow" | "wide" | "broken" | "nocalendar" = "narrow",
+  delays = { render: 40, stale: 150 },
+) {
   const main = window.document.querySelector("main")!;
   const visited: string[] = [];
   let generation = 0;
@@ -512,10 +522,13 @@ function fakeHuskyct(window: Window, layout: "narrow" | "wide" = "narrow", delay
       }, after);
 
     if (path === "/ultra/course") {
-      render(layout === "wide" ? WIDE_COURSES : RECENT_COURSES, delays.render);
+      render(
+        layout === "broken" ? "<p>A new Courses page</p>" : layout === "wide" ? WIDE_COURSES : RECENT_COURSES,
+        delays.render,
+      );
       return;
     }
-    if (path === "/ultra/calendar") {
+    if (path === "/ultra/calendar" && layout !== "nocalendar") {
       render(CALENDAR, delays.render);
       return;
     }
@@ -752,4 +765,50 @@ test("a basket saved before due dates existed still reads", () => {
 
   assert.equal(basket.todos.length, 1);
   assert.deepEqual(basket.dueDates, []);
+});
+
+// --- the self-check -----------------------------------------------------------------
+
+test("a walk that finds nothing where it should says which step, instead of reporting done", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>");
+  fakeHuskyct(page.window, "broken");
+
+  const report = plain(await page.helper.collectEverything(FAST));
+
+  assert.deepEqual(report.problems.map((problem) => problem.key), ["problemCoursesPage"]);
+  assert.match(page.helper.problemsText(report.problems), /^Self-check: the Courses page did not show its course list/);
+});
+
+test("a missing Due dates view is reported, and the rest of the walk still runs", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>");
+  fakeHuskyct(page.window, "nocalendar");
+
+  const report = plain(await page.helper.collectEverything(FAST));
+
+  assert.deepEqual(report.problems.map((problem) => problem.key), ["problemDueDatesView"]);
+  assert.equal(report.collected, 4, "one missing view stopped the announcements too");
+});
+
+test("a walk with nothing wrong reports no problems", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>");
+  fakeHuskyct(page.window);
+
+  const report = plain(await page.helper.collectEverything(FAST));
+
+  assert.deepEqual(report.problems, []);
+  assert.equal(page.helper.problemsText(report.problems), "");
+});
+
+
+test("pressed on a course's page, the walk still reads every course, not the page it left", async () => {
+  // The course page is full of links into /ultra/courses/, and stays on screen
+  // for a moment after the move — it used to be read as the Courses page.
+  const page = openPage("https://lms.uconn.edu/ultra/courses/_203765_1/announcements", `<main>${MATH_ANNOUNCEMENTS}</main>`);
+  // A Courses page slower to draw than the to-do list's wait, as a busy one is.
+  fakeHuskyct(page.window, "narrow", { render: 150, stale: 150 });
+
+  const report = plain(await page.helper.collectEverything(FAST));
+
+  assert.equal(report.courses, 5, "the walk read the course page it started on as the course list");
+  assert.deepEqual(report.problems, []);
 });
