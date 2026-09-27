@@ -104,15 +104,17 @@ them. So the helper goes and gets them.
 Press **Collect everything** and the panel walks HuskyCT in the tab you are in:
 
 1. **The Courses page**, for the to-do list.
-2. **"View All"**, for every course you are enrolled in. The Courses page on its
-   own lists only the few opened most recently — four of six on the account this
-   was measured with. Past terms are skipped.
+2. **Every course you are enrolled in.** On a wide screen the Courses page lists
+   them all as cards; on a narrow one it shows only the few opened most recently
+   (four of six on the account this was measured with) and the rest are behind
+   **View All**, which the panel opens. Past terms are skipped — the current term
+   comes from the recent courses, or from today's date when there are none.
 3. **Each course's Announcements page**, one after another: all the
    announcements it lists, up to 25 per course, with the date each was posted.
 4. **Back to the page you started on.**
 
 It moves the way HuskyCT's own links do, without reloading, so the whole walk
-took about 20 seconds for six courses on 2026-09-27. The button turns into
+took 13–20 seconds for six courses on 2026-09-27, depending on the layout. The button turns into
 **Stop** while it runs; stopping keeps what was already read. A course whose page
 never loads is skipped and named in the panel.
 

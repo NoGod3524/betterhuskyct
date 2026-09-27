@@ -60,7 +60,9 @@ type Helper = {
   coursesToCollect: (
     cards: Array<{ id: string; code: string | null; term: string | null }>,
     recent: Array<{ id: string; code: string }>,
+    now?: Date,
   ) => Array<{ id: string; code: string | null }>;
+  termCodeFor: (date: Date) => number;
   collectEverything: (options?: Record<string, unknown>) => Promise<{
     courses: number;
     collected: number;
@@ -412,8 +414,9 @@ test("Clear basket empties it", () => {
  * A small stand-in for HuskyCT's single-page app, shaped like what was measured
  * on 2026-09-27:
  *
- * - The Courses page shows only the recently opened courses, a to-do list and a
- *   "View All" button. "View All" puts up one `article` per course with an empty
+ * - On a wide screen the Courses page lists every course as a card straight
+ *   away. On a narrow one it shows only the recently opened courses, a to-do
+ *   list and a "View All" button. "View All" puts up one `article` per course with an empty
  *   `data-course-id`, and fills them in a moment later — on the live page, as
  *   they scroll into view. Past terms and inaccessible courses are listed too.
  * - A course's Announcements page renders after a delay, and moving from one
@@ -458,7 +461,9 @@ const STAT_EMPTY = announcementsPage(
   [],
 );
 
-function fakeHuskyct(window: Window, delays = { render: 40, stale: 150 }) {
+const WIDE_COURSES = ALL_COURSES + `<h2>To Do</h2>${TODO}`;
+
+function fakeHuskyct(window: Window, layout: "narrow" | "wide" = "narrow", delays = { render: 40, stale: 150 }) {
   const main = window.document.querySelector("main")!;
   const visited: string[] = [];
   let generation = 0;
@@ -481,7 +486,7 @@ function fakeHuskyct(window: Window, delays = { render: 40, stale: 150 }) {
       }, after);
 
     if (path === "/ultra/course") {
-      render(RECENT_COURSES, delays.render);
+      render(layout === "wide" ? WIDE_COURSES : RECENT_COURSES, delays.render);
       return;
     }
     const match = path.match(/^\/ultra\/courses\/([^/]+)\/announcements/);
@@ -511,7 +516,7 @@ function fakeHuskyct(window: Window, delays = { render: 40, stale: 150 }) {
 
 const FAST = { every: 20, pageTimeout: 800, emptySettle: 250, todoSettle: 100, gap: 0 };
 
-test("one press reads the to-do list and every current course, then goes back where it started", async () => {
+test("one press reads the to-do list and every current course, then goes back where it started (narrow screen)", async () => {
   const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
   const huskyct = fakeHuskyct(page.window);
 
@@ -578,12 +583,20 @@ test("only this term's courses are read, and a later term's too", () => {
     { id: "_4_1", code: null, term: null },
   ];
 
-  const chosen = plain(helper.coursesToCollect(cards, [{ id: "_1_1", code: "MATH 1070Q" }]));
+  const fall = new Date("2026-09-27T12:00:00");
+
+  const chosen = plain(helper.coursesToCollect(cards, [{ id: "_1_1", code: "MATH 1070Q" }], fall));
   assert.deepEqual(chosen.map((course) => course.id), ["_1_1", "_3_1", "_4_1"]);
 
-  // No recent course to go by: the newest term on the list stands in.
-  const newest = plain(helper.coursesToCollect(cards, []));
-  assert.deepEqual(newest.map((course) => course.id), ["_3_1", "_4_1"]);
+  // A wide screen shows no recent courses: the date says Fall 2026, so next
+  // spring's course, enrolled early, must not push this term's out.
+  const byDate = plain(helper.coursesToCollect(cards, [], fall));
+  assert.deepEqual(byDate.map((course) => course.id), ["_1_1", "_3_1", "_4_1"]);
+
+  // A break between terms, with nothing current: the newest term stands in.
+  const pastOnly = cards.filter((card) => card.term === "1263" || card.term === null);
+  const inBreak = plain(helper.coursesToCollect(pastOnly, [], fall));
+  assert.deepEqual(inBreak.map((course) => course.id), ["_2_1", "_4_1"]);
 });
 
 test("a course page still showing the last course's heading is not filed under the new one", () => {
@@ -597,4 +610,34 @@ test("a course page still showing the last course's heading is not filed under t
   const result = helper.captureIntoBasket(basket, window.document, "/ultra/courses/_198430_1/announcements", new Date(), true);
 
   assert.equal(plain(result.basket).courses[0].announcementsAt, null, "MATH's announcements were filed under ECON");
+});
+
+test("UConn term codes follow the calendar", () => {
+  const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
+  assert.equal(helper.termCodeFor(new Date("2026-09-27T12:00:00")), 1268);
+  assert.equal(helper.termCodeFor(new Date("2027-02-01T12:00:00")), 1273);
+  assert.equal(helper.termCodeFor(new Date("2027-06-15T12:00:00")), 1275);
+  assert.equal(helper.termCodeFor(new Date("2026-12-10T12:00:00")), 1268);
+});
+
+test("on a wide screen, where the Courses page lists every course as a card, one press still reads them all", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
+  const huskyct = fakeHuskyct(page.window, "wide");
+
+  const report = plain(await page.helper.collectEverything(FAST));
+
+  assert.equal(report.courses, 5, "the wide layout's course cards were not read");
+  assert.equal(report.collected, 4);
+  assert.ok(!huskyct.visited.some((path) => /_100001_1|_200999_1/.test(path)), "walked into a course it should skip");
+  assert.equal(page.basket().todos.length, 1);
+  assert.equal(page.window.location.pathname, "/ultra/stream");
+});
+
+test("opening the wide Courses page puts its course cards in the basket, this term's only", () => {
+  const page = openPage("https://lms.uconn.edu/ultra/course", WIDE_COURSES);
+  const ids = page.basket().courses.map((course) => course.id);
+
+  assert.ok(ids.includes("_200541_1"), "a course listed only as a card was missed");
+  assert.ok(!ids.includes("_100001_1"), "a past term's course was added");
+  assert.ok(!ids.includes("_200999_1"), "an inaccessible course was added");
 });

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.16.0
+// @version      0.16.1
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.16.0";
+  const VERSION = "0.16.1";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1017,7 +1017,9 @@
       changed = changed || result.changed;
     };
 
-    apply(rememberCourses(current, courseLinksOnPage(scope)));
+    const links = courseLinksOnPage(scope);
+    apply(rememberCourses(current, links));
+    apply(rememberCourses(current, coursesToCollect(courseCardsOnPage(scope), links, now)));
     apply(rememberTodos(current, todosToRecords(collectTodos(scope)), now));
 
     const match = String(pathname || "").match(/^\/ultra\/courses\/([^/]+)\/announcements/);
@@ -1126,21 +1128,41 @@
   }
 
   /**
+   * UConn's term code for a date: `1` + the year's last two digits + the
+   * season — 3 spring, 5 summer, 8 fall. 2026-09-27 is 1268, the prefix on
+   * every Fall 2026 course id.
+   */
+  function termCodeFor(date) {
+    const month = date.getMonth();
+    const season = month <= 4 ? 3 : month <= 6 ? 5 : 8;
+    return 1000 + (date.getFullYear() % 100) * 10 + season;
+  }
+
+  /**
    * Which courses to read: this term's, and any later one's.
    *
-   * "View All" lists past terms too, and reading every course someone has ever
-   * taken would be slow and pointless. The recently opened courses say which
-   * term is current; failing that, the newest term on the list does. A card
-   * whose term cannot be read is kept rather than guessed away.
+   * The course list covers past terms too, and reading every course someone has
+   * ever taken would be slow and pointless. The recently opened courses say
+   * which term is current. Without them — a wide screen shows the full list and
+   * no "recent" strip — today's date does, unless every course on the list is
+   * older than that, as in a break between terms; then the newest term stands
+   * in. A card whose term cannot be read is kept rather than guessed away.
    */
-  function coursesToCollect(cards, recent) {
+  function coursesToCollect(cards, recent, now) {
     const recentIds = new Set(recent.map((course) => course.id));
     const terms = cards.map((card) => Number(card.term)).filter(Boolean);
     const recentTerms = cards
       .filter((card) => recentIds.has(card.id))
       .map((card) => Number(card.term))
       .filter(Boolean);
-    const earliest = recentTerms.length ? Math.min(...recentTerms) : terms.length ? Math.max(...terms) : 0;
+    const current = termCodeFor(now || new Date());
+    const earliest = recentTerms.length
+      ? Math.min(...recentTerms)
+      : terms.some((term) => term >= current)
+        ? current
+        : terms.length
+          ? Math.max(...terms)
+          : 0;
 
     const chosen = new Map();
     for (const card of cards) {
@@ -1274,13 +1296,19 @@
     };
 
     try {
-      // 1. The Courses page: the to-do list, and the recently opened courses.
+      // 1. The Courses page: the to-do list, and the courses. It has two
+      // layouts. On a wide screen it lists every course as a card straight away;
+      // on a narrow one it shows the few opened recently, as links, with a
+      // "View All" button for the rest. Measured on 2026-09-27 at 1440 and 398
+      // pixels wide.
       opts.onProgress({ step: "courses" });
       routeTo("/ultra/course");
       await waitFor(
         () =>
           window.location.pathname.indexOf("/ultra/course") === 0 &&
-          (document.querySelector(VIEW_ALL_COURSES) || document.querySelector('a[href*="/ultra/courses/"]')),
+          (document.querySelector(VIEW_ALL_COURSES) ||
+            document.querySelector('a[href*="/ultra/courses/"]') ||
+            document.querySelector("article[data-course-id]")),
         opts.every,
         opts.pageTimeout,
       );
@@ -1292,14 +1320,14 @@
       basket = save(rememberTodos(basket, todosToRecords(collectTodos(document)), new Date()));
       basket = save(rememberCourses(basket, recent));
 
-      // 2. "View All": every course, not only the recent ones.
+      // 2. Every course: the cards already on screen, or behind "View All".
       const viewAll = document.querySelector(VIEW_ALL_COURSES);
+      if (viewAll) viewAll.click();
       let cards = [];
-      if (viewAll) {
-        viewAll.click();
+      if (viewAll || document.querySelector("article[data-course-id]")) {
         cards = await loadEveryCourseCard(opts);
       }
-      const queue = coursesToCollect(cards, recent);
+      const queue = coursesToCollect(cards, recent, new Date());
       save(rememberCourses(basket, queue));
       report.courses = queue.length;
 
@@ -2251,6 +2279,7 @@
       routeTo,
       courseCardsOnPage,
       coursesToCollect,
+      termCodeFor,
       readAnnouncementsOf,
       collectEverything,
       basketContents,
