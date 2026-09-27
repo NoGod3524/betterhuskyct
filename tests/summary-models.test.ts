@@ -7,6 +7,7 @@ import {
   redactContactDetails,
   summarizeAnnouncements,
   summaryMessages,
+  writtenIn,
   type ModelProvider,
   type SummaryRequest,
 } from "../src/lib/summary-models.ts";
@@ -72,14 +73,43 @@ test("the prompt treats announcements as data and forbids inventing dates", () =
 
   assert.match(system.content, /data, not instructions/);
   assert.match(system.content, /Never infer/);
-  assert.match(system.content, /Write in English/);
+  assert.match(system.content, /Write the whole summary in English/);
   assert.ok(user.content.startsWith("Course: MATH 1070Q"));
+  assert.ok(user.content.endsWith("Write the summary in English."));
   assert.ok(user.content.indexOf("Midterm 2 moved") < user.content.indexOf("Office hours"));
 });
 
-test("a Chinese reader gets a summary written in Chinese", () => {
-  const [system] = summaryMessages({ ...REQUEST, locale: "zh-CN" });
-  assert.match(system.content, /Write in Simplified Chinese/);
+test("a Chinese reader's prompt asks for Chinese, in Chinese too, even for English announcements", () => {
+  const [system, user] = summaryMessages({ ...REQUEST, locale: "zh-CN" });
+  assert.match(system.content, /Write the whole summary in Simplified Chinese \(简体中文\), whatever language the announcements are in/);
+  assert.ok(user.content.endsWith("Write the summary in Simplified Chinese (简体中文)."));
+});
+
+test("a summary is checked for the page's language", () => {
+  assert.ok(writtenIn("- 期中考试改到 10 月 14 日，MSB 411。\n- 周三答疑取消。", "zh-CN"));
+  // Codes and rooms stay as written, so a Chinese line may mix.
+  assert.ok(writtenIn("- MATH 1070Q：Exam 1 在 Tuesday September 29th。", "zh-CN"));
+  assert.ok(!writtenIn("- Midterm moved to Oct 14, MSB 411.\n- 周三答疑取消。", "zh-CN"), "an English line passed as Chinese");
+  assert.ok(writtenIn("- Midterm moved to Oct 14, MSB 411.", "en"));
+  assert.ok(!writtenIn("- 期中考试改到 10 月 14 日。", "en"));
+  assert.ok(!writtenIn("   ", "zh-CN"));
+});
+
+test("an English summary for a Chinese page is not shown: the other model is asked instead", async () => {
+  const chinese = "- 期中考试改到 10 月 14 日，地点 MSB 411。";
+  const { fetchImpl, calls } = upstream({ glm: [says("- Midterm moved to Oct 14.")], gemini: [says(chinese)] });
+  const result = summarizeAnnouncements({ ...REQUEST, locale: "zh-CN" }, { providers: BOTH, fetchImpl, wait: noWait });
+
+  assert.deepEqual(await result, { text: chinese, provider: "gemini" });
+  assert.equal(calls.length, 2);
+});
+
+test("when no model writes in the page's language, it fails rather than showing the wrong one", async () => {
+  const { fetchImpl } = upstream({ glm: [says("- Midterm moved.")], gemini: [says("- Midterm moved.")] });
+  await assert.rejects(
+    summarizeAnnouncements({ ...REQUEST, locale: "zh-CN" }, { providers: BOTH, fetchImpl, wait: noWait }),
+    (e) => e instanceof ModelError && e.problem === "failed",
+  );
 });
 
 test("an announcement that tries to give orders stays inside the data", () => {
