@@ -9,6 +9,51 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.8.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.8.0) — Collected as you browse
+
+*Minor: a new capability — the helper gathers every course's announcements and your deadlines as you move around HuskyCT, and sends them in one press.*
+
+### Added
+
+- **The helper collects as you browse.** HuskyCT Helper 0.15.0 keeps a basket
+  in your browser: the Courses page adds every course you are enrolled in and
+  the to-do list, and each course's Announcements tab adds that course's
+  announcements. You no longer send from one page at a time. ([#58])
+- **One press sends everything.** *Send everything to BetterHuskyCT* puts every
+  collected deadline and announcement in a single link, opened in the same
+  dashboard tab each time. ([#58])
+- **The panel shows what is in the basket and what is left.** It shows a count
+  like "12 deadlines and 31 announcements, from 3 of 5 courses", a **Next: ECON
+  1201 announcements →** button for the courses not yet opened, and
+  *Clear basket*. ([#58])
+
+### Fixed
+
+- **Every announcement body began with its own title.** The helper read the
+  block that wraps both; it now reads the body's own paragraph, whose full text
+  is there under the three-line clamp. ([#58])
+- **Announcements from the helper arrived with no posted date.** The date
+  selector matched nothing on the live Announcements page; it now reads
+  `.list-item-date-sent` ("9/25/26, 4:00 PM"). ([#58])
+
+### Notes
+
+- **Still read off the page, nothing requested.** HuskyCT's API still refuses
+  scripts (re-measured 2026-09-27: 403 `AccessDenied`), so the basket fills only
+  from pages you open yourself.
+- **Built to stay honest.**
+  - A revisit replaces a course's announcements, so ones the instructor deleted
+    leave too.
+  - An empty to-do list is ignored, because it only spans a week either side of
+    today.
+  - Announcements on the Stream page are not collected, because they cannot be
+    placed in a course.
+- **A full basket still fits.** If the link would pass the dashboard's 32 KB
+  limit, the oldest announcements are dropped evenly across courses, and the
+  panel says how many. Deadlines are never dropped.
+- **Update the helper to get this.** Tampermonkey picks up 0.15.0 by itself
+  within a day, or at once from the dashboard's update check.
+
 ## [1.7.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.7.0) — Announcements, summarized
 
 *Minor: a new capability — one press turns a course's announcements into what you need to know.*
@@ -864,6 +909,7 @@ saying what to work on next.*
 [#53]: https://github.com/NoGod3524/betterhuskyct/pull/53
 [#55]: https://github.com/NoGod3524/betterhuskyct/pull/55
 [#56]: https://github.com/NoGod3524/betterhuskyct/pull/56
+[#58]: https://github.com/NoGod3524/betterhuskyct/pull/58
 
 
 
