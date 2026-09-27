@@ -67,25 +67,63 @@ async function render(store: MaterialsStore | null) {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 30));
   });
+  const button = (label: string) =>
+    [...container.querySelectorAll("button")].find((b) => (b.textContent ?? "").includes(label));
   return {
     text: () => container.textContent ?? "",
+    click: async (label: string) => {
+      const target = button(label);
+      assert.ok(target, `no button "${label}"`);
+      await act(async () => (target as unknown as HTMLButtonElement).click());
+    },
     unmount: () => act(async () => root.unmount()),
   };
 }
 
-test("stored materials are listed by course and folder, with what has not arrived marked", async () => {
+test("each course starts closed, with a line saying what is in it", async () => {
+  window.localStorage.clear();
   const view = await render(await seeded());
   const text = view.text();
 
   assert.ok(text.includes("MATH 1070Q"));
-  assert.ok(text.includes("Week 1 - Section 4.1"));
-  assert.ok(text.includes("Section 4.1 PDF.pdf"));
-  assert.ok(text.includes("1.6 MB"), "the stored file's size is missing");
-  assert.ok(text.includes(t("en", "materials.missing")), "a file not yet received is not marked");
-  assert.ok(text.includes("Section 4.1 - Lecture"));
-  assert.ok(text.includes("Cengage WebAssign"));
+  assert.ok(text.includes(t("en", "materials.courseSummary", { files: 2, videos: 1, links: 1 })));
+  assert.ok(text.includes(t("en", "materials.courseMissing", { count: 1 })));
+  assert.ok(!text.includes("Section 4.1 PDF.pdf"), "a closed course showed its files");
   assert.ok(text.includes(t("en", "materials.summary", { received: 1, files: 2 })));
   await view.unmount();
+});
+
+test("opening a course shows its own files and its folders; opening a folder shows what is in it", async () => {
+  window.localStorage.clear();
+  const view = await render(await seeded());
+
+  await view.click("MATH 1070Q" + t("en", "materials.courseSummary", { files: 2, videos: 1, links: 1 }).slice(0, 5));
+  // The course's own files are right there, marked when not yet received.
+  assert.ok(view.text().includes("Syllabus.pdf"));
+  assert.ok(view.text().includes(t("en", "materials.missing")), "a file not yet received is not marked");
+  assert.ok(view.text().includes("Week 1 - Section 4.1"));
+  assert.ok(!view.text().includes("Section 4.1 PDF.pdf"), "a closed folder showed its files");
+
+  await view.click("Week 1 - Section 4.1");
+  assert.ok(view.text().includes("Section 4.1 PDF.pdf"));
+  assert.ok(view.text().includes("1.6 MB"), "the stored file's size is missing");
+  await view.unmount();
+});
+
+test("expand all opens everything, and what is open is remembered", async () => {
+  window.localStorage.clear();
+  const first = await render(await seeded());
+  await first.click(t("en", "materials.expandAll"));
+  assert.ok(first.text().includes("Section 4.1 PDF.pdf"));
+  assert.ok(first.text().includes("Section 4.1 - Lecture"));
+  assert.ok(first.text().includes("Cengage WebAssign"));
+  await first.unmount();
+
+  const again = await render(await seeded());
+  assert.ok(again.text().includes("Section 4.1 PDF.pdf"), "the open courses were forgotten");
+  await again.click(t("en", "materials.collapseAll"));
+  assert.ok(!again.text().includes("Section 4.1 PDF.pdf"));
+  await again.unmount();
 });
 
 test("with nothing stored, the page says how to get materials here", async () => {

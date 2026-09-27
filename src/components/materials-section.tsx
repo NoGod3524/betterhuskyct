@@ -2,18 +2,31 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Download, ExternalLink, FileText, FolderInput, Folder, PlayCircle, Trash2, Wrench } from "lucide-react";
+import {
+  ChevronRight,
+  Download,
+  ExternalLink,
+  FileText,
+  FolderInput,
+  Folder,
+  PlayCircle,
+  Trash2,
+  Wrench,
+} from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import { t } from "@/lib/i18n";
 import {
   createMaterialsReceiver,
+  folderTree,
+  foldersIn,
   formatBytes,
-  groupByFolder,
   huskyctCourseUrl,
   importMaterialsFolder,
   parseLinksPage,
   type DirectoryHandle,
+  type FolderNode,
+  type MaterialFileRef,
   type MaterialsIndex,
   type MaterialsStore,
   type ReceiveState,
@@ -22,6 +35,34 @@ import {
 import { openMaterialsStore } from "@/lib/materials-store";
 
 type Picker = (options?: { id?: string; mode?: "read" | "readwrite" }) => Promise<DirectoryHandle>;
+
+/**
+ * Which courses and folders the reader left open, kept between visits. A
+ * term's materials are hundreds of files; everything starts closed, and what
+ * was opened stays open. Per viewer and best-effort: if storage is blocked, the
+ * page simply starts closed each time.
+ */
+const OPEN_KEY = "huskypilot.materials.open.v1";
+
+function readOpen(): Set<string> {
+  try {
+    const parsed: unknown = JSON.parse(window.localStorage.getItem(OPEN_KEY) || "[]");
+    return new Set(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function writeOpen(open: Set<string>) {
+  try {
+    window.localStorage.setItem(OPEN_KEY, JSON.stringify([...open]));
+  } catch {
+    /* the page works the same, it just forgets */
+  }
+}
+
+const courseKeyOf = (courseId: string) => `c:${courseId}`;
+const groupKeyOf = (courseId: string, name: string) => `g:${courseId}:${name}`;
 
 /**
  * The Materials page: every course's files, videos, links and tools, kept in
@@ -38,10 +79,24 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
   const [files, setFiles] = useState<Map<string, StoredFile>>(new Map());
   const [receive, setReceive] = useState<ReceiveState>({ phase: "idle", expected: 0, stored: 0, failed: 0 });
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  // Read once, on the first render in the browser. Nothing depends on it until
+  // the stored courses load, so the server's render (all closed) never differs
+  // from the first one here in anything shown.
+  const [open, setOpen] = useState<Set<string>>(() => (typeof window === "undefined" ? new Set() : readOpen()));
   const [notice, setNotice] = useState<string | null>(null);
   const [usage, setUsage] = useState<number | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function toggle(key: string) {
+    setOpen((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      writeOpen(next);
+      return next;
+    });
+  }
 
   const reload = useCallback(async (from: MaterialsStore) => {
     const [nextIndex, stored] = await Promise.all([from.getIndex(), from.files()]);
@@ -102,13 +157,30 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
   const shown = courseFilter ? courses.filter((course) => course.id === courseFilter) : courses;
   const picker = typeof window !== "undefined" ? (window as unknown as { showDirectoryPicker?: Picker }).showDirectoryPicker : undefined;
 
+  /** Every course and group on the page, for "Expand all". */
+  const everyKey = useMemo(() => {
+    const keys: string[] = [];
+    for (const course of courses) {
+      keys.push(courseKeyOf(course.id));
+      for (const folder of foldersIn(folderTree(course.files))) keys.push(groupKeyOf(course.id, folder.path.join("/")));
+      for (const section of ["videos", "links", "tools"]) keys.push(groupKeyOf(course.id, "#" + section));
+    }
+    return keys;
+  }, [courses]);
+
+  function setAll(expanded: boolean) {
+    const next = expanded ? new Set(everyKey) : new Set<string>();
+    writeOpen(next);
+    setOpen(next);
+  }
+
   const counts = useMemo(() => {
     const fileCount = courses.reduce((total, course) => total + course.files.length, 0);
     const received = courses.reduce((total, course) => total + course.files.filter((file) => files.has(file.key)).length, 0);
     return { fileCount, received };
   }, [courses, files]);
 
-  function open(file: StoredFile, download: boolean) {
+  function openFile(file: StoredFile, download: boolean) {
     const url = URL.createObjectURL(file.blob);
     if (download) {
       const anchor = document.createElement("a");
@@ -228,28 +300,52 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
               {t(locale, "materials.summary", { received: counts.received, files: counts.fileCount })}
               {usage !== null ? " · " + t(locale, "materials.usage", { used: formatBytes(usage) }) : ""}
             </span>
+            <span className="ml-auto flex gap-3 text-xs font-semibold">
+              <button type="button" onClick={() => setAll(true)} className="text-[var(--blue)] hover:underline">
+                {t(locale, "materials.expandAll")}
+              </button>
+              <button type="button" onClick={() => setAll(false)} className="text-[var(--blue)] hover:underline">
+                {t(locale, "materials.collapseAll")}
+              </button>
+            </span>
           </div>
 
-          <div className="mt-4 space-y-5">
+          <div className="mt-4 space-y-3">
             {shown.map((course) => {
               const outline = huskyctCourseUrl(course);
               const videos = course.links.filter((link) => link.kind === "video");
               const links = course.links.filter((link) => link.kind === "link");
+              const courseKey = courseKeyOf(course.id);
+              // Picking a course with its chip is asking to see it.
+              const courseOpen = open.has(courseKey) || courseFilter === course.id;
+              const missing = course.files.filter((file) => !files.has(file.key)).length;
+              const group = (name: string) => groupKeyOf(course.id, name);
               return (
                 <article
                   key={course.id}
-                  className="rounded-[20px] border border-[var(--line)] bg-white p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
+                  className="rounded-[20px] border border-[var(--line)] bg-white shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
                 >
-                  <h3 className="font-display text-lg font-semibold text-[#172b41]">{course.code ?? course.id}</h3>
+                  <Toggle
+                    open={courseOpen}
+                    onToggle={() => toggle(courseKey)}
+                    className="w-full px-5 py-4"
+                    title={<span className="font-display text-lg font-semibold text-[#172b41]">{course.code ?? course.id}</span>}
+                    detail={
+                      t(locale, "materials.courseSummary", {
+                        files: course.files.length,
+                        videos: videos.length,
+                        links: links.length + course.tools.length,
+                      }) + (missing ? " · " + t(locale, "materials.courseMissing", { count: missing }) : "")
+                    }
+                  />
 
-                  {groupByFolder(course.files).map((group) => (
-                    <div key={group.folder.join("/") || "_"} className="mt-4">
-                      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#6b7f94]">
-                        <Folder size={13} aria-hidden />
-                        {group.folder.length ? group.folder.join(" / ") : t(locale, "materials.rootFolder")}
-                      </p>
-                      <ul className="mt-1.5 divide-y divide-[#eef2f6]">
-                        {group.items.map((ref) => {
+                  {courseOpen ? (
+                    <div className="border-t border-[#eef2f6] px-5 pb-4">
+                      <FolderView
+                        node={folderTree(course.files)}
+                        isOpen={(folder) => open.has(group(folder.path.join("/")))}
+                        onToggle={(folder) => toggle(group(folder.path.join("/")))}
+                        renderFile={(ref) => {
                           const file = files.get(ref.key);
                           return (
                             <li key={ref.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -260,8 +356,8 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                               </span>
                               {file ? (
                                 <span className="flex shrink-0 gap-1.5">
-                                  <SmallButton onClick={() => open(file, false)}>{t(locale, "materials.open")}</SmallButton>
-                                  <SmallButton onClick={() => open(file, true)} label={t(locale, "materials.download")}>
+                                  <SmallButton onClick={() => openFile(file, false)}>{t(locale, "materials.open")}</SmallButton>
+                                  <SmallButton onClick={() => openFile(file, true)} label={t(locale, "materials.download")}>
                                     <Download size={14} aria-hidden />
                                   </SmallButton>
                                 </span>
@@ -270,39 +366,30 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                               )}
                             </li>
                           );
-                        })}
-                      </ul>
-                    </div>
-                  ))}
+                        }}
+                      />
 
-                  <LinkList
-                    heading={t(locale, "materials.videos")}
-                    items={videos}
-                    icon={<PlayCircle size={15} className="shrink-0 text-[#6b7f94]" aria-hidden />}
-                  />
-                  <LinkList
-                    heading={t(locale, "materials.links")}
-                    items={links}
-                    icon={<ExternalLink size={15} className="shrink-0 text-[#6b7f94]" aria-hidden />}
-                  />
-                  {course.tools.length ? (
-                    <div className="mt-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6b7f94]">{t(locale, "materials.tools")}</p>
-                      <ul className="mt-1.5 space-y-1.5">
-                        {course.tools.map((tool, i) => (
-                          <li key={i} className="flex items-center gap-2 text-sm text-[#172b41]">
-                            <Wrench size={15} className="shrink-0 text-[#6b7f94]" aria-hidden />
-                            {outline ? (
-                              <a href={outline} target="_blank" rel="noreferrer" className="text-[var(--blue)] hover:underline">
-                                {tool.title}
-                              </a>
-                            ) : (
-                              tool.title
-                            )}
-                            {tool.path.length ? <span className="text-xs text-[var(--muted)]">{tool.path.join(" / ")}</span> : null}
-                          </li>
-                        ))}
-                      </ul>
+                      <LinkGroup
+                        heading={t(locale, "materials.videos")}
+                        items={videos}
+                        open={open.has(group("#videos"))}
+                        onToggle={() => toggle(group("#videos"))}
+                        icon={<PlayCircle size={15} className="shrink-0 text-[#6b7f94]" aria-hidden />}
+                      />
+                      <LinkGroup
+                        heading={t(locale, "materials.links")}
+                        items={links}
+                        open={open.has(group("#links"))}
+                        onToggle={() => toggle(group("#links"))}
+                        icon={<ExternalLink size={15} className="shrink-0 text-[#6b7f94]" aria-hidden />}
+                      />
+                      <LinkGroup
+                        heading={t(locale, "materials.tools")}
+                        items={course.tools.map((tool) => ({ ...tool, url: outline }))}
+                        open={open.has(group("#tools"))}
+                        onToggle={() => toggle(group("#tools"))}
+                        icon={<Wrench size={15} className="shrink-0 text-[#6b7f94]" aria-hidden />}
+                      />
                     </div>
                   ) : null}
                 </article>
@@ -343,30 +430,121 @@ function SmallButton({ onClick, label, children }: { onClick: () => void; label?
   );
 }
 
-function LinkList({
+/**
+ * One folder's files, then its folders, each closed until opened. At the top
+ * of a course the files are shown directly: the course is already the folder.
+ */
+function FolderView({
+  node,
+  isOpen,
+  onToggle,
+  renderFile,
+}: {
+  node: FolderNode<MaterialFileRef>;
+  isOpen: (folder: FolderNode<MaterialFileRef>) => boolean;
+  onToggle: (folder: FolderNode<MaterialFileRef>) => void;
+  renderFile: (file: MaterialFileRef) => React.ReactNode;
+}) {
+  return (
+    <>
+      {node.items.length ? <ul className="mt-2 divide-y divide-[#eef2f6]">{node.items.map(renderFile)}</ul> : null}
+      {node.children.map((child) => {
+        const childOpen = isOpen(child);
+        return (
+          <div key={child.name} className="mt-2">
+            <Toggle
+              open={childOpen}
+              onToggle={() => onToggle(child)}
+              icon={<Folder size={14} className="shrink-0 text-[#6b7f94]" aria-hidden />}
+              title={<span className="text-sm font-semibold text-[#31506f]">{child.name}</span>}
+              detail={String(child.total)}
+            />
+            {childOpen ? (
+              <div className="ml-5 border-l border-[#eef2f6] pl-3">
+                <FolderView node={child} isOpen={isOpen} onToggle={onToggle} renderFile={renderFile} />
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+/** A header that opens and closes what is under it. */
+function Toggle({
+  open,
+  onToggle,
+  title,
+  detail,
+  icon,
+  className = "",
+}: {
+  open: boolean;
+  onToggle: () => void;
+  title: React.ReactNode;
+  detail?: string;
+  icon?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className={`flex min-w-0 items-center gap-2 text-left transition hover:opacity-80 ${className}`}
+    >
+      <ChevronRight
+        size={16}
+        className={`shrink-0 text-[#6b7f94] transition-transform ${open ? "rotate-90" : ""}`}
+        aria-hidden
+      />
+      {icon}
+      <span className="min-w-0 truncate">{title}</span>
+      {detail ? <span className="shrink-0 text-xs font-semibold text-[var(--muted)]">{detail}</span> : null}
+    </button>
+  );
+}
+
+function LinkGroup({
   heading,
   items,
+  open,
+  onToggle,
   icon,
 }: {
   heading: string;
-  items: Array<{ path: string[]; title: string; url: string }>;
+  items: Array<{ path: string[]; title: string; url: string | null }>;
+  open: boolean;
+  onToggle: () => void;
   icon: React.ReactNode;
 }) {
   if (items.length === 0) return null;
   return (
-    <div className="mt-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-[#6b7f94]">{heading}</p>
-      <ul className="mt-1.5 space-y-1.5">
-        {items.map((item, i) => (
-          <li key={i} className="flex min-w-0 items-center gap-2 text-sm">
-            {icon}
-            <a href={item.url} target="_blank" rel="noreferrer" className="truncate text-[var(--blue)] hover:underline">
-              {item.title}
-            </a>
-            {item.path.length ? <span className="shrink-0 text-xs text-[var(--muted)]">{item.path.join(" / ")}</span> : null}
-          </li>
-        ))}
-      </ul>
+    <div className="mt-3">
+      <Toggle
+        open={open}
+        onToggle={onToggle}
+        title={<span className="text-sm font-semibold text-[#31506f]">{heading}</span>}
+        detail={String(items.length)}
+      />
+      {open ? (
+        <ul className="ml-6 mt-1.5 space-y-1.5">
+          {items.map((item, i) => (
+            <li key={i} className="flex min-w-0 items-center gap-2 text-sm text-[#172b41]">
+              {icon}
+              {item.url ? (
+                <a href={item.url} target="_blank" rel="noreferrer" className="truncate text-[var(--blue)] hover:underline">
+                  {item.title}
+                </a>
+              ) : (
+                <span className="truncate">{item.title}</span>
+              )}
+              {item.path.length ? <span className="shrink-0 text-xs text-[var(--muted)]">{item.path.join(" / ")}</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
