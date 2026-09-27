@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      0.14.2
+// @version      0.15.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "0.14.2";
+  const VERSION = "0.15.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -94,7 +94,7 @@
       chip: "HuskyCT Helper",
       showPanel: "Show the HuskyCT Helper panel",
       hidePanel: "Hide the panel",
-      sendDeadlines: "Send deadlines to BetterHuskyCT",
+      sendDeadlines: "Send everything to BetterHuskyCT",
       getCalendar: "Get this page's calendar",
       exportCollected: "Export events collected so far",
       clearCollected: "Clear collected",
@@ -107,11 +107,24 @@
       privacy: "Nothing is uploaded. Everything stays in this browser.",
       collectedNone: "Collected 0 events.",
       collectedSome: "Collected {count} event(s).",
-      guideTodo: "This page has your to-do list. Press “Send deadlines to BetterHuskyCT”.",
-      guideCourse: "You are in a course. Press “Collect this course” for its announcements and files.",
+      guideTodo:
+        "Your courses and to-do list are in the basket. Next, open each course's announcements — the button below takes you there.",
+      guideCourse: "Open this course's Announcements tab — the panel collects them from there.",
+      guideAnnouncements: "This course's announcements are in the basket.",
       guideNeither:
-        "Open the Courses page for your deadlines, or a course for its announcements and files.",
+        "Open the Courses page first: the panel collects your courses and to-do list there.",
       languageLabel: "中文",
+      basketEmpty: "The basket is empty.",
+      basketSummary:
+        "In the basket: {deadlines} deadline(s) and {announcements} announcement(s), from {collected} of {courses} course(s).",
+      nextCourse: "Next: {course} announcements →",
+      allCoursesCollected: "Every course's announcements are in. Press Send.",
+      clearBasket: "Clear basket",
+      basketCleared: "Basket cleared.",
+      basketNothing: "Nothing collected yet.",
+      basketNothingHint:
+        "Open the Courses page and each course's Announcements tab — the panel collects what they show.",
+      leftOut: " {count} older announcement(s) stayed behind to keep the link small.",
       // Status and hint lines, reached through the panel rather than baked in at
       // the point of use, so nothing has to be re-translated after the fact.
       noDeadlinesTitle: "No deadlines on this page.",
@@ -168,7 +181,7 @@
       chip: "HuskyCT 助手",
       showPanel: "显示 HuskyCT 助手面板",
       hidePanel: "收起面板",
-      sendDeadlines: "把 deadline 发给 BetterHuskyCT",
+      sendDeadlines: "全部发给 BetterHuskyCT",
       getCalendar: "取这一页的日历",
       exportCollected: "导出已采集的事件",
       clearCollected: "清空已采集",
@@ -181,10 +194,20 @@
       privacy: "不上传任何东西，全部留在这个浏览器里。",
       collectedNone: "已采集 0 个事件。",
       collectedSome: "已采集 {count} 个事件。",
-      guideTodo: "这一页有待办列表。按「把 deadline 发给 BetterHuskyCT」。",
-      guideCourse: "你正在某门课里。按「采集这门课」取它的公告和文件。",
-      guideNeither: "打开 Courses 页取 deadline，或打开某门课取公告和文件。",
+      guideTodo: "你的课程和待办已经收进篮子。接下来逐门打开课程公告——下面的按钮会带你过去。",
+      guideCourse: "打开这门课的 Announcements 标签页——面板会从那里收集公告。",
+      guideAnnouncements: "这门课的公告已经收进篮子。",
+      guideNeither: "先打开 Courses 页：面板会在那里收集你的课程和待办。",
       languageLabel: "English",
+      basketEmpty: "篮子是空的。",
+      basketSummary: "篮子里：{deadlines} 个 deadline、{announcements} 条公告，来自 {courses} 门课中的 {collected} 门。",
+      nextCourse: "下一门：{course} 的公告 →",
+      allCoursesCollected: "所有课程的公告都收齐了，按发送即可。",
+      clearBasket: "清空篮子",
+      basketCleared: "篮子已清空。",
+      basketNothing: "还没有收集到任何内容。",
+      basketNothingHint: "打开 Courses 页和每门课的 Announcements 标签页——面板会收集它们显示的内容。",
+      leftOut: "另有 {count} 条较早的公告为了让链接不太长没有带上。",
       noDeadlinesTitle: "这一页没有 deadline。",
       noDeadlinesHint: "待办列表在 Courses 页（HuskyCT 首页）。打开它，再按一次。",
       calendarBusy: "这一页有日历，但还没加载出事件——先在日历里翻一翻。",
@@ -535,17 +558,26 @@
       if (!title) continue;
 
       // Prefer the element built for the timestamp; fall back to finding one in
-      // the row's text for renderings that do not have it.
+      // the row's text for renderings that do not have it. The Announcements
+      // page puts it in .list-item-date-sent ("9/25/26, 4:00 PM") — measured on
+      // the live page on 2026-09-27, where .announcement-sent-date matched
+      // nothing and every posted line was lost.
       const posted =
-        textOf(row.querySelector(".announcement-sent-date")) || postedFromText(textOf(row));
+        textOf(row.querySelector(".list-item-date-sent")) ||
+        textOf(row.querySelector(".announcement-sent-date")) ||
+        postedFromText(textOf(row));
 
       const key = title + "|" + posted;
       if (seen.has(key)) continue;
       seen.add(key);
 
+      // .click-message-detail wraps the title as well as the body, so read the
+      // body's own paragraph first; its three-line clamp is CSS only, and the
+      // text underneath is whole.
       records.push({
         title,
         body:
+          textOf(row.querySelector(".list-item-body")) ||
           textOf(row.querySelector(".click-message-detail")) ||
           textOf(row.querySelector(".body-text.message-entries")),
         posted: posted || null,
@@ -801,6 +833,255 @@
     }));
   }
 
+  // ------------------------------------------------------------------ the basket
+
+  /**
+   * What the panel has read across pages, kept until it is sent.
+   *
+   * Every course used to be its own round trip: open the course, press Send, a
+   * new dashboard tab, press Apply — six courses, six tabs, six Applies. Nothing
+   * carried from one page to the next. The basket fixes that without asking
+   * HuskyCT for anything: it keeps what the pages the student opens anyway
+   * already show, and one press sends all of it.
+   *
+   * It still reads only the rendered page. Measured again on 2026-09-27: a
+   * script's own request to /learn/api/v1/users/me and to a course's
+   * announcements endpoint both returned 403 AccessDenied, as the README
+   * records. So a course's announcements are in the basket once its
+   * Announcements page has been open — the course outline does not show them.
+   *
+   * It lives in this site's localStorage, so it survives HuskyCT's full page
+   * loads, and it never leaves the browser except inside the link the student
+   * chooses to send.
+   */
+  const BASKET_KEY = "huskypilot.helper.basket.v1";
+  const BASKET_VERSION = 1;
+  /** The dashboard cuts bodies here anyway; cutting them first keeps the link small. */
+  const BASKET_BODY_LIMIT = 1200;
+  /** The newest this many per course: a term's worth, not an archive. */
+  const BASKET_PER_COURSE = 25;
+  /** The dashboard refuses a packed payload past 32,768 characters; stay clear of it. */
+  const PACKED_LIMIT = 30000;
+
+  function emptyBasket() {
+    return { version: BASKET_VERSION, courses: [], todos: [], todosAt: null };
+  }
+
+  /**
+   * The saved basket, or an empty one.
+   *
+   * Tolerant on purpose: a basket from an older helper, or one another script
+   * scribbled on, is not worth a broken panel. What does not read starts over.
+   */
+  function readBasket(storage) {
+    try {
+      const raw = storage && storage.getItem(BASKET_KEY);
+      if (!raw) return emptyBasket();
+      const parsed = JSON.parse(raw);
+      if (!parsed || parsed.version !== BASKET_VERSION) return emptyBasket();
+      return {
+        version: BASKET_VERSION,
+        courses: (Array.isArray(parsed.courses) ? parsed.courses : [])
+          .filter((course) => course && typeof course.id === "string")
+          .map((course) => ({
+            id: course.id,
+            code: typeof course.code === "string" ? course.code : null,
+            announcements: Array.isArray(course.announcements) ? course.announcements : [],
+            announcementsAt: typeof course.announcementsAt === "string" ? course.announcementsAt : null,
+          })),
+        todos: (Array.isArray(parsed.todos) ? parsed.todos : []).filter(
+          (todo) => todo && typeof todo.uid === "string" && typeof todo.start === "string",
+        ),
+        todosAt: typeof parsed.todosAt === "string" ? parsed.todosAt : null,
+      };
+    } catch {
+      return emptyBasket();
+    }
+  }
+
+  function writeBasket(storage, basket) {
+    try {
+      storage.setItem(BASKET_KEY, JSON.stringify(basket));
+    } catch {
+      /* a full or blocked storage loses the basket at reload; the page still works */
+    }
+  }
+
+  /**
+   * The courses a page links to, by HuskyCT id and course code.
+   *
+   * The Courses page lists each one as a link to /ultra/courses/<id>/outline
+   * whose text is the display name — "1268-UCONN-MATH-1070Q-SEC100-1191MATH-
+   * 1070Q-Mathematics…" on the live page — and the code is read out of that the
+   * same way the course heading is. Links whose text names no course (a
+   * course's own Content or Gradebook tab) are skipped.
+   */
+  function courseLinksOnPage(root) {
+    const scope = root || document;
+    const found = [];
+    const seen = new Set();
+    for (const link of scope.querySelectorAll('a[href*="/ultra/courses/"]')) {
+      const match = String(link.getAttribute("href") || "").match(/\/ultra\/courses\/(_\d+_\d+)/);
+      if (!match || seen.has(match[1])) continue;
+      const code = courseCodeFromDisplay(textOf(link));
+      if (!code) continue;
+      seen.add(match[1]);
+      found.push({ id: match[1], code });
+    }
+    return found;
+  }
+
+  /** Adds courses not seen before, at the end, keeping what is known about the rest. */
+  function rememberCourses(basket, courses) {
+    const known = new Set(basket.courses.map((course) => course.id));
+    const added = courses
+      .filter((course) => !known.has(course.id))
+      .map((course) => ({ id: course.id, code: course.code, announcements: [], announcementsAt: null }));
+    if (added.length === 0) return { basket, changed: false };
+    return { basket: { ...basket, courses: basket.courses.concat(added) }, changed: true };
+  }
+
+  /**
+   * A course's announcements as its Announcements page shows them now.
+   *
+   * Replaced rather than merged: the page lists all of them, so an announcement
+   * the instructor deleted leaves the basket too. `announcementsAt` only moves
+   * when something changed, so a page left open does not rewrite storage every
+   * few seconds.
+   */
+  function rememberAnnouncements(basket, course, records, now) {
+    const kept = (records || []).slice(0, BASKET_PER_COURSE).map((record) => ({
+      title: record.title,
+      body: String(record.body || "").slice(0, BASKET_BODY_LIMIT),
+      posted: record.posted || null,
+    }));
+    const index = basket.courses.findIndex((entry) => entry.id === course.id);
+    const previous = index === -1 ? null : basket.courses[index];
+    if (
+      previous &&
+      previous.announcementsAt &&
+      JSON.stringify(previous.announcements) === JSON.stringify(kept)
+    ) {
+      return { basket, changed: false };
+    }
+
+    const entry = {
+      id: course.id,
+      code: course.code || (previous && previous.code) || null,
+      announcements: kept,
+      announcementsAt: (now || new Date()).toISOString(),
+    };
+    const courses = basket.courses.slice();
+    if (index === -1) courses.push(entry);
+    else courses[index] = entry;
+    return { basket: { ...basket, courses }, changed: true };
+  }
+
+  /**
+   * The to-do list, replaced when the page shows one.
+   *
+   * An empty list is not taken as "nothing is due": the list only ever shows a
+   * week either side of today, so a page that has not rendered it yet, or a
+   * quiet week, must not wipe deadlines already collected.
+   */
+  function rememberTodos(basket, records, now) {
+    if (!records || records.length === 0) return { basket, changed: false };
+    if (JSON.stringify(basket.todos) === JSON.stringify(records)) return { basket, changed: false };
+    return { basket: { ...basket, todos: records, todosAt: (now || new Date()).toISOString() }, changed: true };
+  }
+
+  /**
+   * Reads the page into the basket.
+   *
+   * `listSettled` is the panel's word that an Announcements page has shown its
+   * list for a while with no rows in it — a course with no announcements, as
+   * opposed to one still loading — so it can be ticked off as collected.
+   */
+  function captureIntoBasket(basket, root, pathname, now, listSettled) {
+    const scope = root || document;
+    let current = basket;
+    let changed = false;
+    const apply = (result) => {
+      current = result.basket;
+      changed = changed || result.changed;
+    };
+
+    apply(rememberCourses(current, courseLinksOnPage(scope)));
+    apply(rememberTodos(current, todosToRecords(collectTodos(scope)), now));
+
+    const match = String(pathname || "").match(/^\/ultra\/courses\/([^/]+)\/announcements/);
+    if (match) {
+      const rows = collectAnnouncements(scope);
+      if (rows.length > 0 || (listSettled && scope.querySelector(".announcement-list"))) {
+        apply(rememberAnnouncements(current, { id: match[1], code: collectCourse(scope).code }, rows, now));
+      }
+    }
+
+    return { basket: current, changed };
+  }
+
+  function basketSummary(basket) {
+    const collected = basket.courses.filter((course) => course.announcementsAt);
+    return {
+      courses: basket.courses.length,
+      collected: collected.length,
+      announcements: collected.reduce((total, course) => total + course.announcements.length, 0),
+      deadlines: basket.todos.length,
+    };
+  }
+
+  /** The first course whose Announcements page has not been read, other than the one open. */
+  function nextCourseToCollect(basket, currentId) {
+    return basket.courses.find((course) => !course.announcementsAt && course.id !== currentId) || null;
+  }
+
+  function announcementsPathFor(courseId) {
+    return "/ultra/courses/" + courseId + "/announcements";
+  }
+
+  /**
+   * Everything in the basket, as the sync payload wants it.
+   *
+   * Announcements are interleaved by rank — every course's newest, then every
+   * course's second-newest — so that trimming from the end to fit the link
+   * drops each course's oldest first, rather than a whole course.
+   */
+  function basketContents(basket) {
+    const perCourse = basket.courses
+      .filter((course) => course.announcementsAt)
+      .map((course) =>
+        announcementsToCandidates(course.announcements, course.code, new Date(course.announcementsAt)),
+      );
+    const announcements = [];
+    const longest = Math.max(0, ...perCourse.map((list) => list.length));
+    for (let rank = 0; rank < longest; rank += 1) {
+      for (const list of perCourse) if (rank < list.length) announcements.push(list[rank]);
+    }
+    return { records: basket.todos, announcements };
+  }
+
+  /**
+   * The link for the whole basket, trimmed until it fits.
+   *
+   * Returns how many announcements had to stay behind, so the panel can say so
+   * rather than let the student think everything went.
+   */
+  async function basketLink(basket, now) {
+    const { records, announcements } = basketContents(basket);
+    let kept = announcements;
+    let link = await huskypilotLink(records, now, kept);
+    while (link.length - HUSKYPILOT_URL.length - "#sync=".length > PACKED_LIMIT && kept.length > 0) {
+      kept = kept.slice(0, Math.floor(kept.length * 0.8));
+      link = await huskypilotLink(records, now, kept);
+    }
+    return {
+      link,
+      deadlines: records.length,
+      announcements: kept.length,
+      leftOut: announcements.length - kept.length,
+    };
+  }
+
 
   // --------------------------------------------------- sending to BetterHuskyCT
 
@@ -892,40 +1173,20 @@
   }
 
   /**
-   * What the "Send deadlines" button puts in the link.
-   *
-   * Pulled out of the button handler so the join between collecting and sending
-   * can be exercised without a panel. The rule it encodes: announcements ride
-   * along **only** on a course page. On the Courses page there is no course to
-   * attribute them to, and an announcement nobody can place is worse than one
-   * that was not sent.
-   */
-  function deadlinesAndAnnouncements(scope, now) {
-    const records = todosToRecords(collectTodos(scope));
-
-    const courseId = currentCourseId();
-    if (!courseId) return { records, announcements: [] };
-
-    return {
-      records,
-      announcements: announcementsToCandidates(
-        collectAnnouncements(scope),
-        courseCodeFromDisplay(collectCourse(scope).heading),
-        now,
-      ),
-    };
-  }
-
-  /**
    * What to do on the page the panel happens to be sitting on.
    *
    * The panel offers six actions and nothing on screen says which one this page
    * wants. Working that out is the script's job, not the reader's.
    */
-  function guidanceFor(scope, courseId) {
+  function guidanceFor(scope, courseId, pathname) {
     const root = scope || document;
 
-    if (root.querySelector("[aria-label*=', due ']")) {
+    if (courseId && /\/announcements/.test(String(pathname || ""))) {
+      return t("guideAnnouncements");
+    }
+    // The Courses page, recognised by its to-do list or, in a quiet week when
+    // that list is empty, by its own path.
+    if (root.querySelector("[aria-label*=', due ']") || /^\/ultra\/course\/?$/.test(String(pathname || ""))) {
       return t("guideTodo");
     }
     if (courseId) {
@@ -1180,8 +1441,12 @@
       </header>
       <div class="body">
         <div class="note" data-role="hint"></div>
-        <div class="note" data-role="count">${t("collectedNone")}</div>
+        <div class="note" data-role="basket">${t("basketEmpty")}</div>
         <button class="act primary" data-act="todos">${t("sendDeadlines")}</button>
+        <button class="act" data-act="nextcourse" hidden></button>
+        <button class="act" data-act="emptybasket">${t("clearBasket")}</button>
+        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
+        <div class="note" data-role="count">${t("collectedNone")}</div>
         <button class="act" data-act="acquire">${t("getCalendar")}</button>
         <div class="note" data-role="acquire-hint"></div>
         <button class="act" data-act="export">${t("exportCollected")}</button>
@@ -1235,7 +1500,7 @@
      *
      * This is the whole "I cannot find the button" fix. The close button used to
      * call `host.remove()`, which took the panel — and every button in it, the
-     * Send deadlines one included — out of the page for the rest of the
+     * Send one included — out of the page for the rest of the
      * session. Nothing said how to get it back, because there was no way.
      */
     function setCollapsed(collapsed) {
@@ -1253,6 +1518,15 @@
     const acquireButton = wrap.querySelector('[data-act="acquire"]');
     const acquireHint = wrap.querySelector('[data-role="acquire-hint"]');
     const langButton = wrap.querySelector('[data-role="lang"]');
+    const basketLine = wrap.querySelector('[data-role="basket"]');
+    const nextButton = wrap.querySelector('[data-act="nextcourse"]');
+    const emptyBasketButton = wrap.querySelector('[data-act="emptybasket"]');
+    // The basket in memory, re-read from storage on every tick so two HuskyCT
+    // tabs collecting at once do not overwrite each other's courses.
+    let basket = readBasket(window.localStorage);
+    // How long an Announcements page has shown an empty list, so a course with
+    // no announcements can be ticked off without mistaking "still loading".
+    let emptyList = { path: "", ticks: 0 };
 
     /**
      * Both of these come after every element they touch, and the ordering is
@@ -1273,7 +1547,48 @@
 
     /** The page-specific advice, re-derivable so a language switch can refresh it. */
     function refreshGuidance() {
-      hint.textContent = guidanceFor(document, currentCourseId());
+      hint.textContent = guidanceFor(document, currentCourseId(), window.location.pathname);
+    }
+
+    /** The basket line, and the button to the next course still to collect. */
+    function refreshBasket() {
+      const summary = basketSummary(basket);
+      const empty = summary.courses === 0 && summary.deadlines === 0;
+      basketLine.textContent = empty ? t("basketEmpty") : t("basketSummary", summary);
+      basketLine.className = empty ? "note" : "note ok";
+      emptyBasketButton.textContent = t("clearBasket");
+
+      const next = nextCourseToCollect(basket, currentCourseId());
+      nextButton.hidden = summary.courses === 0;
+      nextButton.disabled = !next;
+      nextButton.textContent = next
+        ? t("nextCourse", { course: next.code || next.id })
+        : t("allCoursesCollected");
+    }
+
+    /**
+     * Reads the page into the basket. Called on a timer because HuskyCT is a
+     * single-page app: the content changes under a panel that is never remounted.
+     * It only reads what is rendered — no request is made.
+     */
+    function captureTick() {
+      const path = window.location.pathname;
+      const showingEmptyList =
+        /\/announcements/.test(path) &&
+        Boolean(document.querySelector(".announcement-list")) &&
+        collectAnnouncements(document).length === 0;
+      emptyList = showingEmptyList
+        ? { path, ticks: emptyList.path === path ? emptyList.ticks + 1 : 1 }
+        : { path, ticks: 0 };
+
+      basket = readBasket(window.localStorage);
+      const result = captureIntoBasket(basket, document, path, new Date(), emptyList.ticks >= 3);
+      if (result.changed) {
+        basket = result.basket;
+        writeBasket(window.localStorage, basket);
+      }
+      refreshBasket();
+      refreshGuidance();
     }
 
     function refreshCount() {
@@ -1314,6 +1629,7 @@
       refreshCount();
       refreshAcquireLabel();
       refreshGuidance();
+      refreshBasket();
     }
 
     /**
@@ -1342,8 +1658,10 @@
         refreshCount();
         refreshAcquireLabel();
       }
+      captureTick();
     }, 1500);
     harvest();
+    captureTick();
     // `relabel` sets every string, including the count, the acquire label and
     // the page guidance, so it is the whole first render — the individual
     // refreshes below would be undone by it.
@@ -1443,36 +1761,51 @@
         return;
       }
 
-      if (act === "todos") {
-        const todos = collectTodos(document);
+      if (act === "nextcourse") {
+        const next = nextCourseToCollect(basket, currentCourseId());
+        // A plain navigation within HuskyCT, as if the student had clicked the
+        // course and then its Announcements tab — not a request for data.
+        if (next) window.location.assign(announcementsPathFor(next.id));
+        return;
+      }
 
-        if (todos.length === 0) {
+      if (act === "emptybasket") {
+        basket = emptyBasket();
+        writeBasket(window.localStorage, basket);
+        refreshBasket();
+        status.className = "note";
+        status.textContent = t("basketCleared");
+        return;
+      }
+
+      if (act === "todos") {
+        // The page on screen goes in first, so pressing Send on a course's
+        // Announcements page never leaves that course behind.
+        captureTick();
+        const summary = basketSummary(basket);
+
+        if (summary.deadlines === 0 && summary.announcements === 0) {
           status.className = "note warn";
-          status.textContent = t("noDeadlinesTitle");
-          hint.textContent = t("noDeadlinesHint");
+          status.textContent = t("basketNothing");
+          hint.textContent = t("basketNothingHint");
           return;
         }
 
-        const records = todosToRecords(todos);
         button.disabled = true;
         status.className = "note";
-
-        // On a course page the announcements are already on screen, so they ride
-        // along with the deadlines rather than needing the other button and a
-        // second trip.
-        const sendable = deadlinesAndAnnouncements(document);
-        const announcements = sendable.announcements;
-        const announcementClause = announcements.length
-          ? t("sentWithAnnouncements", { count: announcements.length })
-          : "";
-
         status.textContent = t("sendingTitle", {
-          deadlines: records.length,
-          announcements: announcementClause,
+          deadlines: summary.deadlines,
+          announcements: summary.announcements
+            ? t("sentWithAnnouncements", { count: summary.announcements })
+            : "",
         });
 
         try {
-          const link = await huskypilotLink(records, undefined, announcements);
+          const built = await basketLink(basket);
+          const link = built.link;
+          const announcementClause = built.announcements
+            ? t("sentWithAnnouncements", { count: built.announcements })
+            : "";
 
           /**
            * Open the dashboard, and tell the truth about whether it opened.
@@ -1486,17 +1819,23 @@
            *
            * The fix keeps the isolation and makes null mean what it should: call
            * without the flag, check the reference, then cut `opener` yourself.
+           *
+           * The window is named rather than `_blank`, so pressing Send again
+           * reuses the dashboard tab this opened instead of stacking a new one
+           * per press; the dashboard notices the new link in its address bar.
            */
-          const opened = window.open(link, "_blank");
+          const opened = window.open(link, "betterhuskyct");
           if (opened) opened.opener = null;
 
           if (opened) {
+            opened.focus();
             status.className = "note ok";
             status.textContent = t("openedTitle", {
-              deadlines: records.length,
+              deadlines: built.deadlines,
               announcements: announcementClause,
             });
-            hint.textContent = t("openedHint");
+            hint.textContent =
+              t("openedHint") + (built.leftOut ? t("leftOut", { count: built.leftOut }) : "");
           } else {
             show(link, "warn");
             status.className = "note warn";
@@ -1563,7 +1902,20 @@
       collectCourseFiles,
       collectCourse,
       announcementsToCandidates,
-      deadlinesAndAnnouncements,
+      BASKET_KEY,
+      emptyBasket,
+      readBasket,
+      writeBasket,
+      courseLinksOnPage,
+      rememberCourses,
+      rememberAnnouncements,
+      rememberTodos,
+      captureIntoBasket,
+      basketSummary,
+      nextCourseToCollect,
+      announcementsPathFor,
+      basketContents,
+      basketLink,
       courseDigestToMarkdown,
       todoFromLabel,
       dueDateFromText,

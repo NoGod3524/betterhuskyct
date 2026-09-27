@@ -9,7 +9,8 @@ A userscript that runs inside your own HuskyCT session and does three things:
    loaded, which can only be dropped in as a file.
 2. **Collects a course** — its announcements, its outline, and the files it links
    to — as a Markdown digest.
-3. **Sends your deadlines to BetterHuskyCT** in one press — no file to download, and
+3. **Collects your deadlines and every course's announcements as you browse,**
+   and sends the lot to BetterHuskyCT in one press — no file to download, and
    nothing uploaded.
 
 > **HuskyCT is Blackboard Ultra at `lms.uconn.edu`.** The script also matches
@@ -90,35 +91,63 @@ Titles are read from each item's accessibility label — `Status for Cengage
 WebAssign: Started` — rather than from a CSS class, because those class names
 carry build hashes and change with every release.
 
-## Sending deadlines to BetterHuskyCT
+## The basket: everything to BetterHuskyCT in one press
 
-*Send deadlines to BetterHuskyCT* reads the to-do list — which lives on the HuskyCT
-home, the Courses page — and opens the dashboard with those deadlines already in
-the link. Press **Apply** there and they are in.
+Nothing on HuskyCT shows everything at once. The to-do list is on the Courses
+page and only spans a week either side of today; each course's announcements are
+on that course's own Announcements tab, and the course outline shows none of
+them. So the helper does not ask you to press a button on each page. **It
+collects as you browse.**
 
-**On a course page it takes that course's announcements with it.** You are
-already looking at them, so there is no reason to make it a second button and a
-second trip: the same press adds the announcements to the link, and the
-dashboard lists them on its Announcements page under the course code. The
-*Collect this course* button still writes its Markdown digest, unchanged, for
-when you want a file.
+Whenever a HuskyCT page is open, the panel reads it every second and a half and
+keeps what it finds in a basket, in this browser's storage for `lms.uconn.edu`:
+
+- **The Courses page** puts in every course you are enrolled in, and the to-do
+  list.
+- **A course's Announcements tab** puts in that course's announcements — all the
+  page lists, up to 25, with the date each was posted.
+
+The panel shows what is in the basket — "12 deadlines and 31 announcements, from
+3 of 5 courses" — and a **Next: ECON 1201 announcements →** button that walks you
+through the courses you have not opened yet. Visiting the five tabs is five
+clicks on one button.
+
+*Send everything to BetterHuskyCT* then opens the dashboard with all of it in the
+link, in the same dashboard tab every time rather than a new one. Press **Add it
+here** there and it is in.
+
+A few rules keep the basket honest:
+
+- **A revisit replaces, it does not pile up.** Each Announcements tab lists all of
+  that course's announcements, so what it shows now is the truth: one the
+  instructor deleted leaves the basket too. A page that has not changed writes
+  nothing.
+- **An empty to-do list is ignored.** It only spans a week either side of today,
+  so an empty one — or one that has not rendered yet — is not evidence that
+  nothing is due, and must not wipe deadlines already collected.
+- **An empty Announcements tab counts only once it stays empty** for a few
+  seconds, so a list still loading is not mistaken for a course with nothing to
+  say.
+- **The link has to fit.** The dashboard refuses links over 32 KB. If a very full
+  basket would not fit, announcements are dropped oldest first, taking the same
+  number from every course so that none disappears, and the panel says how many
+  were left out. Deadlines are never dropped.
+- *Clear basket* empties it, for the start of a term or a different account.
+
+The basket never leaves your browser except inside that one link, and the link's
+data rides in the fragment, which browsers never send to a server. It goes from
+HuskyCT to your own copy of BetterHuskyCT and nowhere else. The dashboard adds
+what arrives to what it already has and sets aside announcements it has seen
+before, so sending again next week is safe.
 
 The course is named by its **code** — `MATH 1070Q` — rather than its HuskyCT id,
 because that is the only handle the dashboard shares; `_203765_1` means nothing
 over there.
 
 Each announcement's **posted** line stays exactly as the page wrote it
-("7 hours ago, at 5:31 PM"). That is deliberate: a relative time is only true at
-the moment it is read, so converting it would mean inventing a timestamp this
-script has no honest way to produce. What does travel as an instant is when the
-page was read, which is what the dashboard sorts on.
-
-There is no file to download and nothing to import. The data rides in the
-fragment of the URL, which browsers never send to a server, so it goes from
-HuskyCT to your own copy of BetterHuskyCT and nowhere else. A whole term is a couple
-of kilobytes: 120 deadlines pack to about 1.4 KB, and the dashboard's own guard
-is 32 KB. Announcements are capped at 400, with each body cut off at 1,200
-characters, so a term of them cannot crowd the deadlines out.
+("9/25/26, 4:00 PM"). The body is read from the paragraph that holds it rather
+than the block around it, which also holds the title; the three-line clamp on
+the list is only CSS, so the full text is underneath.
 
 It uses the same link format as *Sync this dashboard to another device*, so the
 payload is read back by exactly the same code. A test asserts that by running a
