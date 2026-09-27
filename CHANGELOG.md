@@ -9,6 +9,62 @@ The scheme is deliberately simple:
 - **Patch** (`0.1.x`, `0.2.x`, `1.0.x`) — a fix, a cleanup, documentation, or a small addition.
 - **Minor** (`0.2.0`, `0.3.0`, `1.1.0`) — a new capability, or a change to the architecture.
 
+## [1.7.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.7.0) — Announcements, summarized
+
+*Minor: a new capability — one press turns a course's announcements into what you need to know.*
+
+### Added
+
+- **Summarize a course's announcements.** Pick a course on the announcements
+  page and press **Summarize**: its announcements become a few key points —
+  deadlines and changed due dates, exams, moved or cancelled classes, things to
+  prepare — in the language the page is showing, on any device. The summary
+  says how many announcements it read and which service wrote it. ([#56])
+- **Two free models, tried in order.** Z.ai's `glm-4.7-flash` first; when it is
+  busy, out of quota or failing, Google Gemini's free tier. Keys live only on
+  the server (`ZAI_API_KEY`, `GEMINI_API_KEY`); with neither set, the page shows
+  no summary button at all. ([#56])
+
+### Privacy
+
+- **Nothing is sent until you press, and the page says where it goes first.**
+  Next to the button: usually GLM (run from Singapore; says it keeps nothing),
+  or Gemini when Z.ai is busy (Google may use the text to improve its models,
+  and reviewers may read it).
+- **Contact details are taken out on the server** before either service sees
+  anything: email addresses, phone numbers and links (a Zoom link carries its
+  passcode). Dates, times, rooms and course codes are kept.
+- **Gemini's free tier is never used for readers in the EEA, Switzerland or the
+  UK**, as its terms require.
+- **No announcement text is logged**, only which service failed and its status.
+
+### Fixed
+
+- **The "No course" announcement filter always showed an empty list.** Its chip
+  keyed unfiled announcements as `"__none"`, and the filter compared that with a
+  course id of `null`. ([#55])
+
+### Notes
+
+- **On-device summaries came first, and did not last a day.** #55 used Chrome's
+  built-in model: private and free, but only on desktop Chrome or Edge with
+  22 GB free and 16 GB of memory, after a multi-GB download. Most students, and
+  every phone, got nothing, so #56 replaced it.
+- **Checked live, with real keys.** GLM answered in about 2.5 s in English and
+  Chinese, with dates and rooms copied exactly; an instruction planted inside an
+  announcement was ignored. With three requests at once, GLM took one and Gemini
+  the other two.
+- **Expect a real share of summaries to come from Gemini.** GLM's free tier was
+  busy even for a single request in testing. That is the path with Google's
+  data terms, which is why the page names it.
+- **The summary cache is per server instance.** Summaries are kept in memory for
+  six hours and reused for the same announcements, but only by requests that
+  reach the same instance, so classmates share less than a shared store would
+  allow.
+- **AI wording can drift.** One Chinese summary called Friday's *extra* office
+  hours "extended" hours. Every summary says the announcements themselves are
+  what count.
+
 ## [1.6.8](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.6.8) — Tested where it broke
 
 *Patch: nothing you can see. The file where 1.6.7's app bugs lived can now be tested, and the conventions the code keeps are enforced.*
@@ -806,6 +862,8 @@ saying what to work on next.*
 [#51]: https://github.com/NoGod3524/betterhuskyct/pull/51
 [#52]: https://github.com/NoGod3524/betterhuskyct/pull/52
 [#53]: https://github.com/NoGod3524/betterhuskyct/pull/53
+[#55]: https://github.com/NoGod3524/betterhuskyct/pull/55
+[#56]: https://github.com/NoGod3524/betterhuskyct/pull/56
 
 
 
