@@ -14,6 +14,59 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.10.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.10.0) — Course materials, and dark
+
+*Minor: new capabilities — every course's files, videos and links in the app, delivered by HuskyCT Helper 1.2.0; and a dark theme.*
+
+### Added
+
+- **A Materials page.** Every course's files, lecture videos, links and tools,
+  kept in this browser: browsed by course and folder, PDFs opened in place,
+  everything else downloaded, tools linking back to their course on HuskyCT.
+  It shows how much of the browser's storage the files use, and asks the
+  browser to keep them. ([#66])
+- **The helper delivers them.** After "Collect course materials" on HuskyCT,
+  **Send to BetterHuskyCT** opens the Materials page and hands the files over
+  tab to tab — never through a server. The page first says which files it
+  already has, so next week's send carries only what is new, and a complete
+  send drops files the course no longer lists. ([#66])
+- **Import a saved folder.** Files the helper saved to a folder — before this
+  existed, or in a browser where the two tabs cannot reach each other — are
+  read in from the Materials page, links and videos included. ([#66])
+- **Dark mode.** Follow the device, or pick light or dark from the top bar. The
+  choice is kept in this browser and applied before the page is drawn, so a
+  dark choice never flashes light. ([#68])
+
+### Changed
+
+- **The Materials page folds.** Each course starts closed, with a line saying
+  what is in it; inside, its files form a folder tree that names each folder
+  once; every folder, and the videos, links and tools, open on their own.
+  Expand all and Collapse all; what is open is remembered. ([#67])
+- **HuskyCT Helper 1.2.0.** Send to BetterHuskyCT leads after collecting
+  materials; saving to a folder stays; the separate links-page button is gone,
+  since the app now shows them. ([#66])
+
+### Security
+
+- **The Materials page hears only HuskyCT.** Messages are accepted from
+  `lms.uconn.edu` and `huskyct.uconn.edu` alone, and each is checked whole —
+  its kind, its sizes, file keys that must be HuskyCT's own file addresses,
+  links that must be `http(s)` — before anything is stored. The helper, in
+  turn, hears only the app's origin, so no other page can start or steer a
+  delivery. ([#66])
+
+### Notes
+
+- **Light mode is unchanged to the pixel.** The components had 68 colours
+  written into them, which a theme cannot reach. Each is now a CSS variable
+  whose light value is the colour it was; dark redefines the set by role. A
+  test fails if a colour is hard-coded again, if one has no dark value, or if
+  key text in dark falls under 4.5:1 contrast. ([#68])
+- **Files stay on this device.** The Materials page keeps them in IndexedDB,
+  like everything else the app holds in the browser; a phone or another
+  computer gets them by sending again from HuskyCT there.
+
 ## [1.9.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.9.1) — The helper checks itself
 
 *Patch: HuskyCT Helper 1.1.0 — a self-check, a fix it caught, and a faster second walk. The dashboard itself is unchanged.*
@@ -1018,6 +1071,9 @@ saying what to work on next.*
 [#61]: https://github.com/NoGod3524/betterhuskyct/pull/61
 [#62]: https://github.com/NoGod3524/betterhuskyct/pull/62
 [#64]: https://github.com/NoGod3524/betterhuskyct/pull/64
+[#66]: https://github.com/NoGod3524/betterhuskyct/pull/66
+[#67]: https://github.com/NoGod3524/betterhuskyct/pull/67
+[#68]: https://github.com/NoGod3524/betterhuskyct/pull/68
 
 
 
