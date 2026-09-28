@@ -385,7 +385,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                       />
                       <LinkGroup
                         heading={t(locale, "materials.tools")}
-                        items={course.tools.map((tool) => ({ ...tool, url: outline }))}
+                        items={course.tools.map((tool) => ({ ...tool, url: tool.url ?? outline }))}
                         open={open.has(group("#tools"))}
                         onToggle={() => toggle(group("#tools"))}
                         icon={<Wrench size={15} className="shrink-0 text-[var(--c-6b7f94)]" aria-hidden />}

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.2.0
+// @version      1.2.1
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.2.0";
+  const VERSION = "1.2.1";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -145,7 +145,7 @@
       linksTitle: "Links and videos",
       linksVideos: "Videos",
       linksLinks: "Links",
-      linksTools: "Open in HuskyCT",
+      linksTools: "Tools",
       linksFileName: "links and videos.html",
       collectingCourse: "Reading {course} ({index} of {total})…",
       collectedAll: "Done: {courses} course(s) read. Press Send to put them in BetterHuskyCT.",
@@ -219,7 +219,7 @@
       linksTitle: "链接与视频",
       linksVideos: "视频",
       linksLinks: "链接",
-      linksTools: "在 HuskyCT 里打开",
+      linksTools: "工具",
       linksFileName: "链接与视频.html",
       collectingCourse: "正在读取 {course}（{index}/{total}）……",
       collectedAll: "完成：读取了 {courses} 门课。按「全部发给 BetterHuskyCT」导入。",
@@ -1293,6 +1293,31 @@
   }
 
   /**
+   * The address that opens an LTI tool straight away, or null for anything else.
+   *
+   * Measured on 2026-09-28: an LTI link's anchor is `href="#"`, but the row
+   * around it carries the item's id as `data-content-id`, and pressing it makes
+   * HuskyCT open Blackboard's own launch address for that id in a new window —
+   * `/webapps/blackboard/execute/blti/launchLink?course_id=…&content_id=…&from_ultra=true`.
+   * The same address opened later, in any tab where the student is signed in,
+   * launches the tool without going through the course page.
+   */
+  function toolLaunchUrl(anchor, type, courseId) {
+    if (!/\bLTI\b/i.test(type) || !/^_\d+_\d+$/.test(courseId)) return null;
+    const row = anchor.closest("[data-content-id]");
+    const id = row && row.getAttribute("data-content-id");
+    if (!id || !/^_\d+_\d+$/.test(id)) return null;
+    return (
+      window.location.origin +
+      "/webapps/blackboard/execute/blti/launchLink?course_id=" +
+      courseId +
+      "&content_id=" +
+      id +
+      "&from_ultra=true"
+    );
+  }
+
+  /**
    * Sorts a course's opened content page into files, documents to open, links,
    * tools and work. Only items linking into this course count as its files and
    * documents, so a page still showing another course adds nothing of it.
@@ -1342,7 +1367,10 @@
         found.links.push({ path, title, url, kind: isVideoLink(url) ? "video" : "link" });
         continue;
       }
-      found.tools.push({ path, title, type });
+      const tool = { path, title, type };
+      const url = toolLaunchUrl(anchor, type, courseId);
+      if (url) tool.url = url;
+      found.tools.push(tool);
     }
     return found;
   }
@@ -1847,7 +1875,8 @@
 
   /**
    * The links and videos, grouped by course and folder, as a page to keep.
-   * Tools open from HuskyCT itself, so they link to the course's content page.
+   * An LTI tool links to its launch address; any other tool, to its course's
+   * content page, where it opens.
    */
   function materialsLinksHtml(manifest) {
     const sections = [];
@@ -1878,7 +1907,7 @@
       group(
         course.tools,
         t("linksTools"),
-        (tool) => where(tool) + '<a href="' + escapeHtml(outline) + '">' + escapeHtml(tool.title) + "</a>",
+        (tool) => where(tool) + '<a href="' + escapeHtml(tool.url || outline) + '">' + escapeHtml(tool.title) + "</a>",
         "tool",
       );
       if (rows.length) sections.push("<h2>" + escapeHtml(course.code || course.id) + "</h2>" + rows.join(""));
@@ -1941,7 +1970,9 @@
             code: course.code || null,
             files,
             links: course.links.map((link) => ({ path: link.path, title: link.title, url: link.url, kind: link.kind })),
-            tools: course.tools.map((tool) => ({ path: tool.path, title: tool.title })),
+            tools: course.tools.map((tool) =>
+              tool.url ? { path: tool.path, title: tool.title, url: tool.url } : { path: tool.path, title: tool.title },
+            ),
           };
         }),
     };
