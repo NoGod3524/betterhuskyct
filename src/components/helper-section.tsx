@@ -65,6 +65,7 @@ export function HelperSection() {
   const does = [
     t(locale, "helper.doesDeadlines"),
     t(locale, "helper.doesCourse"),
+    t(locale, "helper.doesGrades"),
   ];
 
   const willNot = [
