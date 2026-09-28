@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
+import { ListSkeleton } from "@/components/list-skeleton";
 import { t } from "@/lib/i18n";
 import {
   createMaterialsReceiver,
@@ -86,6 +87,9 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
   const [notice, setNotice] = useState<string | null>(null);
   const [usage, setUsage] = useState<number | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+  // False until the saved index has been read once, so the empty state is not
+  // shown for a frame to someone who has courses.
+  const [ready, setReady] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function toggle(key: string) {
@@ -117,9 +121,12 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
         if (cancelled) return;
         setStore(opened);
         await reload(opened);
+        if (!cancelled) setReady(true);
       })
       .catch(() => {
-        if (!cancelled) setUnavailable(true);
+        if (cancelled) return;
+        setUnavailable(true);
+        setReady(true);
       });
     return () => {
       cancelled = true;
@@ -276,7 +283,9 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
       ) : null}
       {unavailable ? <p className="mt-4 text-sm text-[var(--c-b3412e)]">{t(locale, "materials.unavailable")}</p> : null}
 
-      {courses.length === 0 ? (
+      {!ready ? (
+        <ListSkeleton label={t(locale, "common.loading")} />
+      ) : courses.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5">
           <p className="text-sm font-semibold text-[var(--c-31506f)]">{t(locale, "materials.emptyTitle")}</p>
           <p className="mt-1 text-sm text-[var(--muted)]">{t(locale, "materials.emptyBody")}</p>
@@ -340,7 +349,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                   />
 
                   {courseOpen ? (
-                    <div className="border-t border-[var(--c-eef2f6)] px-5 pb-4">
+                    <div className="rise-in border-t border-[var(--c-eef2f6)] px-5 pb-4">
                       <FolderView
                         node={folderTree(course.files)}
                         isOpen={(folder) => open.has(group(folder.path.join("/")))}
@@ -460,7 +469,7 @@ function FolderView({
               detail={String(child.total)}
             />
             {childOpen ? (
-              <div className="ml-5 border-l border-[var(--c-eef2f6)] pl-3">
+              <div className="rise-in ml-5 border-l border-[var(--c-eef2f6)] pl-3">
                 <FolderView node={child} isOpen={isOpen} onToggle={onToggle} renderFile={renderFile} />
               </div>
             ) : null}
@@ -529,7 +538,7 @@ function LinkGroup({
         detail={String(items.length)}
       />
       {open ? (
-        <ul className="ml-6 mt-1.5 space-y-1.5">
+        <ul className="rise-in ml-6 mt-1.5 space-y-1.5">
           {items.map((item, i) => (
             <li key={i} className="flex min-w-0 items-center gap-2 text-sm text-[var(--c-172b41)]">
               {icon}

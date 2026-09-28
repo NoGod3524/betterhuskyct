@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight, ExternalLink, Trash2 } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
+import { ListSkeleton } from "@/components/list-skeleton";
 import {
   createGradesReceiver,
   formatPoints,
@@ -31,6 +32,9 @@ export function GradesSection({ openStore = openGradesStore }: { openStore?: () 
   const [grades, setGrades] = useState<GradesSnapshot | null>(null);
   const [receive, setReceive] = useState<GradesReceiveState>({ phase: "idle", courses: 0, items: 0 });
   const [unavailable, setUnavailable] = useState(false);
+  // False until the saved grades have been read once, so the empty state is not
+  // shown for a frame to someone who has grades.
+  const [ready, setReady] = useState(false);
   const [openUngraded, setOpenUngraded] = useState<Set<string>>(new Set());
 
   const reload = useCallback(async (from: GradesStore) => {
@@ -44,9 +48,12 @@ export function GradesSection({ openStore = openGradesStore }: { openStore?: () 
         if (cancelled) return;
         setStore(opened);
         await reload(opened);
+        if (!cancelled) setReady(true);
       })
       .catch(() => {
-        if (!cancelled) setUnavailable(true);
+        if (cancelled) return;
+        setUnavailable(true);
+        setReady(true);
       });
     return () => {
       cancelled = true;
@@ -119,7 +126,9 @@ export function GradesSection({ openStore = openGradesStore }: { openStore?: () 
       ) : null}
       {unavailable ? <p className="mt-4 text-sm text-[var(--c-b3412e)]">{t(locale, "grades.unavailable")}</p> : null}
 
-      {courses.length === 0 ? (
+      {!ready ? (
+        <ListSkeleton label={t(locale, "common.loading")} />
+      ) : courses.length === 0 ? (
         <div className="mt-4 rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5">
           <p className="text-sm font-semibold text-[var(--c-31506f)]">{t(locale, "grades.emptyTitle")}</p>
           <p className="mt-1 text-sm text-[var(--muted)]">{t(locale, "grades.emptyBody")}</p>
@@ -196,7 +205,7 @@ export function GradesSection({ openStore = openGradesStore }: { openStore?: () 
                         {t(locale, "grades.noScore", { count: rest.length })}
                       </button>
                       {restOpen ? (
-                        <ul className="mt-1 divide-y divide-[var(--c-eef2f6)]">
+                        <ul className="rise-in mt-1 divide-y divide-[var(--c-eef2f6)]">
                           {rest.map((item) => (
                             <ItemRow key={item.id} item={item} />
                           ))}
