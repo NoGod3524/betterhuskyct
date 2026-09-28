@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.2.1
+// @version      1.2.2
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.2.1";
+  const VERSION = "1.2.2";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1318,6 +1318,16 @@
   }
 
   /**
+   * An LTI link that plays a Kaltura video. Measured on 2026-09-28: the anchor
+   * names the tool it launches in `data-launch-handle` — "KalturaBSE" for a
+   * video embedded from Kaltura (MATH 1070Q's "Problem Solving Tips"), whose
+   * launch opens the player — so it is listed with the videos, not the tools.
+   */
+  function isKalturaLaunch(anchor) {
+    return /^kaltura/i.test(anchor.getAttribute("data-launch-handle") || "");
+  }
+
+  /**
    * Sorts a course's opened content page into files, documents to open, links,
    * tools and work. Only items linking into this course count as its files and
    * documents, so a page still showing another course adds nothing of it.
@@ -1369,6 +1379,10 @@
       }
       const tool = { path, title, type };
       const url = toolLaunchUrl(anchor, type, courseId);
+      if (url && isKalturaLaunch(anchor)) {
+        found.links.push({ path, title, url, kind: "video" });
+        continue;
+      }
       if (url) tool.url = url;
       found.tools.push(tool);
     }
