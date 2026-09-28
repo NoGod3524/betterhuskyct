@@ -327,7 +327,10 @@ export function AppShell({
           </header>
 
           <SyncBanner />
-          <div className="flex-1">{children}</div>
+          {/* Keyed by the route, so each page arrives with its own fade. */}
+          <div key={pathname} className="page-enter flex-1">
+            {children}
+          </div>
           <AppFooter version={version} />
         </section>
       </div>

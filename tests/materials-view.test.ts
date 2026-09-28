@@ -126,6 +126,34 @@ test("expand all opens everything, and what is open is remembered", async () => 
   await again.unmount();
 });
 
+test("while the saved courses are being read the page shows placeholders, not the empty state", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const base = await seeded();
+  const slow: MaterialsStore = {
+    ...base,
+    getIndex: async () => {
+      await gate;
+      return base.getIndex();
+    },
+  };
+  const view = await render(slow);
+
+  assert.ok(view.text().includes(t("en", "common.loading")), "no placeholder while reading");
+  assert.ok(!view.text().includes(t("en", "materials.emptyTitle")), "the empty state flashed before the courses arrived");
+
+  await act(async () => {
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  });
+
+  assert.ok(!view.text().includes(t("en", "common.loading")));
+  assert.ok(view.text().includes("MATH 1070Q"));
+  await view.unmount();
+});
+
 test("with nothing stored, the page says how to get materials here", async () => {
   const view = await render(null);
   assert.ok(view.text().includes(t("en", "materials.emptyTitle")));

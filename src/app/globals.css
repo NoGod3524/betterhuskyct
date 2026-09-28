@@ -334,11 +334,65 @@ input {
   color: var(--nav-active);
 }
 
+/*
+ * Motion. Three things move, and each says why:
+ *
+ * - `page-enter`: a page fades in when the route changes, so moving between
+ *   pages reads as one step rather than a jump. Opacity only — a transform here
+ *   would make the page a containing block for anything fixed inside it.
+ * - `rise-in`: what a folded section reveals arrives with a small lift, on
+ *   opening only. Closing stays instant: the collapsed rows are not kept
+ *   mounted, since a course can hold hundreds.
+ * - `skeleton`: the grey blocks a page shows while its saved data is read, in
+ *   place of an empty state that would flash for a frame and then be replaced.
+ *
+ * Only opacity and transform are animated, which the compositor handles without
+ * re-laying-out the page.
+ */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.page-enter {
+  animation: fade-in 200ms ease-out;
+}
+
+.rise-in {
+  animation: rise-in 180ms ease-out;
+}
+
+.skeleton {
+  background: var(--c-eef2f6);
+  border-radius: 1.25rem;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .page-enter,
+  .rise-in,
+  .skeleton {
+    animation: none !important;
   }
 }
