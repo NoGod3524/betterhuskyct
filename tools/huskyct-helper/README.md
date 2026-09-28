@@ -205,7 +205,7 @@ Then:
   by course and folder — marked up so the Materials page can read it back. An
   LTI tool (WebAssign, MyLab, Kaltura…) links straight to its launch, so it
   opens without going through the course page; you only need to be signed in
-  to HuskyCT.
+  to HuskyCT. A Kaltura video posted as an LTI link is listed with the videos.
 Assignments, quizzes, tests and discussions are work rather than material; they
 are counted and left alone.
 
@@ -228,7 +228,8 @@ What was measured on 2026-09-27, and what it decided:
   item's id as `data-content-id`, and pressing it opens
   `/webapps/blackboard/execute/blti/launchLink?course_id=…&content_id=…&from_ultra=true`
   in a new window. Opened on its own later, that address went straight to
-  WebAssign, MyLab and Kaltura.
+  WebAssign, MyLab and Kaltura. The anchor's `data-launch-handle` names the
+  tool; "KalturaBSE" is a Kaltura video, so those go with the videos.
 - **A file's real address is already on the page.** Its row carries a hidden
   anchor with `/bbcswebdav/...`, keyed by the item's id, so no file has to be
   opened to be found.

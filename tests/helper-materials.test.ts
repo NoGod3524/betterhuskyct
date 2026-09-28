@@ -106,12 +106,22 @@ const loadMore = (enabled: boolean) =>
 
 const DOCUMENT_ID = "_14409752_1";
 const WEBASSIGN = `https://lms.uconn.edu/webapps/blackboard/execute/blti/launchLink?course_id=${MATH}&content_id=_14380170_1&from_ultra=true`;
+const TIPS_VIDEO = `https://lms.uconn.edu/webapps/blackboard/execute/blti/launchLink?course_id=${MATH}&content_id=_14316949_1&from_ultra=true`;
+
+/** An LTI link: its anchor goes nowhere, names the tool it launches, and its row carries the item's id. */
+function ltiRow(id: string, title: string, handle: string) {
+  return (
+    `<div data-content-id="${id}"><a aria-label="LTI Link, ${title}" data-analytics-id="content.item.course.outline.courseContent.link" ` +
+    `href="#" data-launch-handle="${handle}">${title}</a></div>`
+  );
+}
 
 function mathOutline() {
   return (
     `<div class="courseTitle-x">MATH-1070Q-Mathematics for Business and Economics-SEC100-1268</div>` +
-    // An LTI link's anchor goes nowhere; its row carries the item's id.
-    `<div data-content-id="_14380170_1">${item("LTI Link", "Cengage WebAssign", "#")}</div>` +
+    ltiRow("_14380170_1", "Cengage WebAssign", "e46e56a7a7fb4f87b6d75e649cde6cda") +
+    // A Kaltura video, launched the same way.
+    ltiRow("_14316949_1", "Section 4.1 Problem Solving Tips", "KalturaBSE") +
     item(
       "Text Document",
       "Course Information and Syllabus",
@@ -337,10 +347,11 @@ test("every course's files, links, videos and tools are found, folders and docum
     [
       ["link", "https://example.com/reading"],
       ["link", "https://sites.pitt.edu/white.html"],
+      ["video", TIPS_VIDEO],
       ["video", "https://www.youtube.com/embed/mcpGpSSYq8E"],
     ],
   );
-  assert.ok(!JSON.stringify(math.links).includes("uconn.edu"), "a safe-links wrapper, and the email in it, survived");
+  assert.ok(!/safelinks|bxi25003|%40uconn/.test(JSON.stringify(math.links)), "a safe-links wrapper, and the email in it, survived");
   assert.deepEqual(math.tools.map((tool) => [tool.title, tool.url]), [["Cengage WebAssign", WEBASSIGN]]);
   assert.equal(math.activities, 1, "the practice test was not counted as work");
 
@@ -350,7 +361,7 @@ test("every course's files, links, videos and tools are found, folders and docum
   // A page still showing MATH's outline while ECON's loaded added nothing of MATH's.
   assert.ok(!econ.files.some((file) => /Section/.test(file.title)));
 
-  assert.deepEqual(plain(helper.materialsSummary(manifest)), { courses: 2, files: 6, videos: 2, links: 2, tools: 1 });
+  assert.deepEqual(plain(helper.materialsSummary(manifest)), { courses: 2, files: 6, videos: 3, links: 2, tools: 1 });
   assert.equal(window.location.pathname, "/ultra/stream", "it did not go back to where it started");
 });
 
@@ -541,10 +552,12 @@ test("only an LTI link whose row carries its id gets a launch address", () => {
     item("LTI Link", "No id", "#") +
     // Not an LTI link: its launch address would be an error page.
     `<div data-content-id="_8_1">${item("Tool", "Other", "#")}</div>` +
-    `<div data-content-id="not-an-id">${item("LTI Link", "Bad id", "#")}</div>`;
+    `<div data-content-id="not-an-id">${item("LTI Link", "Bad id", "#")}</div>` +
+    ltiRow("_9_1", "Kaltura video", "KalturaBSE");
 
   const found = plain(helper.classifyOutline(page.document, "_1_1")) as unknown as {
     tools: Array<{ title: string; url?: string }>;
+    links: Array<{ title: string; url: string; kind: string }>;
   };
 
   assert.deepEqual(
@@ -556,6 +569,15 @@ test("only an LTI link whose row carries its id gets a launch address", () => {
       ["Bad id", null],
     ],
   );
+  // A Kaltura launch plays a video, so it is listed with the videos.
+  assert.deepEqual(found.links, [
+    {
+      path: [],
+      title: "Kaltura video",
+      url: "https://lms.uconn.edu/webapps/blackboard/execute/blti/launchLink?course_id=_1_1&content_id=_9_1&from_ultra=true",
+      kind: "video",
+    },
+  ]);
 });
 
 // --- into BetterHuskyCT ------------------------------------------------------------------
@@ -654,7 +676,8 @@ test("the saved links page reads back into the app with its courses, kinds and f
 
   assert.deepEqual(Object.keys(links).sort(), ["ECON 1201", "MATH 1070Q"]);
   assert.equal(links["MATH 1070Q"].id, "_203765_1");
-  assert.deepEqual(links["MATH 1070Q"].links.map((link) => link.kind).sort(), ["link", "link", "video"]);
+  assert.deepEqual(links["MATH 1070Q"].links.map((link) => link.kind).sort(), ["link", "link", "video", "video"]);
+  assert.ok(links["MATH 1070Q"].links.some((link) => link.url === TIPS_VIDEO), "the Kaltura video was not read back");
   assert.deepEqual(plain(links["MATH 1070Q"].tools), [{ path: [], title: "Cengage WebAssign", url: WEBASSIGN }]);
   const white = links["MATH 1070Q"].links.find((link) => /white/.test(link.url));
   assert.deepEqual(white?.path, ["Problem-Solving Tips Blank Notes"]);
