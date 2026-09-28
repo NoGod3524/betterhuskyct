@@ -289,7 +289,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
         <div className="mt-4 rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5">
           <p className="text-sm font-semibold text-[var(--c-31506f)]">{t(locale, "materials.emptyTitle")}</p>
           <p className="mt-1 text-sm text-[var(--muted)]">{t(locale, "materials.emptyBody")}</p>
-          <Link href="/helper" className="mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline">
+          <Link href="/helper" className="tap-link mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline">
             {t(locale, "materials.emptyCta")}
           </Link>
         </div>

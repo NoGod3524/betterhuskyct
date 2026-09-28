@@ -111,8 +111,8 @@ export function HelperSection() {
                   href={step.action.href}
                   className={
                     step.action.primary
-                      ? "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--blue)] px-3 text-sm font-semibold text-white transition hover:bg-[var(--c-1857aa)]"
-                      : "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)]"
+                      ? "tap-link inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--blue)] px-3 text-sm font-semibold text-white transition hover:bg-[var(--c-1857aa)]"
+                      : "tap-link inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)]"
                   }
                 >
                   <Download size={15} />
@@ -153,7 +153,7 @@ export function HelperSection() {
           </ul>
           <a
             href={HELPER_SOURCE_URL}
-            className="mt-4 inline-block text-xs font-semibold text-[var(--c-245ea9)] underline underline-offset-2"
+            className="tap-link mt-4 inline-block text-xs font-semibold text-[var(--c-245ea9)] underline underline-offset-2"
           >
             {t(locale, "helper.sourceLink")}
           </a>
