@@ -46,6 +46,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Installable and offline** — add it to a phone's home screen as a PWA and keep reading saved tasks without a connection
 - **Announcements** — the browser helper brings your courses' announcements in on the same press as the deadlines, newest first and grouped by course
 - **Course materials** — every course's files, lecture videos, links and tools, sent over by the browser helper and kept in this browser: browse by course and folder, open PDFs in place, download the rest. Nothing is uploaded; a folder the helper saved can be imported too
+- **Grades** — each course's gradebook, read by the browser helper and kept in this browser: what every item scored, and the points so far for the graded work. It says plainly that the total is not your course grade, since HuskyCT shows no weights or dropped scores. Nothing is uploaded
 - **Dark mode** — follows the device, or pick light or dark from the top bar; the choice is kept in this browser and applied before the page is drawn
 - **Announcement summaries** — pick a course and one press turns its announcements into key points (deadlines, exams, moved or cancelled classes) in your language, on any device. Written by Z.ai's free GLM model, with Google Gemini's free tier covering when GLM is busy; the page names both, and what each does with the text, before you press — and nothing is sent until you do
 - **Completion tracking** — tick tasks done; the state is saved in your browser and survives refresh
@@ -139,6 +140,7 @@ Failures are logged without ever writing the private calendar URL to the log.
 | Course announcements | `localStorage`, in your browser only — sent over by the browser helper alongside your deadlines |
 | Course materials | IndexedDB, in your browser only — the files are read on HuskyCT by the helper and handed to this page tab to tab; the app accepts them only from HuskyCT's own pages, and never sends them anywhere |
 | Announcement summaries | Only when you press **Summarize**: that course's announcements (title, text, posted line — none of your details, no feed link), with email addresses, phone numbers and links replaced, go through BetterHuskyCT's own endpoint to an AI service. First [Z.ai](https://z.ai), which runs GLM from Singapore and states in its API terms that content is not saved. If Z.ai is busy or failing, [Google Gemini's free tier](https://ai.google.dev/gemini-api/terms), whose terms let Google use the content to improve its models and let reviewers read it; it is never used for readers in the EEA, Switzerland or the UK. The endpoint logs no text. A summary is held in the server's memory for up to 6 hours, keyed by a hash of the announcements, so classmates sending the same ones reuse it; it is never written to disk |
+| Grades | `localStorage`, in your browser only — read from each course's gradebook on HuskyCT by the helper and handed to this page tab to tab; the app accepts them only from HuskyCT's own pages, and never sends them anywhere |
 | Completed task IDs | `localStorage`, in your browser only |
 | Language choice | `localStorage`, in your browser only |
 
@@ -170,6 +172,7 @@ src/
 │  ├─ calendar/page.tsx              # /calendar  add another calendar
 │  ├─ announcements/page.tsx         # /announcements  course announcements
 │  ├─ materials/page.tsx             # /materials      course files, videos and links
+│  ├─ grades/page.tsx                # /grades         gradebook rows and the points so far
 │  ├─ insights/page.tsx              # /insights  workload analytics
 │  ├─ helper/page.tsx                # /helper    install the browser helper
 │  ├─ globals.css
@@ -186,6 +189,7 @@ src/
 │  ├─ insights-section.tsx           # Workload analytics
 │  ├─ announcements-section.tsx      # Course announcements, grouped and filterable
 │  ├─ materials-section.tsx          # Course materials, by course and folder; receives from the helper
+│  ├─ grades-section.tsx             # Grades by course; receives from the helper
 │  ├─ hero-section.tsx               # Overview header and status line
 │  ├─ app-footer.tsx                 # Version footer
 │  └─ service-worker-registrar.tsx   # Registers the offline service worker (production only)
@@ -207,6 +211,8 @@ src/
    ├─ announcements.ts               # Course announcements: derived ids, caps, storage
    ├─ materials.ts                   # Materials: the helper's messages, checked; merging; folder import
    ├─ materials-store.ts             # Materials in IndexedDB
+   ├─ grades.ts                      # Grades: the helper's messages, checked; totals; merging
+   ├─ grades-store.ts                # Grades in localStorage
    ├─ import-storage.ts              # 1.0.x single-import storage, read once to migrate
    ├─ completion-storage.ts          # Versioned localStorage for completed task IDs
    └─ i18n.ts                        # English / 简体中文 dictionaries and lookup
