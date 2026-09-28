@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
+  Award,
   BellOff,
   BellRing,
   CalendarDays,
@@ -73,6 +74,7 @@ const NAV_ITEMS = [
   { href: "/calendar", key: "nav.calendar", Icon: CalendarDays },
   { href: "/announcements", key: "nav.announcements", Icon: Megaphone },
   { href: "/materials", key: "nav.materials", Icon: FolderOpen },
+  { href: "/grades", key: "nav.grades", Icon: Award },
   { href: "/insights", key: "insights.eyebrow", Icon: ChartColumn },
   { href: "/helper", key: "nav.helper", Icon: Puzzle },
 ] as const;
