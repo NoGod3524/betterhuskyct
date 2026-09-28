@@ -14,6 +14,53 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.11.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.11.0) — Grades
+
+*Minor: a new capability — each course's gradebook in the app, delivered by HuskyCT Helper 1.3.0.*
+
+### Added
+
+- **A Grades page.** Each course's gradebook rows and the points so far, kept in
+  this browser: what each item scored out of how many, the line HuskyCT shows
+  under it ("1 attempt submitted (1 Late)"), and a total for the graded work
+  with its percent. Rows without a score ("Not graded", "Grade is complete",
+  `0/0` practice work) are folded away; a course with nothing in it says so.
+  Nothing is uploaded. ([#73])
+- **The helper delivers them.** **Collect grades** opens each course's
+  gradebook on HuskyCT, turns every page, and reads each row; **Send grades to
+  BetterHuskyCT** opens the Grades page and hands them over tab to tab — never
+  through a server — and waits to hear they were kept. Six courses, 57 rows, took
+  15 seconds. A course whose gradebook did not open, or not to its last page, is
+  named in the self-check and left out of the send, so a half-read gradebook
+  never replaces a whole one. ([#74])
+
+### Changed
+
+- **HuskyCT Helper 1.3.0.** Two new buttons on the panel. The term label the
+  materials walk worked out inline is now shared by both walks. ([#74])
+- **The helper page** in the app describes the new button. ([#74])
+
+### Security
+
+- **The Grades page hears only HuskyCT.** As with materials, messages are
+  accepted from `lms.uconn.edu` and `huskyct.uconn.edu` alone, and each is
+  checked whole — its shape, its sizes, that every score is a finite number and
+  every row id HuskyCT's own — before anything is stored. Replies go back to the
+  exact origin that asked. ([#73])
+
+### Notes
+
+- **The total is not your course grade.** HuskyCT's gradebook shows no category
+  weights, dropped scores or extra-credit rules, and some courses show no
+  overall grade at all, so the page adds up the graded rows and says so wherever
+  it shows the total. ([#73])
+- **Two courses can share a code.** A lecture and its lab both read
+  `STAT 1000Q`, so grades are told apart by HuskyCT's course id: reading one
+  never replaces the other. Found by running the helper on the live gradebook.
+  ([#74])
+- **Update the helper to get the button.** Tampermonkey offers 1.3.0 from the
+  raw `main` link; press **Collect grades**, then **Send**.
+
 ## [1.10.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.10.1) — Tools open directly
 
 *Patch: HuskyCT Helper 1.2.2 — tools open straight away, and Kaltura videos are listed as videos.*
@@ -1107,6 +1154,8 @@ saying what to work on next.*
 [#68]: https://github.com/NoGod3524/betterhuskyct/pull/68
 [#70]: https://github.com/NoGod3524/betterhuskyct/pull/70
 [#71]: https://github.com/NoGod3524/betterhuskyct/pull/71
+[#73]: https://github.com/NoGod3524/betterhuskyct/pull/73
+[#74]: https://github.com/NoGod3524/betterhuskyct/pull/74
 
 
 
