@@ -14,6 +14,58 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.12.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.12.0) — Phone navigation, lighter, smoother
+
+*Minor: the site can be navigated on a phone; and a lighter first load, some motion, and controls a finger can hit. HuskyCT Helper is unchanged at 1.3.0.*
+
+### Fixed
+
+- **On a phone there was no navigation.** Below 1024 px the sidebar is hidden,
+  and it was the only navigation the site had: every link in it measured 0×0 and
+  the dashboard showed no link to any other page, so a phone could not reach
+  Plan, Tasks, Calendar, Announcements, Materials, Grades, Insights or Helper.
+  A bar along the bottom now holds the four pages opened most and a **More**
+  that opens a sheet with the other five. The sheet is modal — focus moves into
+  it, Tab stays inside, Escape or a tap outside closes it, the page behind does
+  not scroll — and it closes itself when the page changes. It respects the
+  home indicator, and a test fails if a page is added that the navigation does
+  not list. ([#78])
+- **The phone's header overflowed**: "简体中文" wrapped to one character per
+  line. A phone now gets one language button in place of the pair, and the
+  name and avatar give way to the controls. ([#78])
+
+### Changed
+
+- **Controls are finger-sized on a touch screen.** The completion checkbox was
+  16 px, buttons 28 to 38, text links 16 to 20; 82 controls across the nine
+  pages were under 44 px. On a coarse pointer every button and field is now at
+  least 44 px, icon buttons are 44 px squares, and the checkbox keeps its small
+  box inside a 44 px area that takes no more room than the box. All 129 controls
+  measured are 44 px or more. A mouse sees none of it — the desktop measures
+  exactly as before. ([#78])
+- **One keyboard focus ring** in the theme's link colour on every button and
+  link, where only the text fields had one; and a pressed button shrinks a
+  little, so a tap is seen to land (not for anyone who asked for less motion).
+  ([#78])
+- **A lighter first load.** UConn's course-title catalogue was 62 KB compressed
+  inside the code of every page, though only an imported Blackboard calendar
+  can use it. It is now a separate file, fetched when a task with no course of
+  its own needs it. The main code file goes from 87.2 KB to 23.8 KB compressed,
+  and the JavaScript the home page loads from 274.6 KB to 209.3 KB. ([#76])
+- **Pages move a little.** A page fades in when the route changes; what a
+  folded section reveals arrives with a small lift; and the Materials and
+  Grades pages show grey placeholders while they read their saved data, in
+  place of an empty state that flashed for a frame and was then replaced. Only
+  opacity and position are animated, and all of it is off for anyone who asked
+  their device for less motion. ([#77])
+
+### Notes
+
+- **Measured, and left alone.** With 900 events the once-a-minute refresh costs
+  about 5 ms at worst; with 600 files and 240 links open on the Materials page,
+  opening everything blocks the page for 15–74 ms in slices of 16 ms or less.
+  Neither is worth splitting the shared state or windowing the list for.
+
 ## [1.11.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.11.0) — Grades
 
 *Minor: a new capability — each course's gradebook in the app, delivered by HuskyCT Helper 1.3.0.*
@@ -1156,6 +1208,9 @@ saying what to work on next.*
 [#71]: https://github.com/NoGod3524/betterhuskyct/pull/71
 [#73]: https://github.com/NoGod3524/betterhuskyct/pull/73
 [#74]: https://github.com/NoGod3524/betterhuskyct/pull/74
+[#76]: https://github.com/NoGod3524/betterhuskyct/pull/76
+[#77]: https://github.com/NoGod3524/betterhuskyct/pull/77
+[#78]: https://github.com/NoGod3524/betterhuskyct/pull/78
 
 
 

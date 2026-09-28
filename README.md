@@ -43,6 +43,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Several calendars, several courses** — HuskyCT issues one feed per course, so add as many as you have; file each under a course (code plus LEC / DIS / LAB / SEM), and every task shows its course, whether it is a class meeting or an assignment, its room, and the exact due time — with a per-task picker for the rows the default gets wrong
 - **Rolling 7-day view** — Today / Tomorrow / This week, grouped and time-sorted
 - **Due-soon reminders** — an in-app banner for anything due in the next 24 hours, plus optional browser notifications while the app is open
+- **Works on a phone** — below 1024 px a bar along the bottom reaches every page (four main ones, and a *More* sheet with the rest), buttons and the completion checkbox are finger-sized on a touch screen, and the header fits the width
 - **Installable and offline** — add it to a phone's home screen as a PWA and keep reading saved tasks without a connection
 - **Announcements** — the browser helper brings your courses' announcements in on the same press as the deadlines, newest first and grouped by course
 - **Course materials** — every course's files, lecture videos, links and tools, sent over by the browser helper and kept in this browser: browse by course and folder, open PDFs in place, download the rest. Nothing is uploaded; a folder the helper saved can be imported too
@@ -190,6 +191,9 @@ src/
 │  ├─ announcements-section.tsx      # Course announcements, grouped and filterable
 │  ├─ materials-section.tsx          # Course materials, by course and folder; receives from the helper
 │  ├─ grades-section.tsx             # Grades by course; receives from the helper
+│  ├─ mobile-nav.tsx                 # The phone's bottom bar and its More sheet
+│  ├─ nav-items.ts                   # Every page, and which the bar shows
+│  ├─ list-skeleton.tsx              # Placeholders while saved data is read
 │  ├─ hero-section.tsx               # Overview header and status line
 │  ├─ app-footer.tsx                 # Version footer
 │  └─ service-worker-registrar.tsx   # Registers the offline service worker (production only)
