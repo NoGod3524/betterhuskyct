@@ -14,6 +14,37 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.10.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.10.1) — Tools open directly
+
+*Patch: HuskyCT Helper 1.2.2 — tools open straight away, and Kaltura videos are listed as videos.*
+
+### Changed
+
+- **A tool opens itself, not its course.** WebAssign, MyLab and the other LTI
+  tools linked to their course's content page, where they had to be found
+  again. HuskyCT gives such a link no address, but its row carries the item's
+  id, and Blackboard launches the tool from an address built on it — the one
+  HuskyCT opens when the link is pressed. The helper sends that address, and
+  the Materials page and the saved links page both use it; you only need to be
+  signed in to HuskyCT. The group is now called **Tools**. ([#70])
+- **Kaltura videos are videos.** A Kaltura video posted as an LTI link — MATH
+  1070Q's "Problem Solving Tips" — was listed as a tool; the link names the
+  tool it launches, so these now go with the videos, and open in Kaltura's
+  player. ([#71])
+
+### Security
+
+- **A tool can link only to its launch.** The Materials page keeps a tool's
+  address only when it is Blackboard's launch address on `lms.uconn.edu` or
+  `huskyct.uconn.edu`, with well-formed ids; any other address is dropped and
+  the tool links to its course, as it did before. ([#70])
+
+### Notes
+
+- **Send again to pick it up.** Tools already in the app, or in a folder saved
+  by an older helper, keep linking to their course until "Collect course
+  materials" and **Send to BetterHuskyCT** are pressed again.
+
 ## [1.10.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.10.0) — Course materials, and dark
 
 *Minor: new capabilities — every course's files, videos and links in the app, delivered by HuskyCT Helper 1.2.0; and a dark theme.*
@@ -1074,6 +1105,8 @@ saying what to work on next.*
 [#66]: https://github.com/NoGod3524/betterhuskyct/pull/66
 [#67]: https://github.com/NoGod3524/betterhuskyct/pull/67
 [#68]: https://github.com/NoGod3524/betterhuskyct/pull/68
+[#70]: https://github.com/NoGod3524/betterhuskyct/pull/70
+[#71]: https://github.com/NoGod3524/betterhuskyct/pull/71
 
 
 
