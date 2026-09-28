@@ -12,6 +12,7 @@ import {
   groupByFolder,
   huskyctCourseUrl,
   importMaterialsFolder,
+  isToolLaunchUrl,
   memoryMaterialsStore,
   mergeMaterialsIndex,
   parseLinksPage,
@@ -53,6 +54,8 @@ function index(files: string[], code = "MATH 1070Q", id = "_203765_1"): Material
 
 const message = (body: Record<string, unknown>) => ({ protocol: MATERIALS_PROTOCOL, ...body });
 
+const LAUNCH_URL = "https://lms.uconn.edu/webapps/blackboard/execute/blti/launchLink?course_id=_203765_1&content_id=_14380170_1&from_ultra=true";
+
 // --- what is accepted ---------------------------------------------------------------
 
 test("each of the four messages is read when it is exactly right", () => {
@@ -82,6 +85,29 @@ test("anything else from another page is dropped whole", () => {
     message({ kind: "done", complete: "yes" }),
   ];
   for (const data of bad) assert.equal(parseMaterialsMessage(data), null, JSON.stringify(data).slice(0, 80));
+});
+
+test("a tool keeps only HuskyCT's launch address; any other address is dropped", () => {
+  const withTools = (tools: unknown[]) =>
+    parseMaterialsMessage(message({ kind: "index", sending: 0, index: { ...index([]), courses: [{ ...index([]).courses[0], tools }] } }));
+  const read = withTools([
+    { path: [], title: "Launch", url: LAUNCH_URL },
+    { path: [], title: "Elsewhere", url: "https://evil.example/webapps/blackboard/execute/blti/launchLink?course_id=_1_1&content_id=_2_1" },
+    { path: [], title: "Script", url: "javascript:alert(1)" },
+    { path: [], title: "Other page", url: "https://lms.uconn.edu/ultra/stream" },
+    { path: [], title: "None" },
+  ]);
+  assert.equal(read?.kind, "index");
+  const tools = read?.kind === "index" ? read.index.courses[0].tools : [];
+  assert.deepEqual(tools, [
+    { path: [], title: "Launch", url: LAUNCH_URL },
+    { path: [], title: "Elsewhere" },
+    { path: [], title: "Script" },
+    { path: [], title: "Other page" },
+    { path: [], title: "None" },
+  ]);
+  assert.ok(isToolLaunchUrl(LAUNCH_URL));
+  assert.ok(!isToolLaunchUrl(LAUNCH_URL.replace("_14380170_1", "x")));
 });
 
 // --- receiving -------------------------------------------------------------------------
@@ -195,7 +221,9 @@ function parseHtml(html: string) {
 const LINKS_PAGE =
   `<ul><li data-course="MATH 1070Q" data-course-id="_203765_1" data-kind="video" data-path='["Week 1 - Section 4.1"]'>` +
   `<a href="https://www.youtube.com/embed/mcpGpSSYq8E">Section 4.1 - Lecture</a></li>` +
-  `<li data-course="MATH 1070Q" data-course-id="_203765_1" data-kind="tool" data-path="[]"><a href="https://lms.uconn.edu/ultra/courses/_203765_1/outline">Cengage WebAssign</a></li>` +
+  `<li data-course="MATH 1070Q" data-course-id="_203765_1" data-kind="tool" data-path="[]"><a href="https://lms.uconn.edu/webapps/blackboard/execute/blti/launchLink?course_id=_203765_1&amp;content_id=_14380170_1&amp;from_ultra=true">Cengage WebAssign</a></li>` +
+  // Saved by a helper before 1.2.1: the tool links to its course page.
+  `<li data-course="MATH 1070Q" data-course-id="_203765_1" data-kind="tool" data-path="[]"><a href="https://lms.uconn.edu/ultra/courses/_203765_1/outline">Old tool</a></li>` +
   `<li data-course="MATH 1070Q" data-course-id="_203765_1" data-kind="link" data-path="[]"><a href="javascript:alert(1)">Bad</a></li></ul>`;
 
 test("the folder the helper saved into is imported, picked at the level above the term too", async () => {
@@ -223,7 +251,13 @@ test("the folder the helper saved into is imported, picked at the level above th
   ]);
   // The links page brought the videos and tools, and the course's HuskyCT id.
   assert.deepEqual(math.links.map((link) => link.kind), ["video"], "a javascript: link was imported");
-  assert.deepEqual(math.tools.map((tool) => tool.title), ["Cengage WebAssign"]);
+  assert.deepEqual(
+    math.tools.map((tool) => [tool.title, tool.url ?? null]),
+    [
+      ["Cengage WebAssign", LAUNCH_URL],
+      ["Old tool", null],
+    ],
+  );
   assert.equal(huskyctCourseUrl(math), "https://lms.uconn.edu/ultra/courses/_203765_1/outline");
 
   const pptx = (await store.files()).find((f) => f.name.endsWith(".pptx"))!;

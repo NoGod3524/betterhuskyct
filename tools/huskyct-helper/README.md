@@ -202,7 +202,10 @@ Then:
   what is new. This needs Edge or Chrome; elsewhere the button offers **one ZIP**
   with the same folders instead.
 - The folder also gets a **links and videos** page — every video, link and tool
-  by course and folder — marked up so the Materials page can read it back.
+  by course and folder — marked up so the Materials page can read it back. An
+  LTI tool (WebAssign, MyLab, Kaltura…) links straight to its launch, so it
+  opens without going through the course page; you only need to be signed in
+  to HuskyCT.
 Assignments, quizzes, tests and discussions are work rather than material; they
 are counted and left alone.
 
@@ -220,6 +223,12 @@ What was measured on 2026-09-27, and what it decided:
   is the file's kind — a CSV reads "Text Document" — while the address says
   `/file/`, `/document/`, `/assessment/`, `/discussion/`, `#` for a tool, or a
   link out.
+- **A tool's launch address can be built from the page** (measured
+  2026-09-28). An LTI link's anchor is `href="#"`, but its row carries the
+  item's id as `data-content-id`, and pressing it opens
+  `/webapps/blackboard/execute/blti/launchLink?course_id=…&content_id=…&from_ultra=true`
+  in a new window. Opened on its own later, that address went straight to
+  WebAssign, MyLab and Kaltura.
 - **A file's real address is already on the page.** Its row carries a hidden
   anchor with `/bbcswebdav/...`, keyed by the item's id, so no file has to be
   opened to be found.

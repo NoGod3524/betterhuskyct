@@ -38,8 +38,12 @@ export type MaterialFileRef = {
 
 export type MaterialLink = { path: string[]; title: string; url: string; kind: "video" | "link" };
 
-/** Something that only opens from HuskyCT: an LTI tool, a publisher's homework. */
-export type MaterialTool = { path: string[]; title: string };
+/**
+ * Something that only opens from HuskyCT: an LTI tool, a publisher's homework.
+ * `url` is HuskyCT's launch address for it, when the helper could read one;
+ * without it the tool links to its course's content page.
+ */
+export type MaterialTool = { path: string[]; title: string; url?: string };
 
 export type MaterialsCourse = {
   /** HuskyCT's course id when known, so a tool can link back to its course. */
@@ -107,6 +111,27 @@ function isWebUrl(value: unknown): value is string {
   }
 }
 
+const TOOL_LAUNCH_PATH = "/webapps/blackboard/execute/blti/launchLink";
+
+/**
+ * Blackboard's launch address for an LTI tool on HuskyCT — the one address a
+ * tool may carry, so a tool never becomes a link to somewhere else.
+ */
+export function isToolLaunchUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 2000) return false;
+  try {
+    const url = new URL(value);
+    return (
+      HUSKYCT_ORIGINS.has(url.origin) &&
+      url.pathname === TOOL_LAUNCH_PATH &&
+      /^_\d+_\d+$/.test(url.searchParams.get("course_id") ?? "") &&
+      /^_\d+_\d+$/.test(url.searchParams.get("content_id") ?? "")
+    );
+  } catch {
+    return false;
+  }
+}
+
 function list<T>(value: unknown, read: (item: unknown) => T | null): T[] | null {
   if (!Array.isArray(value) || value.length > MAX_ITEMS_PER_COURSE) return null;
   const items: T[] = [];
@@ -141,7 +166,8 @@ function readCourse(value: unknown): MaterialsCourse | null {
     if (!isRecord(item)) return null;
     const title = text(item.title);
     const at = path(item.path);
-    return title && at ? { path: at, title } : null;
+    if (!title || !at) return null;
+    return item.url !== undefined && isToolLaunchUrl(item.url) ? { path: at, title, url: item.url } : { path: at, title };
   });
   if (!files || !links || !tools) return null;
   return { id, code, files, links, tools };
@@ -479,7 +505,7 @@ export function parseLinksPage(html: string, parse: (html: string) => Document):
       at = [];
     }
     const entry = (byCourse[code] ??= { id: item.getAttribute("data-course-id"), links: [], tools: [] });
-    if (kind === "tool") entry.tools.push({ path: at, title });
+    if (kind === "tool") entry.tools.push(isToolLaunchUrl(url) ? { path: at, title, url } : { path: at, title });
     else if ((kind === "video" || kind === "link") && isWebUrl(url)) entry.links.push({ path: at, title, url, kind });
   }
   return byCourse;

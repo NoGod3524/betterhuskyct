@@ -33,7 +33,7 @@ type Manifest = {
     code: string | null;
     files: Array<{ path: string[]; title: string; url: string }>;
     links: Link[];
-    tools: Array<{ path: string[]; title: string; type: string }>;
+    tools: Array<{ path: string[]; title: string; type: string; url?: string }>;
     activities: number;
     skipped: boolean;
   }>;
@@ -105,11 +105,13 @@ const loadMore = (enabled: boolean) =>
   `<button data-analytics-id="${LOAD_MORE}"${enabled ? "" : " disabled"}>${enabled ? "Load 10 more content items" : "No more content items to load"}</button>`;
 
 const DOCUMENT_ID = "_14409752_1";
+const WEBASSIGN = `https://lms.uconn.edu/webapps/blackboard/execute/blti/launchLink?course_id=${MATH}&content_id=_14380170_1&from_ultra=true`;
 
 function mathOutline() {
   return (
     `<div class="courseTitle-x">MATH-1070Q-Mathematics for Business and Economics-SEC100-1268</div>` +
-    item("LTI Link", "Cengage WebAssign", "#") +
+    // An LTI link's anchor goes nowhere; its row carries the item's id.
+    `<div data-content-id="_14380170_1">${item("LTI Link", "Cengage WebAssign", "#")}</div>` +
     item(
       "Text Document",
       "Course Information and Syllabus",
@@ -339,7 +341,7 @@ test("every course's files, links, videos and tools are found, folders and docum
     ],
   );
   assert.ok(!JSON.stringify(math.links).includes("uconn.edu"), "a safe-links wrapper, and the email in it, survived");
-  assert.deepEqual(math.tools.map((tool) => tool.title), ["Cengage WebAssign"]);
+  assert.deepEqual(math.tools.map((tool) => [tool.title, tool.url]), [["Cengage WebAssign", WEBASSIGN]]);
   assert.equal(math.activities, 1, "the practice test was not counted as work");
 
   const econ = manifest.courses[1];
@@ -422,7 +424,7 @@ test("the links page lists videos, links and tools by course, with no email in i
 
   assert.ok(html.includes("https://www.youtube.com/embed/mcpGpSSYq8E"));
   assert.ok(html.includes("https://sites.pitt.edu/white.html"));
-  assert.ok(html.includes(`/ultra/courses/${MATH}/outline`), "a tool does not lead back to its course");
+  assert.ok(html.includes(WEBASSIGN.replaceAll("&", "&amp;")), "an LTI tool does not launch from the page");
   assert.ok(html.indexOf("MATH 1070Q") < html.indexOf("ECON 1201"));
   assert.ok(!/bxi25003|%40uconn/.test(html), "the student's email address is in the file");
 });
@@ -529,6 +531,33 @@ test("a file row with no download address is counted, so the panel can say so", 
   assert.ok(window);
 });
 
+test("only an LTI link whose row carries its id gets a launch address", () => {
+  const { helper } = openPage();
+  const page = new Window({ url: "https://lms.uconn.edu/ultra/courses/_1_1/outline" });
+  windows.push(page);
+  page.document.body.innerHTML =
+    `<div data-content-id="_7_1">${item("LTI Link", "Launched", "#")}</div>` +
+    // No id on the row: HuskyCT changed, so the course page it is.
+    item("LTI Link", "No id", "#") +
+    // Not an LTI link: its launch address would be an error page.
+    `<div data-content-id="_8_1">${item("Tool", "Other", "#")}</div>` +
+    `<div data-content-id="not-an-id">${item("LTI Link", "Bad id", "#")}</div>`;
+
+  const found = plain(helper.classifyOutline(page.document, "_1_1")) as unknown as {
+    tools: Array<{ title: string; url?: string }>;
+  };
+
+  assert.deepEqual(
+    found.tools.map((tool) => [tool.title, tool.url ?? null]),
+    [
+      ["Launched", "https://lms.uconn.edu/webapps/blackboard/execute/blti/launchLink?course_id=_1_1&content_id=_7_1&from_ultra=true"],
+      ["No id", null],
+      ["Other", null],
+      ["Bad id", null],
+    ],
+  );
+});
+
 // --- into BetterHuskyCT ------------------------------------------------------------------
 
 /**
@@ -573,6 +602,8 @@ test("sent to BetterHuskyCT: every file stored there, then only what is new", as
   assert.deepEqual(index?.courses.map((course) => course.code), ["ECON 1201", "MATH 1070Q"]);
   const syllabus = (await app.store.files()).find((file) => file.name === "Syllabus Fall 2026.pdf");
   assert.ok(syllabus, "the document's attachment did not arrive");
+  const math = index?.courses.find((course) => course.code === "MATH 1070Q");
+  assert.deepEqual(math?.tools.map((tool) => tool.url), [WEBASSIGN], "the tool's launch address was lost");
   // Named as the file store names it when the title has no extension.
   assert.ok((await app.store.files()).some((file) => /^MINITAB Data \d+\.csv$/.test(file.name)));
 
@@ -624,7 +655,7 @@ test("the saved links page reads back into the app with its courses, kinds and f
   assert.deepEqual(Object.keys(links).sort(), ["ECON 1201", "MATH 1070Q"]);
   assert.equal(links["MATH 1070Q"].id, "_203765_1");
   assert.deepEqual(links["MATH 1070Q"].links.map((link) => link.kind).sort(), ["link", "link", "video"]);
-  assert.deepEqual(links["MATH 1070Q"].tools.map((tool) => tool.title), ["Cengage WebAssign"]);
+  assert.deepEqual(plain(links["MATH 1070Q"].tools), [{ path: [], title: "Cengage WebAssign", url: WEBASSIGN }]);
   const white = links["MATH 1070Q"].links.find((link) => /white/.test(link.url));
   assert.deepEqual(white?.path, ["Problem-Solving Tips Blank Notes"]);
 });
