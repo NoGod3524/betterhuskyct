@@ -193,7 +193,7 @@ export function GradesSection({ openStore = openGradesStore }: { openStore?: () 
                           className={`shrink-0 text-[var(--c-6b7f94)] transition-transform ${restOpen ? "rotate-90" : ""}`}
                           aria-hidden
                         />
-                        {t(locale, "grades.notGraded", { count: rest.length })}
+                        {t(locale, "grades.noScore", { count: rest.length })}
                       </button>
                       {restOpen ? (
                         <ul className="mt-1 divide-y divide-[var(--c-eef2f6)]">
