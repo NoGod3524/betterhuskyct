@@ -686,7 +686,7 @@ test("every panel button has a handler, and the labels match", () => {
   }
   assert.deepEqual(
     [...new Set(actions)].sort(),
-    ["collectall", "emptybasket", "materials", "savefiles", "sendmaterials", "todos"],
+    ["collectall", "emptybasket", "grades", "materials", "savefiles", "sendgrades", "sendmaterials", "todos"],
   );
 });
 
@@ -935,14 +935,15 @@ test("the panel leads with the guidance and Collect everything", () => {
   assert.ok(collectAt !== -1 && todosAt !== -1 && materialsAt !== -1, "the panel lost a button");
   assert.ok(collectAt < todosAt && todosAt < materialsAt, "the panel's actions are out of order");
   assert.match(panel, /class="act primary" data-act="collectall"/, "Collect everything is not the primary button");
-  // Two primaries in the markup, one of them hidden until materials are
-  // collected: only one ever shows before then.
+  // Three primaries in the markup, two of them hidden until materials or
+  // grades are collected: only one ever shows before then.
   const primaries = [...panel.matchAll(/class="act primary" data-act="([a-z]+)"( hidden)?/g)];
   assert.deepEqual(
     primaries.map((match) => [match[1], Boolean(match[2])]),
     [
       ["collectall", false],
       ["sendmaterials", true],
+      ["sendgrades", true],
     ],
   );
 });

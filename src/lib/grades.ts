@@ -208,10 +208,12 @@ export function memoryGradesStore(): GradesStore {
   };
 }
 
-/** A course is the same course by its code when it has one, else by its id. */
-function courseKey(course: GradesCourse): string {
-  return course.code ? "code:" + course.code.toUpperCase() : "id:" + course.id;
-}
+/**
+ * Courses are told apart by HuskyCT's id, which the helper always sends. Not by
+ * code: a term can hold two courses with one code (a lecture and its lab both
+ * read "STAT 1000Q"), and a reading of one must not replace the other.
+ */
+const courseKey = (course: GradesCourse) => course.id;
 
 /**
  * A newer reading's courses replace the same courses in the stored one;
@@ -225,7 +227,9 @@ export function mergeGrades(current: GradesSnapshot | null, incoming: GradesSnap
     version: 1,
     term: incoming.term ?? current?.term ?? null,
     takenAt: incoming.takenAt,
-    courses: [...incoming.courses, ...kept].sort((a, b) => (a.code ?? a.id).localeCompare(b.code ?? b.id)),
+    courses: [...incoming.courses, ...kept].sort(
+      (a, b) => (a.code ?? a.id).localeCompare(b.code ?? b.id) || a.id.localeCompare(b.id),
+    ),
   };
 }
 

@@ -1,7 +1,7 @@
 # HuskyCT Helper
 
-A userscript that runs inside your own HuskyCT session and does two things, each
-in one press:
+A userscript that runs inside your own HuskyCT session and does three things,
+each in one press:
 
 1. **Collect everything** — your deadlines for the whole term and every course's
    announcements — then **send** the lot to BetterHuskyCT. No file to download,
@@ -9,6 +9,8 @@ in one press:
 2. **Collect course materials** — every course's files, lecture videos, links and
    tools — then save the files into a folder you pick, sorted by course, and the
    links on one page.
+3. **Collect grades** — every course's gradebook, all its pages — then **send**
+   them to BetterHuskyCT's Grades page.
 
 > **HuskyCT is Blackboard Ultra at `lms.uconn.edu`.** The script also matches
 > `huskyct.uconn.edu` in case that hostname still redirects, but `lms.uconn.edu`
@@ -248,9 +250,41 @@ What was measured on 2026-09-27, and what it decided:
   address never lands in a file on the desktop.
 - Course materials are for your own use. Keep them that way.
 
+## Grades
+
+**Collect grades** opens each current course's gradebook, turns every page of
+it, and lists what it found: *"Found 47 gradebook items, 19 with a score, in 4
+courses."* Then **Send grades to BetterHuskyCT** opens the Grades page and hands
+them over tab to tab, the way materials go: kept in that browser, never through
+a server. Each item is its title, the line under it ("1 attempt submitted (1
+Late)"), and a score out of some points — or what HuskyCT shows instead, such
+as "Not graded".
+
+A course whose gradebook did not open, or did not open to its last page, is left
+out of the send and named in the self-check, so a half-read gradebook never
+replaces a whole one BetterHuskyCT already has.
+
+What was measured on 2026-09-28 across four courses, and what it decided:
+
+- **A row is `[data-grade-id]`.** It holds the item's link, an optional line
+  under it (`[data-testid="item-description"]`), and either a score — `105/100`,
+  in three spans beside a spoken "Final Grade: …" — or the words "Not graded".
+  The spoken text is in the page's language, so the score is read from the three
+  spans.
+- **Twenty-five rows to a page**, with Previous and Next buttons. A fresh route
+  lands on page 1, where Previous is disabled; on the last page Next is. The
+  walk clicks Next until it is disabled, waiting each time for rows it has not
+  seen. Ids are unique across courses, so a page still on screen under the new
+  address is never read as the next course.
+- **A course with no work shows a picture, not rows.** It sits inside a wrapper
+  that exists only once the grades have loaded, so an empty course can be told
+  from a page still loading without reading any English.
+- **Some courses show no overall grade.** None is read; BetterHuskyCT adds up
+  the graded rows and says that is not the course grade.
+
 ## When something does not work: the self-check
 
-Both walks depend on how HuskyCT draws its pages, and Blackboard changes that
+The walks depend on how HuskyCT draws its pages, and Blackboard changes that
 with its releases. A step that finds nothing where there should be something is
 named on the panel, in a line starting **Self-check:** —
 
@@ -260,7 +294,8 @@ named on the panel, in a line starting **Self-check:** —
   read);
 - a course's content, or some of its documents, did not open;
 - files were listed with no download address;
-- no course showed any content at all.
+- no course showed any content at all;
+- a course's gradebook did not open, or not to its last page.
 
 Most of these mean HuskyCT changed. The line is written to be passed on as it
 is, with the version the panel shows.

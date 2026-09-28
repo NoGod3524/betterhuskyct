@@ -89,13 +89,13 @@ test("each course shows its points so far, and what they are not", async () => {
   await view.unmount();
 });
 
-test("work not graded yet stays folded until asked for", async () => {
+test("rows without a score stay folded until asked for", async () => {
   const view = await render(await seeded());
 
-  assert.ok(view.text().includes(t("en", "grades.notGraded", { count: 1 })));
+  assert.ok(view.text().includes(t("en", "grades.noScore", { count: 1 })));
   assert.ok(!view.text().includes("Section 5.3 Homework"), "an ungraded row showed before it was opened");
 
-  await view.click(t("en", "grades.notGraded", { count: 1 }));
+  await view.click(t("en", "grades.noScore", { count: 1 }));
 
   assert.ok(view.text().includes("Section 5.3 Homework"));
   assert.ok(view.text().includes("Not graded"));

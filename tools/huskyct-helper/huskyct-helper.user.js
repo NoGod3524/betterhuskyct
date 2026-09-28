@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.2.2
+// @version      1.3.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.2.2";
+  const VERSION = "1.3.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -130,6 +130,16 @@
         "Found {files} file(s), {videos} video(s), {links} link(s) and {tools} tool(s) in {courses} course(s).",
       materialsStopped: "Stopped. What was found so far is below.",
       materialsFailed: "Collecting materials stopped with an error: {message}",
+      collectGrades: "Collect grades",
+      gradesCourse: "Reading {course}'s grades ({index} of {total})…",
+      gradesFound: "Found {items} gradebook item(s), {scored} with a score, in {courses} course(s).",
+      gradesStopped: "Stopped. What was found so far is below.",
+      gradesFailed: "Collecting grades stopped with an error: {message}",
+      problemGrades: "these courses' grades did not open completely: {courses}.",
+      sendGrades: "Send grades to BetterHuskyCT ({count} item(s))",
+      gradesSent: "In BetterHuskyCT: grades for {courses} course(s), {items} item(s).",
+      gradesNotStored: "BetterHuskyCT received the grades but could not store them.",
+      gradesNoAnswer: "BetterHuskyCT did not answer. Leave its tab open and press this again.",
       saveFiles: "Save {count} file(s) to a folder…",
       saveFilesZip: "Download {count} file(s) as a ZIP",
       saveLinks: "Save the links and videos",
@@ -205,6 +215,16 @@
       materialsFound: "在 {courses} 门课里找到 {files} 个文件、{videos} 个视频、{links} 个链接、{tools} 个工具。",
       materialsStopped: "已停止。下面是目前找到的内容。",
       materialsFailed: "收集课件时出错停止了：{message}",
+      collectGrades: "收集成绩",
+      gradesCourse: "正在读取 {course} 的成绩（{index}/{total}）……",
+      gradesFound: "在 {courses} 门课里找到 {items} 项成绩册条目，其中 {scored} 项有分数。",
+      gradesStopped: "已停止。下面是目前读到的。",
+      gradesFailed: "收集成绩时出错停止了：{message}",
+      problemGrades: "这些课的成绩没能完整读取：{courses}。",
+      sendGrades: "把成绩发送到 BetterHuskyCT（{count} 项）",
+      gradesSent: "BetterHuskyCT 里：{courses} 门课、{items} 项成绩。",
+      gradesNotStored: "BetterHuskyCT 收到了成绩，但没能保存。",
+      gradesNoAnswer: "BetterHuskyCT 没有响应。让它的标签页开着，再按一次。",
       saveFiles: "把 {count} 个文件保存到文件夹……",
       saveFilesZip: "把 {count} 个文件打包成 ZIP 下载",
       saveLinks: "保存链接与视频清单",
@@ -1136,6 +1156,15 @@
     return [];
   }
 
+  /** The term the courses of a walk belong to, as "Fall 2026" (the earliest, if they differ). */
+  function walkTerm(found) {
+    const terms = found.cards
+      .filter((card) => found.queue.some((course) => course.id === card.id))
+      .map((card) => Number(card.term))
+      .filter(Boolean);
+    return termLabel(terms.length ? Math.min(...terms) : termCodeFor(new Date()));
+  }
+
   /**
    * The whole walk. Writes to the basket as it goes, so stopping halfway keeps
    * what was read.
@@ -1569,13 +1598,9 @@
     try {
       opts.onProgress({ step: "courses" });
       const found = await findCourses(opts);
-      const { cards, queue } = found;
+      const { queue } = found;
       manifest.problems.push(...coursesProblems(found));
-      const terms = cards
-        .filter((card) => queue.some((course) => course.id === card.id))
-        .map((card) => Number(card.term))
-        .filter(Boolean);
-      manifest.term = termLabel(terms.length ? Math.min(...terms) : termCodeFor(new Date()));
+      manifest.term = walkTerm(found);
 
       for (let index = 0; index < queue.length; index++) {
         if (opts.shouldStop()) {
@@ -1653,6 +1678,202 @@
       links: count((course) => course.links.filter((link) => link.kind !== "video").length),
       tools: count((course) => course.tools.length),
     };
+  }
+
+  // --- grades ---------------------------------------------------------------------
+
+  /**
+   * Each course's gradebook rows, and nothing else on the page.
+   *
+   * Measured on 2026-09-28 across four courses:
+   *
+   * - A course's gradebook is `/ultra/courses/<id>/grades`. Each row is a
+   *   `[data-grade-id]` holding the item's link, an optional line under it
+   *   (`[data-testid="item-description"]`), and either a score — `105/100`, in
+   *   three spans, beside a spoken "Final Grade: …" — or the words "Not graded".
+   * - Twenty-five rows to a page, with Previous and Next buttons. A fresh route
+   *   always lands on page 1, where Previous is disabled; on the last page Next is.
+   * - A course with no work shows a picture (`StudentNoGrades`) instead of rows,
+   *   inside a wrapper that exists only once the grades have loaded — so an empty
+   *   course can be told from a page still loading without reading its English.
+   * - Some courses show no overall grade at all, so none is read.
+   */
+  const GRADE_ROWS = "[data-grade-id]";
+  const GRADE_NEXT = '[data-analytics-id="course.student.grade.components.common.pagination.pageUpButton"]';
+  const GRADES_EMPTY = 'img[src*="StudentNoGrades"]';
+  const MAX_GRADE_PAGES = 40;
+  const MAX_GRADE_POINTS = 1000000;
+  const GRADE_SCORE = /^\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*$/;
+
+  /** One gradebook row as { id, title, status, earned, possible, label }, or null if it is not one. */
+  function readGradeRow(row) {
+    const id = row.getAttribute("data-grade-id");
+    if (!/^_\d+_\d+$/.test(String(id))) return null;
+    const link = row.querySelector('a[id^="course-student-grades-item-name-"]');
+    const title = textOf(link);
+    if (!title) return null;
+    const described = row.querySelector('[data-testid="item-description"]');
+    const status = textOf(described);
+    const item = {
+      id,
+      title: title.slice(0, 400),
+      status: status ? status.slice(0, 400) : null,
+      earned: null,
+      possible: null,
+      label: null,
+    };
+
+    for (const span of row.querySelectorAll('span[aria-hidden="true"]')) {
+      const score = GRADE_SCORE.exec(textOf(span));
+      if (!score) continue;
+      const earned = Number(score[1]);
+      const possible = Number(score[2]);
+      if (earned <= MAX_GRADE_POINTS && possible <= MAX_GRADE_POINTS) {
+        item.earned = earned;
+        item.possible = possible;
+        return item;
+      }
+    }
+    // No score: what the row shows instead ("Not graded", a letter, "Exempt").
+    for (const span of row.querySelectorAll("span")) {
+      if (span.children.length || (link && link.contains(span)) || (described && described.contains(span))) continue;
+      const words = textOf(span);
+      if (words) {
+        item.label = words.slice(0, 100);
+        break;
+      }
+    }
+    return item;
+  }
+
+  /** Does the page's title name this course? `MATH-1070Q-…` names `MATH 1070Q`. */
+  function titleNames(code) {
+    if (!code) return true;
+    const squash = (value) => String(value || "").replace(/[-\s]+/g, "").toLowerCase();
+    return squash(document.title).indexOf(squash(code)) !== -1;
+  }
+
+  /** Waits until the number of rows has stopped changing for `settle` ms. */
+  async function rowsSettled(opts) {
+    let count = document.querySelectorAll(GRADE_ROWS).length;
+    let since = Date.now();
+    while (Date.now() - since < opts.settle) {
+      await pause(opts.every);
+      const now = document.querySelectorAll(GRADE_ROWS).length;
+      if (now !== count) {
+        count = now;
+        since = Date.now();
+      }
+    }
+  }
+
+  /**
+   * One course's gradebook, every page of it: { items, complete }, or null if
+   * the page never showed. Only rows the previous page did not have count, so a
+   * page still on screen under the new address is not read as this course; an
+   * empty course is told by its picture, which must also be new.
+   */
+  async function readGradesOf(courseId, code, opts) {
+    const path = "/ultra/courses/" + courseId + "/grades";
+    const before = new Set([...document.querySelectorAll(GRADE_ROWS)].map((row) => row.getAttribute("data-grade-id")));
+    const emptyBefore = new Set(document.querySelectorAll(GRADES_EMPTY));
+    routeTo(path);
+    const shown = await waitFor(
+      () => {
+        if (window.location.pathname.indexOf(path) !== 0) return false;
+        const rows = [...document.querySelectorAll(GRADE_ROWS)];
+        if (rows.some((row) => !before.has(row.getAttribute("data-grade-id")))) return "rows";
+        const empty = document.querySelector(GRADES_EMPTY);
+        return empty && !emptyBefore.has(empty) && titleNames(code) ? "empty" : false;
+      },
+      opts.every,
+      opts.pageTimeout,
+    );
+    if (!shown) return null;
+    if (shown === "empty") return { items: [], complete: true };
+
+    const items = [];
+    const seen = new Set();
+    for (let pages = 1; ; pages++) {
+      await rowsSettled(opts);
+      const rows = [...document.querySelectorAll(GRADE_ROWS)];
+      for (const row of rows) {
+        const item = readGradeRow(row);
+        if (item && !seen.has(item.id)) {
+          seen.add(item.id);
+          items.push(item);
+        }
+      }
+      const next = document.querySelector(GRADE_NEXT);
+      if (!next || next.disabled) return { items, complete: true };
+      if (pages >= MAX_GRADE_PAGES) return { items, complete: false };
+      const onThisPage = new Set(rows.map((row) => row.getAttribute("data-grade-id")));
+      next.click();
+      const moved = await waitFor(
+        () => [...document.querySelectorAll(GRADE_ROWS)].some((row) => !onThisPage.has(row.getAttribute("data-grade-id"))),
+        opts.every,
+        opts.pageTimeout,
+      );
+      if (!moved) return { items, complete: false };
+    }
+  }
+
+  /**
+   * The walk for grades: each current course's gradebook, all its pages.
+   * A course whose gradebook did not open, or not to the last page, is marked
+   * skipped, so what BetterHuskyCT already holds for it is left as it is.
+   */
+  async function collectGrades(options) {
+    const opts = Object.assign(
+      {
+        every: 300,
+        pageTimeout: 15000,
+        settle: 600,
+        gap: 250,
+        onProgress() {},
+        shouldStop: () => false,
+      },
+      options,
+    );
+    const returnTo = window.location.pathname + window.location.search;
+    const manifest = { term: null, courses: [], stopped: false, problems: [] };
+
+    try {
+      opts.onProgress({ step: "courses" });
+      const found = await findCourses(opts);
+      const { queue } = found;
+      manifest.problems.push(...coursesProblems(found));
+      manifest.term = walkTerm(found);
+
+      for (let index = 0; index < queue.length; index++) {
+        if (opts.shouldStop()) {
+          manifest.stopped = true;
+          break;
+        }
+        const course = queue[index];
+        opts.onProgress({ step: "grades", course, index: index + 1, total: queue.length });
+        const read = await readGradesOf(course.id, course.code, opts);
+        manifest.courses.push({
+          id: course.id,
+          code: course.code,
+          items: read ? read.items : [],
+          skipped: !read || !read.complete,
+        });
+        await pause(opts.gap);
+      }
+    } finally {
+      routeTo(returnTo);
+    }
+
+    const skipped = manifest.courses.filter((course) => course.skipped).map((course) => course.code || course.id);
+    if (skipped.length) manifest.problems.push({ key: "problemGrades", params: { courses: skipped.join(", ") } });
+    return manifest;
+  }
+
+  function gradesSummary(manifest) {
+    const courses = manifest.courses.filter((course) => !course.skipped);
+    const all = courses.reduce((list, course) => list.concat(course.items), []);
+    return { courses: courses.length, items: all.length, scored: all.filter((item) => item.earned !== null).length };
   }
 
   /** A name Windows, macOS and Linux will all take for a file or folder. */
@@ -1993,7 +2214,7 @@
   }
 
   /** The next message of `kind` from the app, or null after `timeout`. */
-  function nextFromApp(kind, key, timeout) {
+  function nextFromApp(kind, key, timeout, protocol = MATERIALS_PROTOCOL) {
     const origin = bhcOrigin();
     return new Promise((resolve) => {
       const finish = (value) => {
@@ -2004,7 +2225,7 @@
       const listen = (event) => {
         if (event.origin !== origin) return;
         const data = event.data;
-        if (!data || data.protocol !== MATERIALS_PROTOCOL || data.kind !== kind) return;
+        if (!data || data.protocol !== protocol || data.kind !== kind) return;
         if (key && data.key !== key) return;
         finish(data);
       };
@@ -2066,6 +2287,56 @@
       }
     }
     post({ kind: "done", complete: !manifest.stopped && !options.shouldStop() && result.failed === 0 });
+    return result;
+  }
+
+  /**
+   * The gradebooks in the shape the app's Grades page reads. Courses that did
+   * not open completely are left out, so a half-read gradebook never replaces
+   * a whole one the app already has.
+   */
+  const GRADES_PROTOCOL = "betterhuskyct/grades@1";
+
+  function gradesSnapshotFrom(manifest) {
+    return {
+      version: 1,
+      term: manifest.term || null,
+      takenAt: new Date().toISOString(),
+      courses: manifest.courses
+        .filter((course) => !course.skipped)
+        .map((course) => ({ id: course.id, code: course.code || null, items: course.items.slice(0, 1000) })),
+    };
+  }
+
+  /** Hello until the app answers, then the gradebooks, then wait to hear they were kept. */
+  async function sendGradesToBhc(target, manifest, opts) {
+    const options = Object.assign({ helloEvery: 500, connectTimeout: 30000, storedTimeout: 30000 }, opts);
+    const origin = bhcOrigin();
+    const post = (message) => target.postMessage(Object.assign({ protocol: GRADES_PROTOCOL }, message), origin);
+    const result = { connected: false, stored: false, courses: 0, items: 0 };
+
+    const ready = nextFromApp("ready", null, options.connectTimeout, GRADES_PROTOCOL);
+    const hello = () => {
+      try {
+        post({ kind: "hello" });
+      } catch {
+        /* not there yet */
+      }
+    };
+    hello();
+    const greeting = window.setInterval(hello, options.helloEvery);
+    const answer = await ready;
+    window.clearInterval(greeting);
+    if (!answer) return result;
+    result.connected = true;
+
+    const grades = gradesSnapshotFrom(manifest);
+    const stored = nextFromApp("stored", null, options.storedTimeout, GRADES_PROTOCOL);
+    post({ kind: "grades", grades });
+    const ack = await stored;
+    result.stored = Boolean(ack && ack.ok);
+    result.courses = grades.courses.length;
+    result.items = grades.courses.reduce((total, course) => total + course.items.length, 0);
     return result;
   }
 
@@ -2319,6 +2590,10 @@
         <div class="note" data-role="materials" hidden></div>
         <button class="act primary" data-act="sendmaterials" hidden></button>
         <button class="act" data-act="savefiles" hidden></button>
+        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
+        <button class="act" data-act="grades">${t("collectGrades")}</button>
+        <div class="note" data-role="grades" hidden></div>
+        <button class="act primary" data-act="sendgrades" hidden></button>
         <div class="note" data-role="status">${t("privacy")}</div>
       </div>
     `;
@@ -2384,6 +2659,9 @@
     const materialsLine = wrap.querySelector('[data-role="materials"]');
     const saveFilesButton = wrap.querySelector('[data-act="savefiles"]');
     const sendMaterialsButton = wrap.querySelector('[data-act="sendmaterials"]');
+    const gradesButton = wrap.querySelector('[data-act="grades"]');
+    const gradesLine = wrap.querySelector('[data-role="grades"]');
+    const sendGradesButton = wrap.querySelector('[data-act="sendgrades"]');
     // The walk in progress, if any — `kind` says which button started it, and
     // that button becomes its Stop. The timer's own capture stands aside while
     // it runs: the walk reads each page itself, and knows when a page is really
@@ -2391,6 +2669,8 @@
     let walk = null;
     // The last materials walk, kept for the save buttons.
     let materials = null;
+    // The last grades walk, kept for the send button.
+    let grades = null;
     // The basket in memory, re-read from storage on every tick so two HuskyCT
     // tabs collecting at once do not overwrite each other's courses.
     let basket = readBasket(window.localStorage);
@@ -2434,15 +2714,16 @@
       const ready = !walk && (summary.deadlines > 0 || summary.announcements > 0);
       const basketWalk = Boolean(walk && walk.kind === "basket");
       const materialsWalk = Boolean(walk && walk.kind === "materials");
+      const gradesWalk = Boolean(walk && walk.kind === "grades");
       collectButton.textContent = basketWalk ? t("stopCollecting") : t("collectAll");
-      collectButton.disabled = materialsWalk;
+      collectButton.disabled = materialsWalk || gradesWalk;
       collectButton.classList.toggle("primary", !ready);
       sendButton.classList.toggle("primary", ready);
       sendButton.disabled = Boolean(walk);
       emptyBasketButton.disabled = Boolean(walk);
 
       materialsButton.textContent = materialsWalk ? t("stopCollecting") : t("collectMaterials");
-      materialsButton.disabled = basketWalk;
+      materialsButton.disabled = basketWalk || gradesWalk;
       const found = materials ? materialsSummary(materials) : null;
       const canSaveFolder = typeof window.showDirectoryPicker === "function";
       saveFilesButton.hidden = !found || found.files === 0;
@@ -2453,6 +2734,13 @@
       sendMaterialsButton.hidden = !found || found.files + found.videos + found.links + found.tools === 0;
       sendMaterialsButton.disabled = Boolean(walk);
       sendMaterialsButton.textContent = found ? t("sendMaterials", { count: found.files }) : "";
+
+      gradesButton.textContent = gradesWalk ? t("stopCollecting") : t("collectGrades");
+      gradesButton.disabled = basketWalk || materialsWalk;
+      const gradesFound = grades ? gradesSummary(grades) : null;
+      sendGradesButton.hidden = !gradesFound || gradesFound.items === 0;
+      sendGradesButton.disabled = Boolean(walk);
+      sendGradesButton.textContent = gradesFound ? t("sendGrades", { count: gradesFound.items }) : "";
     }
 
     /**
@@ -2700,6 +2988,78 @@
         return;
       }
 
+      if (act === "grades") {
+        if (walk) {
+          walk.stop = true;
+          button.disabled = true;
+          return;
+        }
+        walk = { stop: false, kind: "grades" };
+        refreshBasket();
+        gradesLine.hidden = false;
+        gradesLine.className = "note";
+        try {
+          const manifest = await collectGrades({
+            shouldStop: () => walk.stop,
+            onProgress(progress) {
+              gradesLine.textContent =
+                progress.step === "courses"
+                  ? t("materialsCourses")
+                  : t("gradesCourse", {
+                      course: progress.course.code || progress.course.id,
+                      index: progress.index,
+                      total: progress.total,
+                    });
+            },
+          });
+          grades = manifest;
+          const selfCheck = problemsText(manifest.problems);
+          gradesLine.className = selfCheck ? "note warn" : "note ok";
+          gradesLine.textContent =
+            (manifest.stopped ? t("gradesStopped") + " " : "") +
+            t("gradesFound", gradesSummary(manifest)) +
+            (selfCheck ? " " + selfCheck : "");
+        } catch (error) {
+          gradesLine.className = "note warn";
+          gradesLine.textContent = t("gradesFailed", { message: error.message });
+        } finally {
+          walk = null;
+          button.disabled = false;
+          refreshBasket();
+          refreshGuidance();
+        }
+        return;
+      }
+
+      if (act === "sendgrades") {
+        if (!grades || walk) return;
+        // Opened here, on the click, before anything is awaited: a tab opened
+        // later is a popup the browser blocks.
+        const target = window.open(HUSKYPILOT_URL + "grades", "betterhuskyct");
+        if (!target) {
+          gradesLine.className = "note warn";
+          gradesLine.textContent = t("popupBlocked");
+          return;
+        }
+        walk = { stop: false, kind: "send" };
+        refreshBasket();
+        gradesLine.className = "note";
+        gradesLine.textContent = t("connectingBhc");
+        try {
+          const result = await sendGradesToBhc(target, grades);
+          gradesLine.className = result.connected && result.stored ? "note ok" : "note warn";
+          gradesLine.textContent = !result.connected
+            ? t("gradesNoAnswer")
+            : result.stored
+              ? t("gradesSent", result)
+              : t("gradesNotStored");
+        } finally {
+          walk = null;
+          refreshBasket();
+        }
+        return;
+      }
+
       if (act === "emptybasket") {
         basket = emptyBasket();
         writeBasket(window.localStorage, basket);
@@ -2833,6 +3193,12 @@
       readDocument,
       collectMaterials,
       materialsSummary,
+      readGradeRow,
+      collectGrades,
+      gradesSummary,
+      gradesSnapshotFrom,
+      GRADES_PROTOCOL,
+      sendGradesToBhc,
       problemsText,
       DOCUMENTS_KEY,
       termLabel,

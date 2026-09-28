@@ -140,6 +140,20 @@ test("a newer reading replaces its own courses and keeps the rest", () => {
   assert.equal(mergeGrades(null, newer).courses.length, 1);
 });
 
+test("two courses with one code are two courses, and a reading of one keeps the other", () => {
+  const lecture = { id: "_201693_1", code: "STAT 1000Q", items: [scored("_1_1", "Quiz 1", 8, 10)] };
+  const lab = { id: "_201694_1", code: "STAT 1000Q", items: [scored("_2_1", "Lab 1", 5, 5)] };
+  const before: GradesSnapshot = { ...snapshot(), courses: [lecture, lab] };
+  const newer: GradesSnapshot = { ...snapshot(), takenAt: "2026-09-29T09:00:00.000Z", courses: [{ ...lecture, items: [scored("_1_1", "Quiz 1", 9, 10)] }] };
+
+  const merged = mergeGrades(before, newer);
+
+  assert.deepEqual(merged.courses.map((course) => [course.id, course.items[0].earned]), [
+    ["_201693_1", 9],
+    ["_201694_1", 5],
+  ]);
+});
+
 // --- receiving ----------------------------------------------------------------------------
 
 function helperWindow() {
