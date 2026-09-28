@@ -43,12 +43,35 @@ export type GradesCourse = {
   items: GradeItem[];
 };
 
+/**
+ * A score that is new or different since the last time the student looked.
+ *
+ * Only scores: an assignment that merely appears in the gradebook is not news
+ * until it has a grade. `from` is what the student last saw (null if it had no
+ * score, or did not exist), and it stays the same across readings until they
+ * mark the change seen, so "was 80" means 80 the last time they knew.
+ */
+export type GradeChange = {
+  courseId: string;
+  itemId: string;
+  /** "graded": had no score. "changed": had another. "new": did not exist. */
+  kind: "graded" | "changed" | "new";
+  from: { earned: number; possible: number } | null;
+  /** The reading that first showed it. */
+  at: string;
+};
+
 export type GradesSnapshot = {
   version: 1;
   term: string | null;
   /** When the helper read the gradebooks. */
   takenAt: string;
   courses: GradesCourse[];
+  /**
+   * What changed, kept until seen. The helper never sends this: it is worked
+   * out here from two readings, and a message that carries it has it dropped.
+   */
+  changes?: GradeChange[];
 };
 
 export type IncomingGradesMessage = { kind: "hello" } | { kind: "grades"; grades: GradesSnapshot };
@@ -118,6 +141,42 @@ export function parseGradesSnapshot(value: unknown): GradesSnapshot | null {
   const takenAt = text(value.takenAt, 40);
   if (!takenAt || Number.isNaN(Date.parse(takenAt))) return null;
   return { version: 1, term, takenAt, courses };
+}
+
+const MAX_CHANGES = 500;
+
+function readChange(value: unknown): GradeChange | null {
+  if (!isRecord(value) || !isHuskyctId(value.itemId)) return null;
+  const courseId = text(value.courseId, 100);
+  const at = text(value.at, 40);
+  if (!courseId || !at || Number.isNaN(Date.parse(at))) return null;
+  if (value.kind !== "graded" && value.kind !== "changed" && value.kind !== "new") return null;
+  let from: GradeChange["from"] = null;
+  if (value.from !== null) {
+    if (!isRecord(value.from)) return null;
+    const earned = points(value.from.earned);
+    const possible = points(value.from.possible);
+    if (earned === null || possible === null) return null;
+    from = { earned, possible };
+  }
+  // "graded" and "new" had no score to remember; "changed" had one.
+  if ((value.kind === "changed") !== (from !== null)) return null;
+  return { courseId, itemId: value.itemId, kind: value.kind, from, at };
+}
+
+/**
+ * The grades as this browser stored them: a reading, plus the changes worked
+ * out when it arrived. Anything that does not fit is dropped, as with a
+ * message; a change that does not fit is dropped alone, not the grades.
+ */
+export function parseStoredGrades(value: unknown): GradesSnapshot | null {
+  const snapshot = parseGradesSnapshot(value);
+  if (!snapshot || !isRecord(value) || !Array.isArray(value.changes)) return snapshot;
+  const changes = value.changes.slice(0, MAX_CHANGES).flatMap((raw) => {
+    const change = readChange(raw);
+    return change ? [change] : [];
+  });
+  return changes.length ? { ...snapshot, changes } : snapshot;
 }
 
 /** A message from the helper, or null. Anything but exactly one of the two kinds is ignored. */
@@ -215,14 +274,89 @@ export function memoryGradesStore(): GradesStore {
  */
 const courseKey = (course: GradesCourse) => course.id;
 
+type Score = { earned: number; possible: number };
+
+const scoreOf = (item: GradeItem | undefined): Score | null =>
+  item && isCounted(item) ? { earned: item.earned, possible: item.possible } : null;
+
+const sameScore = (a: Score | null, b: Score | null) =>
+  a === null || b === null ? a === b : a.earned === b.earned && a.possible === b.possible;
+
+/**
+ * What a reading shows that the stored one did not, item by item, for courses
+ * the student already had. A course seen for the first time is the baseline,
+ * not a wall of "new".
+ */
+function diffCourse(before: GradesCourse, after: GradesCourse, at: string): GradeChange[] {
+  const previous = new Map(before.items.map((item) => [item.id, item]));
+  const changes: GradeChange[] = [];
+  for (const item of after.items) {
+    const now = scoreOf(item);
+    if (!now) continue; // a score going away is not news
+    const was = previous.get(item.id);
+    const from = scoreOf(was);
+    if (sameScore(from, now)) continue;
+    changes.push({
+      courseId: after.id,
+      itemId: item.id,
+      kind: !was ? "new" : from ? "changed" : "graded",
+      from,
+      at,
+    });
+  }
+  return changes;
+}
+
+/**
+ * Changes still worth showing after a reading: those the student has not seen,
+ * for items that still have the score they were flagged for, plus what this
+ * reading added. A change carried over keeps its original `from`, so the
+ * student is told what changed since they last knew, however many readings ago.
+ */
+function carryChanges(current: GradesSnapshot | null, incoming: GradesSnapshot): GradeChange[] {
+  if (!current) return [];
+  const before = new Map(current.courses.map((course) => [course.id, course]));
+  const reached = new Set(incoming.courses.map(courseKey));
+  const fresh = incoming.courses.flatMap((course) => {
+    const old = before.get(course.id);
+    return old ? diffCourse(old, course, incoming.takenAt) : [];
+  });
+  const freshKey = (change: GradeChange) => change.courseId + "\u0000" + change.itemId;
+  const freshByItem = new Map(fresh.map((change) => [freshKey(change), change]));
+
+  const out: GradeChange[] = [];
+  for (const old of current.changes ?? []) {
+    if (!reached.has(old.courseId)) {
+      out.push(old); // this reading did not reach the course: nothing to update
+      continue;
+    }
+    const course = incoming.courses.find((entry) => entry.id === old.courseId);
+    const now = scoreOf(course?.items.find((item) => item.id === old.itemId));
+    if (!now) continue; // the item, or its score, is gone
+    const again = freshByItem.get(freshKey(old));
+    if (again) {
+      // Changed again before it was seen: the delta is from what they last saw.
+      freshByItem.delete(freshKey(old));
+      if (sameScore(old.from, now)) continue; // back where it started
+      out.push({ ...old, kind: old.kind === "new" ? "new" : old.from ? "changed" : "graded", at: incoming.takenAt });
+    } else if (!sameScore(old.from, now) || old.kind === "new") {
+      out.push(old); // still differs from what they saw, and nothing newer
+    }
+  }
+  out.push(...freshByItem.values());
+  return out.sort((a, b) => b.at.localeCompare(a.at)).slice(0, MAX_CHANGES);
+}
+
 /**
  * A newer reading's courses replace the same courses in the stored one;
  * courses it did not reach are kept. A reading stopped halfway never empties
- * the others.
+ * the others. What the reading changes about scores is worked out against the
+ * stored one, and kept until the student marks it seen.
  */
 export function mergeGrades(current: GradesSnapshot | null, incoming: GradesSnapshot): GradesSnapshot {
   const incomingKeys = new Set(incoming.courses.map(courseKey));
   const kept = (current?.courses ?? []).filter((course) => !incomingKeys.has(courseKey(course)));
+  const changes = carryChanges(current, incoming);
   return {
     version: 1,
     term: incoming.term ?? current?.term ?? null,
@@ -230,7 +364,15 @@ export function mergeGrades(current: GradesSnapshot | null, incoming: GradesSnap
     courses: [...incoming.courses, ...kept].sort(
       (a, b) => (a.code ?? a.id).localeCompare(b.code ?? b.id) || a.id.localeCompare(b.id),
     ),
+    ...(changes.length ? { changes } : {}),
   };
+}
+
+/** The same grades with every change marked seen. */
+export function markChangesSeen(snapshot: GradesSnapshot): GradesSnapshot {
+  const { changes, ...rest } = snapshot;
+  void changes;
+  return rest;
 }
 
 // --- receiving from the helper ------------------------------------------------------

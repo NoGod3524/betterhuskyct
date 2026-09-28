@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
 import { GRADES_PROTOCOL, memoryGradesStore, type GradesStore } from "../src/lib/grades.ts";
+import { openGradesStore } from "../src/lib/grades-store.ts";
 import { t } from "../src/lib/i18n.ts";
 import { installDom } from "./support/dom.ts";
 
@@ -165,6 +166,99 @@ test("a reading from HuskyCT arrives on the open page and is kept", async () => 
   assert.ok(view.text().includes("Section 4.2 Homework"));
   assert.ok(view.text().includes(t("en", "grades.received", { courses: 2, items: 3 })));
   await view.unmount();
+});
+
+// --- what changed since you last looked -------------------------------------------------------
+
+const CHANGED = { courseId: "_203765_1", itemId: "_2_1", kind: "changed" as const, from: { earned: 100, possible: 100 }, at: "2026-09-28T18:00:00.000Z" };
+const GRADED = { courseId: "_203765_1", itemId: "_1_1", kind: "graded" as const, from: null, at: "2026-09-28T18:00:00.000Z" };
+
+async function seededWithChanges(changes: Array<typeof CHANGED | typeof GRADED>): Promise<GradesStore> {
+  const store = memoryGradesStore();
+  await store.put({ ...READING, changes });
+  return store;
+}
+
+test("a page with nothing new shows no banner and no badges", async () => {
+  const view = await render(await seeded());
+  assert.ok(!view.text().includes(t("en", "grades.markSeen")));
+  assert.ok(!view.text().includes(t("en", "grades.badgeGraded")));
+  await view.unmount();
+});
+
+test("new and changed scores are announced, badged with what they were, and listed first", async () => {
+  const view = await render(await seededWithChanges([CHANGED, GRADED]));
+  const text = view.text();
+
+  assert.ok(text.includes(t("en", "grades.changesBanner", { count: 2 })));
+  assert.ok(text.includes(t("en", "grades.badgeGraded")));
+  assert.ok(text.includes(t("en", "grades.badgeChanged", { earned: 100, possible: 100 })));
+
+  // Only the changed one: it moves ahead of the row that comes first in the course.
+  await view.unmount();
+  const one = await render(await seededWithChanges([CHANGED]));
+  const shown = one.text();
+  assert.ok(shown.indexOf("Section 4.2 Homework") < shown.indexOf("Section 4.1 Homework"), "the changed row did not come first");
+  await one.unmount();
+});
+
+test("marking them seen removes the banner and badges, and keeps the grades", async () => {
+  const store = await seededWithChanges([CHANGED, GRADED]);
+  const view = await render(store);
+
+  await view.click(t("en", "grades.markSeen"));
+
+  assert.ok(!view.text().includes(t("en", "grades.markSeen")));
+  assert.ok(!view.text().includes(t("en", "grades.badgeGraded")));
+  assert.ok(view.text().includes("Section 4.2 Homework"), "the grades went with the banner");
+  assert.equal((await store.get())?.changes, undefined, "the change was only hidden, not cleared");
+  assert.equal((await store.get())?.courses.length, 2);
+  await view.unmount();
+});
+
+test("two readings through the page: the second shows what moved", async () => {
+  const store = memoryGradesStore();
+  const view = await render(store);
+  const send = (grades: unknown) =>
+    act(async () => {
+      window.dispatchEvent(
+        new window.MessageEvent("message", {
+          data: { protocol: GRADES_PROTOCOL, kind: "grades", grades },
+          origin: "https://lms.uconn.edu",
+          source: { postMessage() {} } as never,
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+
+  await send(READING);
+  assert.ok(!view.text().includes(t("en", "grades.markSeen")), "the first reading was reported as changes");
+
+  const later = {
+    ...READING,
+    takenAt: "2026-09-29T09:00:00.000Z",
+    courses: [
+      { ...READING.courses[0], items: READING.courses[0].items.map((item) => (item.id === "_3_1" ? { ...item, earned: 88, possible: 100, label: null } : item)) },
+      READING.courses[1],
+    ],
+  };
+  await send(later);
+
+  assert.ok(view.text().includes(t("en", "grades.changesBanner", { count: 1 })));
+  assert.ok(view.text().includes(t("en", "grades.badgeGraded")));
+  assert.ok(view.text().includes("Section 5.3 Homework"), "the newly graded row is not in the graded list");
+  await view.unmount();
+});
+
+test("the changes survive a reload, because the browser's store keeps them", async () => {
+  window.localStorage.clear();
+  const first = await openGradesStore();
+  await first.put({ ...READING, changes: [CHANGED] });
+
+  const again = await openGradesStore();
+
+  assert.deepEqual((await again.get())?.changes, [CHANGED]);
+  window.localStorage.clear();
 });
 
 test("clearing asks first, then empties the page", async () => {

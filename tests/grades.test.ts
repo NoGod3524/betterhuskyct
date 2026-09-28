@@ -8,7 +8,9 @@ import {
   huskyctGradesUrl,
   isCounted,
   memoryGradesStore,
+  markChangesSeen,
   mergeGrades,
+  parseStoredGrades,
   parseGradesMessage,
   summarizeCourse,
   type GradeItem,
@@ -152,6 +154,159 @@ test("two courses with one code are two courses, and a reading of one keeps the 
     ["_201693_1", 9],
     ["_201694_1", 5],
   ]);
+});
+
+// --- what changed since you last looked -----------------------------------------------------
+
+/** A reading of one course whose items are given. */
+const reading = (items: GradeItem[], takenAt: string, id = "_203765_1"): GradesSnapshot => ({
+  version: 1,
+  term: "Fall 2026",
+  takenAt,
+  courses: [{ id, code: "MATH 1070Q", items }],
+});
+const T1 = "2026-09-28T18:00:00.000Z";
+const T2 = "2026-09-29T09:00:00.000Z";
+const T3 = "2026-09-30T09:00:00.000Z";
+
+test("the first reading of a course is the baseline, not a wall of new scores", () => {
+  const first = mergeGrades(null, reading([scored("_1_1", "HW 1", 90, 100)], T1));
+  assert.equal(first.changes, undefined);
+
+  // A different course arriving later is a baseline of its own.
+  const second = mergeGrades(first, reading([scored("_9_1", "Quiz", 5, 5)], T2, "_201693_1"));
+  assert.equal(second.changes, undefined);
+});
+
+test("a score that appears, changes, or is added is a change; a bare assignment is not", () => {
+  const before = mergeGrades(null, reading([unscored("_1_1", "HW 1"), scored("_2_1", "HW 2", 80, 100), scored("_3_1", "HW 3", 7, 10)], T1));
+
+  const after = mergeGrades(
+    before,
+    reading(
+      [
+        scored("_1_1", "HW 1", 95, 100), // had no score
+        scored("_2_1", "HW 2", 90, 100), // had another
+        scored("_3_1", "HW 3", 7, 10), // same
+        scored("_4_1", "HW 4", 10, 10), // did not exist
+        unscored("_5_1", "HW 5"), // did not exist, and has no score: not news
+      ],
+      T2,
+    ),
+  );
+
+  const byItem = Object.fromEntries((after.changes ?? []).map((change) => [change.itemId, change]));
+  assert.deepEqual(Object.keys(byItem).sort(), ["_1_1", "_2_1", "_4_1"]);
+  assert.deepEqual(byItem["_1_1"], { courseId: "_203765_1", itemId: "_1_1", kind: "graded", from: null, at: T2 });
+  assert.deepEqual(byItem["_2_1"], { courseId: "_203765_1", itemId: "_2_1", kind: "changed", from: { earned: 80, possible: 100 }, at: T2 });
+  assert.deepEqual(byItem["_4_1"], { courseId: "_203765_1", itemId: "_4_1", kind: "new", from: null, at: T2 });
+});
+
+test("a score going away, or a 0/0 practice test, is not news", () => {
+  const before = mergeGrades(null, reading([scored("_1_1", "HW 1", 9, 10), scored("_2_1", "Practice", 0, 0)], T1));
+  const after = mergeGrades(before, reading([unscored("_1_1", "HW 1"), scored("_2_1", "Practice", 3, 0)], T2));
+  assert.equal(after.changes, undefined);
+});
+
+test("a change stays until it is marked seen, and 'was' is what the student last saw", () => {
+  const r1 = mergeGrades(null, reading([scored("_1_1", "HW 1", 80, 100)], T1));
+  const r2 = mergeGrades(r1, reading([scored("_1_1", "HW 1", 90, 100)], T2));
+  // A reading that shows nothing new does not lose it.
+  const r3 = mergeGrades(r2, reading([scored("_1_1", "HW 1", 90, 100)], T3));
+  assert.deepEqual(r3.changes?.map((c) => [c.itemId, c.kind, c.from?.earned, c.at]), [["_1_1", "changed", 80, T2]]);
+
+  // Changed again before it was seen: still measured from the 80 they knew.
+  const r4 = mergeGrades(r3, reading([scored("_1_1", "HW 1", 95, 100)], T3));
+  assert.deepEqual(r4.changes?.map((c) => [c.kind, c.from?.earned, c.at]), [["changed", 80, T3]]);
+
+  // Back where they last saw it: nothing to say.
+  const r5 = mergeGrades(r4, reading([scored("_1_1", "HW 1", 80, 100)], T3));
+  assert.equal(r5.changes, undefined);
+});
+
+test("a graded score that changes again is still 'newly graded', and a new one is still 'new'", () => {
+  const r1 = mergeGrades(null, reading([unscored("_1_1", "HW 1")], T1));
+  const r2 = mergeGrades(r1, reading([scored("_1_1", "HW 1", 70, 100), scored("_2_1", "HW 2", 10, 10)], T2));
+  const r3 = mergeGrades(r2, reading([scored("_1_1", "HW 1", 75, 100), scored("_2_1", "HW 2", 9, 10)], T3));
+
+  const byItem = Object.fromEntries((r3.changes ?? []).map((c) => [c.itemId, c]));
+  assert.equal(byItem["_1_1"].kind, "graded");
+  assert.equal(byItem["_1_1"].from, null);
+  assert.equal(byItem["_2_1"].kind, "new");
+});
+
+test("a change is dropped when its item or its score is gone", () => {
+  const r1 = mergeGrades(null, reading([scored("_1_1", "HW 1", 80, 100), scored("_2_1", "HW 2", 5, 10)], T1));
+  const r2 = mergeGrades(r1, reading([scored("_1_1", "HW 1", 90, 100), scored("_2_1", "HW 2", 6, 10)], T2));
+  assert.equal(r2.changes?.length, 2);
+
+  const r3 = mergeGrades(r2, reading([unscored("_1_1", "HW 1")], T3));
+  assert.equal(r3.changes, undefined, "changes outlived the scores they were about");
+});
+
+test("a reading that does not reach a course leaves that course's changes alone", () => {
+  const both = (a: number, b: number, at: string): GradesSnapshot => ({
+    version: 1,
+    term: null,
+    takenAt: at,
+    courses: [
+      { id: "_1_1", code: "AAA 1000", items: [scored("_1_1", "A", a, 10)] },
+      { id: "_2_1", code: "BBB 1000", items: [scored("_2_1", "B", b, 10)] },
+    ],
+  });
+  const r1 = mergeGrades(null, both(5, 5, T1));
+  const r2 = mergeGrades(r1, both(6, 7, T2));
+  assert.equal(r2.changes?.length, 2);
+
+  // Only BBB is read now.
+  const onlyB: GradesSnapshot = { version: 1, term: null, takenAt: T3, courses: [{ id: "_2_1", code: "BBB 1000", items: [scored("_2_1", "B", 7, 10)] }] };
+  const r3 = mergeGrades(r2, onlyB);
+  assert.deepEqual(r3.changes?.map((c) => c.courseId).sort(), ["_1_1", "_2_1"]);
+});
+
+test("marking seen clears the changes and nothing else", () => {
+  const r2 = mergeGrades(mergeGrades(null, reading([scored("_1_1", "HW 1", 80, 100)], T1)), reading([scored("_1_1", "HW 1", 90, 100)], T2));
+  assert.equal(r2.changes?.length, 1);
+
+  const seen = markChangesSeen(r2);
+
+  assert.equal("changes" in seen, false);
+  assert.deepEqual(seen.courses, r2.courses);
+  assert.equal(seen.takenAt, r2.takenAt);
+  // The next reading is measured from what was on the page when they looked.
+  assert.equal(mergeGrades(seen, reading([scored("_1_1", "HW 1", 90, 100)], T3)).changes, undefined);
+});
+
+test("stored changes are read back, but the helper cannot send any", () => {
+  const stored = mergeGrades(mergeGrades(null, reading([scored("_1_1", "HW 1", 80, 100)], T1)), reading([scored("_1_1", "HW 1", 90, 100)], T2));
+  const roundTrip = parseStoredGrades(JSON.parse(JSON.stringify(stored)));
+  assert.deepEqual(roundTrip, stored);
+
+  // A message that carries a change loses it: the app works these out itself.
+  const forged = { ...stored, changes: [{ courseId: "_203765_1", itemId: "_1_1", kind: "graded", from: null, at: T2 }] };
+  const parsed = parseGradesMessage(message({ kind: "grades", grades: forged }));
+  assert.equal(parsed?.kind, "grades");
+  assert.equal(parsed?.kind === "grades" ? parsed.grades.changes : "not a reading", undefined);
+});
+
+test("a stored change that does not fit is dropped alone", () => {
+  const good = { courseId: "_203765_1", itemId: "_1_1", kind: "graded", from: null, at: T2 };
+  const stored = {
+    ...reading([scored("_1_1", "HW 1", 90, 100)], T2),
+    changes: [
+      good,
+      { ...good, itemId: "javascript:alert(1)" },
+      { ...good, kind: "changed" }, // "changed" must say what it changed from
+      { ...good, kind: "graded", from: { earned: 1, possible: 2 } }, // and "graded" cannot
+      { ...good, at: "yesterday" },
+      "nonsense",
+    ],
+  };
+
+  const read = parseStoredGrades(stored);
+
+  assert.deepEqual(read?.changes, [good]);
+  assert.equal(read?.courses.length, 1, "the grades were dropped with the bad change");
 });
 
 // --- receiving ----------------------------------------------------------------------------
