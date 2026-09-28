@@ -1,4 +1,4 @@
-import { parseGradesSnapshot, type GradesStore } from "@/lib/grades";
+import { parseStoredGrades, type GradesStore } from "@/lib/grades";
 
 /**
  * The grades in this browser's localStorage. A term of gradebooks is a few
@@ -14,7 +14,7 @@ export async function openGradesStore(): Promise<GradesStore> {
   return {
     get: async () => {
       try {
-        return parseGradesSnapshot(JSON.parse(storage.getItem(STORAGE_KEY) || "null"));
+        return parseStoredGrades(JSON.parse(storage.getItem(STORAGE_KEY) || "null"));
       } catch {
         return null;
       }
