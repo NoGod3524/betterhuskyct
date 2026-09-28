@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { CalendarTask } from "../src/lib/calendar-types.ts";
+import { loadCourseCatalogue } from "../src/lib/course-catalogue.ts";
 import {
   COURSES_STORAGE_KEY,
   EMPTY_COURSE_BOOK,
@@ -25,6 +26,9 @@ import {
   type Course,
   type CourseBook,
 } from "../src/lib/courses.ts";
+
+// The catalogue is fetched on demand; labelling a bare class meeting needs it.
+await loadCourseCatalogue();
 
 class MemoryStorage implements Storage {
   private values = new Map<string, string>();

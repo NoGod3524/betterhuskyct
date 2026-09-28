@@ -2,11 +2,31 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  COURSE_CATALOGUE,
   catalogueTitleForCode,
+  courseCatalogue,
+  loadCourseCatalogue,
+  isCourseCatalogueLoaded,
   courseCodeForTitle,
   courseCodesForTitle,
 } from "../src/lib/course-catalogue.ts";
+
+// The catalogue is fetched on demand, not bundled with the page: until it has
+// loaded, every lookup finds nothing — the same answer as no match.
+test("before it has loaded the catalogue finds nothing, and a failed lookup is not remembered", async () => {
+  assert.equal(isCourseCatalogueLoaded(), false);
+  assert.equal(courseCodeForTitle("Environmental Science"), null);
+  assert.deepEqual(courseCodesForTitle("Environmental Science"), []);
+  assert.equal(catalogueTitleForCode("NRE 1000E"), null);
+  assert.deepEqual(courseCatalogue(), {});
+
+  await loadCourseCatalogue();
+
+  assert.equal(isCourseCatalogueLoaded(), true);
+  // The empty index built above did not stick.
+  assert.equal(courseCodeForTitle("Environmental Science"), "NRE 1000E");
+  // A second call is the same load, not another.
+  await loadCourseCatalogue();
+});
 
 test("the catalogue knows the courses a HuskyCT feed names", () => {
   // These are the titles that actually appear in a real Blackboard export.
@@ -24,7 +44,7 @@ test("lookups ignore case and surrounding whitespace", () => {
 
 test("a title shared by several courses is never guessed", () => {
   // Cross-listed courses share a title constantly; picking one would be a lie.
-  const crossListed = Object.entries(COURSE_CATALOGUE).find(
+  const crossListed = Object.entries(courseCatalogue()).find(
     ([, title]) => courseCodesForTitle(title).length > 1,
   );
   assert.ok(crossListed, "expected at least one cross-listed title");
@@ -45,12 +65,12 @@ test("unknown titles and codes come back empty rather than throwing", () => {
 });
 
 test("the catalogue is a plausible size and shape", () => {
-  const codes = Object.keys(COURSE_CATALOGUE);
+  const codes = Object.keys(courseCatalogue());
 
   assert.ok(codes.length > 3000, `only ${codes.length} courses`);
   for (const code of codes.slice(0, 200)) {
     // Two to six letters, a space, then a number — some are short, like AELI 10.
     assert.match(code, /^[A-Z]{2,6} \d{2,4}[A-Z]?$/, `odd course code: ${code}`);
-    assert.ok(COURSE_CATALOGUE[code].length > 1);
+    assert.ok(courseCatalogue()[code].length > 1);
   }
 });
