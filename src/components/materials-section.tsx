@@ -240,7 +240,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
             <button
               type="button"
               onClick={importFolder}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#cdd9e6] bg-white px-3 text-sm font-semibold text-[#4e647b] transition hover:border-[#9fb7d1] hover:text-[#244e7a]"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
             >
               <FolderInput size={15} aria-hidden />
               {t(locale, "materials.import")}
@@ -250,7 +250,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
             <button
               type="button"
               onClick={clearAll}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#cdd9e6] bg-white px-3 text-sm font-semibold text-[#4e647b] transition hover:border-[#9fb7d1] hover:text-[#244e7a]"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
             >
               <Trash2 size={15} aria-hidden />
               {t(locale, "materials.clear")}
@@ -260,27 +260,27 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
       </div>
 
       {receive.phase === "connected" || receive.phase === "receiving" ? (
-        <p className="mt-4 rounded-xl bg-[#eef4ff] px-4 py-3 text-sm font-semibold text-[#244e7a]" role="status">
+        <p className="mt-4 rounded-xl bg-[var(--c-eef4ff)] px-4 py-3 text-sm font-semibold text-[var(--c-244e7a)]" role="status">
           {t(locale, "materials.receiving", { stored: receive.stored, total: receive.expected })}
         </p>
       ) : receive.phase === "done" ? (
-        <p className="mt-4 rounded-xl bg-[#ecf8f1] px-4 py-3 text-sm font-semibold text-[#1d6b43]" role="status">
+        <p className="mt-4 rounded-xl bg-[var(--c-ecf8f1)] px-4 py-3 text-sm font-semibold text-[var(--c-1d6b43)]" role="status">
           {t(locale, "materials.received", { stored: receive.stored })}
           {receive.failed ? t(locale, "materials.receivedFailed", { count: receive.failed }) : ""}
         </p>
       ) : null}
       {notice ? (
-        <p className="mt-4 rounded-xl bg-[#f4f7fb] px-4 py-3 text-sm text-[#31506f]" role="status">
+        <p className="mt-4 rounded-xl bg-[var(--c-f4f7fb)] px-4 py-3 text-sm text-[var(--c-31506f)]" role="status">
           {notice}
         </p>
       ) : null}
-      {unavailable ? <p className="mt-4 text-sm text-[#b3412e]">{t(locale, "materials.unavailable")}</p> : null}
+      {unavailable ? <p className="mt-4 text-sm text-[var(--c-b3412e)]">{t(locale, "materials.unavailable")}</p> : null}
 
       {courses.length === 0 ? (
-        <div className="mt-4 rounded-2xl border border-dashed border-[#d7e1ec] bg-[#fafcff] p-5">
-          <p className="text-sm font-semibold text-[#31506f]">{t(locale, "materials.emptyTitle")}</p>
+        <div className="mt-4 rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5">
+          <p className="text-sm font-semibold text-[var(--c-31506f)]">{t(locale, "materials.emptyTitle")}</p>
           <p className="mt-1 text-sm text-[var(--muted)]">{t(locale, "materials.emptyBody")}</p>
-          <Link href="/helper" className="mt-3 inline-flex text-sm font-semibold text-[var(--blue)] hover:underline">
+          <Link href="/helper" className="mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline">
             {t(locale, "materials.emptyCta")}
           </Link>
         </div>
@@ -301,10 +301,10 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
               {usage !== null ? " · " + t(locale, "materials.usage", { used: formatBytes(usage) }) : ""}
             </span>
             <span className="ml-auto flex gap-3 text-xs font-semibold">
-              <button type="button" onClick={() => setAll(true)} className="text-[var(--blue)] hover:underline">
+              <button type="button" onClick={() => setAll(true)} className="text-[var(--link)] hover:underline">
                 {t(locale, "materials.expandAll")}
               </button>
-              <button type="button" onClick={() => setAll(false)} className="text-[var(--blue)] hover:underline">
+              <button type="button" onClick={() => setAll(false)} className="text-[var(--link)] hover:underline">
                 {t(locale, "materials.collapseAll")}
               </button>
             </span>
@@ -323,13 +323,13 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
               return (
                 <article
                   key={course.id}
-                  className="rounded-[20px] border border-[var(--line)] bg-white shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
+                  className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
                 >
                   <Toggle
                     open={courseOpen}
                     onToggle={() => toggle(courseKey)}
                     className="w-full px-5 py-4"
-                    title={<span className="font-display text-lg font-semibold text-[#172b41]">{course.code ?? course.id}</span>}
+                    title={<span className="font-display text-lg font-semibold text-[var(--c-172b41)]">{course.code ?? course.id}</span>}
                     detail={
                       t(locale, "materials.courseSummary", {
                         files: course.files.length,
@@ -340,7 +340,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                   />
 
                   {courseOpen ? (
-                    <div className="border-t border-[#eef2f6] px-5 pb-4">
+                    <div className="border-t border-[var(--c-eef2f6)] px-5 pb-4">
                       <FolderView
                         node={folderTree(course.files)}
                         isOpen={(folder) => open.has(group(folder.path.join("/")))}
@@ -349,8 +349,8 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                           const file = files.get(ref.key);
                           return (
                             <li key={ref.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                              <span className="flex min-w-0 items-center gap-2 text-sm text-[#172b41]">
-                                <FileText size={15} className="shrink-0 text-[#6b7f94]" aria-hidden />
+                              <span className="flex min-w-0 items-center gap-2 text-sm text-[var(--c-172b41)]">
+                                <FileText size={15} className="shrink-0 text-[var(--c-6b7f94)]" aria-hidden />
                                 <span className="truncate">{file?.name ?? ref.title}</span>
                                 {file ? <span className="shrink-0 text-xs text-[var(--muted)]">{formatBytes(file.size)}</span> : null}
                               </span>
@@ -374,21 +374,21 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                         items={videos}
                         open={open.has(group("#videos"))}
                         onToggle={() => toggle(group("#videos"))}
-                        icon={<PlayCircle size={15} className="shrink-0 text-[#6b7f94]" aria-hidden />}
+                        icon={<PlayCircle size={15} className="shrink-0 text-[var(--c-6b7f94)]" aria-hidden />}
                       />
                       <LinkGroup
                         heading={t(locale, "materials.links")}
                         items={links}
                         open={open.has(group("#links"))}
                         onToggle={() => toggle(group("#links"))}
-                        icon={<ExternalLink size={15} className="shrink-0 text-[#6b7f94]" aria-hidden />}
+                        icon={<ExternalLink size={15} className="shrink-0 text-[var(--c-6b7f94)]" aria-hidden />}
                       />
                       <LinkGroup
                         heading={t(locale, "materials.tools")}
                         items={course.tools.map((tool) => ({ ...tool, url: outline }))}
                         open={open.has(group("#tools"))}
                         onToggle={() => toggle(group("#tools"))}
-                        icon={<Wrench size={15} className="shrink-0 text-[#6b7f94]" aria-hidden />}
+                        icon={<Wrench size={15} className="shrink-0 text-[var(--c-6b7f94)]" aria-hidden />}
                       />
                     </div>
                   ) : null}
@@ -408,7 +408,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       type="button"
       onClick={onClick}
       className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
-        active ? "bg-[var(--navy)] text-white" : "border border-[#cdd9e6] bg-white text-[#4e647b] hover:border-[#9fb7d1]"
+        active ? "bg-[var(--navy)] text-white" : "border border-[var(--c-cdd9e6)] bg-[var(--surface)] text-[var(--c-4e647b)] hover:border-[var(--c-9fb7d1)]"
       }`}
     >
       {children}
@@ -423,7 +423,7 @@ function SmallButton({ onClick, label, children }: { onClick: () => void; label?
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="inline-flex h-7 items-center rounded-md border border-[#cdd9e6] bg-white px-2 text-xs font-semibold text-[#244e7a] transition hover:border-[#9fb7d1]"
+      className="inline-flex h-7 items-center rounded-md border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-2 text-xs font-semibold text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)]"
     >
       {children}
     </button>
@@ -447,7 +447,7 @@ function FolderView({
 }) {
   return (
     <>
-      {node.items.length ? <ul className="mt-2 divide-y divide-[#eef2f6]">{node.items.map(renderFile)}</ul> : null}
+      {node.items.length ? <ul className="mt-2 divide-y divide-[var(--c-eef2f6)]">{node.items.map(renderFile)}</ul> : null}
       {node.children.map((child) => {
         const childOpen = isOpen(child);
         return (
@@ -455,12 +455,12 @@ function FolderView({
             <Toggle
               open={childOpen}
               onToggle={() => onToggle(child)}
-              icon={<Folder size={14} className="shrink-0 text-[#6b7f94]" aria-hidden />}
-              title={<span className="text-sm font-semibold text-[#31506f]">{child.name}</span>}
+              icon={<Folder size={14} className="shrink-0 text-[var(--c-6b7f94)]" aria-hidden />}
+              title={<span className="text-sm font-semibold text-[var(--c-31506f)]">{child.name}</span>}
               detail={String(child.total)}
             />
             {childOpen ? (
-              <div className="ml-5 border-l border-[#eef2f6] pl-3">
+              <div className="ml-5 border-l border-[var(--c-eef2f6)] pl-3">
                 <FolderView node={child} isOpen={isOpen} onToggle={onToggle} renderFile={renderFile} />
               </div>
             ) : null}
@@ -496,7 +496,7 @@ function Toggle({
     >
       <ChevronRight
         size={16}
-        className={`shrink-0 text-[#6b7f94] transition-transform ${open ? "rotate-90" : ""}`}
+        className={`shrink-0 text-[var(--c-6b7f94)] transition-transform ${open ? "rotate-90" : ""}`}
         aria-hidden
       />
       {icon}
@@ -525,16 +525,16 @@ function LinkGroup({
       <Toggle
         open={open}
         onToggle={onToggle}
-        title={<span className="text-sm font-semibold text-[#31506f]">{heading}</span>}
+        title={<span className="text-sm font-semibold text-[var(--c-31506f)]">{heading}</span>}
         detail={String(items.length)}
       />
       {open ? (
         <ul className="ml-6 mt-1.5 space-y-1.5">
           {items.map((item, i) => (
-            <li key={i} className="flex min-w-0 items-center gap-2 text-sm text-[#172b41]">
+            <li key={i} className="flex min-w-0 items-center gap-2 text-sm text-[var(--c-172b41)]">
               {icon}
               {item.url ? (
-                <a href={item.url} target="_blank" rel="noreferrer" className="truncate text-[var(--blue)] hover:underline">
+                <a href={item.url} target="_blank" rel="noreferrer" className="truncate text-[var(--link)] hover:underline">
                   {item.title}
                 </a>
               ) : (

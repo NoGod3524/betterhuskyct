@@ -102,7 +102,7 @@ export function AnnouncementSummary({
   }
 
   return (
-    <div className="mt-4 rounded-[20px] border border-[#d7e1ec] bg-[#fafcff] p-5" aria-live="polite">
+    <div className="mt-4 rounded-[20px] border border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5" aria-live="polite">
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -112,21 +112,21 @@ export function AnnouncementSummary({
         >
           {summary ? t(locale, "summary.again") : t(locale, "summary.button", { course: course.label })}
         </button>
-        {working ? <span className="text-sm text-[#31506f]">{t(locale, "summary.working")}</span> : null}
+        {working ? <span className="text-sm text-[var(--c-31506f)]">{t(locale, "summary.working")}</span> : null}
       </div>
       <p className="mt-2 text-xs text-[var(--muted)]">{t(locale, "summary.disclosure")}</p>
 
       {pending?.kind === "error" ? (
-        <p className="mt-3 text-sm text-[#b3412e]">{t(locale, PROBLEM_KEYS[pending.problem])}</p>
+        <p className="mt-3 text-sm text-[var(--c-b3412e)]">{t(locale, PROBLEM_KEYS[pending.problem])}</p>
       ) : null}
 
       {summary && !working ? (
         <div className="mt-4">
-          <h3 className="font-display text-base font-semibold text-[#172b41]">
+          <h3 className="font-display text-base font-semibold text-[var(--c-172b41)]">
             {t(locale, "summary.title", { course: course.label })}
           </h3>
           {/* The model's text, shown as text: never parsed as HTML. */}
-          <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#31506f]" data-summary>
+          <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[var(--c-31506f)]" data-summary>
             {summary.text}
           </p>
           <p className="mt-3 text-xs text-[var(--muted)]">

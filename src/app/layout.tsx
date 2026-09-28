@@ -6,6 +6,7 @@ import { CalendarProvider } from "@/components/calendar-provider";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 // Single source of truth for the version shown in the footer.
 import packageJson from "../../package.json";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -42,7 +43,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0b2745",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0b2745" },
+    { media: "(prefers-color-scheme: dark)", color: "#0c1622" },
+  ],
   // Let the app draw under the notch/home indicator when installed,
   // paired with the safe-area padding on <main>.
   viewportFit: "cover",
@@ -50,7 +54,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
+    // The boot script may set data-theme before React hydrates; that attribute
+    // is the only difference, and it is expected.
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        {/* Before anything is drawn, so a dark choice never flashes light. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col">
         {/* The provider and shell live in the layout, not in a page, so moving
             between routes keeps the imported tasks, completion state, language

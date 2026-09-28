@@ -9,9 +9,9 @@ import type { PlannedTask } from "@/lib/plan";
 import { t, intlLocale, type Locale } from "@/lib/i18n";
 
 const GROUP_TONES = {
-  danger: "bg-[#e6533c]",
-  warn: "bg-[#e9a23b]",
-  calm: "bg-[#2a71d8]",
+  danger: "bg-[var(--c-e6533c)]",
+  warn: "bg-[var(--c-e9a23b)]",
+  calm: "bg-[var(--c-2a71d8)]",
 } as const;
 
 function whenLabel(item: PlannedTask, locale: Locale): string {
@@ -52,18 +52,18 @@ function PlanRow({ item }: { item: PlannedTask }) {
   const course = courseLabelFor(item.task);
 
   return (
-    <li className="rounded-2xl border border-[var(--line)] bg-white p-4">
+    <li className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
             {course && (
-              <span className="rounded-md bg-[#e8f1ff] px-2 py-0.5 text-[10px] font-bold tracking-[0.04em] text-[#1e5ca8]">
+              <span className="rounded-md bg-[var(--c-e8f1ff)] px-2 py-0.5 text-[10px] font-bold tracking-[0.04em] text-[var(--c-1e5ca8)]">
                 {course.code}
                 {course.component ? ` · ${course.component}` : ""}
               </span>
             )}
             {item.task.kind && (
-              <span className="rounded-md bg-[#f0f3f7] px-2 py-0.5 text-[10px] font-bold tracking-[0.04em] text-[#536476]">
+              <span className="rounded-md bg-[var(--c-f0f3f7)] px-2 py-0.5 text-[10px] font-bold tracking-[0.04em] text-[var(--c-536476)]">
                 {t(
                   locale,
                   item.task.kind === "class"
@@ -73,7 +73,7 @@ function PlanRow({ item }: { item: PlannedTask }) {
               </span>
             )}
           </div>
-          <p className="mt-1.5 break-words text-sm font-semibold text-[#172b41]">
+          <p className="mt-1.5 break-words text-sm font-semibold text-[var(--c-172b41)]">
             {item.task.title}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-[var(--muted)]">
@@ -102,7 +102,7 @@ function PlanRow({ item }: { item: PlannedTask }) {
         <button
           type="button"
           onClick={() => toggleTaskCompletion(item.task.id)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#cdd9e6] bg-white px-3 py-1.5 text-xs font-semibold text-[#4e647b] transition hover:border-[#9fb7d1] hover:text-[#244e7a]"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
         >
           {t(locale, "plan.markDone")}
         </button>
@@ -123,7 +123,7 @@ function PlanRow({ item }: { item: PlannedTask }) {
               className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition ${
                 level === option
                   ? "border-[var(--navy)] bg-[var(--navy)] text-white"
-                  : "border-[#dbe3ec] bg-white text-[var(--muted)] hover:border-[#9fb7d1] hover:text-[#244e7a]"
+                  : "border-[var(--c-dbe3ec)] bg-[var(--surface)] text-[var(--muted)] hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
               }`}
             >
               {t(locale, `plan.effort.${option}`)}
@@ -155,7 +155,7 @@ function PlanGroup({
       <div className="flex items-center gap-2.5">
         <span className={`size-2.5 shrink-0 rounded-full ${GROUP_TONES[tone]}`} />
         <h2 className="font-display text-lg font-semibold">{t(locale, titleKey)}</h2>
-        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#f0f3f7] text-xs font-bold text-[#536476]">
+        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[var(--c-f0f3f7)] text-xs font-bold text-[var(--c-536476)]">
           {items.length}
         </span>
       </div>
@@ -190,14 +190,14 @@ export function PlanSection() {
       </h1>
 
       {urgent > 0 && (
-        <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#f0d9a8] bg-[#fffaf0] px-4 py-2 text-xs font-semibold text-[#8a5a12]">
+        <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-[var(--c-f0d9a8)] bg-[var(--c-fffaf0)] px-4 py-2 text-xs font-semibold text-[var(--c-8a5a12)]">
           <Flame size={14} />
           {t(locale, "plan.focus", { minutes: plan.focusMinutes })}
         </p>
       )}
 
       {empty ? (
-        <p className="mt-6 flex items-start gap-2.5 rounded-2xl border border-dashed border-[#d7e1ec] bg-[#fafcff] p-5 text-sm text-[var(--muted)]">
+        <p className="mt-6 flex items-start gap-2.5 rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5 text-sm text-[var(--muted)]">
           <Clock3 size={17} className="mt-0.5 shrink-0" />
           {t(locale, "plan.empty")}
         </p>
@@ -225,8 +225,8 @@ export function PlanSection() {
       )}
 
       {urgent > 0 && (
-        <p className="mt-6 flex items-start gap-2.5 rounded-2xl border border-[var(--line)] bg-white px-4 py-3 text-xs leading-5 text-[var(--muted)]">
-          <TriangleAlert size={15} className="mt-0.5 shrink-0 text-[#e9a23b]" />
+        <p className="mt-6 flex items-start gap-2.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-xs leading-5 text-[var(--muted)]">
+          <TriangleAlert size={15} className="mt-0.5 shrink-0 text-[var(--c-e9a23b)]" />
           {t(locale, "plan.atRiskHint")}
         </p>
       )}

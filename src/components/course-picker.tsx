@@ -43,7 +43,7 @@ export function CoursePicker({
         else if (value === NO_COURSE) setTaskCourse(taskId, null);
         else setTaskCourse(taskId, value);
       }}
-      className={`h-8 max-w-[11rem] rounded-lg border border-[var(--line-strong)] bg-white px-2 text-[11px] font-semibold text-[#31506f] outline-none transition focus:border-[#2a71d8] focus:ring-4 focus:ring-[#2a71d8]/10 ${className ?? ""}`}
+      className={`h-8 max-w-[11rem] rounded-lg border border-[var(--line-strong)] bg-[var(--surface)] px-2 text-[11px] font-semibold text-[var(--c-31506f)] outline-none transition focus:border-[var(--c-2a71d8)] focus:ring-4 focus:ring-[var(--c-2a71d8)]/10 ${className ?? ""}`}
     >
       <option value="">
         {fallback

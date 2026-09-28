@@ -46,6 +46,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Installable and offline** — add it to a phone's home screen as a PWA and keep reading saved tasks without a connection
 - **Announcements** — the browser helper brings your courses' announcements in on the same press as the deadlines, newest first and grouped by course
 - **Course materials** — every course's files, lecture videos, links and tools, sent over by the browser helper and kept in this browser: browse by course and folder, open PDFs in place, download the rest. Nothing is uploaded; a folder the helper saved can be imported too
+- **Dark mode** — follows the device, or pick light or dark from the top bar; the choice is kept in this browser and applied before the page is drawn
 - **Announcement summaries** — pick a course and one press turns its announcements into key points (deadlines, exams, moved or cancelled classes) in your language, on any device. Written by Z.ai's free GLM model, with Google Gemini's free tier covering when GLM is busy; the page names both, and what each does with the text, before you press — and nothing is sent until you do
 - **Completion tracking** — tick tasks done; the state is saved in your browser and survives refresh
 - **Workload insights** — completion rate, tasks per course, and the next 7 days / 4 weeks at a glance

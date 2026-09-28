@@ -92,17 +92,17 @@ export function HelperSection() {
         {steps.map((step, index) => (
           <li
             key={step.title}
-            className="rounded-[20px] border border-[var(--line)] bg-white p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
+            className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
           >
             <div className="flex flex-wrap items-start gap-4">
               <span
                 aria-hidden="true"
-                className="font-display flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#eaf2ff] text-sm font-semibold text-[#245ea9]"
+                className="font-display flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--c-eaf2ff)] text-sm font-semibold text-[var(--c-245ea9)]"
               >
                 {index + 1}
               </span>
               <div className="min-w-0 flex-1">
-                <h3 className="font-display text-base font-semibold text-[#172b41]">{step.title}</h3>
+                <h3 className="font-display text-base font-semibold text-[var(--c-172b41)]">{step.title}</h3>
                 <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{step.body}</p>
               </div>
               {step.action ? (
@@ -110,8 +110,8 @@ export function HelperSection() {
                   href={step.action.href}
                   className={
                     step.action.primary
-                      ? "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--blue)] px-3 text-sm font-semibold text-white transition hover:bg-[#1857aa]"
-                      : "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[#cdd9e6] bg-white px-3 text-sm font-semibold text-[#244e7a] transition hover:border-[#9fb7d1]"
+                      ? "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--blue)] px-3 text-sm font-semibold text-white transition hover:bg-[var(--c-1857aa)]"
+                      : "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)]"
                   }
                 >
                   <Download size={15} />
@@ -124,35 +124,35 @@ export function HelperSection() {
       </ol>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
-        <article className="rounded-[20px] border border-[var(--line)] bg-white p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
+        <article className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
           <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
             <Sparkles size={14} />
             {t(locale, "helper.whatItDoes")}
           </h3>
-          <ul className="mt-3 grid gap-3 text-sm leading-6 text-[#31506f]">
+          <ul className="mt-3 grid gap-3 text-sm leading-6 text-[var(--c-31506f)]">
             {does.map((line) => (
-              <li key={line} className="border-l-2 border-[#dbe7f5] pl-3">
+              <li key={line} className="border-l-2 border-[var(--c-dbe7f5)] pl-3">
                 {line}
               </li>
             ))}
           </ul>
         </article>
 
-        <article className="rounded-[20px] border border-[var(--line)] bg-white p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
+        <article className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
           <h3 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
             <ShieldCheck size={14} />
             {t(locale, "helper.privacyTitle")}
           </h3>
-          <ul className="mt-3 grid gap-3 text-sm leading-6 text-[#31506f]">
+          <ul className="mt-3 grid gap-3 text-sm leading-6 text-[var(--c-31506f)]">
             {willNot.map((line) => (
-              <li key={line} className="border-l-2 border-[#dbe7f5] pl-3">
+              <li key={line} className="border-l-2 border-[var(--c-dbe7f5)] pl-3">
                 {line}
               </li>
             ))}
           </ul>
           <a
             href={HELPER_SOURCE_URL}
-            className="mt-4 inline-block text-xs font-semibold text-[#245ea9] underline underline-offset-2"
+            className="mt-4 inline-block text-xs font-semibold text-[var(--c-245ea9)] underline underline-offset-2"
           >
             {t(locale, "helper.sourceLink")}
           </a>
