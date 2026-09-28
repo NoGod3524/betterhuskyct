@@ -20,8 +20,8 @@ export function HeroSection() {
           {t(locale, "hero.description")}
         </p>
       </div>
-      <div className="flex items-center gap-2 self-start rounded-full border border-[var(--line)] bg-white px-4 py-2 text-xs font-semibold text-[var(--muted)] shadow-sm xl:self-auto">
-        <Clock3 size={15} className="text-[#2a71d8]" />
+      <div className="flex items-center gap-2 self-start rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-xs font-semibold text-[var(--muted)] shadow-sm xl:self-auto">
+        <Clock3 size={15} className="text-[var(--c-2a71d8)]" />
         {t(locale, "hero.dueCount", { count: visibleCount })}
       </div>
     </div>

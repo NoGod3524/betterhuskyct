@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   BellOff,
   BellRing,
@@ -14,14 +14,52 @@ import {
   LayoutDashboard,
   ListChecks,
   Megaphone,
+  Monitor,
+  Moon,
   Puzzle,
   Sparkles,
+  Sun,
 } from "lucide-react";
 
 import { AppFooter } from "@/components/app-footer";
 import { SyncBanner } from "@/components/sync-banner";
 import { useCalendar } from "@/components/calendar-provider";
 import { t } from "@/lib/i18n";
+import { applyTheme, nextTheme, readTheme, saveTheme, THEME_STORAGE_KEY, type Theme } from "@/lib/theme";
+
+/**
+ * The theme choice, read from this browser's storage. The server has no
+ * storage and renders "system"; the browser then reads the real choice, so
+ * the first paint never disagrees with the server's markup.
+ */
+const themeListeners = new Set<() => void>();
+function subscribeTheme(listener: () => void) {
+  themeListeners.add(listener);
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === THEME_STORAGE_KEY) listener();
+  };
+  window.addEventListener("storage", onStorage);
+  return () => {
+    themeListeners.delete(listener);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function useTheme(): [Theme, (theme: Theme) => void] {
+  const theme = useSyncExternalStore(
+    subscribeTheme,
+    () => readTheme(window.localStorage),
+    () => "system" as Theme,
+  );
+  const choose = (next: Theme) => {
+    saveTheme(next, window.localStorage);
+    applyTheme(next, document.documentElement);
+    for (const listener of themeListeners) listener();
+  };
+  return [theme, choose];
+}
+
+const THEME_ICONS = { system: Monitor, light: Sun, dark: Moon } as const;
 
 /** True when a drag is carrying files rather than text or a link. */
 function carriesFiles(event: DragEvent): boolean {
@@ -52,6 +90,8 @@ export function AppShell({
   children: ReactNode;
 }) {
   const pathname = usePathname();
+  const [theme, chooseTheme] = useTheme();
+  const ThemeIcon = THEME_ICONS[theme];
   const {
     locale,
     changeLocale,
@@ -124,7 +164,7 @@ export function AppShell({
   return (
     <main className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
       {isDroppingFile && (
-        <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center bg-[#081f3a]/45 backdrop-blur-sm">
+        <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center bg-[var(--c-081f3a)]/45 backdrop-blur-sm">
           <div className="rounded-3xl border-2 border-dashed border-white/70 px-12 py-9 text-center text-white">
             <FileUp size={30} className="mx-auto" />
             <p className="font-display mt-3 text-xl font-semibold">
@@ -137,7 +177,7 @@ export function AppShell({
         </div>
       )}
       <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        <aside className="hidden w-64 shrink-0 flex-col border-r border-[var(--line)] bg-white px-5 py-7 lg:flex">
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-[var(--line)] bg-[var(--surface)] px-5 py-7 lg:flex">
           <div className="flex items-center gap-3 px-2">
             <div className="grid size-10 place-items-center rounded-xl bg-[var(--navy)] text-white shadow-[0_8px_24px_rgba(8,31,58,0.18)]">
               <Sparkles size={19} strokeWidth={2.2} />
@@ -192,8 +232,8 @@ export function AppShell({
                 {t(locale, "sidebar.restoredFromStorage")}
               </p>
             )}
-            <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-[#9ec5ff]">
-              <span className="size-2 rounded-full bg-[#68d59b]" />
+            <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-[var(--c-9ec5ff)]">
+              <span className="size-2 rounded-full bg-[var(--c-68d59b)]" />
               {isImported
                 ? t(locale, "sidebar.statusImported")
                 : hasSavedImport
@@ -216,7 +256,7 @@ export function AppShell({
               <div
                 role="group"
                 aria-label={t(locale, "language.label")}
-                className="flex items-center gap-1 rounded-full border border-[var(--line)] bg-white p-1 text-xs font-semibold"
+                className="flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] p-1 text-xs font-semibold"
               >
                 <button
                   type="button"
@@ -226,7 +266,7 @@ export function AppShell({
                   className={`rounded-full px-3 py-1.5 transition ${
                     locale === "en"
                       ? "bg-[var(--navy)] text-white"
-                      : "text-[var(--muted)] hover:text-[#172b41]"
+                      : "text-[var(--muted)] hover:text-[var(--c-172b41)]"
                   }`}
                 >
                   {t(locale, "language.english")}
@@ -239,12 +279,21 @@ export function AppShell({
                   className={`rounded-full px-3 py-1.5 transition ${
                     locale === "zh-CN"
                       ? "bg-[var(--navy)] text-white"
-                      : "text-[var(--muted)] hover:text-[#172b41]"
+                      : "text-[var(--muted)] hover:text-[var(--c-172b41)]"
                   }`}
                 >
                   {t(locale, "language.chinese")}
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={() => chooseTheme(nextTheme(theme))}
+                aria-label={t(locale, "theme.toggle", { mode: t(locale, `theme.${theme}`) })}
+                title={t(locale, "theme.toggle", { mode: t(locale, `theme.${theme}`) })}
+                className="grid size-9 shrink-0 place-items-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] transition hover:text-[var(--ink)]"
+              >
+                <ThemeIcon size={16} />
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -260,7 +309,7 @@ export function AppShell({
                 className={`grid size-9 shrink-0 place-items-center rounded-full border transition ${
                   remindersEnabled
                     ? "border-[var(--navy)] bg-[var(--navy)] text-white"
-                    : "border-[var(--line)] bg-white text-[var(--muted)] hover:text-[#172b41]"
+                    : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--c-172b41)]"
                 }`}
               >
                 {remindersEnabled ? <BellRing size={16} /> : <BellOff size={16} />}
@@ -269,7 +318,7 @@ export function AppShell({
                 <p className="text-sm font-semibold">{t(locale, "header.studentName")}</p>
                 <p className="text-xs text-[var(--muted)]">{t(locale, "header.privateDashboard")}</p>
               </div>
-              <div className="grid size-10 place-items-center rounded-full bg-[#dbe8ff] text-sm font-bold text-[#1851a5]">
+              <div className="grid size-10 place-items-center rounded-full bg-[var(--c-dbe8ff)] text-sm font-bold text-[var(--c-1851a5)]">
                 HS
               </div>
             </div>

@@ -48,16 +48,16 @@ export function InsightsSection() {
       </div>
 
       {insights.total === 0 ? (
-        <p className="mt-4 rounded-2xl border border-dashed border-[#d7e1ec] bg-[#fafcff] p-5 text-sm text-[var(--muted)]">
+        <p className="mt-4 rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5 text-sm text-[var(--muted)]">
           {t(locale, "insights.empty")}
         </p>
       ) : (
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <article className="rounded-[20px] border border-[var(--line)] bg-white p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
+          <article className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
             <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
               {t(locale, "insights.completion")}
             </h3>
-            <p className="font-display mt-3 text-3xl font-semibold text-[#172b41]">
+            <p className="font-display mt-3 text-3xl font-semibold text-[var(--c-172b41)]">
               {completionPercent}%
             </p>
             <p className="mt-1 text-sm text-[var(--muted)]">
@@ -67,7 +67,7 @@ export function InsightsSection() {
               })}
             </p>
             <div
-              className="mt-4 h-2 overflow-hidden rounded-full bg-[#eef2f7]"
+              className="mt-4 h-2 overflow-hidden rounded-full bg-[var(--c-eef2f7)]"
               role="progressbar"
               aria-label={t(locale, "insights.completion")}
               aria-valuenow={completionPercent}
@@ -75,13 +75,13 @@ export function InsightsSection() {
               aria-valuemax={100}
             >
               <div
-                className="h-full rounded-full bg-[#2f8f5b]"
+                className="h-full rounded-full bg-[var(--c-2f8f5b)]"
                 style={{ width: `${completionPercent}%` }}
               />
             </div>
           </article>
 
-          <article className="rounded-[20px] border border-[var(--line)] bg-white p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
+          <article className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
             <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
               {t(locale, "insights.nextSevenDays")}
             </h3>
@@ -91,12 +91,12 @@ export function InsightsSection() {
                   key={index}
                   className="flex flex-1 flex-col items-center gap-1"
                 >
-                  <span className="text-xs font-semibold text-[#31506f]">
+                  <span className="text-xs font-semibold text-[var(--c-31506f)]">
                     {count}
                   </span>
-                  <div className="flex h-24 w-full items-end rounded-md bg-[#f0f3f7]">
+                  <div className="flex h-24 w-full items-end rounded-md bg-[var(--c-f0f3f7)]">
                     <div
-                      className="w-full rounded-md bg-[#2a71d8]"
+                      className="w-full rounded-md bg-[var(--c-2a71d8)]"
                       style={{ height: `${barHeight(count, busiestDay)}%` }}
                     />
                   </div>
@@ -108,7 +108,7 @@ export function InsightsSection() {
             </div>
           </article>
 
-          <article className="rounded-[20px] border border-[var(--line)] bg-white p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
+          <article className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
             <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
               {t(locale, "insights.byCourse")}
             </h3>
@@ -116,16 +116,16 @@ export function InsightsSection() {
               {insights.byCourse.map((row) => (
                 <li key={row.course ?? "__uncategorized"}>
                   <div className="flex items-center justify-between gap-3 text-xs">
-                    <span className="truncate font-semibold text-[#31506f]">
+                    <span className="truncate font-semibold text-[var(--c-31506f)]">
                       {row.course ?? t(locale, "insights.uncategorized")}
                     </span>
                     <span className="shrink-0 text-[var(--muted)]">
                       {row.completed}/{row.total}
                     </span>
                   </div>
-                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[#eef2f7]">
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[var(--c-eef2f7)]">
                     <div
-                      className="h-full rounded-full bg-[#2a71d8]"
+                      className="h-full rounded-full bg-[var(--c-2a71d8)]"
                       style={{
                         width: `${barHeight(row.total, busiestCourse)}%`,
                       }}
@@ -136,7 +136,7 @@ export function InsightsSection() {
             </ul>
           </article>
 
-          <article className="rounded-[20px] border border-[var(--line)] bg-white p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
+          <article className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
             <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
               {t(locale, "insights.byWeek")}
             </h3>
@@ -146,12 +146,12 @@ export function InsightsSection() {
                   key={index}
                   className="flex flex-1 flex-col items-center gap-1"
                 >
-                  <span className="text-xs font-semibold text-[#31506f]">
+                  <span className="text-xs font-semibold text-[var(--c-31506f)]">
                     {count}
                   </span>
-                  <div className="flex h-24 w-full items-end rounded-md bg-[#f0f3f7]">
+                  <div className="flex h-24 w-full items-end rounded-md bg-[var(--c-f0f3f7)]">
                     <div
-                      className="w-full rounded-md bg-[#e9a23b]"
+                      className="w-full rounded-md bg-[var(--c-e9a23b)]"
                       style={{ height: `${barHeight(count, busiestWeek)}%` }}
                     />
                   </div>

@@ -9,11 +9,11 @@ import { formatTaskTime, isDueSoon } from "@/lib/calendar-view";
 import { t, type Locale } from "@/lib/i18n";
 
 const courseStyles = [
-  "bg-[#dbe8ff] text-[#1851a5]",
-  "bg-[#e0f0e8] text-[#23724b]",
-  "bg-[#f2e4fa] text-[#7c3e9d]",
-  "bg-[#fff0d9] text-[#9b5a05]",
-  "bg-[#ffe4e1] text-[#a34235]",
+  "bg-[var(--c-dbe8ff)] text-[var(--c-1851a5)]",
+  "bg-[var(--c-e0f0e8)] text-[var(--c-23724b)]",
+  "bg-[var(--c-f2e4fa)] text-[var(--c-7c3e9d)]",
+  "bg-[var(--c-fff0d9)] text-[var(--c-9b5a05)]",
+  "bg-[var(--c-ffe4e1)] text-[var(--c-a34235)]",
 ];
 
 function styleForCourse(course: string) {
@@ -47,7 +47,7 @@ export function TaskCard({
   const checkboxId = `task-complete-${task.id}`;
 
   return (
-    <article className="group rounded-2xl border border-[var(--line)] bg-[#fcfdff] p-4 transition hover:-translate-y-0.5 hover:border-[#bfd3f0] hover:shadow-[0_8px_22px_rgba(37,74,119,0.08)]">
+    <article className="group rounded-2xl border border-[var(--line)] bg-[var(--c-fcfdff)] p-4 transition hover:-translate-y-0.5 hover:border-[var(--c-bfd3f0)] hover:shadow-[0_8px_22px_rgba(37,74,119,0.08)]">
       <div className="flex items-start gap-3">
         <input
           id={checkboxId}
@@ -57,7 +57,7 @@ export function TaskCard({
           aria-label={t(locale, completed ? "task.markIncomplete" : "task.markComplete", {
             title: task.title,
           })}
-          className="mt-1 size-4 shrink-0 cursor-pointer accent-[#2a71d8]"
+          className="mt-1 size-4 shrink-0 cursor-pointer accent-[var(--c-2a71d8)]"
         />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
@@ -72,19 +72,19 @@ export function TaskCard({
                 </span>
               )}
               {task.kind && (
-                <span className="shrink-0 rounded-md bg-[#f0f3f7] px-2 py-1 text-[10px] font-bold tracking-[0.06em] text-[#536476]">
+                <span className="shrink-0 rounded-md bg-[var(--c-f0f3f7)] px-2 py-1 text-[10px] font-bold tracking-[0.06em] text-[var(--c-536476)]">
                   {t(locale, task.kind === "class" ? "kind.class" : "kind.assignment")}
                 </span>
               )}
             </div>
             {isDueSoon(task, now) && (
-              <span className="shrink-0 rounded-full bg-[#fff0ed] px-2 py-1 text-[10px] font-bold text-[#c5402d]">
+              <span className="shrink-0 rounded-full bg-[var(--c-fff0ed)] px-2 py-1 text-[10px] font-bold text-[var(--c-c5402d)]">
                 {t(locale, "badge.dueSoon")}
               </span>
             )}
           </div>
           <h4
-            className={`mt-3 min-h-10 break-words text-sm font-semibold leading-5 ${completed ? "text-[var(--muted)] line-through" : "text-[#172b41]"}`}
+            className={`mt-3 min-h-10 break-words text-sm font-semibold leading-5 ${completed ? "text-[var(--muted)] line-through" : "text-[var(--c-172b41)]"}`}
           >
             <label htmlFor={checkboxId}>{task.title}</label>
           </h4>

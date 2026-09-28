@@ -136,7 +136,7 @@ export function AnnouncementsSection({
           <button
             type="button"
             onClick={clearAnnouncements}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#cdd9e6] bg-white px-3 text-sm font-semibold text-[#4e647b] transition hover:border-[#9fb7d1] hover:text-[#244e7a]"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
           >
             {t(locale, "announcements.clear")}
           </button>
@@ -144,8 +144,8 @@ export function AnnouncementsSection({
       </div>
 
       {announcements.length === 0 ? (
-        <div className="mt-4 rounded-2xl border border-dashed border-[#d7e1ec] bg-[#fafcff] p-5">
-          <p className="text-sm font-semibold text-[#31506f]">
+        <div className="mt-4 rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5">
+          <p className="text-sm font-semibold text-[var(--c-31506f)]">
             {t(locale, "announcements.emptyTitle")}
           </p>
           <p className="mt-1 text-sm text-[var(--muted)]">
@@ -153,7 +153,7 @@ export function AnnouncementsSection({
           </p>
           <Link
             href="/helper"
-            className="mt-3 inline-flex text-sm font-semibold text-[var(--blue)] hover:underline"
+            className="mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline"
           >
             {t(locale, "announcements.emptyCta")}
           </Link>
@@ -167,7 +167,7 @@ export function AnnouncementsSection({
               className={`inline-flex h-8 items-center rounded-full px-3 text-xs font-semibold transition ${
                 courseFilter === null
                   ? "bg-[var(--navy)] text-white"
-                  : "border border-[#cdd9e6] bg-white text-[#4e647b] hover:border-[#9fb7d1]"
+                  : "border border-[var(--c-cdd9e6)] bg-[var(--surface)] text-[var(--c-4e647b)] hover:border-[var(--c-9fb7d1)]"
               }`}
             >
               {t(locale, "announcements.allCourses")}
@@ -180,7 +180,7 @@ export function AnnouncementsSection({
                 className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
                   courseFilter === key
                     ? "bg-[var(--navy)] text-white"
-                    : "border border-[#cdd9e6] bg-white text-[#4e647b] hover:border-[#9fb7d1]"
+                    : "border border-[var(--c-cdd9e6)] bg-[var(--surface)] text-[var(--c-4e647b)] hover:border-[var(--c-9fb7d1)]"
                 }`}
               >
                 {key === NO_COURSE ? t(locale, "announcements.uncoursed") : key}
@@ -205,10 +205,10 @@ export function AnnouncementsSection({
             {shown.map((entry) => (
               <li
                 key={entry.id}
-                className="rounded-[20px] border border-[var(--line)] bg-white p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
+                className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="inline-flex items-center rounded-full bg-[#eef4ff] px-2.5 py-0.5 text-[11px] font-semibold text-[#244e7a]">
+                  <span className="inline-flex items-center rounded-full bg-[var(--c-eef4ff)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--c-244e7a)]">
                     {labelFor(entry)}
                   </span>
                   <span className="text-xs text-[var(--muted)]">
@@ -220,12 +220,12 @@ export function AnnouncementsSection({
                   </span>
                 </div>
 
-                <h3 className="font-display mt-2 text-base font-semibold text-[#172b41]">
+                <h3 className="font-display mt-2 text-base font-semibold text-[var(--c-172b41)]">
                   {entry.title}
                 </h3>
 
                 {entry.body ? (
-                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#31506f]">
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[var(--c-31506f)]">
                     {entry.body.length > CLAMP_LENGTH && !expanded
                       ? `${entry.body.slice(0, CLAMP_LENGTH)}…`
                       : entry.body}
@@ -239,7 +239,7 @@ export function AnnouncementsSection({
             <button
               type="button"
               onClick={() => setExpanded((value) => !value)}
-              className="mt-4 inline-flex h-9 items-center rounded-lg border border-[#cdd9e6] bg-white px-3 text-sm font-semibold text-[#4e647b] transition hover:border-[#9fb7d1] hover:text-[#244e7a]"
+              className="mt-4 inline-flex h-9 items-center rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
             >
               {expanded
                 ? t(locale, "announcements.showLess")
