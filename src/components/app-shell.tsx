@@ -4,25 +4,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
-  Award,
   BellOff,
   BellRing,
-  CalendarDays,
-  ChartColumn,
-  Check,
   FileUp,
-  FolderOpen,
-  LayoutDashboard,
-  ListChecks,
-  Megaphone,
   Monitor,
   Moon,
-  Puzzle,
   Sparkles,
   Sun,
 } from "lucide-react";
 
 import { AppFooter } from "@/components/app-footer";
+import { MobileNav } from "@/components/mobile-nav";
+import { NAV_ITEMS } from "@/components/nav-items";
 import { SyncBanner } from "@/components/sync-banner";
 import { useCalendar } from "@/components/calendar-provider";
 import { t } from "@/lib/i18n";
@@ -66,18 +59,6 @@ const THEME_ICONS = { system: Monitor, light: Sun, dark: Moon } as const;
 function carriesFiles(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
-
-const NAV_ITEMS = [
-  { href: "/", key: "nav.dashboard", Icon: LayoutDashboard },
-  { href: "/plan", key: "nav.plan", Icon: ListChecks },
-  { href: "/tasks", key: "nav.tasks", Icon: Check },
-  { href: "/calendar", key: "nav.calendar", Icon: CalendarDays },
-  { href: "/announcements", key: "nav.announcements", Icon: Megaphone },
-  { href: "/materials", key: "nav.materials", Icon: FolderOpen },
-  { href: "/grades", key: "nav.grades", Icon: Award },
-  { href: "/insights", key: "insights.eyebrow", Icon: ChartColumn },
-  { href: "/helper", key: "nav.helper", Icon: Puzzle },
-] as const;
 
 /**
  * Persistent chrome: the sidebar and the top header. It is rendered once by the
@@ -192,7 +173,7 @@ export function AppShell({
             </div>
           </div>
 
-          <nav className="mt-12 space-y-2" aria-label="Main navigation">
+          <nav className="mt-12 space-y-2" aria-label={t(locale, "nav.main")}>
             {NAV_ITEMS.map(({ href, key, Icon }) => {
               const active = pathname === href;
               return (
@@ -246,19 +227,19 @@ export function AppShell({
 
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col px-4 py-5 sm:px-7 lg:px-10 lg:py-8">
+        <section className="flex min-w-0 flex-1 flex-col px-4 pt-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-7 lg:px-10 lg:py-8">
           <header className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 lg:hidden">
               <div className="grid size-10 place-items-center rounded-xl bg-[var(--navy)] text-white">
                 <Sparkles size={18} />
               </div>
-              <span className="font-display text-lg font-semibold">{t(locale, "app.name")}</span>
+              <span className="font-display hidden text-lg font-semibold sm:inline">{t(locale, "app.name")}</span>
             </div>
             <div className="ml-auto flex items-center gap-3">
               <div
                 role="group"
                 aria-label={t(locale, "language.label")}
-                className="flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] p-1 text-xs font-semibold"
+                className="hidden items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] p-1 text-xs font-semibold sm:flex"
               >
                 <button
                   type="button"
@@ -289,10 +270,18 @@ export function AppShell({
               </div>
               <button
                 type="button"
+                onClick={() => changeLocale(locale === "en" ? "zh-CN" : "en")}
+                aria-label={t(locale, locale === "en" ? "language.switchToChinese" : "language.switchToEnglish")}
+                className="whitespace-nowrap rounded-full border border-[var(--line)] bg-[var(--surface)] px-3.5 text-xs font-semibold text-[var(--ink)] sm:hidden"
+              >
+                {t(locale, locale === "en" ? "language.chinese" : "language.english")}
+              </button>
+              <button
+                type="button"
                 onClick={() => chooseTheme(nextTheme(theme))}
                 aria-label={t(locale, "theme.toggle", { mode: t(locale, `theme.${theme}`) })}
                 title={t(locale, "theme.toggle", { mode: t(locale, `theme.${theme}`) })}
-                className="grid size-9 shrink-0 place-items-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] transition hover:text-[var(--ink)]"
+                className="tap-icon grid size-9 shrink-0 place-items-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] transition hover:text-[var(--ink)]"
               >
                 <ThemeIcon size={16} />
               </button>
@@ -308,7 +297,7 @@ export function AppShell({
                     ? t(locale, "reminders.on")
                     : t(locale, "reminders.off")
                 }
-                className={`grid size-9 shrink-0 place-items-center rounded-full border transition ${
+                className={`tap-icon grid size-9 shrink-0 place-items-center rounded-full border transition ${
                   remindersEnabled
                     ? "border-[var(--navy)] bg-[var(--navy)] text-white"
                     : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--c-172b41)]"
@@ -320,7 +309,7 @@ export function AppShell({
                 <p className="text-sm font-semibold">{t(locale, "header.studentName")}</p>
                 <p className="text-xs text-[var(--muted)]">{t(locale, "header.privateDashboard")}</p>
               </div>
-              <div className="grid size-10 place-items-center rounded-full bg-[var(--c-dbe8ff)] text-sm font-bold text-[var(--c-1851a5)]">
+              <div className="hidden size-10 place-items-center rounded-full bg-[var(--c-dbe8ff)] text-sm font-bold text-[var(--c-1851a5)] sm:grid">
                 HS
               </div>
             </div>
@@ -334,6 +323,7 @@ export function AppShell({
           <AppFooter version={version} />
         </section>
       </div>
+      <MobileNav pathname={pathname} locale={locale} />
     </main>
   );
 }

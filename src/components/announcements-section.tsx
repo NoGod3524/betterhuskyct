@@ -153,7 +153,7 @@ export function AnnouncementsSection({
           </p>
           <Link
             href="/helper"
-            className="mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline"
+            className="tap-link mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline"
           >
             {t(locale, "announcements.emptyCta")}
           </Link>

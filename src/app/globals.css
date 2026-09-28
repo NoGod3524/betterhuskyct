@@ -349,6 +349,101 @@ input {
  * Only opacity and transform are animated, which the compositor handles without
  * re-laying-out the page.
  */
+/*
+ * Keyboard focus and press feedback, for every button and link at once.
+ *
+ * Only the text fields had a designed focus ring; buttons and links showed the
+ * browser's own, which differs by browser and vanishes on the dark navy. One
+ * rule in the base layer gives them all the theme's link blue, and a component
+ * that draws its own ring (the text fields do) still wins, since utilities sit
+ * above the base layer. A pressed button shrinks a little, so a tap is seen to
+ * land; people who asked for less motion get none of it.
+ */
+@layer base {
+  :where(a[href], button, summary, select, [role="button"], [tabindex]):focus-visible {
+    outline: 2px solid var(--link);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    :where(button:not(:disabled), [role="button"]):active {
+      transform: scale(0.98);
+    }
+  }
+}
+
+/*
+ * Touch. A finger is about 44 px; the buttons here are 28 to 38, and the
+ * completion checkbox was 16. On a coarse pointer (a phone or tablet, not a
+ * mouse) every button and field gets a 44 px minimum, an icon button a 44 px
+ * square, a text link a 44 px line, and the checkbox keeps its small box inside
+ * a 44 px hit area that takes no more room than the box did. On a mouse nothing
+ * here applies, so the desktop looks exactly as it did.
+ */
+.tap-check {
+  display: contents;
+}
+
+@media (pointer: coarse) {
+  button,
+  select,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+    min-height: 44px;
+  }
+
+  .tap-icon {
+    min-width: 44px;
+  }
+
+  .tap-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .tap-check {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    /* The box's own top offset (4 px unless a component says otherwise) less the
+       14 px the area extends past it, and 14 px back on the other sides, so the
+       area takes exactly the room the box did. */
+    margin: calc(var(--tap-top, 4px) - 14px) -14px -14px;
+  }
+
+  .tap-check input {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin: 0;
+  }
+}
+
+/* The bottom bar shown in place of the sidebar on a phone or tablet. */
+.mobile-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+  min-height: 3.5rem;
+  padding: 0.4rem 0.25rem;
+  color: var(--nav);
+  font-size: 0.6875rem;
+  font-weight: 650;
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.mobile-tab-active {
+  color: var(--nav-active);
+}
+
+/* Behind a sheet; a dark veil reads the same on the light and the dark theme. */
+.scrim {
+  background: rgb(8 20 35 / 0.55);
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

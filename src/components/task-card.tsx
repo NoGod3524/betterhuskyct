@@ -49,16 +49,18 @@ export function TaskCard({
   return (
     <article className="group rounded-2xl border border-[var(--line)] bg-[var(--c-fcfdff)] p-4 transition hover:-translate-y-0.5 hover:border-[var(--c-bfd3f0)] hover:shadow-[0_8px_22px_rgba(37,74,119,0.08)]">
       <div className="flex items-start gap-3">
-        <input
-          id={checkboxId}
-          type="checkbox"
-          checked={completed}
-          onChange={() => onToggleComplete(task.id)}
-          aria-label={t(locale, completed ? "task.markIncomplete" : "task.markComplete", {
-            title: task.title,
-          })}
-          className="mt-1 size-4 shrink-0 cursor-pointer accent-[var(--c-2a71d8)]"
-        />
+        <label htmlFor={checkboxId} className="tap-check shrink-0">
+          <input
+            id={checkboxId}
+            type="checkbox"
+            checked={completed}
+            onChange={() => onToggleComplete(task.id)}
+            aria-label={t(locale, completed ? "task.markIncomplete" : "task.markComplete", {
+              title: task.title,
+            })}
+            className="mt-1 size-4 shrink-0 cursor-pointer accent-[var(--c-2a71d8)]"
+          />
+        </label>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">

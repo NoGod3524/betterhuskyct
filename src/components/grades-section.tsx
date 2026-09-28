@@ -132,7 +132,7 @@ export function GradesSection({ openStore = openGradesStore }: { openStore?: () 
         <div className="mt-4 rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5">
           <p className="text-sm font-semibold text-[var(--c-31506f)]">{t(locale, "grades.emptyTitle")}</p>
           <p className="mt-1 text-sm text-[var(--muted)]">{t(locale, "grades.emptyBody")}</p>
-          <Link href="/helper" className="mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline">
+          <Link href="/helper" className="tap-link mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline">
             {t(locale, "grades.emptyCta")}
           </Link>
         </div>
@@ -219,7 +219,7 @@ export function GradesSection({ openStore = openGradesStore }: { openStore?: () 
                       href={url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--link)] hover:underline"
+                      className="tap-link mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--link)] hover:underline"
                     >
                       <ExternalLink size={13} aria-hidden />
                       {t(locale, "grades.openInHuskyct")}

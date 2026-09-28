@@ -280,13 +280,15 @@ export function ConnectSection() {
             </form>
 
             <div className="mt-2 flex items-start gap-2.5">
-              <input
-                id="remember-calendar"
-                type="checkbox"
-                checked={rememberSource}
-                onChange={toggleRememberSource}
-                className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[var(--c-2a71d8)]"
-              />
+              <label htmlFor="remember-calendar" className="tap-check shrink-0 [--tap-top:2px]">
+                <input
+                  id="remember-calendar"
+                  type="checkbox"
+                  checked={rememberSource}
+                  onChange={toggleRememberSource}
+                  className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[var(--c-2a71d8)]"
+                />
+              </label>
               <div className="min-w-0">
                 <label
                   htmlFor="remember-calendar"
