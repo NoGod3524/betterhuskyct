@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 
+import { isCourseCatalogueLoaded } from "../src/lib/course-catalogue.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { t } from "../src/lib/i18n.ts";
 import { buildSyncPayload, encodeSyncPayload } from "../src/lib/sync.ts";
@@ -112,6 +113,62 @@ function recordIntervals() {
 }
 
 const DAY_AND_A_HALF = 36 * 60 * 60 * 1000;
+
+// These two come first: the course catalogue loads once per process, so they are
+// the only place its arrival can be seen.
+test("the demo names its own courses, so the 62 KB course catalogue is never fetched for it", async () => {
+  const app = await mount();
+  await settle(50);
+
+  assert.equal(app.calendar.isImported, false);
+  assert.equal(isCourseCatalogueLoaded(), false, "the catalogue was fetched for a page that does not use it");
+  await app.unmount();
+});
+
+test("an imported class meeting with no course gets its code once the catalogue arrives", async () => {
+  const start = new RealDate(RealDate.now() + 2 * 86_400_000).toISOString();
+  const packed = await encodeSyncPayload(
+    buildSyncPayload({
+      feeds: [
+        {
+          name: "Environmental Science",
+          courseId: null,
+          importedAt: start,
+          events: [
+            {
+              id: `class-1:${start}`,
+              title: "Environmental Science",
+              course: null,
+              start,
+              dateKey: null,
+              end: null,
+              allDay: false,
+              location: null,
+              kind: "class",
+            },
+          ],
+        },
+      ],
+      completedIds: [],
+      efforts: {},
+      courses: EMPTY_COURSE_BOOK,
+    }),
+  );
+  const app = await mount();
+  await act(async () => {
+    window.location.hash = `#sync=${packed}`;
+    window.dispatchEvent(new window.Event("hashchange"));
+  });
+  await settle(50);
+  await act(async () => app.calendar.applyPendingSync());
+  await settle(200);
+
+  assert.equal(app.calendar.isImported, true);
+  assert.equal(isCourseCatalogueLoaded(), true, "a task with no course did not ask for the catalogue");
+  const [task] = app.calendar.tasks;
+  assert.equal(app.calendar.courseLabelFor(task)?.code, "NRE 1000E");
+  await app.unmount();
+});
 
 test("the provider's clock moves on its minute interval", async () => {
   const intervals = recordIntervals();

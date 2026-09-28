@@ -63,6 +63,7 @@ import {
   type EffortLevel,
   type EffortMap,
 } from "@/lib/effort";
+import { isCourseCatalogueLoaded, loadCourseCatalogue } from "@/lib/course-catalogue";
 import { buildPlan, type Plan } from "@/lib/plan";
 import {
   EMPTY_COURSE_BOOK,
@@ -561,6 +562,26 @@ export function CalendarProvider({
   );
 
   const taskOwners = useMemo(() => taskOwnerIndex(subscriptions), [subscriptions]);
+
+  // The course catalogue is a 62 KB download that only a task with no course of
+  // its own (a Blackboard class meeting) can use, so it is fetched when the
+  // tasks on screen include one — never for the demo, which names its courses.
+  // Labels are read during render, so its arrival is a state change.
+  const [catalogueReady, setCatalogueReady] = useState(isCourseCatalogueLoaded);
+  const needsCatalogue = useMemo(() => tasks.some((task) => !(task.course ?? "").trim()), [tasks]);
+  useEffect(() => {
+    if (!needsCatalogue || catalogueReady) return;
+    let cancelled = false;
+    loadCourseCatalogue().then(
+      () => {
+        if (!cancelled) setCatalogueReady(true);
+      },
+      () => undefined, // Offline: labels fall back to the feed's course, as they did before it arrived.
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [needsCatalogue, catalogueReady]);
 
   const completionSource: CompletionSource = isImported ? "imported" : "demo";
 
