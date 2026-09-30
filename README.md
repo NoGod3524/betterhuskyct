@@ -140,12 +140,12 @@ Failures are logged without ever writing the private calendar URL to the log.
 | Parsed events | `localStorage`, in your browser only |
 | Course announcements | `localStorage`, in your browser only — sent over by the browser helper alongside your deadlines |
 | Course materials | IndexedDB, in your browser only — the files are read on HuskyCT by the helper and handed to this page tab to tab; the app accepts them only from HuskyCT's own pages, and never sends them anywhere |
-| Announcement summaries | Only when you press **Summarize**: that course's announcements (title, text, posted line — none of your details, no feed link), with email addresses, phone numbers and links replaced, go through BetterHuskyCT's own endpoint to an AI service. First [Z.ai](https://z.ai), which runs GLM from Singapore and states in its API terms that content is not saved. If Z.ai is busy or failing, [Google Gemini's free tier](https://ai.google.dev/gemini-api/terms), whose terms let Google use the content to improve its models and let reviewers read it; it is never used for readers in the EEA, Switzerland or the UK. The endpoint logs no text. A summary is held in the server's memory for up to 6 hours, keyed by a hash of the announcements, so classmates sending the same ones reuse it; it is never written to disk |
+| Announcement summaries | Only when you press **Summarize**: that course's announcements (title, text, posted line — none of your details, no feed link), with email addresses, phone numbers and links replaced, go through BetterHuskyCT's own endpoint to an AI service when no reusable summary is cached. First [Z.ai](https://z.ai), which runs GLM from Singapore and states in its API terms that content is not saved. If Z.ai is busy or failing, [Google Gemini's free tier](https://ai.google.dev/gemini-api/terms), whose terms let Google use the content to improve its models and let reviewers read it; it is never used for readers in the EEA, Switzerland or the UK. The endpoint logs no text. Summaries are cached for up to 6 hours in server memory and, if configured, shared across instances through Upstash Redis. The shared cache stores only a SHA-256 hash key, summary, provider and original generation time; it stores no original announcements, IP addresses, request details or credentials |
 | Grades | `localStorage`, in your browser only — read from each course's gradebook on HuskyCT by the helper and handed to this page tab to tab; the app accepts them only from HuskyCT's own pages, and never sends them anywhere |
 | Completed task IDs | `localStorage`, in your browser only |
 | Language choice | `localStorage`, in your browser only |
 
-No NetID, no password, no account, no database, no analytics. The **Clear saved data** button wipes the saved calendar and the completion state together.
+No NetID, no password, no account, no analytics. Calendar data stays in your browser; the only optional server-side database is the summary cache described above. The **Clear saved data** button wipes the saved calendar and the completion state together.
 
 ## Tech stack
 
@@ -256,10 +256,29 @@ both; with neither, the app works as before and simply shows no summary button.
    keys are noticed at build time.
 
 Keys are read only on the server, by `src/app/api/announcements/summarize`, and
-never sent to the page. Neither free tier publishes fixed quotas (roughly a
-thousand requests a day each at the time of writing, and GLM serves one at a
-time); the shared cache means one course's announcements cost one request however
-many classmates press.
+never sent to the page. Cache hits reuse a summary without spending model quota.
+By default, each server instance keeps up to 500 summaries in memory for 6 hours.
+The optional shared cache below also works across instances and cold starts;
+simultaneous cache misses can still generate more than one summary. Request
+limits remain per instance, and Gemini's regional restrictions still apply.
+
+### Shared summary cache (optional)
+
+Create a Redis database in the [Upstash console](https://console.upstash.com),
+then copy its HTTPS REST URL and a token with write access (not the read-only
+token). See the [Upstash REST API guide](https://upstash.com/docs/redis/features/restapi).
+
+| Variable | Value |
+|---|---|
+| `UPSTASH_REDIS_REST_URL` | The database's HTTPS REST URL |
+| `UPSTASH_REDIS_REST_TOKEN` | Its REST token with read and write access |
+
+Add both in Vercel under **Settings → Environment Variables**, or in the root
+`.env.local`, then redeploy or restart the development server. These are
+server-only secrets: do not prefix them with `NEXT_PUBLIC_` or commit them.
+With either variable missing, caching stays local. Upstash failures and short
+timeouts fall back to the local cache. Shared entries expire after 6 hours and
+contain only the hash key, summary, provider and original generation time.
 
 `npm run course-map` reads UConn's public class search — no login, no token — and
 rewrites `src/lib/ucc-courses.json`, which is what lets a class meeting named
@@ -284,7 +303,7 @@ slowly, so running it once a semester is plenty. Pass a term to limit it:
 
 ## Background
 
-BetterHuskyCT started as a personal tool. Deadlines were spread across HuskyCT, syllabi, and email, and the existing options either asked for a NetID or wanted more access than a simple "what's due next" view needs. This project is a narrow attempt to fix that: one private calendar feed in, one clear list out, and everything kept on your own device.
+BetterHuskyCT started as a personal tool. Deadlines were spread across HuskyCT, syllabi, and email, and the existing options either asked for a NetID or wanted more access than a simple "what's due next" view needs. This project is a narrow attempt to fix that: one private calendar feed in, one clear list out, and calendar data kept on your own device. Optional announcement summaries follow the privacy model above.
 
 ## Roadmap
 
@@ -304,7 +323,7 @@ Built by [Yinuo (NoGod3524)](https://github.com/NoGod3524), a UConn student.
 
 BetterHuskyCT is an independent student project. It is **not affiliated with, endorsed by, or supported by** the University of Connecticut, HuskyCT, or Blackboard Inc. "HuskyCT", "Blackboard" and "UConn" are named only to describe what the app reads.
 
-You paste your own private calendar link, and you are responsible for keeping it private — it works like a password. The app has no server-side database and stores nothing about you, but a link you tick **Remember** is saved in that browser.
+You paste your own private calendar link, and you are responsible for keeping it private — it works like a password. The app stores no calendar or account data in a server-side database. An optional Upstash database holds summary cache entries for up to 6 hours; a link you tick **Remember** is saved in that browser.
 
 ## License
 

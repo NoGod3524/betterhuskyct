@@ -135,11 +135,11 @@ flowchart TB
 | 拖入的 `.ics` 文件 | 在页面里读取，发给 BetterHuskyCT 自己的接口解析，不会被写到任何地方 |
 | 解析后的事件 | 只在你浏览器的 `localStorage` |
 | 课程公告 | 只在你浏览器的 `localStorage`（由浏览器助手随 deadline 一起送来） |
-| 公告总结 | 只在你按下「总结」时：这门课的公告（标题、正文、发布时间——不含你的信息和日历链接），把邮箱、电话、链接替换掉之后，经 BetterHuskyCT 自己的接口发给 AI 服务。先发给 [Z.ai](https://z.ai)：它在新加坡运行 GLM，API 条款写明不保存内容。Z.ai 忙或出错时改用 [Google Gemini 免费版](https://ai.google.dev/gemini-api/terms)：其条款允许 Google 用这些内容改进模型、人工审核员可能会看；来自欧洲经济区、瑞士、英国的请求绝不会交给它。接口不记录任何公告文本。总结按公告内容的哈希值在服务器内存里最多保留 6 小时，发来同样公告的同学直接复用；从不写入磁盘 |
+| 公告总结 | 只在你按下「总结」且没有可复用的缓存时：这门课的公告（标题、正文、发布时间——不含你的信息和日历链接），把邮箱、电话、链接替换掉之后，经 BetterHuskyCT 自己的接口发给 AI 服务。先发给 [Z.ai](https://z.ai)：它在新加坡运行 GLM，API 条款写明不保存内容。Z.ai 忙或出错时改用 [Google Gemini 免费版](https://ai.google.dev/gemini-api/terms)：其条款允许 Google 用这些内容改进模型、人工审核员可能会看；来自欧洲经济区、瑞士、英国的请求绝不会交给它。接口不记录任何公告文本。总结在服务器内存里最多缓存 6 小时；配置 Upstash Redis 后，也会在服务实例之间共享。共享缓存只存 SHA-256 哈希键、总结、模型提供方和原始生成时间，不存原公告、IP 地址、请求明文或凭据 |
 | 已完成的任务 ID | 只在你浏览器的 `localStorage` |
 | 语言选择 | 只在你浏览器的 `localStorage` |
 
-没有 NetID、没有密码、没有账号、没有数据库、没有统计埋点。「清空已保存数据」会把日历和勾选状态一起清掉。
+没有 NetID、没有密码、没有账号、没有统计埋点。日历数据存在你的浏览器里；唯一可选的服务端数据库是上述总结缓存。「清空已保存数据」会把日历和勾选状态一起清掉。
 
 ## 技术栈
 
@@ -235,7 +235,18 @@ npm run course-map   # 重新抓取 UConn 课程目录（每学期一次）
 2. 在 Vercel 的 **Settings → Environment Variables** 里添加，或者本地写进 `.env.local`（已被 git 忽略）。
 3. 重新部署（或重启 `npm run dev`）。公告页是预渲染的，key 在构建时才会被识别。
 
-key 只在服务端由 `src/app/api/announcements/summarize` 读取，从不发给页面。两家的免费版都不公布固定额度（写这段时大约各一天一千次，GLM 同一时间只处理一个请求）；有共享缓存，同一门课的公告不管多少同学按，都只算一次。
+key 只在服务端由 `src/app/api/announcements/summarize` 读取，从不发给页面。命中缓存会直接复用总结，不消耗模型额度。默认每个服务实例在内存里缓存最多 500 条总结，保留 6 小时。下面的可选共享缓存支持不同实例和冷启动复用；多个请求同时未命中时，仍可能生成多次总结。请求限流仍按实例执行，Gemini 的地区限制继续生效。
+
+### 共享总结缓存（可选）
+
+在 [Upstash 控制台](https://console.upstash.com) 创建 Redis 数据库，再复制其 HTTPS REST URL 和有写权限的 token（不要用只读 token）。详见 [Upstash REST API 文档](https://upstash.com/docs/redis/features/restapi)。
+
+| 环境变量 | 值 |
+|---|---|
+| `UPSTASH_REDIS_REST_URL` | 数据库的 HTTPS REST URL |
+| `UPSTASH_REDIS_REST_TOKEN` | 有读写权限的 REST token |
+
+把两个变量都添加到 Vercel 的 **Settings → Environment Variables**，或项目根目录的 `.env.local`，然后重新部署或重启开发服务器。它们是服务端凭据，不要加 `NEXT_PUBLIC_` 前缀，也不要提交到 git。缺少任一变量时继续使用本地缓存；Upstash 出错或短超时后自动回退本地缓存。共享缓存条目 6 小时后过期，只包含哈希键、总结、模型提供方和原始生成时间。
 
 `npm run course-map` 读的是 UConn 公开的选课搜索——不需要登录、不需要 token——重写 `src/lib/ucc-courses.json`。这张表就是「Environmental Science 自动认出 NRE 1000E」的依据。课号和课名几年才变一次，每学期跑一次足够。也可以只抓某个学期：`npm run course-map -- 1268`。
 
@@ -256,7 +267,7 @@ key 只在服务端由 `src/app/api/announcements/summarize` 读取，从不发�
 
 ## 项目背景
 
-BetterHuskyCT 最初是一个自用工具。deadline 散落在 HuskyCT、课程大纲和邮件里，而现成的方案要么要交出 NetID，要么索取了远超「看一眼日历」所需的权限。这个项目想把这件事做到又窄又诚实：输入一份私人日历订阅，得到一份清晰的清单，所有数据都留在你自己的设备上。
+BetterHuskyCT 最初是一个自用工具。deadline 散落在 HuskyCT、课程大纲和邮件里，而现成的方案要么要交出 NetID，要么索取了远超「看一眼日历」所需的权限。这个项目想把这件事做到又窄又诚实：输入一份私人日历订阅，得到一份清晰的清单，日历数据留在你自己的设备上。可选的公告总结遵循上面的隐私模型。
 
 ## 路线图
 
@@ -276,7 +287,7 @@ BetterHuskyCT 最初是一个自用工具。deadline 散落在 HuskyCT、课程�
 
 BetterHuskyCT 是独立的个人学生项目，**与康涅狄格大学、HuskyCT、Blackboard 官方没有任何隶属、背书或支持关系**。文中提到这些名字，只是为了说明这个工具读取的是什么。
 
-你粘贴的是你自己的私人日历链接，请当作密码保管。本应用没有服务端数据库、不保存你的任何信息；但如果你勾选了「记住这条链接」，它会保存在那台浏览器里。
+你粘贴的是你自己的私人日历链接，请当作密码保管。本应用不在服务端数据库存储日历或账号数据；可选的 Upstash 数据库只保存最多 6 小时的总结缓存。如果你勾选了「记住这条链接」，它会保存在那台浏览器里。
 
 ## 许可证
 

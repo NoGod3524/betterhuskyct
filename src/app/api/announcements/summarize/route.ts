@@ -4,11 +4,11 @@ import { z } from "zod";
 
 import { MAX_ANNOUNCEMENT_BODY } from "@/lib/announcements";
 import { clientKey, createRateLimiter } from "@/lib/rate-limit";
+import { createSummaryCache } from "@/lib/summary-cache";
 import {
   ModelError,
   providersFromEnv,
   summarizeAnnouncements,
-  type ProviderId,
 } from "@/lib/summary-models";
 
 export const runtime = "nodejs";
@@ -26,31 +26,12 @@ const limiter = createRateLimiter({ windowMs: 60_000, max: 6 });
  * Summaries made recently, shared between everyone who sends the same
  * announcements — in practice, the students of one course. Keyed by a hash of
  * the request, so only someone who already holds those exact announcements can
- * get the summary. In memory only, for a few hours, never written anywhere.
+ * get the summary. Optional Upstash storage shares it across server instances;
+ * without it, or during an outage, the same bounded local cache is used.
  */
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const CACHE_MAX_ENTRIES = 500;
-const cache = new Map<string, { summary: string; provider: ProviderId; at: number }>();
-
-function cached(key: string, geminiAllowed: boolean) {
-  const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.at > CACHE_TTL_MS) {
-    cache.delete(key);
-    return null;
-  }
-  // A Gemini free-tier answer is not handed to a reader Gemini's terms exclude.
-  if (entry.provider === "gemini" && !geminiAllowed) return null;
-  // Most recently used last, so the oldest is evicted first.
-  cache.delete(key);
-  cache.set(key, entry);
-  return entry;
-}
-
-function remember(key: string, summary: string, provider: ProviderId) {
-  cache.set(key, { summary, provider, at: Date.now() });
-  while (cache.size > CACHE_MAX_ENTRIES) cache.delete(cache.keys().next().value!);
-}
+const cache = createSummaryCache({
+  onError: (command) => console.error("Summary cache failed", { command }),
+});
 
 /** What the page may send. The page trims to fit; this refuses what it would not send. */
 const requestSchema = z.object({
@@ -95,7 +76,7 @@ export async function POST(request: Request) {
   const geminiAllowed = providers.some((provider) => provider.id === "gemini" && provider.servesCountry(country));
   const key = createHash("sha256").update(JSON.stringify(parsed.data)).digest("hex");
 
-  const hit = cached(key, geminiAllowed);
+  const hit = await cache.get(key, geminiAllowed);
   if (hit) return json({ summary: hit.summary, provider: hit.provider });
 
   const limit = limiter(clientKey(request));
@@ -115,7 +96,7 @@ export async function POST(request: Request) {
           status: error.status,
         }),
     });
-    remember(key, text, provider);
+    await cache.set(key, text, provider);
     return json({ summary: text, provider });
   } catch (error) {
     const problem = error instanceof ModelError ? error.problem : "failed";
