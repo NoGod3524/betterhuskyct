@@ -235,3 +235,10 @@ test("announcements whose course is not on the import page are grouped by their 
   assert.ok(!view.text().includes("Exam 1") && !view.text().includes("Filed under nothing"));
   await view.unmount();
 });
+
+test("the page says, in both languages, who Z.ai is and that it is on the U.S. Entity List", () => {
+  // Said beside the button, where the text is about to be sent, not only in the README.
+  assert.match(t("en", "summary.disclosure"), /Zhipu AI.*Chinese company.*Entity List.*January 2025/);
+  assert.match(t("zh-CN", "summary.disclosure"), /智谱 AI.*实体清单/);
+  assert.match(t("zh-CN", "summary.disclosure"), /2025 年 1 月/);
+});
