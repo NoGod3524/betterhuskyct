@@ -14,6 +14,62 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.13.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.13.0) — What changed in your grades, and a shared summary cache
+
+*Minor: the Grades page says what moved since you last looked; announcement summaries can be shared between server instances; and the summary button says who Z.ai is. HuskyCT Helper is unchanged at 1.3.0.*
+
+### Added
+
+- **The Grades page tells you what changed.** Each reading is compared with the
+  one the app already holds, and the difference is badged — **Newly graded**,
+  **New**, **Was 80 / 100** — under a banner that counts them and has a
+  **Mark as seen** button. Changed rows come first in their course. A score
+  appearing, changing, or a scored item that was not there counts; an
+  assignment that merely appears with no score, a score going away, and a 0/0
+  practice test do not, and the first reading of a course is the baseline, so a
+  term of "new" never arrives at once. A change stays until it is marked seen,
+  across as many readings as it takes, and "was" is what you last saw: 80, then
+  90, then 95 before you look reads "was 80". The changes are worked out in the
+  app and stored beside the grades; the helper cannot send any, and a message
+  that carries them has them dropped. ([#80])
+- **Summaries can be shared across servers.** The summary cache lived in each
+  server instance's memory, so the same announcements, served by a new
+  instance, were summarized again. An optional Upstash Redis cache now lets
+  instances reuse a summary for up to six hours. It is off until
+  `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set on the server,
+  and without them the bounded per-instance cache works exactly as before. It
+  adds no dependency. ([#81])
+
+### Changed
+
+- **The summary button says who Z.ai is.** It said GLM runs "from Singapore",
+  which leaves out that Z.ai is the brand of Zhipu AI, a Chinese company that
+  the U.S. Commerce Department added to its Entity List in January 2025 (checked
+  against the Federal Register rule, document 2025-00704). The note beside the
+  button and both READMEs now say so, in both languages, along with what the
+  listing is — export licensing, not a rule about what you may use — so the
+  choice of provider is yours. ([#82])
+
+### Security
+
+- **The shared cache holds as little as it can.** An entry is a SHA-256 hash of
+  the request, the summary, the provider and the time it was written: no
+  announcements, no IP addresses, no request details, no credentials. Whether
+  Gemini may serve a reader is checked on every hit, local or remote, so a cached
+  Gemini summary is never handed to a reader Gemini is not allowed for. Redis
+  requests time out after a second, writes finish before the response is sent,
+  an entry that does not parse is ignored, and a failure leaves summaries
+  working. ([#81])
+
+### Notes
+
+- **The shared cache has not yet been tried against a real Upstash database.**
+  Its tests simulate Redis, including separate instances, expiry without
+  renewal, malformed entries, read and write failures and timeouts. To turn it
+  on, create a database and set the two variables on the server.
+- **Limits that remain:** two instances that miss at the same moment may each
+  generate a summary, and the rate limit is still per instance. ([#81])
+
 ## [1.12.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.12.0) — Phone navigation, lighter, smoother
 
 *Minor: the site can be navigated on a phone; and a lighter first load, some motion, and controls a finger can hit. HuskyCT Helper is unchanged at 1.3.0.*
@@ -1211,6 +1267,9 @@ saying what to work on next.*
 [#76]: https://github.com/NoGod3524/betterhuskyct/pull/76
 [#77]: https://github.com/NoGod3524/betterhuskyct/pull/77
 [#78]: https://github.com/NoGod3524/betterhuskyct/pull/78
+[#80]: https://github.com/NoGod3524/betterhuskyct/pull/80
+[#81]: https://github.com/NoGod3524/betterhuskyct/pull/81
+[#82]: https://github.com/NoGod3524/betterhuskyct/pull/82
 
 
 
