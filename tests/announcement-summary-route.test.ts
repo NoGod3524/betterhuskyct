@@ -304,3 +304,114 @@ test("failed Redis reads and writes still return the model answer, then reuse it
   assert.ok(!logs.includes(REDIS_URL));
   assert.ok(!logs.includes(SECRET_BODY));
 });
+
+// --- the reader chooses the model ---------------------------------------------------------------
+
+test("Z.ai only: Gemini is never called, even when Z.ai is busy", async () => {
+  const calls = stubUpstream({ glm: [busy], gemini: [says("- from gemini")] });
+
+  const response = await call({ ...payload(), provider: "glm" });
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { problem: "busy" });
+  assert.ok(calls.length > 0 && calls.every((c) => c.provider === "glm"), "the text went to Gemini against the reader's choice");
+});
+
+test("Z.ai only, when Z.ai answers, is credited to Z.ai", async () => {
+  const calls = stubUpstream({ glm: [says("- from glm")], gemini: [says("- from gemini")] });
+
+  const response = await call({ ...payload(), provider: "glm" });
+
+  assert.deepEqual(await response.json(), { summary: "- from glm", provider: "glm" });
+  assert.deepEqual(calls.map((c) => c.provider), ["glm"]);
+});
+
+test("Gemini only: Z.ai is never called", async () => {
+  const calls = stubUpstream({ glm: [says("- from glm")], gemini: [says("- from gemini")] });
+
+  const response = await call({ ...payload(), provider: "gemini" }, { country: "US" });
+
+  assert.deepEqual(await response.json(), { summary: "- from gemini", provider: "gemini" });
+  assert.deepEqual(calls.map((c) => c.provider), ["gemini"]);
+});
+
+test("Gemini only for a reader its free terms exclude is refused before anything is sent", async () => {
+  const calls = stubUpstream({ glm: [says("- from glm")], gemini: [says("- from gemini")] });
+
+  for (const country of ["DE", "GB", "CH"]) {
+    const response = await call({ ...payload(), provider: "gemini" }, { country });
+    assert.equal(response.status, 403, country);
+    assert.deepEqual(await response.json(), { problem: "region" });
+  }
+  assert.equal(calls.length, 0, "the text was sent anyway");
+});
+
+test("a chosen model this server has no key for is named as unavailable, not silently swapped", async () => {
+  const calls = stubUpstream({ glm: [says("- from glm")], gemini: [says("- from gemini")] });
+
+  delete process.env.GEMINI_API_KEY;
+  let response = await call({ ...payload(), provider: "gemini" });
+  assert.equal(response.status, 422);
+  assert.deepEqual(await response.json(), { problem: "choice-unavailable" });
+
+  process.env.GEMINI_API_KEY = "gemini-secret-456";
+  delete process.env.ZAI_API_KEY;
+  response = await call({ ...payload(), provider: "glm" });
+  assert.deepEqual(await response.json(), { problem: "choice-unavailable" });
+  assert.equal(calls.length, 0);
+});
+
+test("a choice the endpoint does not know is refused", async () => {
+  const calls = stubUpstream({ glm: [says("- unused")] });
+
+  for (const provider of ["openai", "", 1, null]) {
+    const response = await call({ ...payload(), provider });
+    assert.equal(response.status, 400, String(provider));
+  }
+  assert.equal(calls.length, 0);
+});
+
+test("saying 'automatic' is the same as saying nothing", async () => {
+  const calls = stubUpstream({ glm: [says("- from glm")] });
+  const body = payload();
+
+  const first = await call(body);
+  const second = await call({ ...body, provider: "auto" }); // same text: served from the cache
+
+  assert.deepEqual(await first.json(), { summary: "- from glm", provider: "glm" });
+  assert.deepEqual(await second.json(), { summary: "- from glm", provider: "glm" });
+  assert.equal(calls.length, 1, "automatic was summarised separately from no choice");
+});
+
+test("a summary Gemini wrote is not handed to someone who chose Z.ai only, and the reverse", async () => {
+  // Automatic, with Z.ai busy: Gemini writes it, and it is cached for automatic readers.
+  const calls = stubUpstream({ glm: [busy, says("- from glm")], gemini: [says("- from gemini")] });
+  const body = payload();
+
+  const auto = await call(body, { country: "US" });
+  assert.deepEqual(await auto.json(), { summary: "- from gemini", provider: "gemini" });
+
+  // The same announcements, Z.ai only: its own call, not Gemini's cached text.
+  const onlyGlm = await call({ ...body, provider: "glm" }, { country: "US" });
+  assert.deepEqual(await onlyGlm.json(), { summary: "- from glm", provider: "glm" });
+
+  // Z.ai only again: now it is cached, for that choice.
+  const again = await call({ ...body, provider: "glm" }, { country: "US" });
+  assert.deepEqual(await again.json(), { summary: "- from glm", provider: "glm" });
+  assert.deepEqual(calls.map((c) => c.provider), ["glm", "gemini", "glm"], "a choice shared a cache entry with another");
+
+  // And Gemini only gets its own, rather than the Z.ai one just cached.
+  const onlyGemini = await call({ ...body, provider: "gemini" }, { country: "US" });
+  assert.deepEqual(await onlyGemini.json(), { summary: "- from gemini", provider: "gemini" });
+  assert.equal(calls.at(-1)?.provider, "gemini");
+});
+
+test("the choice is not logged with the announcements, and no key comes back", async () => {
+  stubUpstream({ glm: [busy] });
+
+  const response = await call({ ...payload(), provider: "glm" });
+  const shown = JSON.stringify([await response.text(), serverLog.mock.calls.map((c) => c.arguments)]);
+
+  assert.ok(!shown.includes(SECRET_BODY));
+  assert.ok(!shown.includes("zai-secret-123") && !shown.includes("gemini-secret-456"));
+});

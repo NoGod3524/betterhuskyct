@@ -125,3 +125,34 @@ test("a summary is reused only for the same announcements in the same language",
     ["a2", "a1"],
   );
 });
+
+test("a chosen model is named in the request, and automatic adds nothing to it", async () => {
+  const sent: unknown[] = [];
+  const fetchImpl = async (_url: string, init: RequestInit) => {
+    sent.push(JSON.parse(String(init.body)));
+    return Response.json({ summary: "- ok", provider: "glm" });
+  };
+  const { request } = buildSummaryRequest([announcement(1)], "MATH 1070Q", "en");
+
+  await requestSummary(request, fetchImpl);
+  await requestSummary(request, fetchImpl, "auto");
+  await requestSummary(request, fetchImpl, "glm");
+  await requestSummary(request, fetchImpl, "gemini");
+
+  assert.deepEqual(sent, [request, request, { ...request, provider: "glm" }, { ...request, provider: "gemini" }]);
+});
+
+test("the two new refusals become reasons the page can say", async () => {
+  const { request } = buildSummaryRequest([announcement(1)], "MATH 1070Q", "en");
+  const cases: Array<[Response, string]> = [
+    [Response.json({ problem: "region" }, { status: 403 }), "region"],
+    [Response.json({ problem: "choice-unavailable" }, { status: 422 }), "choice-unavailable"],
+  ];
+  for (const [response, expected] of cases) {
+    await assert.rejects(
+      requestSummary(request, async () => response, "gemini"),
+      (error) => error instanceof SummaryError && error.problem === expected,
+      `expected ${expected}`,
+    );
+  }
+});

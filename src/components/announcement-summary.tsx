@@ -11,6 +11,13 @@ import {
   type SummaryProblem,
 } from "@/lib/announcement-summary";
 import { t, type Locale } from "@/lib/i18n";
+import {
+  SUMMARY_CHOICES,
+  isSummaryChoice,
+  restoreSummaryChoice,
+  saveSummaryChoice,
+  type SummaryChoice,
+} from "@/lib/summary-choice";
 import type { ProviderId } from "@/lib/summary-models";
 
 type MadeSummary = {
@@ -52,7 +59,21 @@ const PROBLEM_KEYS = {
   "rate-limited": "summary.errorRateLimited",
   refused: "summary.errorRefused",
   unavailable: "summary.errorUnavailable",
+  region: "summary.errorRegion",
+  "choice-unavailable": "summary.errorChoice",
   failed: "summary.errorFailed",
+} as const;
+
+const CHOICE_KEYS = {
+  auto: "summary.choiceAuto",
+  glm: "summary.choiceGlm",
+  gemini: "summary.choiceGemini",
+} as const;
+
+/** What the choice means for where the text goes, said under the button. */
+const CHOICE_NOTE_KEYS = {
+  glm: "summary.choiceNoteGlm",
+  gemini: "summary.choiceNoteGemini",
 } as const;
 
 /**
@@ -72,6 +93,11 @@ export function AnnouncementSummary({
   announcements: Announcement[];
 }) {
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  // Read once, where there is a browser; the panel is only drawn once a course
+  // is picked, so the server's markup never contains it.
+  const [choice, setChoice] = useState<SummaryChoice>(() =>
+    typeof window === "undefined" ? "auto" : restoreSummaryChoice(window.localStorage),
+  );
 
   if (!course) {
     return <p className="mt-4 text-xs text-[var(--muted)]">{t(locale, "summary.pickCourse")}</p>;
@@ -89,7 +115,7 @@ export function AnnouncementSummary({
     const { request, omitted } = buildSummaryRequest(announcements, course.modelLabel, locale);
     setStatus({ kind: "working", signature });
     try {
-      const { text, provider } = await requestSummary(request);
+      const { text, provider } = await requestSummary(request, undefined, choice);
       made.set(signature, { text, provider, included: request.announcements.length, omitted });
       setStatus({ kind: "idle" });
     } catch (error) {
@@ -113,8 +139,29 @@ export function AnnouncementSummary({
           {summary ? t(locale, "summary.again") : t(locale, "summary.button", { course: course.label })}
         </button>
         {working ? <span className="text-sm text-[var(--c-31506f)]">{t(locale, "summary.working")}</span> : null}
+        <label className="ml-auto flex items-center gap-2 text-xs font-semibold text-[var(--muted)]">
+          {t(locale, "summary.modelLabel")}
+          <select
+            value={choice}
+            onChange={(event) => {
+              if (!isSummaryChoice(event.target.value)) return;
+              setChoice(event.target.value);
+              saveSummaryChoice(window.localStorage, event.target.value);
+            }}
+            className="h-8 rounded-lg border border-[var(--line-strong)] bg-[var(--surface)] px-2 text-xs font-semibold text-[var(--c-31506f)] outline-none transition focus:border-[var(--c-2a71d8)] focus:ring-4 focus:ring-[var(--c-2a71d8)]/10"
+          >
+            {SUMMARY_CHOICES.map((option) => (
+              <option key={option} value={option}>
+                {t(locale, CHOICE_KEYS[option])}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
       <p className="mt-2 text-xs text-[var(--muted)]">{t(locale, "summary.disclosure")}</p>
+      {choice !== "auto" ? (
+        <p className="mt-1 text-xs font-semibold text-[var(--c-31506f)]">{t(locale, CHOICE_NOTE_KEYS[choice])}</p>
+      ) : null}
 
       {pending?.kind === "error" ? (
         <p className="mt-3 text-sm text-[var(--c-b3412e)]">{t(locale, PROBLEM_KEYS[pending.problem])}</p>
