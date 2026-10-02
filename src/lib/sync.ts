@@ -106,20 +106,14 @@ function parseEfforts(value: unknown): EffortMap | null {
 }
 
 /**
- * Reads a payload that arrived from another device.
+ * Reads a payload already parsed out of JSON — a `postMessage` carries a
+ * structured-cloned object, not text, so there is nothing here to `JSON.parse`.
  *
- * As strict as the storage readers: a link is untrusted input, so anything that
+ * As strict as the storage readers: this is untrusted input, so anything that
  * does not match is dropped rather than half-applied. Feeds with no events are
  * dropped too — they would only add an empty calendar to the list.
  */
-export function parseSyncPayload(text: string): SyncPayload | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return null;
-  }
-
+export function parseSyncPayloadValue(parsed: unknown): SyncPayload | null {
   if (!isRecord(parsed)) return null;
   if (parsed.version !== SYNC_VERSION) return null;
   if (!isValidDateString(parsed.exportedAt)) return null;
@@ -157,6 +151,17 @@ export function parseSyncPayload(text: string): SyncPayload | null {
     courses,
     announcements,
   };
+}
+
+/** The same reading, starting from the JSON text a sync link carries. */
+export function parseSyncPayload(text: string): SyncPayload | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  return parseSyncPayloadValue(parsed);
 }
 
 export function buildSyncPayload(input: {
