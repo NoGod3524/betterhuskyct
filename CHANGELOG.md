@@ -14,6 +14,42 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.14.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.14.0) — Choose which model writes your summaries
+
+*Minor: a reader can pin announcement summaries to one model. HuskyCT Helper is unchanged at 1.3.0.*
+
+### Added
+
+- **A Model menu beside the Summarize button**: **Automatic** (Z.ai's GLM first,
+  Google Gemini if it is busy — what always happened, and still the default),
+  **Z.ai only**, or **Gemini only**. A chosen model is the only one the
+  announcements are sent to: if it is busy the reader gets an error, not a quiet
+  fallback to the other. A line under the button says what the choice means — for
+  Gemini, that Google may use the text to improve its models — and the choice is
+  kept in this browser only. ([#84])
+
+### Security
+
+- **A chosen model is enforced on the server, not just in the menu.** A request
+  for Gemini only from a reader in the EEA, Switzerland or the UK is refused
+  before anything is sent, since Gemini's free terms exclude them; a chosen
+  model the server has no key for is reported as unavailable rather than
+  swapped for the other; and an unknown choice is refused. ([#84])
+- **Summaries are kept apart by model.** A chosen model's summaries are cached
+  under their own key, so someone who chose Z.ai only is never handed a summary
+  Gemini wrote, and the reverse. An Automatic request hashes exactly as it
+  always did, so nothing already cached is lost. ([#84])
+
+### Notes
+
+- **The route from HuskyCT to the deployed site was checked end to end in a real
+  browser.** A headless Edge with a clean temporary profile, a stand-in HuskyCT
+  page at the real `lms.uconn.edu` origin loading the real helper 1.3.0, real
+  mouse clicks, and the real deployed site: the pop-up was allowed, the site
+  answered that it had stored the grades and worked out the right total, and a
+  300,000-byte file arrived whole as a Blob with its name and size intact. The
+  data was synthetic, and nothing reached the real HuskyCT.
+
 ## [1.13.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.13.0) — What changed in your grades, and a shared summary cache
 
 *Minor: the Grades page says what moved since you last looked; announcement summaries can be shared between server instances; and the summary button says who Z.ai is. HuskyCT Helper is unchanged at 1.3.0.*
@@ -1270,6 +1306,7 @@ saying what to work on next.*
 [#80]: https://github.com/NoGod3524/betterhuskyct/pull/80
 [#81]: https://github.com/NoGod3524/betterhuskyct/pull/81
 [#82]: https://github.com/NoGod3524/betterhuskyct/pull/82
+[#84]: https://github.com/NoGod3524/betterhuskyct/pull/84
 
 
 
