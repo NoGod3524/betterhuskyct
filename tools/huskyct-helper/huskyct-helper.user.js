@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.3.0
+// @version      1.3.1
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.3.0";
+  const VERSION = "1.3.1";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -136,6 +136,7 @@
       gradesStopped: "Stopped. What was found so far is below.",
       gradesFailed: "Collecting grades stopped with an error: {message}",
       problemGrades: "these courses' grades did not open completely: {courses}.",
+      problemSignedOut: "HuskyCT asked you to sign in again part-way through. Sign in, then press Collect grades once more.",
       sendGrades: "Send grades to BetterHuskyCT ({count} item(s))",
       gradesSent: "In BetterHuskyCT: grades for {courses} course(s), {items} item(s).",
       gradesNotStored: "BetterHuskyCT received the grades but could not store them.",
@@ -221,6 +222,7 @@
       gradesStopped: "已停止。下面是目前读到的。",
       gradesFailed: "收集成绩时出错停止了：{message}",
       problemGrades: "这些课的成绩没能完整读取：{courses}。",
+      problemSignedOut: "读取到一半时 HuskyCT 让你重新登录了。请登录后再按一次「收集成绩」。",
       sendGrades: "把成绩发送到 BetterHuskyCT（{count} 项）",
       gradesSent: "BetterHuskyCT 里：{courses} 门课、{items} 项成绩。",
       gradesNotStored: "BetterHuskyCT 收到了成绩，但没能保存。",
@@ -1767,13 +1769,40 @@
     }
   }
 
+  const PAGE_SELECT = '[data-analytics-id$="pagination.pageSelectDropdown.button"]';
+
   /**
-   * One course's gradebook, every page of it: { items, complete }, or null if
-   * the page never showed. Only rows the previous page did not have count, so a
-   * page still on screen under the new address is not read as this course; an
-   * empty course is told by its picture, which must also be new.
+   * Which page the gradebook is on, and how many there are: { page, pages }, or
+   * null while the pager has not drawn. Read from the page-select button's label
+   * ("Page 1 of 2"), taking its first and last number, so it does not depend on
+   * the language.
+   *
+   * Reading "is Next disabled?" alone was wrong: the button is disabled while the
+   * pager is still loading as well as on the last page, so a slow pager looked
+   * like a one-page gradebook and a course lost its other pages without a word.
    */
-  async function readGradesOf(courseId, code, opts) {
+  function pagerState() {
+    const button = document.querySelector(PAGE_SELECT);
+    const numbers = button ? (button.getAttribute("aria-label") || "").match(/\d+/g) : null;
+    if (!numbers || numbers.length < 2) return null;
+    return { page: Number(numbers[0]), pages: Number(numbers[numbers.length - 1]) };
+  }
+
+  /** True when HuskyCT has sent the tab back to its sign-in page. */
+  function looksSignedOut() {
+    if (window.location.pathname === "/" && /[?&]new_loc=/.test(window.location.search)) return true;
+    return Boolean(document.querySelector('#loginFormDiv, form[name="login"], input[name="user_id"]'));
+  }
+
+  /**
+   * One attempt at one course's gradebook, every page of it:
+   * { items, complete, reason, at }. `reason` is "never" if the page did not show
+   * and "page" if it stopped partway ("at" says where, like "2/3"). Only rows the
+   * previous page did not have count, so a page still on screen under the new
+   * address is not read as this course; an empty course is told by its picture,
+   * which must also be new.
+   */
+  async function readGradesOnce(courseId, code, opts) {
     const path = "/ultra/courses/" + courseId + "/grades";
     const before = new Set([...document.querySelectorAll(GRADE_ROWS)].map((row) => row.getAttribute("data-grade-id")));
     const emptyBefore = new Set(document.querySelectorAll(GRADES_EMPTY));
@@ -1789,13 +1818,19 @@
       opts.every,
       opts.pageTimeout,
     );
-    if (!shown) return null;
-    if (shown === "empty") return { items: [], complete: true };
+    if (!shown) return { items: [], complete: false, reason: "never", at: null };
+    if (shown === "empty") return { items: [], complete: true, reason: null, at: null };
 
     const items = [];
     const seen = new Set();
+    let total = null;
     for (let pages = 1; ; pages++) {
       await rowsSettled(opts);
+      // The pager says whether this is the last page; wait for it to say anything.
+      const state = await waitFor(pagerState, opts.every, opts.pageTimeout);
+      if (!state) return { items, complete: false, reason: "page", at: pages + "/" + (total || "?") };
+      total = state.pages;
+
       const rows = [...document.querySelectorAll(GRADE_ROWS)];
       for (const row of rows) {
         const item = readGradeRow(row);
@@ -1804,30 +1839,61 @@
           items.push(item);
         }
       }
-      const next = document.querySelector(GRADE_NEXT);
-      if (!next || next.disabled) return { items, complete: true };
-      if (pages >= MAX_GRADE_PAGES) return { items, complete: false };
+      if (state.page >= state.pages) return { items, complete: true, reason: null, at: null };
+      if (pages >= MAX_GRADE_PAGES) return { items, complete: false, reason: "page", at: state.page + "/" + state.pages };
+
+      // More pages: Next may still be switching on, so wait for it, then press it.
       const onThisPage = new Set(rows.map((row) => row.getAttribute("data-grade-id")));
-      next.click();
-      const moved = await waitFor(
-        () => [...document.querySelectorAll(GRADE_ROWS)].some((row) => !onThisPage.has(row.getAttribute("data-grade-id"))),
-        opts.every,
-        opts.pageTimeout,
-      );
-      if (!moved) return { items, complete: false };
+      const turned = () => {
+        const now = pagerState();
+        return Boolean(now && now.page > state.page) && [...document.querySelectorAll(GRADE_ROWS)].some((row) => !onThisPage.has(row.getAttribute("data-grade-id")));
+      };
+      let moved = false;
+      // A press that lands while the page is still drawing is lost, so it is made twice.
+      for (let press = 0; press < 2 && !moved; press++) {
+        const next = await waitFor(
+          () => {
+            const button = document.querySelector(GRADE_NEXT);
+            return button && !button.disabled ? button : null;
+          },
+          opts.every,
+          opts.pageTimeout,
+        );
+        if (!next) break;
+        next.click();
+        moved = Boolean(await waitFor(turned, opts.every, press === 0 ? Math.ceil(opts.pageTimeout / 2) : opts.pageTimeout));
+      }
+      if (!moved) return { items, complete: false, reason: "page", at: state.page + "/" + state.pages };
     }
+  }
+
+  /**
+   * One course's gradebook, with a second, slower try if the first did not get
+   * all of it. A slow HuskyCT, or a page redrawn under the walk, is the usual
+   * reason, and one more go after a pause nearly always gets through.
+   */
+  async function readGradesOf(courseId, code, opts) {
+    const first = await readGradesOnce(courseId, code, opts);
+    if (first.complete || looksSignedOut()) return first;
+    await pause(opts.retryPause);
+    const second = await readGradesOnce(courseId, code, Object.assign({}, opts, { pageTimeout: opts.pageTimeout * 2 }));
+    // Keep whichever got further.
+    return second.complete || second.items.length >= first.items.length ? second : first;
   }
 
   /**
    * The walk for grades: each current course's gradebook, all its pages.
    * A course whose gradebook did not open, or not to the last page, is marked
-   * skipped, so what BetterHuskyCT already holds for it is left as it is.
+   * skipped, so what BetterHuskyCT already holds for it is left as it is. If
+   * HuskyCT sends the tab to its sign-in page the walk stops there and says so,
+   * instead of timing out on every course that is left.
    */
   async function collectGrades(options) {
     const opts = Object.assign(
       {
         every: 300,
         pageTimeout: 15000,
+        retryPause: 1500,
         settle: 600,
         gap: 250,
         onProgress() {},
@@ -1836,7 +1902,7 @@
       options,
     );
     const returnTo = window.location.pathname + window.location.search;
-    const manifest = { term: null, courses: [], stopped: false, problems: [] };
+    const manifest = { term: null, courses: [], stopped: false, signedOut: false, problems: [] };
 
     try {
       opts.onProgress({ step: "courses" });
@@ -1856,17 +1922,28 @@
         manifest.courses.push({
           id: course.id,
           code: course.code,
-          items: read ? read.items : [],
-          skipped: !read || !read.complete,
+          items: read.items,
+          skipped: !read.complete,
+          reason: read.reason,
+          at: read.at,
         });
+        if (!read.complete && looksSignedOut()) {
+          manifest.signedOut = true;
+          break;
+        }
         await pause(opts.gap);
       }
     } finally {
-      routeTo(returnTo);
+      // After a sign-out there is no page of ours to go back to.
+      if (!looksSignedOut()) routeTo(returnTo);
     }
 
-    const skipped = manifest.courses.filter((course) => course.skipped).map((course) => course.code || course.id);
-    if (skipped.length) manifest.problems.push({ key: "problemGrades", params: { courses: skipped.join(", ") } });
+    // Each course that fell short, with where: "MATH 1070Q (page 2/3)".
+    const skipped = manifest.courses
+      .filter((course) => course.skipped)
+      .map((course) => (course.code || course.id) + (course.reason === "page" && course.at ? " (page " + course.at + ")" : ""));
+    if (manifest.signedOut) manifest.problems.push({ key: "problemSignedOut" });
+    else if (skipped.length) manifest.problems.push({ key: "problemGrades", params: { courses: skipped.join(", ") } });
     return manifest;
   }
 
@@ -3194,6 +3271,7 @@
       collectMaterials,
       materialsSummary,
       readGradeRow,
+      pagerState,
       collectGrades,
       gradesSummary,
       gradesSnapshotFrom,
