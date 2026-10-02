@@ -29,6 +29,7 @@ type Item = {
 type Manifest = {
   term: string | null;
   stopped: boolean;
+  signedOut?: boolean;
   problems: Array<{ key: string; params?: Record<string, unknown> }>;
   courses: Array<{ id: string; code: string | null; items: Item[]; skipped: boolean }>;
 };
@@ -37,6 +38,7 @@ type Helper = {
   gradesSummary: (manifest: Manifest) => { courses: number; items: number; scored: number };
   gradesSnapshotFrom: (manifest: Manifest) => unknown;
   readGradeRow: (row: unknown) => Item | null;
+  pagerState: () => { page: number; pages: number } | null;
   sendGradesToBhc: (
     target: { postMessage(message: unknown, origin: string): void },
     manifest: Manifest,
@@ -96,13 +98,15 @@ function mathRow(i: number) {
   if (i === 30) return gradeRow(id, "Exam 1: Chapter 4(Content isn't available)", { label: "Exempt" });
   return gradeRow(id, `Homework ${i}`);
 }
-const mathPage = (page: number) => {
+const mathPage = (page: number, withPager = true) => {
   const from = page === 1 ? 1 : 26;
   const to = page === 1 ? 25 : 35;
   let rows = "";
   for (let i = from; i <= to; i++) rows += mathRow(i);
-  return loaded(rows + pager(page, 2));
+  return loaded(rows + (withPager ? pager(page, 2) : ""));
 };
+
+const LOGIN_PAGE = `<form id="loginFormDiv"><input name="user_id"></form>`;
 
 const SOCI_PAGE = loaded(
   gradeRow("_4001_1", "EA 1: When Did You First Realize You Had a Race?", { status: "First participated on 9/22/26", score: [10, 10] }) +
@@ -122,11 +126,24 @@ const TITLES: Record<string, string> = {
   [SOCI]: "Gradebook / SOCI-1501-Race, Class, and Gender-SEC005-1268",
 };
 
-type Trouble = { neverLoads?: string[]; noSecondPage?: boolean };
+type Trouble = {
+  neverLoads?: string[];
+  noSecondPage?: boolean;
+  /** MATH's rows draw first and its pager this many ms later, as on a slow day. */
+  slowPager?: number;
+  /** The first time each of these is opened it draws nothing; the second time it is fine. */
+  failFirstLoad?: string[];
+  /** The first press of Next is lost. */
+  ignoreFirstNext?: boolean;
+  /** Opening this course sends the tab to the sign-in page. */
+  signedOutAt?: string;
+};
 
 function fakeHuskyct(window: Window, visited: string[], trouble: Trouble = {}) {
   const main = window.document.querySelector("main")!;
   let generation = 0;
+  const opened = new Map<string, number>();
+  let presses = 0;
   window.addEventListener("popstate", () => {
     const path = window.location.pathname;
     visited.push(path);
@@ -141,7 +158,16 @@ function fakeHuskyct(window: Window, visited: string[], trouble: Trouble = {}) {
     const grades = /^\/ultra\/courses\/(_\d+_\d+)\/grades$/.exec(path);
     if (path === "/ultra/course") render(COURSE_CARDS);
     else if (grades && trouble.neverLoads?.includes(grades[1])) render(`<p>${path}</p>`);
-    else if (grades && grades[1] === MATH) render(mathPage(1), TITLES[MATH]);
+    else if (grades && trouble.signedOutAt === grades[1]) render(LOGIN_PAGE);
+    else if (grades && trouble.failFirstLoad?.includes(grades[1]) && !opened.has(grades[1])) {
+      opened.set(grades[1], 1);
+      render(`<p>${path}</p>`);
+    } else if (grades && grades[1] === MATH && trouble.slowPager) {
+      render(mathPage(1, false), TITLES[MATH]);
+      setTimeout(() => {
+        if (mine === generation) main.querySelector("[bb-load-bundle]")?.insertAdjacentHTML("beforeend", pager(1, 2));
+      }, 60 + trouble.slowPager);
+    } else if (grades && grades[1] === MATH) render(mathPage(1), TITLES[MATH]);
     else if (grades && grades[1] === ECON) render(ECON_PAGE, TITLES[ECON]);
     else if (grades && grades[1] === SOCI) render(SOCI_PAGE, TITLES[SOCI]);
     else render(`<p>${path}</p>`);
@@ -150,6 +176,7 @@ function fakeHuskyct(window: Window, visited: string[], trouble: Trouble = {}) {
   window.document.addEventListener("click", (event) => {
     const target = event.target as unknown as HTMLButtonElement;
     if (target.getAttribute?.("data-analytics-id") !== NEXT || target.disabled || trouble.noSecondPage) return;
+    if (trouble.ignoreFirstNext && presses++ === 0) return;
     setTimeout(() => {
       main.innerHTML = mathPage(2);
     }, 30);
@@ -280,7 +307,7 @@ test("a gradebook whose next page never comes is left out rather than sent half-
 
   const math = manifest.courses.find((course) => course.code === "MATH 1070Q")!;
   assert.equal(math.skipped, true);
-  assert.deepEqual(manifest.problems, [{ key: "problemGrades", params: { courses: "MATH 1070Q" } }]);
+  assert.deepEqual(manifest.problems, [{ key: "problemGrades", params: { courses: "MATH 1070Q (page 1/2)" } }]);
   assert.deepEqual((plain(helper.gradesSnapshotFrom(manifest)) as { courses: unknown[] }).courses.length, 2);
 });
 
@@ -292,6 +319,82 @@ test("stopping keeps what was read so far", async () => {
 
   assert.equal(manifest.stopped, true);
   assert.deepEqual(manifest.courses.map((course) => course.code), ["MATH 1070Q"]);
+});
+
+test("a pager that draws late does not make a two-page gradebook look like one page", async () => {
+  // Rows first, the pager (and so its enabled Next) a moment later: the walk used to
+  // see no enabled Next, call page 1 the last, and report 25 of 35 rows as complete.
+  const { helper } = openHuskyct({ slowPager: 700 });
+
+  const manifest = plain(await helper.collectGrades({ ...FAST, pageTimeout: 2000 }));
+
+  const math = manifest.courses.find((course) => course.code === "MATH 1070Q")!;
+  assert.equal(math.items.length, 35, "rows were lost to a slow pager");
+  assert.equal(math.skipped, false);
+  assert.deepEqual(manifest.problems, []);
+});
+
+test("a gradebook that fails to draw the first time is tried once more", async () => {
+  const { helper } = openHuskyct({ failFirstLoad: [SOCI] });
+
+  const manifest = plain(await helper.collectGrades({ ...FAST, retryPause: 20 }));
+
+  const soci = manifest.courses.find((course) => course.code === "SOCI 1501")!;
+  assert.equal(soci.skipped, false, "one slow load lost a whole course");
+  assert.equal(soci.items.length, 2);
+  assert.deepEqual(manifest.problems, []);
+});
+
+test("a press of Next that is lost is pressed again", async () => {
+  const { helper } = openHuskyct({ ignoreFirstNext: true });
+
+  const manifest = plain(await helper.collectGrades({ ...FAST, pageTimeout: 800 }));
+
+  const math = manifest.courses.find((course) => course.code === "MATH 1070Q")!;
+  assert.equal(math.items.length, 35);
+  assert.equal(math.skipped, false);
+});
+
+test("a course that never draws is tried twice, then named, and the others are still read", async () => {
+  const { helper } = openHuskyct({ neverLoads: [ECON] });
+
+  const manifest = plain(await helper.collectGrades({ ...FAST, retryPause: 20 }));
+
+  assert.deepEqual(manifest.problems, [{ key: "problemGrades", params: { courses: "ECON 1201" } }]);
+  assert.equal(manifest.courses.find((course) => course.code === "SOCI 1501")?.items.length, 2);
+});
+
+test("when HuskyCT asks for the sign-in again, the walk stops there and says so", async () => {
+  const { helper } = openHuskyct({ signedOutAt: ECON });
+
+  const manifest = plain(await helper.collectGrades({ ...FAST, retryPause: 20 }));
+
+  assert.equal(manifest.signedOut, true);
+  assert.deepEqual(manifest.problems, [{ key: "problemSignedOut" }]);
+  // Courses before it are kept; the ones after were not tried, not timed out one by one.
+  assert.deepEqual(manifest.courses.map((course) => course.code), ["MATH 1070Q", "ECON 1201"]);
+  assert.match(helper.problemsText(manifest.problems), /sign in again/);
+  helper.setLocale("zh-CN");
+  assert.match(helper.problemsText(manifest.problems), /重新登录/);
+  helper.setLocale("en");
+});
+
+test("the pager's label is read for the page and the page count, in any language", () => {
+  const { window, helper } = openPage();
+  const read = (label: string | null) => {
+    window.document.body.innerHTML =
+      label === null
+        ? "<main></main>"
+        : `<button data-analytics-id="course.student.grade.components.common.pagination.pageSelectDropdown.button" aria-label="${label}">1</button>`;
+    return plain(helper.pagerState());
+  };
+
+  assert.deepEqual(read("Page 1 of 2"), { page: 1, pages: 2 });
+  assert.deepEqual(read("Page 3 of 12"), { page: 3, pages: 12 });
+  assert.deepEqual(read("第 2 页，共 5 页"), { page: 2, pages: 5 });
+  // Not drawn yet, or drawn without numbers: no answer, so the walk waits rather than guesses.
+  assert.equal(read(null), null);
+  assert.equal(read("Page"), null);
 });
 
 // --- into BetterHuskyCT ------------------------------------------------------------------
