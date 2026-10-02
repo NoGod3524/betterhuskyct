@@ -1,0 +1,185 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { Check, ChevronRight } from "lucide-react";
+
+import { useCalendar } from "@/components/calendar-provider";
+import { TaskCard } from "@/components/task-card";
+import { isDeadline, type CalendarTask } from "@/lib/calendar-types";
+import { dueTimestamp } from "@/lib/date-utils";
+import { intlLocale, t, type Locale, type TranslationKey } from "@/lib/i18n";
+import { buildTodo, type TodoSectionKey } from "@/lib/todo";
+
+const SECTIONS: ReadonlyArray<{ key: TodoSectionKey; title: TranslationKey; accent: string }> = [
+  { key: "overdue", title: "todo.overdue", accent: "bg-[var(--c-e6533c)]" },
+  { key: "today", title: "group.today", accent: "bg-[var(--c-e6533c)]" },
+  { key: "tomorrow", title: "group.tomorrow", accent: "bg-[var(--c-e9a23b)]" },
+  { key: "week", title: "todo.week", accent: "bg-[var(--c-2a71d8)]" },
+  { key: "later", title: "todo.later", accent: "bg-[var(--c-6b7f94)]" },
+];
+
+/** "Fri, Oct 9, 11:59 PM", or without the time for a task that is due some time that day. */
+function dueLabel(task: CalendarTask, locale: Locale): string {
+  const due = dueTimestamp(task);
+  if (due === null) return "";
+  return new Intl.DateTimeFormat(intlLocale(locale), {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    ...(task.allDay ? {} : { hour: "numeric", minute: "2-digit" }),
+  }).format(new Date(due));
+}
+
+/**
+ * The to-do list: every deadline still to hand in, nearest first, what is
+ * overdue on top, and what is done set apart.
+ *
+ * "Done" is mostly not the student's doing. A homework HuskyCT's gradebook says
+ * is handed in or graded is ticked from the grades the helper brought, so the
+ * list is a list of what is left rather than a chore of ticking boxes. A tick is
+ * still there for the rest, and for reopening one the gradebook got wrong.
+ */
+export function TodoSection() {
+  const { now, locale, tasks, doneIds, doneLabelFor, toggleTaskCompletion, courseLabelFor, hasGrades } = useCalendar();
+  const [pickedCourse, setCourse] = useState<string | null>(null);
+  const [showDone, setShowDone] = useState(false);
+
+  const codes = useMemo(() => {
+    const found = new Set<string>();
+    for (const task of tasks) {
+      const code = isDeadline(task) ? courseLabelFor(task)?.code : null;
+      if (code) found.add(code);
+    }
+    return [...found].sort();
+  }, [tasks, courseLabelFor]);
+  // A course that has gone from the data is no longer a filter.
+  const course = pickedCourse && codes.includes(pickedCourse) ? pickedCourse : null;
+
+  const shown = useMemo(
+    () => (course ? tasks.filter((task) => courseLabelFor(task)?.code === course) : tasks),
+    [tasks, course, courseLabelFor],
+  );
+  const todo = useMemo(() => buildTodo(shown, doneIds, now), [shown, doneIds, now]);
+  const empty = todo.openCount === 0 && todo.done.length === 0;
+
+  const card = (task: CalendarTask, overdue = false) => (
+    <TaskCard
+      key={task.id}
+      task={task}
+      group="week"
+      now={now}
+      completed={doneIds.has(task.id)}
+      doneLabel={doneLabelFor(task.id)}
+      timeLabel={dueLabel(task, locale)}
+      overdue={overdue}
+      onToggleComplete={toggleTaskCompletion}
+      locale={locale}
+    />
+  );
+
+  return (
+    <section className="mt-10" aria-labelledby="todo-heading">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="eyebrow">{t(locale, "todo.eyebrow")}</p>
+          <h2 id="todo-heading" className="font-display mt-1 text-2xl font-semibold tracking-[-0.025em]">
+            {t(locale, "todo.heading")}
+          </h2>
+          <p className="mt-2 text-sm font-semibold text-[var(--c-31506f)]">
+            {t(locale, "todo.summary", { open: todo.openCount, done: todo.done.length })}
+          </p>
+        </div>
+      </div>
+
+      <p className="mt-2 max-w-2xl text-xs text-[var(--muted)]">
+        {hasGrades ? t(locale, "todo.autoHint") : t(locale, "todo.noGradesHint")}{" "}
+        {hasGrades ? null : (
+          <Link href="/helper" className="font-semibold text-[var(--link)] hover:underline">
+            {t(locale, "todo.noGradesCta")}
+          </Link>
+        )}
+      </p>
+
+      {codes.length > 1 ? (
+        <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label={t(locale, "todo.filter")}>
+          <FilterChip active={course === null} onClick={() => setCourse(null)}>
+            {t(locale, "todo.allCourses")}
+          </FilterChip>
+          {codes.map((code) => (
+            <FilterChip key={code} active={course === code} onClick={() => setCourse(code)}>
+              {code}
+            </FilterChip>
+          ))}
+        </div>
+      ) : null}
+
+      {empty ? (
+        <div className="mt-4 rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5">
+          <p className="text-sm font-semibold text-[var(--c-31506f)]">{t(locale, course ? "todo.nothingInCourse" : "todo.emptyTitle")}</p>
+          {course ? null : <p className="mt-1 text-sm text-[var(--muted)]">{t(locale, "todo.emptyBody")}</p>}
+        </div>
+      ) : (
+        <div className="mt-4 space-y-6">
+          {todo.openCount === 0 ? (
+            <div className="flex items-center gap-2.5 rounded-2xl bg-[var(--c-ecf8f1)] px-4 py-3 text-sm font-semibold text-[var(--c-1d6b43)]" role="status">
+              <Check size={17} aria-hidden />
+              {t(locale, "todo.allDone")}
+            </div>
+          ) : null}
+
+          {SECTIONS.map(({ key, title, accent }) =>
+            todo.open[key].length === 0 ? null : (
+              <div key={key}>
+                <div className="mb-3 flex items-center gap-2.5">
+                  <span className={`size-2.5 shrink-0 rounded-full ${accent}`} />
+                  <h3 className="font-display font-semibold">{t(locale, title)}</h3>
+                  <span className="grid size-6 place-items-center rounded-full bg-[var(--c-f0f3f7)] text-xs font-bold text-[var(--c-536476)]">
+                    {todo.open[key].length}
+                  </span>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{todo.open[key].map((task) => card(task, key === "overdue"))}</div>
+              </div>
+            ),
+          )}
+
+          {todo.done.length > 0 ? (
+            <div>
+              <button
+                type="button"
+                onClick={() => setShowDone((open) => !open)}
+                aria-expanded={showDone}
+                className="flex items-center gap-2 text-left text-sm font-semibold text-[var(--c-31506f)] transition hover:opacity-80"
+              >
+                <ChevronRight
+                  size={16}
+                  className={`shrink-0 text-[var(--c-6b7f94)] transition-transform ${showDone ? "rotate-90" : ""}`}
+                  aria-hidden
+                />
+                {t(locale, "todo.done", { count: todo.done.length })}
+              </button>
+              {showDone ? (
+                <div className="rise-in mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{todo.done.map((task) => card(task))}</div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
+        active ? "bg-[var(--navy)] text-white" : "border border-[var(--c-cdd9e6)] bg-[var(--surface)] text-[var(--c-4e647b)] hover:border-[var(--c-9fb7d1)]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}

@@ -12,7 +12,8 @@ export function TasksSection() {
     now,
     locale,
     tasks,
-    completedIds,
+    doneIds,
+    doneLabelFor,
     toggleTaskCompletion,
     groups,
     dueSoon,
@@ -111,7 +112,8 @@ export function TasksSection() {
                   task={task}
                   group={group.key}
                   now={now}
-                  completed={completedIds.has(task.id)}
+                  completed={doneIds.has(task.id)}
+                  doneLabel={doneLabelFor(task.id)}
                   onToggleComplete={toggleTaskCompletion}
                   locale={locale}
                 />
