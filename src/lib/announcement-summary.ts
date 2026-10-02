@@ -1,4 +1,5 @@
 import type { Announcement } from "./announcements.ts";
+import type { SummaryChoice } from "./summary-choice.ts";
 import type { ProviderId, SummaryItem, SummaryLocale, SummaryRequest } from "./summary-models.ts";
 
 /**
@@ -76,7 +77,14 @@ export function buildSummaryRequest(
  * - `unavailable`: no connection, or the feature is not set up on this server
  * - `failed`: anything else
  */
-export type SummaryProblem = "busy" | "rate-limited" | "refused" | "unavailable" | "failed";
+export type SummaryProblem =
+  | "busy"
+  | "rate-limited"
+  | "refused"
+  | "unavailable"
+  | "region"
+  | "choice-unavailable"
+  | "failed";
 
 export class SummaryError extends Error {
   readonly problem: SummaryProblem;
@@ -93,6 +101,8 @@ const KNOWN_PROBLEMS: Record<string, SummaryProblem> = {
   "rate-limited": "rate-limited",
   refused: "refused",
   "not-configured": "unavailable",
+  region: "region",
+  "choice-unavailable": "choice-unavailable",
 };
 
 type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
@@ -105,6 +115,7 @@ const PROVIDERS: readonly ProviderId[] = ["glm", "gemini"];
 export async function requestSummary(
   request: SummaryRequest,
   fetchImpl: FetchLike = fetch,
+  choice: SummaryChoice = "auto",
 ): Promise<ReceivedSummary> {
   let response: Response;
   let body: { summary?: unknown; problem?: unknown; provider?: unknown };
@@ -112,7 +123,8 @@ export async function requestSummary(
     response = await fetchImpl(SUMMARY_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
+      // Automatic sends nothing extra, so the request is the one it always was.
+      body: JSON.stringify(choice === "auto" ? request : { ...request, provider: choice }),
     });
     body = await response.json();
   } catch {

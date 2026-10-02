@@ -279,6 +279,18 @@ What was measured on 2026-09-28 across four courses, and what it decided:
 - **A course with no work shows a picture, not rows.** It sits inside a wrapper
   that exists only once the grades have loaded, so an empty course can be told
   from a page still loading without reading any English.
+- **The last page is told by the pager's label, not by Next being disabled.**
+  Next is disabled while the pager is still loading as well as on the last
+  page, so reading only that made a slow pager look like a one-page gradebook:
+  a course silently lost its other pages and was reported complete. The pager's
+  "Page 1 of 2" label (read for its first and last number, so any language
+  works) now says where the walk is and when it is done, and the walk waits for
+  Next to switch on before pressing it, and presses it twice if the first press
+  is lost.
+- **A course that falls short is tried once more**, with twice the patience,
+  and named with where it stopped ("MATH 1070Q (page 2/3)"). If HuskyCT sends
+  the tab to its sign-in page the walk stops there and says so, instead of
+  timing out on every course left.
 - **Some courses show no overall grade.** None is read; BetterHuskyCT adds up
   the graded rows and says that is not the course grade.
 

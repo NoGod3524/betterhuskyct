@@ -242,3 +242,98 @@ test("the page says, in both languages, who Z.ai is and that it is on the U.S. E
   assert.match(t("zh-CN", "summary.disclosure"), /智谱 AI.*实体清单/);
   assert.match(t("zh-CN", "summary.disclosure"), /2025 年 1 月/);
 });
+
+test("the panel offers the three models, automatic first, and says what each means", async () => {
+  unique += 1;
+  const view = await render(panel("en", MATH, [announcement("a")]));
+  const dropdown = window.document.querySelector("select") as unknown as HTMLSelectElement;
+
+  assert.ok(dropdown, "no model choice");
+  assert.deepEqual([...dropdown.options].map((o) => o.value), ["auto", "glm", "gemini"]);
+  assert.equal(dropdown.value, "auto");
+  assert.ok(view.text().includes(t("en", "summary.choiceAuto")));
+  // Automatic needs no extra note: the standing disclosure covers it.
+  assert.ok(!view.text().includes(t("en", "summary.choiceNoteGlm")));
+  await view.unmount();
+});
+
+async function choose(value: string) {
+  const dropdown = window.document.querySelector("select") as unknown as HTMLSelectElement;
+  await act(async () => {
+    dropdown.value = value;
+    dropdown.dispatchEvent(new window.Event("change", { bubbles: true }) as never);
+  });
+}
+
+test("choosing Z.ai only says so, sends the choice with the request, and is remembered", async () => {
+  unique += 1;
+  const sent = stubEndpoint();
+  const entries = [announcement("a")];
+  const view = await render(panel("en", MATH, entries));
+
+  await choose("glm");
+
+  assert.ok(view.text().includes(t("en", "summary.choiceNoteGlm")), "the page did not say only Z.ai gets the text");
+  assert.equal(window.localStorage.getItem("huskypilot.summaryModel.v1"), "glm");
+
+  await act(async () => view.button("Summarize")!.click());
+  await settle();
+  assert.equal((sent[0].body as { provider?: string }).provider, "glm");
+  await view.unmount();
+
+  // A later visit starts on the saved choice.
+  const later = await render(panel("en", MATH, entries));
+  assert.equal((window.document.querySelector("select") as unknown as HTMLSelectElement).value, "glm");
+  assert.ok(later.text().includes(t("en", "summary.choiceNoteGlm")));
+  await later.unmount();
+});
+
+test("choosing Gemini only warns what Google may do with the text; automatic sends no choice at all", async () => {
+  unique += 1;
+  const sent = stubEndpoint(() => Response.json({ summary: "- ok", provider: "gemini" }));
+  const view = await render(panel("en", MATH, [announcement("a")]));
+
+  await act(async () => view.button("Summarize")!.click());
+  await settle();
+  assert.equal("provider" in (sent[0].body as object), false, "automatic added a field to the request");
+
+  await choose("gemini");
+  assert.ok(view.text().includes(t("en", "summary.choiceNoteGemini")));
+  assert.match(t("en", "summary.choiceNoteGemini"), /improve its models/);
+
+  await act(async () => view.button("Summarize again")!.click());
+  await settle();
+  assert.equal((sent[1].body as { provider?: string }).provider, "gemini");
+
+  // Back to automatic: the saved choice is dropped.
+  await choose("auto");
+  assert.equal(window.localStorage.getItem("huskypilot.summaryModel.v1"), null);
+  await view.unmount();
+});
+
+test("the two refusals about a chosen model are explained in words", async () => {
+  unique += 1;
+  stubEndpoint(() => Response.json({ problem: "region" }, { status: 403 }));
+  const view = await render(panel("en", MATH, [announcement("a")]));
+  await choose("gemini");
+
+  await act(async () => view.button("Summarize")!.click());
+  await settle();
+  assert.ok(view.text().includes(t("en", "summary.errorRegion")));
+  await view.unmount();
+
+  unique += 1;
+  stubEndpoint(() => Response.json({ problem: "choice-unavailable" }, { status: 422 }));
+  const again = await render(panel("en", MATH, [announcement("b")]));
+  await choose("glm");
+  await act(async () => again.button("Summarize")!.click());
+  await settle();
+  assert.ok(again.text().includes(t("en", "summary.errorChoice")));
+  await again.unmount();
+});
+
+test("the model choice is labelled in Chinese too", () => {
+  for (const key of ["summary.modelLabel", "summary.choiceAuto", "summary.choiceGlm", "summary.choiceGemini", "summary.choiceNoteGlm", "summary.choiceNoteGemini", "summary.errorRegion", "summary.errorChoice"] as const) {
+    assert.ok(t("zh-CN", key) && t("zh-CN", key) !== t("en", key), `${key} is not translated`);
+  }
+});

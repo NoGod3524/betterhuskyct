@@ -47,6 +47,8 @@ const requestSchema = z.object({
     )
     .min(1)
     .max(40),
+  /** Which model the reader allows. Absent means automatic, as before there was a choice. */
+  provider: z.enum(["auto", "glm", "gemini"]).optional(),
 });
 
 const MAX_BODY_LENGTH = 100_000;
@@ -74,7 +76,25 @@ export async function POST(request: Request) {
   // Vercel's own header; absent elsewhere, which counts as "unknown".
   const country = request.headers.get("x-vercel-ip-country");
   const geminiAllowed = providers.some((provider) => provider.id === "gemini" && provider.servesCountry(country));
-  const key = createHash("sha256").update(JSON.stringify(parsed.data)).digest("hex");
+
+  // The reader's choice of model is not part of what is summarised, so it is
+  // taken out of what is hashed — an automatic request hashes exactly as it
+  // always did. A chosen model adds its name, so its summaries are kept apart:
+  // someone who asked for Z.ai only is never handed a summary Gemini wrote, and
+  // the reverse.
+  const { provider: choice = "auto", ...content } = parsed.data;
+  const key = createHash("sha256")
+    .update(JSON.stringify(content) + (choice === "auto" ? "" : `\u0000${choice}`))
+    .digest("hex");
+
+  // A chosen model is the only one tried: no quiet fallback to the other.
+  let allowed = providers;
+  if (choice !== "auto") {
+    allowed = providers.filter((provider) => provider.id === choice);
+    if (allowed.length === 0) return json({ problem: "choice-unavailable" }, 422);
+    // Gemini's free terms exclude readers in the EEA, Switzerland and the UK.
+    if (!allowed[0].servesCountry(country)) return json({ problem: "region" }, 403);
+  }
 
   const hit = await cache.get(key, geminiAllowed);
   if (hit) return json({ summary: hit.summary, provider: hit.provider });
@@ -85,8 +105,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { text, provider } = await summarizeAnnouncements(parsed.data, {
-      providers,
+    const { text, provider } = await summarizeAnnouncements(content, {
+      providers: allowed,
       country,
       // The provider and status only: the announcements themselves are never logged.
       onError: (error) =>
