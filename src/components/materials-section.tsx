@@ -7,6 +7,8 @@ import {
   Download,
   ExternalLink,
   FileText,
+  Archive,
+  FolderDown,
   FolderInput,
   Folder,
   PlayCircle,
@@ -34,8 +36,19 @@ import {
   type StoredFile,
 } from "@/lib/materials";
 import { openMaterialsStore } from "@/lib/materials-store";
+import {
+  LINKS_PAGE_NAMES,
+  ZipTooBigError,
+  buildZip,
+  linksPageHtml,
+  planExport,
+  saveToDirectory,
+  zipFileName,
+  type WritableDirectory,
+} from "@/lib/materials-export";
 
 type Picker = (options?: { id?: string; mode?: "read" | "readwrite" }) => Promise<DirectoryHandle>;
+type WritePicker = (options?: { id?: string; mode?: "read" | "readwrite" }) => Promise<WritableDirectory>;
 
 /**
  * Which courses and folders the reader left open, kept between visits. A
@@ -163,6 +176,8 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
   const courses = useMemo(() => index?.courses ?? [], [index]);
   const shown = courseFilter ? courses.filter((course) => course.id === courseFilter) : courses;
   const picker = typeof window !== "undefined" ? (window as unknown as { showDirectoryPicker?: Picker }).showDirectoryPicker : undefined;
+  const writePicker = picker as unknown as WritePicker | undefined;
+  const [exporting, setExporting] = useState(false);
 
   /** Every course and group on the page, for "Expand all". */
   const everyKey = useMemo(() => {
@@ -224,6 +239,75 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
     await reload(store);
   }
 
+  /** Everything that has arrived, or null (with a word to the reader) if nothing has. */
+  function exportPlan() {
+    const plan = index ? planExport(index, files) : null;
+    if (!index || !plan || plan.entries.length === 0) {
+      setNotice(t(locale, "materials.exportNothing"));
+      return null;
+    }
+    return { index, plan, linksPage: { name: LINKS_PAGE_NAMES[locale], html: linksPageHtml(index, locale) } };
+  }
+
+  async function exportToFolder() {
+    if (!writePicker || exporting) return;
+    const ready = exportPlan();
+    if (!ready) return;
+    // Said before the picker opens, because the browser's own refusal of the
+    // Desktop does not say what to do instead.
+    setNotice(t(locale, "materials.exportPick"));
+    let root: WritableDirectory;
+    try {
+      root = await writePicker({ id: "bhc-materials-export", mode: "readwrite" });
+    } catch {
+      return; // closed without picking; the hint stays up
+    }
+    setExporting(true);
+    try {
+      const result = await saveToDirectory(root, ready.plan, {
+        linksPage: ready.linksPage,
+        onProgress: (done, total) => setNotice(t(locale, "materials.exporting", { done, total })),
+      });
+      setNotice(
+        t(locale, "materials.exported", { saved: result.saved, skipped: result.skipped, failed: result.failed, folder: result.folder }) +
+          (ready.plan.missing ? t(locale, "materials.exportMissing", { count: ready.plan.missing }) : ""),
+      );
+    } catch {
+      setNotice(t(locale, "materials.exportFailed"));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function exportZip() {
+    if (exporting) return;
+    const ready = exportPlan();
+    if (!ready) return;
+    setExporting(true);
+    try {
+      const blob = await buildZip(ready.plan, {
+        linksPage: ready.linksPage,
+        onProgress: (done, total) => setNotice(t(locale, "materials.zipping", { done, total })),
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = zipFileName(ready.plan);
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setNotice(
+        t(locale, "materials.zipped", { name: zipFileName(ready.plan), count: ready.plan.entries.length }) +
+          (ready.plan.missing ? t(locale, "materials.exportMissing", { count: ready.plan.missing }) : ""),
+      );
+    } catch (error) {
+      setNotice(t(locale, error instanceof ZipTooBigError ? "materials.zipTooBig" : "materials.exportFailed"));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   async function clearAll() {
     if (!store || !window.confirm(t(locale, "materials.clearConfirm"))) return;
     await store.clear();
@@ -243,6 +327,34 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
           <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">{t(locale, "materials.description")}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {counts.received > 0 ? (
+            <>
+              {writePicker ? (
+                <button
+                  type="button"
+                  onClick={exportToFolder}
+                  disabled={exporting}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--navy)] px-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+                >
+                  <FolderDown size={15} aria-hidden />
+                  {t(locale, "materials.exportFolder")}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={exportZip}
+                disabled={exporting}
+                className={
+                  writePicker
+                    ? "inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)] disabled:cursor-wait disabled:opacity-60"
+                    : "inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--navy)] px-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+                }
+              >
+                <Archive size={15} aria-hidden />
+                {t(locale, "materials.exportZip")}
+              </button>
+            </>
+          ) : null}
           {picker ? (
             <button
               type="button"

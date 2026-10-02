@@ -159,3 +159,116 @@ test("with nothing stored, the page says how to get materials here", async () =>
   assert.ok(view.text().includes(t("en", "materials.emptyTitle")));
   await view.unmount();
 });
+
+// --- getting the files onto the computer ----------------------------------------------------
+
+const browser = window as unknown as { showDirectoryPicker?: unknown };
+
+test("with no file arrived there is nothing to export, so no export buttons", async () => {
+  const empty = memoryMaterialsStore();
+  await empty.putIndex({
+    version: 1,
+    term: "Fall 2026",
+    updatedAt: "2026-09-27T12:00:00.000Z",
+    courses: [{ id: "_1_1", code: "MATH 1070Q", files: [{ key: MISSING_URL, path: [], title: "Syllabus.pdf" }], links: [], tools: [] }],
+  });
+  const view = await render(empty);
+
+  assert.ok(!view.text().includes(t("en", "materials.exportZip")));
+  assert.ok(!view.text().includes(t("en", "materials.exportFolder")));
+  await view.unmount();
+});
+
+test("a browser that cannot write to a folder is offered the ZIP, and pressing it downloads one", async () => {
+  delete browser.showDirectoryPicker;
+  const made: Blob[] = [];
+  const realCreate = URL.createObjectURL;
+  const realRevoke = URL.revokeObjectURL;
+  URL.createObjectURL = (blob: Blob) => (made.push(blob), "blob:test");
+  URL.revokeObjectURL = () => undefined;
+  const clicked: string[] = [];
+  const view = await render(await seeded());
+  const realClick = window.HTMLAnchorElement.prototype.click;
+  window.HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+    clicked.push(this.download);
+  };
+
+  assert.ok(!view.text().includes(t("en", "materials.exportFolder")), "a folder button without a folder picker");
+  await view.click(t("en", "materials.exportZip"));
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+  window.HTMLAnchorElement.prototype.click = realClick;
+  URL.createObjectURL = realCreate;
+  URL.revokeObjectURL = realRevoke;
+
+  assert.deepEqual(clicked, ["HuskyCT Fall 2026.zip"]);
+  assert.equal(made.length, 1);
+  assert.equal(made[0].type, "application/zip");
+  // The one file that arrived is in it; the page says one listed file did not.
+  assert.ok(view.text().includes(t("en", "materials.zipped", { name: "HuskyCT Fall 2026.zip", count: 1 })));
+  assert.ok(view.text().includes(t("en", "materials.exportMissing", { count: 1 })));
+  await view.unmount();
+});
+
+test("a browser that can write to a folder saves there, and says what it did", async () => {
+  const written = new Map<string, string>();
+  const dir = (path: string): unknown => ({
+    kind: "directory",
+    name: path || "picked",
+    async getDirectoryHandle(name: string) {
+      return dir(path + "/" + name);
+    },
+    async getFileHandle(name: string, options?: { create?: boolean }) {
+      const full = path + "/" + name;
+      if (!options?.create && !written.has(full)) throw new Error("NotFoundError");
+      return {
+        kind: "file",
+        async getFile() {
+          return { size: (written.get(full) ?? "").length };
+        },
+        async createWritable() {
+          let data: Blob | string = "";
+          return {
+            async write(next: Blob | string) {
+              data = next;
+            },
+            async close() {
+              written.set(full, typeof data === "string" ? data : await data.text());
+            },
+          };
+        },
+      };
+    },
+  });
+  browser.showDirectoryPicker = async () => dir("");
+  const view = await render(await seeded());
+
+  await view.click(t("en", "materials.exportFolder"));
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+  delete browser.showDirectoryPicker;
+
+  assert.deepEqual([...written.keys()].sort(), [
+    "/HuskyCT Fall 2026/MATH 1070Q/Week 1 - Section 4.1/Section 4.1 PDF.pdf",
+    "/HuskyCT Fall 2026/links and videos.html",
+  ]);
+  assert.equal(written.get("/HuskyCT Fall 2026/MATH 1070Q/Week 1 - Section 4.1/Section 4.1 PDF.pdf"), "%PDF");
+  assert.ok(view.text().includes(t("en", "materials.exported", { saved: 1, skipped: 0, failed: 0, folder: "HuskyCT Fall 2026" })));
+  await view.unmount();
+});
+
+test("closing the folder picker without choosing leaves the page as it was", async () => {
+  browser.showDirectoryPicker = async () => {
+    throw new Error("AbortError");
+  };
+  const view = await render(await seeded());
+
+  await view.click(t("en", "materials.exportFolder"));
+  delete browser.showDirectoryPicker;
+
+  assert.ok(view.text().includes(t("en", "materials.exportPick")), "the hint about the Desktop was not shown");
+  assert.ok(!view.text().includes(t("en", "materials.exportFailed")));
+  await view.unmount();
+});

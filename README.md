@@ -46,7 +46,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Works on a phone** — below 1024 px a bar along the bottom reaches every page (four main ones, and a *More* sheet with the rest), buttons and the completion checkbox are finger-sized on a touch screen, and the header fits the width
 - **Installable and offline** — add it to a phone's home screen as a PWA and keep reading saved tasks without a connection
 - **Announcements** — the browser helper brings your courses' announcements in on the same press as the deadlines, newest first and grouped by course
-- **Course materials** — every course's files, lecture videos, links and tools, sent over by the browser helper and kept in this browser: browse by course and folder, open PDFs in place, download the rest. Nothing is uploaded; a folder the helper saved can be imported too
+- **Course materials** — every course's files, lecture videos, links and tools, sent over by the browser helper and kept in this browser: browse by course and folder, open PDFs in place, download the rest. Nothing is uploaded; a folder the helper saved can be imported too. **Save to a folder** (Chrome, Edge) or **Download as ZIP** puts everything on your computer, by course and folder, so it can be opened in other programs and survives clearing the browser's data
 - **Grades** — each course's gradebook, read by the browser helper and kept in this browser: what every item scored, and the points so far for the graded work. Scores that are new or different since you last looked are badged ("Newly graded", "Was 80 / 100") until you mark them seen. It says plainly that the total is not your course grade, since HuskyCT shows no weights or dropped scores. Nothing is uploaded
 - **Dark mode** — follows the device, or pick light or dark from the top bar; the choice is kept in this browser and applied before the page is drawn
 - **Announcement summaries** — pick a course and one press turns its announcements into key points (deadlines, exams, moved or cancelled classes) in your language, on any device. Written by Z.ai's free GLM model, with Google Gemini's free tier covering when GLM is busy; the page names both, and what each does with the text, before you press — and nothing is sent until you do
@@ -215,6 +215,7 @@ src/
    ├─ announcements.ts               # Course announcements: derived ids, caps, storage
    ├─ materials.ts                   # Materials: the helper's messages, checked; merging; folder import
    ├─ materials-store.ts             # Materials in IndexedDB
+   ├─ materials-export.ts            # Materials out to a folder or a ZIP, laid out as the importer expects
    ├─ grades.ts                      # Grades: the helper's messages, checked; totals; merging
    ├─ grades-store.ts                # Grades in localStorage
    ├─ import-storage.ts              # 1.0.x single-import storage, read once to migrate
