@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -64,6 +65,9 @@ import {
   type EffortMap,
 } from "@/lib/effort";
 import { isCourseCatalogueLoaded, loadCourseCatalogue } from "@/lib/course-catalogue";
+import type { GradesSnapshot } from "@/lib/grades";
+import { GRADES_CHANGED, openGradesStore } from "@/lib/grades-store";
+import { autoDoneTasks, doneLabels, restoreReopened, saveReopened, type DoneLabel } from "@/lib/task-status";
 import { buildPlan, type Plan } from "@/lib/plan";
 import {
   EMPTY_COURSE_BOOK,
@@ -108,7 +112,14 @@ type CalendarContextValue = {
   changeLocale: (nextLocale: Locale) => void;
 
   tasks: CalendarTask[];
+  /** The student's own ticks. Synced between devices; not the whole story of what is done. */
   completedIds: Set<string>;
+  /** Every task that is done: ticked, or handed in or graded according to HuskyCT's gradebook. */
+  doneIds: Set<string>;
+  /** Why a task is done, for the page to say; null if it is not. */
+  doneLabelFor: (taskId: string) => DoneLabel | null;
+  /** Whether the helper has brought the grades that tell what is handed in. */
+  hasGrades: boolean;
   toggleTaskCompletion: (taskId: string) => void;
   groups: TaskGroup[];
   visibleCount: number;
@@ -583,9 +594,82 @@ export function CalendarProvider({
     };
   }, [needsCatalogue, catalogueReady]);
 
+  // The course a task shows, as a function so what is done can be worked out from it.
+  const labelFor = useCallback(
+    (task: CalendarTask) => {
+      const ownerId = taskOwners.get(task.id);
+      const feedCourseId = ownerId
+        ? (subscriptions.find((entry) => entry.id === ownerId)?.courseId ?? null)
+        : null;
+      return labelForTask(courseBook, task, feedCourseId);
+    },
+    [courseBook, taskOwners, subscriptions],
+  );
+
+  // What HuskyCT's gradebook says is handed in or graded. Read from the grades the
+  // helper sent, and again whenever they change (here or in another tab).
+  const [grades, setGrades] = useState<GradesSnapshot | null>(null);
+  // Read once, where there is a browser. Which tasks are done only shows once the grades
+  // have loaded, after the first render, so the server's markup never depends on it.
+  const [reopened, setReopened] = useState<Set<string>>(() =>
+    typeof window === "undefined" ? new Set() : restoreReopened(window.localStorage),
+  );
+  useEffect(() => {
+    let alive = true;
+    const read = () => {
+      openGradesStore()
+        .then((store) => store.get())
+        .then(
+          (next) => {
+            if (alive) setGrades(next);
+          },
+          () => undefined, // blocked storage: nothing is known to be done
+        );
+    };
+    read();
+    window.addEventListener(GRADES_CHANGED, read);
+    window.addEventListener("storage", read);
+    return () => {
+      alive = false;
+      window.removeEventListener(GRADES_CHANGED, read);
+      window.removeEventListener("storage", read);
+    };
+  }, []);
+
+  const autoDone = useMemo(
+    () => autoDoneTasks(tasks, grades, (task) => labelFor(task)?.code ?? null),
+    // The catalogue arriving can change which course a task shows, though `labelFor` does not
+    // change with it, so it is a dependency here on its own account.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tasks, grades, labelFor, catalogueReady],
+  );
+  const doneLabelMap = useMemo(() => doneLabels(completedIds, autoDone, reopened), [completedIds, autoDone, reopened]);
+  const doneIds = useMemo(() => new Set(doneLabelMap.keys()), [doneLabelMap]);
+
   const completionSource: CompletionSource = isImported ? "imported" : "demo";
 
   function toggleTaskCompletion(taskId: string) {
+    // Done because HuskyCT says so: pressing it reopens the task (the gradebook can be
+    // wrong about which task it is), and pressing a reopened one lets HuskyCT's word stand.
+    const doneByHuskyct = autoDone.has(taskId) && !reopened.has(taskId);
+    if (doneByHuskyct || (autoDone.has(taskId) && reopened.has(taskId))) {
+      setReopened((previous) => {
+        const next = new Set(previous);
+        if (doneByHuskyct) next.add(taskId);
+        else next.delete(taskId);
+        saveReopened(window.localStorage, next);
+        return next;
+      });
+      if (doneByHuskyct && completedIds.has(taskId)) {
+        setCompletedIds((previous) => {
+          const next = new Set(previous);
+          next.delete(taskId);
+          saveCompletedTaskIds(window.localStorage, completionSource, next);
+          return next;
+        });
+      }
+      return;
+    }
     setCompletedIds((previous) => {
       const next = new Set(previous);
       if (next.has(taskId)) {
@@ -630,7 +714,8 @@ export function CalendarProvider({
     setNotice(t(locale, "reminders.enabledNotice"));
   }
 
-  const dueSoon = useMemo(() => dueSoonTasks(tasks, now), [tasks, now]);
+  // Work already handed in is not due soon.
+  const dueSoon = useMemo(() => dueSoonTasks(tasks.filter((task) => !doneIds.has(task.id)), now), [tasks, doneIds, now]);
 
   function setTaskEffort(taskId: string, level: EffortLevel) {
     setEfforts((previous) => {
@@ -825,8 +910,8 @@ export function CalendarProvider({
 
   // Recomputed from the current tasks, so the plan always matches the screen.
   const plan = useMemo(
-    () => buildPlan(tasks, completedIds, efforts, now),
-    [tasks, completedIds, efforts, now],
+    () => buildPlan(tasks, doneIds, efforts, now),
+    [tasks, doneIds, efforts, now],
   );
 
   // Nudge at most once per set of due tasks, and only while the app is open:
@@ -874,8 +959,8 @@ export function CalendarProvider({
   );
 
   const insights = useMemo(
-    () => computeInsights(tasks, completedIds, now),
-    [tasks, completedIds, now],
+    () => computeInsights(tasks, doneIds, now),
+    [tasks, doneIds, now],
   );
   const busiestDay = Math.max(1, ...insights.nextSevenDays);
   const busiestWeek = Math.max(1, ...insights.byWeek);
@@ -938,7 +1023,7 @@ export function CalendarProvider({
 
   /** Download exactly what is on screen, as a spreadsheet-friendly CSV. */
   function exportTasks() {
-    const csv = CSV_BOM + tasksToCsv(tasks, completedIds);
+    const csv = CSV_BOM + tasksToCsv(tasks, doneIds);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
 
@@ -979,6 +1064,9 @@ export function CalendarProvider({
     changeLocale,
     tasks,
     completedIds,
+    doneIds,
+    doneLabelFor: (taskId: string) => doneLabelMap.get(taskId) ?? null,
+    hasGrades: grades !== null,
     toggleTaskCompletion,
     groups,
     visibleCount,
@@ -993,13 +1081,7 @@ export function CalendarProvider({
     setTaskCourse,
     followDefaultCourse,
     courseIdForTask: (taskId: string) => courseIdForTask(courseBook, taskId),
-    courseLabelFor: (task: CalendarTask) => {
-      const ownerId = taskOwners.get(task.id);
-      const feedCourseId = ownerId
-        ? (subscriptions.find((entry) => entry.id === ownerId)?.courseId ?? null)
-        : null;
-      return labelForTask(courseBook, task, feedCourseId);
-    },
+    courseLabelFor: labelFor,
     plan,
     insights,
     completionPercent,

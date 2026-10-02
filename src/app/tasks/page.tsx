@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 
-import { TasksSection } from "@/components/tasks-section";
+import { TodoSection } from "@/components/todo-section";
 
 export const metadata: Metadata = {
-  title: "Tasks · BetterHuskyCT",
-  description: "Everything due in the next 7 days, grouped by Today, Tomorrow, and This week.",
+  title: "To-do · BetterHuskyCT",
+  description: "Every deadline still to hand in, with what HuskyCT says is already done set apart.",
 };
 
 export default function TasksPage() {
-  return <TasksSection />;
+  return <TodoSection />;
 }

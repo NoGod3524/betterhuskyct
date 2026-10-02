@@ -7,6 +7,7 @@ import { CoursePicker } from "@/components/course-picker";
 import type { CalendarTask, TaskGroup } from "@/lib/calendar-types";
 import { formatTaskTime, isDueSoon } from "@/lib/calendar-view";
 import { t, type Locale } from "@/lib/i18n";
+import type { DoneLabel } from "@/lib/task-status";
 
 const courseStyles = [
   "bg-[var(--c-dbe8ff)] text-[var(--c-1851a5)]",
@@ -29,6 +30,9 @@ export function TaskCard({
   group,
   now,
   completed,
+  doneLabel = null,
+  timeLabel,
+  overdue = false,
   onToggleComplete,
   locale,
 }: {
@@ -36,6 +40,11 @@ export function TaskCard({
   group: TaskGroup["key"];
   now: Date;
   completed: boolean;
+  /** Why it is done, when HuskyCT says so: the card names it. */
+  doneLabel?: DoneLabel | null;
+  /** Overrides the time line, for a list that spans more than a week. */
+  timeLabel?: string;
+  overdue?: boolean;
   onToggleComplete: (taskId: string) => void;
   locale: Locale;
 }) {
@@ -79,11 +88,22 @@ export function TaskCard({
                 </span>
               )}
             </div>
-            {isDueSoon(task, now) && (
+            {doneLabel === "submitted" || doneLabel === "graded" ? (
+              <span
+                className="shrink-0 rounded-full bg-[var(--c-ecf8f1)] px-2 py-1 text-[10px] font-bold text-[var(--c-1d6b43)]"
+                title={t(locale, "task.doneByHuskyctHint")}
+              >
+                {t(locale, doneLabel === "graded" ? "badge.graded" : "badge.submitted")}
+              </span>
+            ) : overdue && !completed ? (
+              <span className="shrink-0 rounded-full bg-[var(--c-fff0ed)] px-2 py-1 text-[10px] font-bold text-[var(--c-c5402d)]">
+                {t(locale, "badge.overdue")}
+              </span>
+            ) : !completed && isDueSoon(task, now) ? (
               <span className="shrink-0 rounded-full bg-[var(--c-fff0ed)] px-2 py-1 text-[10px] font-bold text-[var(--c-c5402d)]">
                 {t(locale, "badge.dueSoon")}
               </span>
-            )}
+            ) : null}
           </div>
           <h4
             className={`mt-3 min-h-10 break-words text-sm font-semibold leading-5 ${completed ? "text-[var(--muted)] line-through" : "text-[var(--c-172b41)]"}`}
@@ -93,7 +113,7 @@ export function TaskCard({
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-[var(--muted)]">
             <span className="flex items-center gap-1.5">
               <Clock3 size={13} />
-              {formatTaskTime(task, group, locale)}
+              {timeLabel ?? formatTaskTime(task, group, locale)}
             </span>
             {task.location && (
               <span className="flex max-w-full items-center gap-1.5 truncate" title={task.location}>
