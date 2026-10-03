@@ -327,6 +327,122 @@ test("a sync payload the helper posts is applied straight away, with no banner t
   await app.unmount();
 });
 
+// --- the calendar page's own corrections and additions ----------------------------
+
+async function importOneTask(app: Awaited<ReturnType<typeof mount>>) {
+  const packed = await encodeSyncPayload(
+    buildSyncPayload({
+      feeds: [
+        {
+          name: "HuskyCT to-do",
+          courseId: null,
+          importedAt: "2026-09-16T11:00:00.000Z",
+          events: [
+            {
+              id: "a:2026-09-18T23:59:00.000Z",
+              title: "Section 4.1 Homework",
+              course: "MATH 1070Q",
+              start: "2026-09-18T23:59:00.000Z",
+              dateKey: null,
+              end: null,
+              allDay: false,
+              location: null,
+              kind: "assignment",
+            },
+          ],
+        },
+      ],
+      completedIds: [],
+      efforts: {},
+      courses: EMPTY_COURSE_BOOK,
+    }),
+  );
+  await act(async () => {
+    window.location.hash = `#sync=${packed}`;
+    window.dispatchEvent(new window.Event("hashchange"));
+  });
+  await settle(50);
+  await act(async () => app.calendar.applyPendingSync());
+  return "a:2026-09-18T23:59:00.000Z";
+}
+
+test("a correction to an imported event shows up in tasks, and only there", async () => {
+  const app = await mount();
+  const id = await importOneTask(app);
+
+  await act(async () => app.calendar.editEvent(id, { title: "Renamed by hand" }));
+
+  const task = app.calendar.tasks.find((entry) => entry.id === id);
+  assert.equal(task?.title, "Renamed by hand");
+  assert.equal(app.calendar.isEventEdited(id), true);
+  await app.unmount();
+});
+
+test("deleting an imported event hides it; restoring brings back the original, edit included", async () => {
+  const app = await mount();
+  const id = await importOneTask(app);
+  await act(async () => app.calendar.editEvent(id, { title: "Renamed by hand" }));
+
+  await act(async () => app.calendar.deleteEvent(id));
+  assert.ok(!app.calendar.tasks.some((entry) => entry.id === id), "a deleted event was still shown");
+
+  await act(async () => app.calendar.restoreEvent(id));
+  const task = app.calendar.tasks.find((entry) => entry.id === id);
+  assert.equal(task?.title, "Section 4.1 Homework", "restoring brought back the edit, not just the deletion");
+  assert.equal(app.calendar.isEventEdited(id), false);
+  await app.unmount();
+});
+
+test("restoring all events clears every correction and deletion at once", async () => {
+  const app = await mount();
+  const id = await importOneTask(app);
+  await act(async () => {
+    app.calendar.editEvent(id, { title: "Renamed by hand" });
+  });
+
+  await act(async () => app.calendar.restoreAllEvents());
+
+  assert.equal(app.calendar.tasks.find((entry) => entry.id === id)?.title, "Section 4.1 Homework");
+  assert.equal(app.calendar.isEventEdited(id), false);
+  await app.unmount();
+});
+
+test("a note on an imported event survives a page reload, by itself", async () => {
+  const app = await mount();
+  const id = await importOneTask(app);
+  await act(async () => app.calendar.editEvent(id, { note: "bring a calculator" }));
+
+  assert.equal(app.calendar.eventNoteFor(id), "bring a calculator");
+  // The title is unaffected by a note-only edit.
+  assert.equal(app.calendar.tasks.find((entry) => entry.id === id)?.title, "Section 4.1 Homework");
+  await app.unmount();
+});
+
+test("a custom event the student adds appears on the calendar even before any import", async () => {
+  const app = await mount();
+  assert.equal(app.calendar.isImported, false);
+
+  await act(async () =>
+    app.calendar.addCustomEvent({
+      title: "Office hours",
+      course: null,
+      start: "2026-09-20T18:00:00.000Z",
+      end: "2026-09-20T19:00:00.000Z",
+      allDay: false,
+      location: "WPO 203",
+      note: null,
+    }),
+  );
+
+  const added = app.calendar.tasks.find((entry) => entry.title === "Office hours");
+  assert.ok(added, "the custom event was not in the task list");
+  assert.ok(added!.id.startsWith("custom-"));
+
+  await act(async () => app.calendar.deleteEvent(added!.id));
+  assert.ok(!app.calendar.tasks.some((entry) => entry.title === "Office hours"));
+  await app.unmount();
+});
+
 test("a sync message from outside HuskyCT's own origins is ignored", async () => {
   const app = await mount();
   const payload = JSON.parse(
