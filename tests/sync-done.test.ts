@@ -18,9 +18,12 @@ function memoryStorage() {
 }
 
 test("a link carries what HuskyCT says is done, and what was reopened, and reads them back", () => {
+  // Done states are kept for the events the link carries, so these two are real events, now.
+  const now = new Date().toISOString();
+  const event = (id: string) => ({ id, title: id, course: null, start: now, dateKey: null, end: null, allDay: false, location: null });
   const built = buildSyncPayload({
-    feeds: [],
-    completedIds: ["tick-1"],
+    feeds: [{ name: "Term", courseId: null, importedAt: now, events: [event("hw-1"), event("hw-2")] }],
+    completedIds: ["hw-1"],
     efforts: {},
     courses: EMPTY_COURSES,
     doneByHuskyct: new Map([["hw-1", "submitted"], ["hw-2", "graded"]]),

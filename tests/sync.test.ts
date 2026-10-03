@@ -206,7 +206,30 @@ test("a real full-size payload is well inside the unpacked limit", async () => {
 
   const text = serialiseSyncPayload(payload);
   assert.ok(text.length < MAX_UNPACKED_BYTES / 2, `a full payload is ${text.length} bytes`);
-  assert.deepEqual(await decodeSyncPayload(await encodeSyncPayload(payload)), payload);
+
+  // A link is a trimmed copy on purpose: the newest announcements, a preview of
+  // each body, and the events near today. What it carries must still read back.
+  const decoded = await decodeSyncPayload(await encodeSyncPayload(payload));
+  assert.equal(decoded?.announcements.length, 25, "a link keeps the newest 25 announcements");
+  assert.ok(decoded?.announcements.every((entry) => entry.body.length <= 120), "a body is a preview");
+  assert.equal(decoded?.feeds[0].events.length, 120, "every event here is inside the window");
+});
+
+test("a link leaves out events far outside the window, and their done states with them", () => {
+  const far = (id: string) => task(id, { start: "2024-01-10T12:00:00.000Z" });
+  const payload = payloadOf({
+    feeds: [{ name: "Term", courseId: null, importedAt: NOW.toISOString(), events: [task("near"), far("old")] }],
+    completedIds: ["near", "old"],
+    doneByHuskyct: [["near", "submitted"], ["old", "graded"]],
+    reopened: ["old"],
+    now: NOW,
+  } as never);
+
+  const parsed = parseSyncPayload(serialiseSyncPayload(payload));
+  assert.deepEqual(parsed?.feeds[0].events.map((event) => event.id), ["near"]);
+  assert.deepEqual(parsed?.completedIds, ["near"]);
+  assert.deepEqual(parsed?.doneByHuskyct, { near: "submitted" });
+  assert.deepEqual(parsed?.reopened, []);
 });
 
 test("the fragment helpers only accept our own fragment", () => {
@@ -673,7 +696,7 @@ test("the caps keep a worst-case link inside the fragment guard", async () => {
   );
   // And it still reads back, which is the point of staying under the guard.
   const decoded = await decodeSyncPayload(packed);
-  assert.equal(decoded?.announcements.length, 400);
+  assert.equal(decoded?.announcements.length, 25, "the link keeps the newest 25, not all 400");
   assert.equal(decoded?.feeds.flatMap((feed) => feed.events).length, 120);
 });
 
