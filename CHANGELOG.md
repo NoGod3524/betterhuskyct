@@ -14,6 +14,36 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.16.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.16.0) — Sync by QR code, and a collection that brings everything
+
+*Minor: the sync link can be scanned from the computer's screen, and it carries what HuskyCT says is done. Collect everything reads the gradebooks and files, and sends them on its own. The Insights page is folded into To-do. HuskyCT Helper goes from 1.4.0 to 1.5.0.*
+
+### Added
+
+- **A QR code for the sync link.** On the computer, the code sits under the copy
+  button; the phone's camera opens the same link, which still asks before anything
+  is added. The code is drawn in the browser and is never sent anywhere. A set-up
+  too large for a code says so and points to the copy button. ([#95])
+- **HuskyCT's done states go with a sync.** A phone has no gradebook, so work
+  handed in on the computer used to show as open on the phone. A link now carries
+  HuskyCT's reading and the tasks you reopened; the phone keeps them beside its
+  own, and a sync only ever adds to them. Links made before this still read. ([#95])
+
+### Changed
+
+- **The Insights page is gone.** Its completion rate, and the done/total count for
+  each course, are on the To-do page, over the whole term. ([#92])
+
+### Fixed
+
+- **Collect everything reads the gradebooks and the course files too**, not only
+  the announcements, with the same walks their own buttons make. ([#94])
+- **Collect everything sends on its own.** The BetterHuskyCT tab is opened on the
+  press, so the results no longer wait for a manual Send, and gradebooks and files
+  land whichever page you are on. HuskyCT Helper 1.5.0. ([#94])
+- **The calendar on a phone** shows one dot per event, and tapping a day opens its
+  list, instead of seven narrow columns of cut-off titles. ([#93])
+
 ## [1.15.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.15.0) — A calendar you can edit, and a to-do list that knows what you handed in
 
 *Minor: the calendar is a month view you can change; To-do ticks off work HuskyCT shows as submitted or graded; materials can be saved to your computer; and Collect everything sends its results to BetterHuskyCT on its own when a BetterHuskyCT tab is open. HuskyCT Helper goes from 1.3.0 to 1.4.0.*
@@ -1355,6 +1385,10 @@ saying what to work on next.*
 [#88]: https://github.com/NoGod3524/betterhuskyct/pull/88
 [#89]: https://github.com/NoGod3524/betterhuskyct/pull/89
 [#90]: https://github.com/NoGod3524/betterhuskyct/pull/90
+[#92]: https://github.com/NoGod3524/betterhuskyct/pull/92
+[#93]: https://github.com/NoGod3524/betterhuskyct/pull/93
+[#94]: https://github.com/NoGod3524/betterhuskyct/pull/94
+[#95]: https://github.com/NoGod3524/betterhuskyct/pull/95
 
 
 
