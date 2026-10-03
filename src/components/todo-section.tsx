@@ -9,7 +9,7 @@ import { TaskCard } from "@/components/task-card";
 import { isDeadline, type CalendarTask } from "@/lib/calendar-types";
 import { dueTimestamp } from "@/lib/date-utils";
 import { intlLocale, t, type Locale, type TranslationKey } from "@/lib/i18n";
-import { buildTodo, type TodoSectionKey } from "@/lib/todo";
+import { buildTodo, completionOf, type TodoSectionKey } from "@/lib/todo";
 
 const SECTIONS: ReadonlyArray<{ key: TodoSectionKey; title: TranslationKey; accent: string }> = [
   { key: "overdue", title: "todo.overdue", accent: "bg-[var(--c-e6533c)]" },
@@ -63,6 +63,13 @@ export function TodoSection() {
   const todo = useMemo(() => buildTodo(shown, doneIds, now), [shown, doneIds, now]);
   const empty = todo.openCount === 0 && todo.done.length === 0;
 
+  // The whole term, not the window above, and not narrowed by the course filter.
+  const completion = useMemo(
+    () => completionOf(tasks, doneIds, (task) => courseLabelFor(task)?.code ?? null),
+    [tasks, doneIds, courseLabelFor],
+  );
+  const percent = completion.overall.total === 0 ? 0 : Math.round((completion.overall.completed / completion.overall.total) * 100);
+
   const card = (task: CalendarTask, overdue = false) => (
     <TaskCard
       key={task.id}
@@ -92,6 +99,27 @@ export function TodoSection() {
         </div>
       </div>
 
+      {completion.overall.total > 0 ? (
+        <div className="mt-4 max-w-md">
+          <div className="flex items-baseline justify-between gap-3 text-xs">
+            <span className="font-semibold text-[var(--c-31506f)]">{t(locale, "todo.completion")}</span>
+            <span className="text-[var(--muted)]">
+              {t(locale, "todo.completedOf", { completed: completion.overall.completed, total: completion.overall.total })}
+            </span>
+          </div>
+          <div
+            className="mt-1.5 h-2 overflow-hidden rounded-full bg-[var(--c-eef2f7)]"
+            role="progressbar"
+            aria-label={t(locale, "todo.completion")}
+            aria-valuenow={percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div className="h-full rounded-full bg-[var(--c-2f8f5b)]" style={{ width: `${percent}%` }} />
+          </div>
+        </div>
+      ) : null}
+
       <p className="mt-2 max-w-2xl text-xs text-[var(--muted)]">
         {hasGrades ? t(locale, "todo.autoHint") : t(locale, "todo.noGradesHint")}{" "}
         {hasGrades ? null : (
@@ -109,6 +137,9 @@ export function TodoSection() {
           {codes.map((code) => (
             <FilterChip key={code} active={course === code} onClick={() => setCourse(code)}>
               {code}
+              <span className="opacity-70">
+                {completion.byCourse.get(code)?.completed ?? 0}/{completion.byCourse.get(code)?.total ?? 0}
+              </span>
             </FilterChip>
           ))}
         </div>

@@ -110,7 +110,6 @@ import {
   type CourseComponent,
   type CourseLabel,
 } from "@/lib/courses";
-import { computeInsights, type Insights } from "@/lib/insights";
 import {
   dueSoonTasks,
   reminderSignature,
@@ -164,11 +163,6 @@ type CalendarContextValue = {
   courseLabelFor: (task: CalendarTask) => CourseLabel | null;
   plan: Plan;
 
-  insights: Insights;
-  completionPercent: number;
-  busiestDay: number;
-  busiestWeek: number;
-  busiestCourse: number;
   formattedToday: string;
 
   calendarName: string | null;
@@ -1099,18 +1093,6 @@ export function CalendarProvider({
     0,
   );
 
-  const insights = useMemo(
-    () => computeInsights(tasks, doneIds, now),
-    [tasks, doneIds, now],
-  );
-  const busiestDay = Math.max(1, ...insights.nextSevenDays);
-  const busiestWeek = Math.max(1, ...insights.byWeek);
-  const busiestCourse = Math.max(
-    1,
-    ...insights.byCourse.map((row) => row.total),
-  );
-  const completionPercent = Math.round(insights.completionRate * 100);
-
   const formattedToday = new Intl.DateTimeFormat(intlLocale(locale), {
     weekday: "long",
     month: "long",
@@ -1224,11 +1206,6 @@ export function CalendarProvider({
     courseIdForTask: (taskId: string) => courseIdForTask(courseBook, taskId),
     courseLabelFor: labelFor,
     plan,
-    insights,
-    completionPercent,
-    busiestDay,
-    busiestWeek,
-    busiestCourse,
     formattedToday,
     calendarName,
     formattedImportedAt,

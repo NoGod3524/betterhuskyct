@@ -35,7 +35,7 @@ function pageRoutes(): string[] {
 
 test("every page can be reached from the navigation, and nothing in it goes nowhere", () => {
   const routes = pageRoutes();
-  assert.ok(routes.length >= 9, "found too few pages: " + routes.join(", "));
+  assert.ok(routes.length >= 8, "found too few pages: " + routes.join(", "));
   const listed = NAV_ITEMS.map((item) => item.href);
   for (const route of routes) assert.ok(listed.includes(route), `${route} is a page no navigation links to`);
   for (const href of listed) assert.ok(routes.includes(href), `${href} is in the navigation but is not a page`);
