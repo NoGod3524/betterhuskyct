@@ -92,10 +92,25 @@ took 13–20 seconds for six courses on 2026-09-27, depending on the layout. The
 **Stop** while it runs; stopping keeps what was already read. A course whose page
 never loads is skipped and named in the panel.
 
-Then press **Send everything to BetterHuskyCT**. It opens the dashboard with all
-of it in the link, in the same dashboard tab every time rather than a new one.
-Press **Add it here** there and it is in. The panel makes Send the leading
-button as soon as there is something to send.
+**Then it is sent on its own.** The moment the walk finishes, the panel looks
+for a BetterHuskyCT tab already open under the name the Send buttons use and,
+if one is there, hands everything over `postMessage`, the same route course
+materials and grades already travel by — no link to paste, and nothing to
+confirm on BetterHuskyCT's side, since pressing Collect everything already
+said yes once.
+
+A tab only counts if it is already open: a browser only lets a script open a
+new one in direct response to a press, and by the time a multi-course walk
+finishes that moment has passed. So the first collect in a browsing session,
+with no BetterHuskyCT tab open yet, cannot send on its own — the panel says
+so and **Send everything to BetterHuskyCT** is still there, one press away,
+building the `#sync=` link exactly as it always has. Pressing it also opens
+the tab the next collect can find.
+
+The two routes end up in the same place by different means: `postMessage`
+applies the moment it arrives, because the panel already asked once by
+offering Send; the link still shows a banner to confirm, because a link is
+something that could have come from anywhere.
 
 Why walk the pages rather than ask HuskyCT for the data? Because both ways of
 asking were measured and are closed: HuskyCT's API refuses scripts (403
