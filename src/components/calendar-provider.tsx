@@ -51,6 +51,28 @@ import {
 } from "@/lib/sync";
 import { planSyncApply } from "@/lib/sync-apply";
 import {
+  applyOverlay,
+  deleteEvent as deleteOverlayEvent,
+  EMPTY_OVERLAY,
+  noteFor as overlayNoteFor,
+  restoreEvent as restoreOverlayEvent,
+  restoreEventOverlay,
+  saveEventOverlay,
+  setEventEdit,
+  type EventEdit,
+  type EventOverlay,
+} from "@/lib/event-overlay";
+import {
+  buildCustomEvent,
+  editCustomEvent as applyCustomEventEdit,
+  isCustomEventId,
+  removeCustomEvent as dropCustomEvent,
+  restoreCustomEvents,
+  saveCustomEvents,
+  type CustomEvent as CustomCalendarEvent,
+  type CustomEventInput,
+} from "@/lib/custom-events";
+import {
   clearCompletedTaskIds,
   restoreCompletedTaskIds,
   saveCompletedTaskIds,
@@ -193,6 +215,17 @@ type CalendarContextValue = {
   /** Course announcements, newest first. Empty until a helper sends some. */
   announcements: Announcement[];
   clearAnnouncements: () => void;
+
+  /** A correction to an imported event, or an edit to one the student added. */
+  editEvent: (taskId: string, edit: EventEdit) => void;
+  deleteEvent: (taskId: string) => void;
+  /** Undoes a correction or a deletion; does nothing for a custom event. */
+  restoreEvent: (taskId: string) => void;
+  restoreAllEvents: () => void;
+  eventNoteFor: (taskId: string) => string | null;
+  /** Whether this imported event has been corrected or deleted on this device. */
+  isEventEdited: (taskId: string) => boolean;
+  addCustomEvent: (input: CustomEventInput) => void;
 };
 
 const CalendarContext = createContext<CalendarContextValue | null>(null);
@@ -264,6 +297,10 @@ export function CalendarProvider({
   const subscriptionsRef = useRef<Subscription[]>([]);
   // The same, for the announcement list when a sync link is packed.
   const announcementsRef = useRef<Announcement[]>([]);
+  // Corrections to imported events, and events the student added themselves;
+  // see `event-overlay.ts` and `custom-events.ts` for why they are kept apart.
+  const [eventOverlay, setEventOverlay] = useState<EventOverlay>(EMPTY_OVERLAY);
+  const [customEvents, setCustomEvents] = useState<CustomCalendarEvent[]>([]);
   // A link from another device is offered, never applied on its own.
   const [pendingSync, setPendingSync] = useState<SyncPayload | null>(null);
   const [outgoingSyncLink, setOutgoingSyncLink] = useState<string | null>(null);
@@ -308,6 +345,57 @@ export function CalendarProvider({
     commitAnnouncements([]);
     setNotice(t(locale, "announcements.cleared"));
     setError(null);
+  }
+
+  function commitEventOverlay(next: EventOverlay) {
+    setEventOverlay(next);
+    saveEventOverlay(window.localStorage, next);
+  }
+
+  function commitCustomEvents(next: CustomCalendarEvent[]) {
+    setCustomEvents(next);
+    saveCustomEvents(window.localStorage, next);
+  }
+
+  /**
+   * One form for both kinds of event on the calendar page: a custom one is
+   * edited in place, since the student owns the whole record; a correction to
+   * an imported one goes into the overlay instead, so the next collection
+   * still finds it. `taskId` decides which by its own namespace.
+   */
+  function editEvent(taskId: string, edit: EventEdit) {
+    if (isCustomEventId(taskId)) {
+      commitCustomEvents(applyCustomEventEdit(customEvents, taskId, edit));
+    } else {
+      commitEventOverlay(setEventEdit(eventOverlay, taskId, edit));
+    }
+  }
+
+  function deleteEvent(taskId: string) {
+    if (isCustomEventId(taskId)) commitCustomEvents(dropCustomEvent(customEvents, taskId));
+    else commitEventOverlay(deleteOverlayEvent(eventOverlay, taskId));
+  }
+
+  /** Back to exactly what HuskyCT sent. Meaningless for a custom event — there is no "original" to go back to. */
+  function restoreEvent(taskId: string) {
+    if (!isCustomEventId(taskId)) commitEventOverlay(restoreOverlayEvent(eventOverlay, taskId));
+  }
+
+  function restoreAllEvents() {
+    commitEventOverlay(EMPTY_OVERLAY);
+  }
+
+  function eventNoteFor(taskId: string): string | null {
+    if (isCustomEventId(taskId)) return customEvents.find((event) => event.id === taskId)?.note ?? null;
+    return overlayNoteFor(eventOverlay, taskId);
+  }
+
+  function isEventEdited(taskId: string): boolean {
+    return Boolean(eventOverlay.edits[taskId]) || eventOverlay.deletedIds.includes(taskId);
+  }
+
+  function addCustomEvent(input: CustomEventInput) {
+    commitCustomEvents([...customEvents, buildCustomEvent(input)]);
   }
 
   /**
@@ -524,6 +612,9 @@ export function CalendarProvider({
       announcementsRef.current = restoredAnnouncements.announcements;
       setAnnouncements(restoredAnnouncements.announcements);
 
+      setEventOverlay(restoreEventOverlay(window.localStorage));
+      setCustomEvents(restoreCustomEvents(window.localStorage));
+
       void refreshRemembered(restored.subscriptions, restoredLocale);
     }, 0);
 
@@ -567,9 +658,13 @@ export function CalendarProvider({
   useEffect(() => watchClock(() => setNow(new Date()), window), []);
 
   const demoTasks = useMemo(() => createDemoTasks(now), [now]);
+  // Corrections and deletions apply only to what was actually imported — the
+  // demo is not something anyone is correcting. Events the student added
+  // themselves are not a correction of anything, so they are always shown,
+  // demo or not: adding one is how an import-less visitor tries the calendar.
   const tasks = useMemo(
-    () => (isImported ? mergeTasks(subscriptions) : demoTasks),
-    [isImported, subscriptions, demoTasks],
+    () => [...(isImported ? applyOverlay(mergeTasks(subscriptions), eventOverlay) : demoTasks), ...customEvents],
+    [isImported, subscriptions, demoTasks, eventOverlay, customEvents],
   );
 
   const taskOwners = useMemo(() => taskOwnerIndex(subscriptions), [subscriptions]);
@@ -1125,6 +1220,13 @@ export function CalendarProvider({
     syncError,
     announcements,
     clearAnnouncements: dropAnnouncements,
+    editEvent,
+    deleteEvent,
+    restoreEvent,
+    restoreAllEvents,
+    eventNoteFor,
+    isEventEdited,
+    addCustomEvent,
   };
 
   return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>;
