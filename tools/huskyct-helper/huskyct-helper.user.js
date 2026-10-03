@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.3.1
+// @version      1.4.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.3.1";
+  const VERSION = "1.4.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -159,10 +159,13 @@
       linksTools: "Tools",
       linksFileName: "links and videos.html",
       collectingCourse: "Reading {course} ({index} of {total})…",
-      collectedAll: "Done: {courses} course(s) read. Press Send to put them in BetterHuskyCT.",
+      collectedAll: "Done: {courses} course(s) read.",
       collectSkipped: " Could not open: {courses}.",
       collectStopped: "Stopped. What was read so far is in the basket.",
       collectFailed: "Collecting stopped with an error: {message}",
+      sendingToBhc: " Sending it to BetterHuskyCT…",
+      sentToBhc: " Sent to BetterHuskyCT: {deadlines} deadline(s), {announcements} announcement(s).",
+      sendToBhcFailed: " Could not reach BetterHuskyCT on its own. Press “{button}” below once.",
       clearBasket: "Clear basket",
       basketCleared: "Basket cleared.",
       basketNothing: "Nothing collected yet.",
@@ -244,10 +247,13 @@
       linksTools: "工具",
       linksFileName: "链接与视频.html",
       collectingCourse: "正在读取 {course}（{index}/{total}）……",
-      collectedAll: "完成：读取了 {courses} 门课。按「全部发给 BetterHuskyCT」导入。",
+      collectedAll: "完成：读取了 {courses} 门课。",
       collectSkipped: "打不开的课程：{courses}。",
       collectStopped: "已停止。已经读到的内容都在篮子里。",
       collectFailed: "收集时出错停止了：{message}",
+      sendingToBhc: "正在发给 BetterHuskyCT……",
+      sentToBhc: "已发给 BetterHuskyCT：{deadlines} 条 deadline、{announcements} 条公告。",
+      sendToBhcFailed: "没能自动连上 BetterHuskyCT，按一下下面的「{button}」。",
       clearBasket: "清空篮子",
       basketCleared: "篮子已清空。",
       basketNothing: "还没有收集到任何内容。",
@@ -2551,6 +2557,50 @@
   }
 
   /**
+   * The basket, delivered straight into BetterHuskyCT with `postMessage` —
+   * the same route course materials and grades already use — instead of a
+   * `#sync=` link the student has to paste in and then confirm on a banner.
+   *
+   * There is no size limit to trim against here: that limit exists only
+   * because a link rides in a URL, and a `postMessage` does not. A caller
+   * that gets no answer within `connectTimeout` is told so and sends
+   * nothing; `huskypilotLink` is still there as the way in by hand.
+   */
+  const TASKS_PROTOCOL = "betterhuskyct/tasks@1";
+
+  async function sendTasksToBhc(target, basket, opts) {
+    const options = Object.assign({ helloEvery: 500, connectTimeout: 30000, storedTimeout: 15000 }, opts);
+    const origin = bhcOrigin();
+    const post = (message) => target.postMessage(Object.assign({ protocol: TASKS_PROTOCOL }, message), origin);
+    const result = { connected: false, stored: false, deadlines: 0, announcements: 0 };
+
+    const ready = nextFromApp("ready", null, options.connectTimeout, TASKS_PROTOCOL);
+    const hello = () => {
+      try {
+        post({ kind: "hello" });
+      } catch {
+        /* not there yet */
+      }
+    };
+    hello();
+    const greeting = window.setInterval(hello, options.helloEvery);
+    const answer = await ready;
+    window.clearInterval(greeting);
+    if (!answer) return result;
+    result.connected = true;
+
+    const { records, announcements } = basketContents(basket);
+    const payload = syncPayload(records, new Date(), announcements);
+    const stored = nextFromApp("stored", null, options.storedTimeout, TASKS_PROTOCOL);
+    post({ kind: "sync", payload });
+    const ack = await stored;
+    result.stored = Boolean(ack && ack.ok);
+    result.deadlines = records.length;
+    result.announcements = announcements.length;
+    return result;
+  }
+
+  /**
    * What to do on the page the panel happens to be sitting on.
    *
    * The panel offers six actions and nothing on screen says which one this page
@@ -2919,11 +2969,36 @@
             },
           });
           const selfCheck = problemsText(report.problems);
-          status.className = selfCheck ? "note warn" : report.stopped ? "note" : "note ok";
-          status.textContent =
+          const collectedText =
             (report.stopped ? t("collectStopped") : t("collectedAll", { courses: report.collected })) +
             (report.skipped.length ? t("collectSkipped", { courses: report.skipped.join(", ") }) : "") +
             (selfCheck ? " " + selfCheck : "");
+          status.className = selfCheck ? "note warn" : report.stopped ? "note" : "note ok";
+          status.textContent = collectedText;
+
+          // One click, all the way: what was just read goes straight to
+          // BetterHuskyCT over `postMessage`, the same route materials and
+          // grades already use, so there is nothing left to paste or confirm
+          // on its side. Opening a tab this long after the press only
+          // succeeds if one named "betterhuskyct" is already open — when it
+          // is not, nothing opens, and the Send button below still works
+          // with a press of its own.
+          const freshBasket = readBasket(window.localStorage);
+          const toSend = basketSummary(freshBasket);
+          if (!report.stopped && (toSend.deadlines > 0 || toSend.announcements > 0)) {
+            const target = window.open(HUSKYPILOT_URL, "betterhuskyct");
+            if (target) {
+              status.textContent = collectedText + t("sendingToBhc");
+              const result = await sendTasksToBhc(target, freshBasket, { connectTimeout: 6000 });
+              if (result.connected && result.stored) {
+                status.className = "note ok";
+                status.textContent = collectedText + t("sentToBhc", result);
+              } else {
+                status.className = "note warn";
+                status.textContent = collectedText + t("sendToBhcFailed", { button: t("sendDeadlines") });
+              }
+            }
+          }
         } catch (error) {
           status.className = "note warn";
           status.textContent = t("collectFailed", { message: error.message });
@@ -3293,6 +3368,8 @@
       sendMaterialsToBhc,
       basketContents,
       basketLink,
+      TASKS_PROTOCOL,
+      sendTasksToBhc,
       todoFromLabel,
       dueDateFromText,
       collectTodos,

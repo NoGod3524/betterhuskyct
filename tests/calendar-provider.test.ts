@@ -4,7 +4,8 @@ import { after, beforeEach, test } from "node:test";
 import { isCourseCatalogueLoaded } from "../src/lib/course-catalogue.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { t } from "../src/lib/i18n.ts";
-import { buildSyncPayload, encodeSyncPayload } from "../src/lib/sync.ts";
+import { buildSyncPayload, encodeSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
+import { TASKS_PROTOCOL } from "../src/lib/tasks-sync.ts";
 import { installDom } from "./support/dom.ts";
 
 /**
@@ -385,5 +386,87 @@ test("a custom event the student adds appears on the calendar even before any im
 
   await act(async () => app.calendar.deleteEvent(added!.id));
   assert.ok(!app.calendar.tasks.some((entry) => entry.title === "Office hours"));
+  await app.unmount();
+});
+
+test("a sync payload the helper posts is applied straight away, with no banner to confirm", async () => {
+  const payload = JSON.parse(
+    serialiseSyncPayload(
+      buildSyncPayload({
+        feeds: [
+          {
+            name: "HuskyCT to-do",
+            courseId: null,
+            importedAt: "2026-09-16T11:00:00.000Z",
+            events: [
+              {
+                id: "a:2026-09-18T23:59:00.000Z",
+                title: "Section 4.1 Homework",
+                course: "MATH 1070Q",
+                start: "2026-09-18T23:59:00.000Z",
+                dateKey: null,
+                end: null,
+                allDay: false,
+                location: null,
+                kind: "assignment",
+              },
+            ],
+          },
+        ],
+        completedIds: [],
+        efforts: {},
+        courses: EMPTY_COURSE_BOOK,
+      }),
+    ),
+  );
+
+  const app = await mount();
+  assert.equal(app.calendar.isImported, false, "a fresh device should be showing the demo");
+
+  const replies: unknown[] = [];
+  await act(async () => {
+    window.dispatchEvent(
+      new window.MessageEvent("message", {
+        data: { protocol: TASKS_PROTOCOL, kind: "sync", payload },
+        origin: "https://lms.uconn.edu",
+        source: { postMessage: (reply: unknown) => replies.push(reply) } as never,
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  });
+
+  assert.deepEqual(replies, [{ protocol: TASKS_PROTOCOL, kind: "stored", ok: true }]);
+  assert.equal(app.calendar.pendingSync, null, "a direct delivery should never wait on a banner");
+  assert.equal(app.calendar.isImported, true);
+  assert.equal(app.calendar.tasks[0]?.title, "Section 4.1 Homework");
+  assert.ok(app.calendar.notice?.includes("Delivered from the helper"));
+  await app.unmount();
+});
+
+test("a sync message from outside HuskyCT's own origins is ignored", async () => {
+  const app = await mount();
+  const payload = JSON.parse(
+    serialiseSyncPayload(
+      buildSyncPayload({
+        feeds: [{ name: "HuskyCT to-do", courseId: null, importedAt: "2026-09-16T11:00:00.000Z", events: [] }],
+        completedIds: [],
+        efforts: {},
+        courses: EMPTY_COURSE_BOOK,
+      }),
+    ),
+  );
+
+  await act(async () => {
+    window.dispatchEvent(
+      new window.MessageEvent("message", {
+        data: { protocol: TASKS_PROTOCOL, kind: "sync", payload },
+        origin: "https://evil.example",
+        source: { postMessage() {} } as never,
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  });
+
+  assert.equal(app.calendar.isImported, false);
   await app.unmount();
 });

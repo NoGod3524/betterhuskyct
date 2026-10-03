@@ -50,6 +50,7 @@ import {
   type SyncPayload,
 } from "@/lib/sync";
 import { planSyncApply } from "@/lib/sync-apply";
+import { createTasksReceiver } from "@/lib/tasks-sync";
 import {
   applyOverlay,
   deleteEvent as deleteOverlayEvent,
@@ -952,11 +953,11 @@ export function CalendarProvider({
     }
   }
 
-  function applyPendingSync() {
-    if (!pendingSync) return;
-
-    // Which ticks go into the merge and what the screen shows afterwards are
-    // decided by `planSyncApply`; this only writes the result.
+  // Which ticks go into the merge and what the screen shows afterwards are
+  // decided by `planSyncApply`; this only writes the result. Shared by the
+  // `#sync=` link, which asks first, and the helper's direct `postMessage`,
+  // which does not.
+  function applyPayload(payload: SyncPayload) {
     const plan = planSyncApply(
       {
         courses: courseBook,
@@ -967,7 +968,7 @@ export function CalendarProvider({
         ticksOnScreen: completedIds,
         savedTicks: restoreCompletedTaskIds(window.localStorage, "imported"),
       },
-      pendingSync,
+      payload,
     );
     const { merged } = plan;
 
@@ -983,6 +984,12 @@ export function CalendarProvider({
     if (plan.showImported) setDemoMode(false);
     if (plan.ticksOnScreen) setCompletedIds(plan.ticksOnScreen);
     setRestoredFromStorage(false);
+    return merged;
+  }
+
+  function applyPendingSync() {
+    if (!pendingSync) return;
+    const merged = applyPayload(pendingSync);
     setPendingSync(null);
     setOutgoingSyncLink(null);
     clearSyncFragment();
@@ -997,6 +1004,45 @@ export function CalendarProvider({
       }),
     );
   }
+
+  // The helper's direct delivery. Kept current after every render, rather
+  // than re-registered, so the one `message` listener mounted below never
+  // closes over the render it happened to be attached on. The assignment
+  // runs in an effect — not during render itself — only to satisfy the rule
+  // against touching a ref while rendering; it still runs on every render.
+  const applyFromHelperRef = useRef<(payload: SyncPayload) => void>(() => {});
+  useEffect(() => {
+    applyFromHelperRef.current = (payload: SyncPayload) => {
+      const merged = applyPayload(payload);
+      setError(null);
+      setNotice(
+        t(locale, "sync.appliedFromHelper", {
+          calendars: merged.addedFeeds,
+          added: merged.addedEvents,
+          updated: merged.updatedEvents,
+          tasks: merged.completedIds.size,
+          announcements: merged.announcements.length,
+        }),
+      );
+    };
+  });
+
+  useEffect(() => {
+    const receiver = createTasksReceiver({
+      onSync: (payload) => {
+        try {
+          applyFromHelperRef.current(payload);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    });
+    const listener = (event: MessageEvent) =>
+      receiver({ origin: event.origin, data: event.data, source: event.source as Window | null });
+    window.addEventListener("message", listener);
+    return () => window.removeEventListener("message", listener);
+  }, []);
 
   function dismissPendingSync() {
     setPendingSync(null);
