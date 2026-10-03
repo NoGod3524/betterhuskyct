@@ -27,6 +27,7 @@ type Basket = {
 };
 type Helper = {
   TASKS_PROTOCOL: string;
+  openBhcTab: () => { location?: { href: string }; closed?: boolean } | null;
   sendTasksToBhc: (
     target: { postMessage(message: unknown, origin: string): void },
     basket: Basket,
@@ -176,4 +177,34 @@ test("a reply from any other page is ignored", async () => {
   );
 
   assert.equal(result.connected, false);
+});
+
+test("the BetterHuskyCT tab is opened on the press, and a tab already on the app is left as it is", () => {
+  const { window, helper } = openPage();
+  const requested: Array<[string, string]> = [];
+
+  // A blank tab this press just opened: it is pointed at the app.
+  const blank = { location: { href: "about:blank" }, closed: false };
+  window.open = (url: string, name: string) => {
+    requested.push([url, name]);
+    return blank as never;
+  };
+  assert.equal(helper.openBhcTab(), blank);
+  assert.deepEqual(requested, [["", "betterhuskyct"]]);
+  assert.equal(blank.location.href, "https://betterhuskyct.vercel.app/");
+
+  // A tab already on the app is another origin to this page: reading its
+  // address throws, so it is returned untouched rather than reloaded.
+  const existing = {
+    get location(): never {
+      throw new Error("another origin");
+    },
+    closed: false,
+  };
+  window.open = () => existing as never;
+  assert.equal(helper.openBhcTab(), existing);
+
+  // The browser refused the tab: nothing to send to.
+  window.open = () => null as never;
+  assert.equal(helper.openBhcTab(), null);
 });

@@ -4,6 +4,7 @@ import { after, test } from "node:test";
 import { GRADES_PROTOCOL, memoryGradesStore, type GradesStore } from "../src/lib/grades.ts";
 import { openGradesStore } from "../src/lib/grades-store.ts";
 import { t } from "../src/lib/i18n.ts";
+import { memoryMaterialsStore } from "../src/lib/materials.ts";
 import { installDom } from "./support/dom.ts";
 
 /**
@@ -11,8 +12,9 @@ import { installDom } from "./support/dom.ts";
  * memory in place of localStorage.
  */
 const dom = installDom();
-const { createElement, act } = await import("react");
+const { createElement, act, Fragment } = await import("react");
 const { createRoot } = await import("react-dom/client");
+const { HelperDeliveries } = await import("../src/components/helper-deliveries.tsx");
 const { GradesSection } = await import("../src/components/grades-section.tsx");
 const { CalendarProvider } = await import("../src/components/calendar-provider.tsx");
 
@@ -48,11 +50,17 @@ async function render(store: GradesStore | null) {
   window.document.body.appendChild(container);
   const root = createRoot(container as unknown as Element);
   const openStore = async () => store ?? memoryGradesStore();
+  // The receivers sit in the shell in the app, so they are mounted here too.
   await act(async () =>
     root.render(
       createElement(CalendarProvider, {
         initialNow: new Date().toISOString(),
-        children: createElement(GradesSection, { openStore }),
+        children: createElement(
+          Fragment,
+          null,
+          createElement(HelperDeliveries, { openGrades: openStore, openMaterials: async () => memoryMaterialsStore() }),
+          createElement(GradesSection, { openStore }),
+        ),
       }),
     ),
   );

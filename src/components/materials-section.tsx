@@ -17,10 +17,10 @@ import {
 } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
+import { DELIVERY_EVENT, type DeliveryDetail } from "@/components/helper-deliveries";
 import { ListSkeleton } from "@/components/list-skeleton";
 import { t } from "@/lib/i18n";
 import {
-  createMaterialsReceiver,
   folderTree,
   foldersIn,
   formatBytes,
@@ -146,29 +146,22 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
     };
   }, [openStore, reload]);
 
-  // The helper's deliveries. Refreshing the list after every file would redraw
-  // a long page dozens of times, so it waits for a pause between files.
+  // The helper's deliveries are received in the shell, wherever the student is;
+  // this page hears each step and refreshes its list. Refreshing after every
+  // file would redraw a long page dozens of times, so it waits for a pause.
   useEffect(() => {
     if (!store) return;
-    const receiver = createMaterialsReceiver({
-      store,
-      onChange: (state) => {
-        setReceive(state);
-        if (state.phase === "receiving") {
-          // Asked once: a store the browser may clear under pressure is not a
-          // place to keep a term's files.
-          navigator.storage?.persist?.().catch(() => undefined);
-        }
-        if (refreshTimer.current) clearTimeout(refreshTimer.current);
-        refreshTimer.current = setTimeout(() => void reload(store), state.phase === "done" ? 0 : 800);
-      },
-    });
-    const listener = (event: MessageEvent) => {
-      void receiver({ origin: event.origin, data: event.data, source: event.source as Window | null });
+    const listener = (event: Event) => {
+      const detail = (event as CustomEvent<DeliveryDetail>).detail;
+      if (detail.kind !== "materials") return;
+      const state = detail.state;
+      setReceive(state);
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      refreshTimer.current = setTimeout(() => void reload(store), state.phase === "done" ? 0 : 800);
     };
-    window.addEventListener("message", listener);
+    window.addEventListener(DELIVERY_EVENT, listener);
     return () => {
-      window.removeEventListener("message", listener);
+      window.removeEventListener(DELIVERY_EVENT, listener);
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
     };
   }, [store, reload]);
