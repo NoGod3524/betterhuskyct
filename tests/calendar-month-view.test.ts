@@ -21,7 +21,11 @@ type Calendar = ReturnType<typeof useCalendar>;
 const { window } = dom;
 after(() => dom.uninstall());
 
-const NOW = new Date("2026-09-16T12:00:00.000Z");
+// Built from local components, not a UTC instant: CI runs this suite under
+// TZ=Pacific/Auckland specifically to catch a fixed "now" that only lands on
+// the right calendar day in UTC. Noon was exactly such a case — 12 hours
+// ahead of UTC rolls it to the next day there.
+const NOW = new Date(2026, 8, 16, 12, 0, 0);
 const RealDate = Date;
 
 // `initialNow` only reaches the very first render — the provider's own
