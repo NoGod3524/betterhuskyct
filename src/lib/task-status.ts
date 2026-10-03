@@ -153,3 +153,63 @@ export function doneLabels(
   for (const id of manual) out.set(id, "ticked");
   return out;
 }
+
+// --- from another device ------------------------------------------------------------------
+
+/**
+ * What HuskyCT's gradebook said on another device, kept here beside this device's
+ * own reading. A phone has no gradebook of its own (the helper runs on a computer),
+ * so without this, work handed in on the computer would show as open on the phone.
+ */
+export const SYNCED_DONE_STORAGE_KEY = "huskypilot.syncedDone.v1";
+const REASONS: ReadonlyArray<DoneReason> = ["submitted", "graded"];
+
+/** A reason read from storage or a link: anything else is dropped rather than trusted. */
+export function parseDoneReason(value: unknown): DoneReason | null {
+  return typeof value === "string" && (REASONS as ReadonlyArray<string>).includes(value) ? (value as DoneReason) : null;
+}
+
+export function restoreSyncedDone(storage: Pick<Storage, "getItem">): Map<string, DoneReason> {
+  try {
+    const parsed: unknown = JSON.parse(storage.getItem(SYNCED_DONE_STORAGE_KEY) || "null");
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return new Map();
+    return doneMapFrom(Object.entries(parsed));
+  } catch {
+    return new Map();
+  }
+}
+
+export function saveSyncedDone(storage: Pick<Storage, "setItem" | "removeItem">, done: Map<string, DoneReason>): void {
+  try {
+    if (done.size === 0) storage.removeItem(SYNCED_DONE_STORAGE_KEY);
+    else storage.setItem(SYNCED_DONE_STORAGE_KEY, JSON.stringify(Object.fromEntries(done)));
+  } catch {
+    /* forgotten after this visit; the next sync brings it back */
+  }
+}
+
+/**
+ * The union of two sets of done tasks, keeping the stronger reason where both
+ * know one. Only ever adds: a sync can say a task is done, never that it is not.
+ */
+export function mergeDone(local: Map<string, DoneReason>, incoming: Iterable<[string, DoneReason]>): Map<string, DoneReason> {
+  const out = new Map(local);
+  for (const [id, reason] of incoming) {
+    const known = out.get(id);
+    out.set(id, known ? stronger(known, reason) : reason);
+  }
+  return out;
+}
+
+/** Keeps only well-formed entries of a record that came from a link. */
+export function doneMapFrom(entries: Iterable<[string, unknown]>): Map<string, DoneReason> {
+  const out = new Map<string, DoneReason>();
+  let kept = 0;
+  for (const [id, value] of entries) {
+    const reason = parseDoneReason(value);
+    if (!id || id.length >= 500 || !reason) continue;
+    out.set(id, reason);
+    if (++kept >= 5000) break;
+  }
+  return out;
+}

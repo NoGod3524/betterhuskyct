@@ -90,7 +90,17 @@ import {
 import { isCourseCatalogueLoaded, loadCourseCatalogue } from "@/lib/course-catalogue";
 import type { GradesSnapshot } from "@/lib/grades";
 import { GRADES_CHANGED, openGradesStore } from "@/lib/grades-store";
-import { autoDoneTasks, doneLabels, restoreReopened, saveReopened, type DoneLabel } from "@/lib/task-status";
+import {
+  autoDoneTasks,
+  doneLabels,
+  mergeDone,
+  restoreReopened,
+  restoreSyncedDone,
+  saveReopened,
+  saveSyncedDone,
+  type DoneLabel,
+  type DoneReason,
+} from "@/lib/task-status";
 import { buildPlan, type Plan } from "@/lib/plan";
 import {
   EMPTY_COURSE_BOOK,
@@ -704,6 +714,9 @@ export function CalendarProvider({
   const [reopened, setReopened] = useState<Set<string>>(() =>
     typeof window === "undefined" ? new Set() : restoreReopened(window.localStorage),
   );
+  const [syncedDone, setSyncedDone] = useState<Map<string, DoneReason>>(() =>
+    typeof window === "undefined" ? new Map() : restoreSyncedDone(window.localStorage),
+  );
   useEffect(() => {
     let alive = true;
     const read = () => {
@@ -726,12 +739,14 @@ export function CalendarProvider({
     };
   }, []);
 
+  // What HuskyCT said on another device (a phone has no gradebook of its own), added
+  // to what this device reads from its own. Only ever adds: see `mergeDone`.
   const autoDone = useMemo(
-    () => autoDoneTasks(tasks, grades, (task) => labelFor(task)?.code ?? null),
+    () => mergeDone(autoDoneTasks(tasks, grades, (task) => labelFor(task)?.code ?? null), syncedDone),
     // The catalogue arriving can change which course a task shows, though `labelFor` does not
     // change with it, so it is a dependency here on its own account.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, grades, labelFor, catalogueReady],
+    [tasks, grades, labelFor, catalogueReady, syncedDone],
   );
   const doneLabelMap = useMemo(() => doneLabels(completedIds, autoDone, reopened), [completedIds, autoDone, reopened]);
   const doneIds = useMemo(() => new Set(doneLabelMap.keys()), [doneLabelMap]);
@@ -934,6 +949,8 @@ export function CalendarProvider({
         efforts,
         courses: courseBook,
         announcements: announcementsRef.current,
+        doneByHuskyct: autoDone,
+        reopened,
       });
       const packed = await encodeSyncPayload(payload);
 
@@ -974,6 +991,14 @@ export function CalendarProvider({
     setEfforts(merged.efforts);
     saveEffortMap(window.localStorage, merged.efforts);
     saveCompletedTaskIds(window.localStorage, "imported", plan.ticksToSave);
+    // HuskyCT's word and the student's reopenings from the other device join what
+    // this one has. Neither is ever taken away by a sync.
+    const nextSynced = mergeDone(syncedDone, Object.entries(payload.doneByHuskyct));
+    saveSyncedDone(window.localStorage, nextSynced);
+    setSyncedDone(nextSynced);
+    const nextReopened = new Set([...reopened, ...payload.reopened]);
+    saveReopened(window.localStorage, nextReopened);
+    setReopened(nextReopened);
 
     if (plan.showImported) setDemoMode(false);
     if (plan.ticksOnScreen) setCompletedIds(plan.ticksOnScreen);
