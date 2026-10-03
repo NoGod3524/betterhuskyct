@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.4.0
+// @version      1.5.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.4.0";
+  const VERSION = "1.5.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -97,7 +97,7 @@
       sendDeadlines: "Send everything to BetterHuskyCT",
       privacy: "Nothing is uploaded. Everything stays in this browser.",
       guideTodo:
-        "Press Collect everything: the panel reads this to-do list and every course's announcements by itself.",
+        "Press Collect everything: the panel reads this to-do list, every course's announcements, gradebooks and files by itself, then sends them to BetterHuskyCT.",
       guideCourse: "Press Collect everything to read every course's announcements, this one included.",
       guideAnnouncements: "This course's announcements are in the basket.",
       guideNeither:
@@ -109,6 +109,16 @@
       collectAll: "Collect everything",
       stopCollecting: "Stop",
       collectingCourses: "Reading your courses and to-do list…",
+      collectingGrades: "Reading {course}'s gradebook ({index} of {total})…",
+      collectingMaterials: "Reading {course}'s files ({index} of {total})…",
+      problemGradesWalk: "The gradebooks could not be read this time. Press Grades to try them alone.",
+      problemMaterialsWalk: "The course files could not be read this time. Press Materials to try them alone.",
+      sentPartTasks: "{deadlines} deadline(s) and {announcements} announcement(s)",
+      sentPartGrades: "the gradebooks of {courses} course(s)",
+      sentPartFiles: "{files} file(s)",
+      sentPartsJoin: "; ",
+      sentAll: " Sent to BetterHuskyCT: {parts}.",
+      sentPartial: " Only part of it reached BetterHuskyCT ({parts}). Press the Send buttons below for the rest.",
       collectingDueDates: "Reading the term's due dates from the Calendar…",
       collectMaterials: "Collect course materials",
       materialsReused: " {count} document(s) came from last time's reading.",
@@ -191,7 +201,7 @@
       hidePanel: "收起面板",
       sendDeadlines: "全部发给 BetterHuskyCT",
       privacy: "不上传任何东西，全部留在这个浏览器里。",
-      guideTodo: "按「一键收集全部」：面板会自己读取这里的待办和每门课的公告。",
+      guideTodo: "按「一键收集全部」：面板会自己读取待办、每门课的公告、成绩册和课件，然后发给 BetterHuskyCT。",
       guideCourse: "按「一键收集全部」，读取每门课的公告，包括这一门。",
       guideAnnouncements: "这门课的公告已经收进篮子。",
       guideNeither: "按「一键收集全部」：面板会自己打开 Courses 页和每门课，收完再回到这里。",
@@ -201,6 +211,16 @@
       collectAll: "一键收集全部",
       stopCollecting: "停止",
       collectingCourses: "正在读取课程列表和待办……",
+      collectingGrades: "正在读取 {course} 的成绩册（第 {index} / {total} 门）……",
+      collectingMaterials: "正在读取 {course} 的课件（第 {index} / {total} 门）……",
+      problemGradesWalk: "这次没读到成绩册。可以单独按一下「成绩」再试。",
+      problemMaterialsWalk: "这次没读到课件。可以单独按一下「课件」再试。",
+      sentPartTasks: "{deadlines} 条 deadline、{announcements} 条公告",
+      sentPartGrades: "{courses} 门课的成绩册",
+      sentPartFiles: "{files} 个课件",
+      sentPartsJoin: "；",
+      sentAll: " 已发给 BetterHuskyCT：{parts}。",
+      sentPartial: " 只有一部分发到了 BetterHuskyCT（{parts}）。剩下的按下面的发送按钮再发。",
       collectingDueDates: "正在从日历读取整个学期的截止日期……",
       collectMaterials: "收集课件",
       materialsReused: "其中 {count} 个文档用的是上次读取的结果。",
@@ -1177,6 +1197,18 @@
    * The whole walk. Writes to the basket as it goes, so stopping halfway keeps
    * what was read.
    */
+  /**
+   * The timing a walk is given from Collect everything's own: only the keys
+   * that were set, so each walk keeps its own defaults for everything else.
+   */
+  function timingOf(opts, keys) {
+    const timing = {};
+    for (const key of keys) {
+      if (opts[key] !== undefined) timing[key] = opts[key];
+    }
+    return timing;
+  }
+
   async function collectEverything(options) {
     const opts = Object.assign(
       {
@@ -1192,7 +1224,7 @@
     );
     const storage = window.localStorage;
     const returnTo = window.location.pathname + window.location.search;
-    const report = { courses: 0, collected: 0, dueDates: 0, skipped: [], stopped: false, problems: [] };
+    const report = { courses: 0, collected: 0, dueDates: 0, skipped: [], stopped: false, problems: [], grades: null, materials: null };
     const save = (result) => {
       if (result.changed) writeBasket(storage, result.basket);
       return result.basket;
@@ -1243,6 +1275,40 @@
         save(rememberAnnouncements(readBasket(storage), course, rows, new Date()));
         report.collected++;
         await pause(opts.gap);
+      }
+
+      // 5 and 6. Each course's gradebook, then its files: the same walks the
+      // Grades and Materials buttons make, so one press brings in everything.
+      // A walk that breaks is reported, and the other still runs.
+      if (!opts.shouldStop()) {
+        try {
+          report.grades = await collectGrades(
+            Object.assign(timingOf(opts, ["every", "pageTimeout", "gap", "retryPause", "settle"]), {
+              shouldStop: opts.shouldStop,
+              onProgress: (progress) => opts.onProgress(Object.assign({ walk: "grades" }, progress)),
+            }),
+          );
+        } catch {
+          report.problems.push({ key: "problemGradesWalk" });
+        }
+      }
+      if (!opts.shouldStop()) {
+        try {
+          report.materials = await collectMaterials(
+            Object.assign(
+              timingOf(opts, ["every", "pageTimeout", "outlineTimeout", "documentTimeout", "expandPause", "documentSettle"]),
+              {
+                shouldStop: opts.shouldStop,
+                onProgress: (progress) => opts.onProgress(Object.assign({ walk: "materials" }, progress)),
+              },
+            ),
+          );
+        } catch {
+          report.problems.push({ key: "problemMaterialsWalk" });
+        }
+      }
+      if ((report.grades && report.grades.stopped) || (report.materials && report.materials.stopped)) {
+        report.stopped = true;
       }
     } finally {
       // 5. Back to the page the student pressed the button on.
@@ -2601,6 +2667,50 @@
   }
 
   /**
+   * The BetterHuskyCT tab a press sends to, opened on the press itself.
+   *
+   * A walk takes minutes, and a browser only lets a script open a tab in the
+   * instant of a press: opened later, it is a popup and gets blocked. So the
+   * tab is opened (or the one already open is found) before the walk starts,
+   * and the results are sent to it at the end. A tab that is already on
+   * BetterHuskyCT is left as it is, so nothing reloads under the student.
+   */
+  function openBhcTab() {
+    try {
+      const tab = window.open("", "betterhuskyct");
+      if (!tab) return null;
+      try {
+        // A tab this press just opened is blank; read its address to tell.
+        // Reading another site's address throws, which is the answer we want.
+        if (tab.location.href === "about:blank") tab.location.href = HUSKYPILOT_URL;
+      } catch {
+        /* already a page of BetterHuskyCT: leave it alone */
+      }
+      return tab;
+    } catch {
+      return null;
+    }
+  }
+
+  /** The line the panel shows while Collect everything walks: the basket, then the gradebooks, then the files. */
+  function collectProgressText(progress) {
+    const course = progress.course ? progress.course.code || progress.course.id : "";
+    if (progress.walk === "grades") {
+      return progress.step === "grades"
+        ? t("collectingGrades", { course, index: progress.index, total: progress.total })
+        : t("collectingCourses");
+    }
+    if (progress.walk === "materials") {
+      return progress.course
+        ? t("collectingMaterials", { course, index: progress.index, total: progress.total })
+        : t("collectingCourses");
+    }
+    if (progress.step === "courses") return t("collectingCourses");
+    if (progress.step === "duedates") return t("collectingDueDates");
+    return t("collectingCourse", { course, index: progress.index, total: progress.total });
+  }
+
+  /**
    * What to do on the page the panel happens to be sitting on.
    *
    * The panel offers six actions and nothing on screen says which one this page
@@ -2950,24 +3060,40 @@
         }
 
         walk = { stop: false, kind: "basket" };
+        // Opened on the press, before the walk starts: see openBhcTab.
+        const bhcTab = openBhcTab();
         refreshBasket();
         status.className = "note";
         try {
           const report = await collectEverything({
             shouldStop: () => walk.stop,
             onProgress(progress) {
-              status.textContent =
-                progress.step === "courses"
-                  ? t("collectingCourses")
-                  : progress.step === "duedates"
-                    ? t("collectingDueDates")
-                    : t("collectingCourse", {
-                      course: progress.course.code || progress.course.id,
-                      index: progress.index,
-                      total: progress.total,
-                    });
+              status.textContent = collectProgressText(progress);
             },
           });
+          // The gradebooks and files read along the way, shown on their own lines.
+          if (report.grades) {
+            grades = report.grades;
+            gradesLine.hidden = false;
+            const gradesCheck = problemsText(report.grades.problems);
+            gradesLine.className = gradesCheck ? "note warn" : "note ok";
+            gradesLine.textContent =
+              (report.grades.stopped ? t("gradesStopped") + " " : "") +
+              t("gradesFound", gradesSummary(report.grades)) +
+              (gradesCheck ? " " + gradesCheck : "");
+          }
+          if (report.materials) {
+            materials = report.materials;
+            materialsLine.hidden = false;
+            const materialsCheck = problemsText(report.materials.problems);
+            materialsLine.className = materialsCheck ? "note warn" : "note ok";
+            materialsLine.textContent =
+              (report.materials.stopped ? t("materialsStopped") + " " : "") +
+              t("materialsFound", materialsSummary(report.materials)) +
+              (report.materials.reused ? t("materialsReused", { count: report.materials.reused }) : "") +
+              (materialsCheck ? " " + materialsCheck : "");
+          }
+
           const selfCheck = problemsText(report.problems);
           const collectedText =
             (report.stopped ? t("collectStopped") : t("collectedAll", { courses: report.collected })) +
@@ -2976,28 +3102,56 @@
           status.className = selfCheck ? "note warn" : report.stopped ? "note" : "note ok";
           status.textContent = collectedText;
 
-          // One click, all the way: what was just read goes straight to
-          // BetterHuskyCT over `postMessage`, the same route materials and
-          // grades already use, so there is nothing left to paste or confirm
-          // on its side. Opening a tab this long after the press only
-          // succeeds if one named "betterhuskyct" is already open — when it
-          // is not, nothing opens, and the Send button below still works
-          // with a press of its own.
-          const freshBasket = readBasket(window.localStorage);
-          const toSend = basketSummary(freshBasket);
-          if (!report.stopped && (toSend.deadlines > 0 || toSend.announcements > 0)) {
-            const target = window.open(HUSKYPILOT_URL, "betterhuskyct");
-            if (target) {
-              status.textContent = collectedText + t("sendingToBhc");
-              const result = await sendTasksToBhc(target, freshBasket, { connectTimeout: 6000 });
-              if (result.connected && result.stored) {
-                status.className = "note ok";
-                status.textContent = collectedText + t("sentToBhc", result);
+          // One press, all the way: what was read goes to BetterHuskyCT over
+          // `postMessage` — deadlines and announcements, then the gradebooks,
+          // then the files. Each is the same route its own button uses, so
+          // nothing is pasted or confirmed on the other side. A stopped walk
+          // is not sent; its own button sends what it has.
+          if (!report.stopped && bhcTab) {
+            status.textContent = collectedText + t("sendingToBhc");
+            const parts = [];
+            let failed = false;
+            const freshBasket = readBasket(window.localStorage);
+            const toSend = basketSummary(freshBasket);
+            if (toSend.deadlines > 0 || toSend.announcements > 0) {
+              const result = await sendTasksToBhc(bhcTab, freshBasket, { connectTimeout: 15000 });
+              if (result.connected && result.stored) parts.push(t("sentPartTasks", result));
+              else failed = true;
+            }
+            if (report.grades && report.grades.courses.length) {
+              const result = await sendGradesToBhc(bhcTab, report.grades, { connectTimeout: 15000 });
+              if (result.connected && result.stored) parts.push(t("sentPartGrades", result));
+              else failed = true;
+            }
+            if (report.materials && report.materials.courses.length) {
+              const result = await sendMaterialsToBhc(bhcTab, report.materials, {
+                connectTimeout: 15000,
+                onProgress: (step) => {
+                  status.textContent = collectedText + t("sendingMaterial", step);
+                },
+              });
+              if (result.connected) {
+                parts.push(t("sentPartFiles", { files: result.sent + result.skipped }));
+                if (result.failed) failed = true;
               } else {
-                status.className = "note warn";
-                status.textContent = collectedText + t("sendToBhcFailed", { button: t("sendDeadlines") });
+                failed = true;
               }
             }
+            const sentList = parts.join(t("sentPartsJoin"));
+            if (failed && parts.length === 0) {
+              status.className = "note warn";
+              status.textContent = collectedText + t("sendToBhcFailed", { button: t("sendDeadlines") });
+            } else if (failed) {
+              status.className = "note warn";
+              status.textContent = collectedText + t("sentPartial", { parts: sentList });
+            } else if (parts.length) {
+              status.className = "note ok";
+              status.textContent = collectedText + t("sentAll", { parts: sentList });
+            }
+          } else if (!report.stopped) {
+            // The tab could not be opened, so nothing was sent: say how to send it.
+            status.className = "note warn";
+            status.textContent = collectedText + t("sendToBhcFailed", { button: t("sendDeadlines") });
           }
         } catch (error) {
           status.className = "note warn";
@@ -3352,6 +3506,7 @@
       gradesSnapshotFrom,
       GRADES_PROTOCOL,
       sendGradesToBhc,
+      openBhcTab,
       problemsText,
       DOCUMENTS_KEY,
       termLabel,

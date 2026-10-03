@@ -75,6 +75,8 @@ type Helper = {
     skipped: string[];
     stopped: boolean;
     problems: Array<{ key: string; params?: Record<string, unknown> }>;
+    grades: { courses: unknown[]; stopped: boolean; problems: unknown[] } | null;
+    materials: { courses: unknown[]; stopped: boolean; problems: unknown[] } | null;
   }>;
   problemsText: (problems: Array<{ key: string; params?: Record<string, unknown> }>) => string;
   announcementsPathFor: (courseId: string) => string;
@@ -566,7 +568,34 @@ function fakeHuskyct(
   return { visited };
 }
 
-const FAST = { every: 20, pageTimeout: 800, emptySettle: 250, todoSettle: 100, gap: 0 };
+// The grades and files walks run inside a collection too, so they are given the
+// same short waits: a course page that never comes must not cost the real pause.
+const FAST = {
+  every: 20,
+  pageTimeout: 800,
+  emptySettle: 250,
+  todoSettle: 100,
+  gap: 0,
+  retryPause: 0,
+  settle: 0,
+  outlineTimeout: 800,
+  documentTimeout: 800,
+  expandPause: 0,
+  documentSettle: 0,
+};
+
+test("one press also reads every course's gradebook and files, not only its announcements", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
+  fakeHuskyct(page.window);
+
+  const report = plain(await page.helper.collectEverything(FAST));
+
+  // The same walks the Grades and Materials buttons make, run inside the press.
+  assert.ok(report.grades, "the gradebooks were walked");
+  assert.ok(report.materials, "the course files were walked");
+  assert.ok(Array.isArray(report.grades.courses));
+  assert.ok(Array.isArray(report.materials.courses));
+});
 
 test("one press reads the to-do list and every current course, then goes back where it started (narrow screen)", async () => {
   const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
+import { memoryGradesStore } from "../src/lib/grades.ts";
 import { t } from "../src/lib/i18n.ts";
 import { memoryMaterialsStore, type MaterialsStore } from "../src/lib/materials.ts";
 import { installDom } from "./support/dom.ts";
@@ -10,8 +11,9 @@ import { installDom } from "./support/dom.ts";
  * memory in place of IndexedDB.
  */
 const dom = installDom();
-const { createElement, act } = await import("react");
+const { createElement, act, Fragment } = await import("react");
 const { createRoot } = await import("react-dom/client");
+const { HelperDeliveries } = await import("../src/components/helper-deliveries.tsx");
 const { MaterialsSection } = await import("../src/components/materials-section.tsx");
 const { CalendarProvider } = await import("../src/components/calendar-provider.tsx");
 
@@ -56,11 +58,17 @@ async function render(store: MaterialsStore | null) {
   window.document.body.appendChild(container);
   const root = createRoot(container as unknown as Element);
   const openStore = async () => store ?? memoryMaterialsStore();
+  // The receivers sit in the shell in the app, so they are mounted here too.
   await act(async () =>
     root.render(
       createElement(CalendarProvider, {
         initialNow: new Date().toISOString(),
-        children: createElement(MaterialsSection, { openStore }),
+        children: createElement(
+          Fragment,
+          null,
+          createElement(HelperDeliveries, { openMaterials: openStore, openGrades: async () => memoryGradesStore() }),
+          createElement(MaterialsSection, { openStore }),
+        ),
       }),
     ),
   );
