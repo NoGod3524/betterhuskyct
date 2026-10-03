@@ -6,6 +6,7 @@ import {
 import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import { isCalendarTask } from "./import-storage.ts";
 import { EFFORT_LEVELS, type EffortMap } from "./effort.ts";
+import { doneMapFrom, type DoneReason } from "./task-status.ts";
 import {
   parseCourseBook,
   serialiseCourseBook,
@@ -68,6 +69,14 @@ export type SyncPayload = {
    * is exactly what the older producers mean by it.
    */
   announcements: Announcement[];
+  /**
+   * What HuskyCT's gradebook says is done, by task id, with the reason. Optional
+   * on input for the same reason as `announcements`: a link made before this
+   * existed simply says nothing about it.
+   */
+  doneByHuskyct: Record<string, DoneReason>;
+  /** Tasks the student reopened on that device, which HuskyCT's word does not close. */
+  reopened: string[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -142,6 +151,14 @@ export function parseSyncPayloadValue(parsed: unknown): SyncPayload | null {
     new Date(parsed.exportedAt),
   );
 
+  // Lenient, like the announcements: a missing field reads as nothing to add.
+  const doneByHuskyct = Object.fromEntries(
+    doneMapFrom(isRecord(parsed.doneByHuskyct) ? Object.entries(parsed.doneByHuskyct) : []),
+  ) as Record<string, DoneReason>;
+  const reopened = Array.isArray(parsed.reopened)
+    ? parsed.reopened.filter((id): id is string => typeof id === "string" && id.length > 0 && id.length < 500).slice(0, 5000)
+    : [];
+
   return {
     version: SYNC_VERSION,
     exportedAt: parsed.exportedAt,
@@ -150,6 +167,8 @@ export function parseSyncPayloadValue(parsed: unknown): SyncPayload | null {
     efforts,
     courses,
     announcements,
+    doneByHuskyct,
+    reopened,
   };
 }
 
@@ -170,6 +189,8 @@ export function buildSyncPayload(input: {
   efforts: EffortMap;
   courses: CourseBook;
   announcements?: Announcement[];
+  doneByHuskyct?: Iterable<[string, DoneReason]>;
+  reopened?: Iterable<string>;
   now?: Date;
 }): SyncPayload {
   return {
@@ -183,6 +204,8 @@ export function buildSyncPayload(input: {
       assignments: { ...input.courses.assignments },
     },
     announcements: (input.announcements ?? []).slice(0, MAX_ANNOUNCEMENTS),
+    doneByHuskyct: Object.fromEntries(input.doneByHuskyct ?? []),
+    reopened: [...(input.reopened ?? [])].slice(0, 5000),
   };
 }
 
@@ -196,6 +219,8 @@ export function serialiseSyncPayload(payload: SyncPayload): string {
     efforts: payload.efforts,
     courses: serialiseCourseBook(payload.courses),
     announcements: payload.announcements,
+    doneByHuskyct: payload.doneByHuskyct,
+    reopened: payload.reopened,
   });
 }
 

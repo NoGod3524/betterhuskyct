@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Copy, LoaderCircle, TriangleAlert } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import { t } from "@/lib/i18n";
+import { svgDataUrl, syncQrSvg } from "@/lib/sync-qr";
 
 /**
  * The outgoing half of device sync: pack this device's set-up into a link.
@@ -16,6 +17,22 @@ export function SyncSection() {
   const { locale, createSyncLink, outgoingSyncLink, isPackingSync, syncError } =
     useCalendar();
   const [copied, setCopied] = useState(false);
+  // The drawing is kept against the link it was made from, so a code is only
+  // ever shown for the link on screen: null means that link is too long for one.
+  const [drawn, setDrawn] = useState<{ link: string; image: string | null } | null>(null);
+  const qr = drawn && drawn.link === outgoingSyncLink ? drawn.image : undefined;
+
+  // Drawn from the same link the copy button gives, so the code and the text agree.
+  useEffect(() => {
+    if (!outgoingSyncLink) return;
+    let alive = true;
+    void syncQrSvg(outgoingSyncLink).then((svg) => {
+      if (alive) setDrawn({ link: outgoingSyncLink, image: svg ? svgDataUrl(svg) : null });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [outgoingSyncLink]);
 
   async function handleCopy() {
     if (!outgoingSyncLink) return;
@@ -81,6 +98,23 @@ export function SyncSection() {
               size: outgoingSyncLink.length.toLocaleString(),
             })}
           </p>
+
+          <div className="mt-4 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
+            {qr ? (
+              // The code is an inline SVG with its own light background, so it stays scannable in dark mode too.
+              // eslint-disable-next-line @next/next/no-img-element -- an SVG data URL: there is no file to optimise
+              <img
+                src={qr}
+                alt={t(locale, "sync.qrAlt")}
+                width={200}
+                height={200}
+                className="size-[200px] shrink-0 rounded-xl border border-[var(--line)] p-2"
+              />
+            ) : qr === null ? (
+              <p className="text-xs text-[var(--c-9f3527)]">{t(locale, "sync.qrTooBig")}</p>
+            ) : null}
+            {qr ? <p className="text-xs leading-5 text-[var(--muted)]">{t(locale, "sync.qrHint")}</p> : null}
+          </div>
         </>
       )}
 
