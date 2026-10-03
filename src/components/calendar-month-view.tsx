@@ -24,6 +24,7 @@ function localInstant(dateInput: string, timeInput: string): string {
 }
 
 const MAX_VISIBLE_PER_DAY = 3;
+const MAX_DOTS = 3;
 
 type DraftKind = { mode: "add"; date: Date } | { mode: "edit"; taskId: string };
 
@@ -248,7 +249,7 @@ export function CalendarMonthView() {
           return (
             <div
               key={key}
-              className={`min-h-[96px] border-b border-r border-[var(--line)] p-1.5 last:border-r-0 sm:min-h-[120px] sm:p-2 ${inMonth ? "" : "bg-[var(--c-f7fbff)]"}`}
+              className={`min-h-[60px] border-b border-r border-[var(--line)] p-1 last:border-r-0 sm:min-h-[120px] sm:p-2 ${inMonth ? "" : "bg-[var(--c-f7fbff)]"}`}
             >
               <div className="flex items-center justify-between">
                 {/* The number itself opens the full day, titles and all — the
@@ -278,7 +279,24 @@ export function CalendarMonthView() {
                 </button>
               </div>
 
-              <div className="mt-1 space-y-1">
+              {/* A phone has no room for titles in a seven-column grid, so
+                  there it shows one dot per event and the whole cell opens
+                  the day. From `sm` up the titles are shown in place. */}
+              {events.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setDayDetail(key)}
+                  aria-hidden="true"
+                  tabIndex={-1}
+                  className="mt-1 flex w-full flex-wrap items-center justify-center gap-0.5 sm:hidden"
+                >
+                  {events.slice(0, MAX_DOTS).map((task) => (
+                    <span key={task.id} className="size-1.5 rounded-full bg-[var(--c-2a71d8)]" />
+                  ))}
+                </button>
+              )}
+
+              <div className="mt-1 hidden space-y-1 sm:block">
                 {visible.map((task) => {
                   const edited = !isCustomEventId(task.id) && isEventEdited(task.id);
                   return (
