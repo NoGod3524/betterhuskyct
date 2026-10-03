@@ -6,7 +6,7 @@ import {
   parseAnnouncementCandidates,
   type Announcement,
 } from "../src/lib/announcements.ts";
-import { EMPTY_COURSE_BOOK, addCourse, type CourseBook } from "../src/lib/courses.ts";
+import { EMPTY_COURSE_BOOK, addCourse, serialiseCourseBook, type CourseBook } from "../src/lib/courses.ts";
 import type { Subscription } from "../src/lib/subscriptions.ts";
 import {
   MAX_UNPACKED_BYTES,
@@ -89,13 +89,39 @@ test("pack and unpack survive a round trip", async () => {
   assert.equal(await unpackSync(packed), text);
 });
 
+/**
+ * The full, version 1 shape of a payload: what the helper's messages and the
+ * readers below are written against. A link is the compact shape instead.
+ */
+function fullLinkOf(payload: ReturnType<typeof payloadOf>): { feeds: Array<{ name: string; courseId: string | null; importedAt: string; events: unknown[] }>; [key: string]: unknown } {
+  return JSON.parse(JSON.stringify({ ...payload, courses: serialiseCourseBook(payload.courses) }));
+}
+
+/**
+ * A payload with its course ids as a link writes them. Course ids are local to
+ * the device that made them, and a merge matches courses by code, so only their
+ * position is kept.
+ */
+function withCourseRows(payload: ReturnType<typeof payloadOf>): ReturnType<typeof payloadOf> {
+  const rowOf = new Map(payload.courses.courses.map((course, index) => [course.id, `c${index}`]));
+  return {
+    ...payload,
+    courses: {
+      courses: payload.courses.courses.map((course, index) => ({ ...course, id: `c${index}` })),
+      assignments: Object.fromEntries(
+        Object.entries(payload.courses.assignments).map(([id, course]) => [id, course === null ? null : (rowOf.get(course) ?? course)]),
+      ),
+    },
+  };
+}
+
 test("a whole dashboard encodes and decodes", async () => {
   const payload = payloadOf();
 
   const packed = await encodeSyncPayload(payload);
   const back = await decodeSyncPayload(packed);
 
-  assert.deepEqual(back, payload);
+  assert.deepEqual(back, withCourseRows(payload));
 });
 
 test("a full dashboard stays small enough to send", async () => {
@@ -121,14 +147,14 @@ test("a full dashboard stays small enough to send", async () => {
 });
 
 test("a payload from a different version is refused", () => {
-  const raw = JSON.parse(serialiseSyncPayload(payloadOf()));
+  const raw = fullLinkOf(payloadOf());
   raw.version = 99;
 
   assert.equal(parseSyncPayload(JSON.stringify(raw)), null);
 });
 
 test("a malformed payload is refused rather than half-applied", () => {
-  const good = JSON.parse(serialiseSyncPayload(payloadOf()));
+  const good = fullLinkOf(payloadOf());
 
   assert.equal(parseSyncPayload("{not json"), null);
   assert.equal(parseSyncPayload(JSON.stringify({ ...good, exportedAt: "nope" })), null);
@@ -143,7 +169,7 @@ test("a malformed payload is refused rather than half-applied", () => {
 });
 
 test("a feed with no events is dropped", () => {
-  const raw = JSON.parse(serialiseSyncPayload(payloadOf()));
+  const raw = fullLinkOf(payloadOf());
   raw.feeds = [
     { name: "empty", courseId: null, importedAt: raw.feeds[0].importedAt, events: [] },
     raw.feeds[0],
@@ -156,7 +182,7 @@ test("a feed with no events is dropped", () => {
 });
 
 test("an unknown effort level in a payload is ignored, not copied", () => {
-  const raw = JSON.parse(serialiseSyncPayload(payloadOf()));
+  const raw = fullLinkOf(payloadOf());
   raw.efforts = { a: "medium", b: "enormous", c: "quick" };
 
   assert.deepEqual(parseSyncPayload(JSON.stringify(raw))?.efforts, {
@@ -503,7 +529,7 @@ test("announcements survive a round trip through a link", async () => {
 });
 
 test("a malformed announcement is skipped without taking the term down with it", () => {
-  const raw = JSON.parse(serialiseSyncPayload(payloadOf()));
+  const raw = fullLinkOf(payloadOf());
   raw.announcements = [{ title: "Good" }, { body: "no title at all" }, "junk"];
 
   const parsed = parseSyncPayload(JSON.stringify(raw));

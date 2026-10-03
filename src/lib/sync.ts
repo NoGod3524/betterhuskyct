@@ -7,9 +7,9 @@ import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import { isCalendarTask } from "./import-storage.ts";
 import { EFFORT_LEVELS, type EffortMap } from "./effort.ts";
 import { doneMapFrom, type DoneReason } from "./task-status.ts";
+import { compactLink, expandLink, LINK_VERSION } from "./sync-compact.ts";
 import {
   parseCourseBook,
-  serialiseCourseBook,
   type CourseBook,
 } from "./courses.ts";
 
@@ -149,8 +149,11 @@ function parseEfforts(value: unknown): EffortMap | null {
  * does not match is dropped rather than half-applied. Feeds with no events are
  * dropped too — they would only add an empty calendar to the list.
  */
-export function parseSyncPayloadValue(parsed: unknown): SyncPayload | null {
-  if (!isRecord(parsed)) return null;
+export function parseSyncPayloadValue(value: unknown): SyncPayload | null {
+  if (!isRecord(value)) return null;
+  // A compact link is written back out in full first, so everything below reads one shape.
+  const parsed = value.version === LINK_VERSION ? expandLink(value) : value;
+  if (!parsed) return null;
   if (parsed.version !== SYNC_VERSION) return null;
   if (!isValidDateString(parsed.exportedAt)) return null;
   if (!Array.isArray(parsed.feeds)) return null;
@@ -237,70 +240,12 @@ export function buildSyncPayload(input: {
 }
 
 /** The stored shape, so a payload round-trips through the same validators. */
-/** How many announcements a link carries: the newest, the rest stay on the computer. */
-export const LINK_ANNOUNCEMENTS = 25;
-/** How much of each announcement's body a link carries: a preview, not the whole page. */
-export const LINK_BODY_CHARS = 120;
-/** How far back a link reaches for events. Older ones are not what a phone is for. */
-export const LINK_PAST_DAYS = 30;
-/** And how far ahead: a term is months long, and the far end of it stays on the computer. */
-export const LINK_AHEAD_DAYS = 90;
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /**
- * An event without the fields that are empty or default, and without an id
- * that its UID and start already say. A link is read back by `restoreEvent`.
- */
-function compactEvent(event: CalendarTask): Record<string, unknown> {
-  const suffix = `:${event.start}`;
-  const fromUid = event.id.endsWith(suffix) && event.id.length > suffix.length;
-  const compact: Record<string, unknown> = { title: event.title, start: event.start };
-  if (fromUid) compact.uid = event.id.slice(0, -suffix.length);
-  else compact.id = event.id;
-  if (event.course !== null) compact.course = event.course;
-  if (event.dateKey !== null) compact.dateKey = event.dateKey;
-  if (event.end !== null) compact.end = event.end;
-  if (event.allDay) compact.allDay = true;
-  if (event.location !== null) compact.location = event.location;
-  if (event.kind) compact.kind = event.kind;
-  return compact;
-}
-
-/**
- * The payload as a link carries it. A computer's full set-up, with a long
- * announcement history, is far too long for a QR code; the parts that are long
- * and least needed on the phone are cut here, and the rest is written as it is.
+ * The payload as a link carries it: the compact version 2 shape, with the
+ * window, the caps and the references applied (see `sync-compact.ts`).
  */
 export function serialiseSyncPayload(payload: SyncPayload): string {
-  // Only what is near enough to matter on a phone. Older events stay on the computer.
-  const now = Date.parse(payload.exportedAt);
-  const from = now - LINK_PAST_DAYS * DAY_MS;
-  const to = now + LINK_AHEAD_DAYS * DAY_MS;
-  const feeds = payload.feeds.map((feed) => ({
-    ...feed,
-    events: feed.events.filter((event) => {
-      const at = Date.parse(event.start);
-      return at >= from && at <= to;
-    }),
-  }));
-  const kept = new Set(feeds.flatMap((feed) => feed.events.map((event) => event.id)));
-  // A tick, a done state or an effort mark for an event the link no longer
-  // carries would only be an id that costs room and points at nothing.
-  const forKept = <T>(entries: Iterable<[string, T]>) => Object.fromEntries([...entries].filter(([id]) => kept.has(id)));
-
-  return JSON.stringify({
-    version: payload.version,
-    exportedAt: payload.exportedAt,
-    feeds: feeds.map((feed) => ({ ...feed, events: feed.events.map(compactEvent) })),
-    completedIds: payload.completedIds.filter((id) => kept.has(id)),
-    efforts: forKept(Object.entries(payload.efforts)),
-    courses: serialiseCourseBook(payload.courses),
-    announcements: payload.announcements
-      .slice(0, LINK_ANNOUNCEMENTS)
-      .map((announcement) => ({ ...announcement, body: announcement.body.slice(0, LINK_BODY_CHARS) })),
-    doneByHuskyct: forKept(Object.entries(payload.doneByHuskyct)),
-    reopened: payload.reopened.filter((id) => kept.has(id)),
-  });
+  return JSON.stringify(compactLink(payload));
 }
 
 function toBase64Url(bytes: Uint8Array): string {
