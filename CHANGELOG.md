@@ -14,6 +14,49 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.15.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.15.0) — A calendar you can edit, and a to-do list that knows what you handed in
+
+*Minor: the calendar is a month view you can change; To-do ticks off work HuskyCT shows as submitted or graded; materials can be saved to your computer; and Collect everything sends its results to BetterHuskyCT on its own when a BetterHuskyCT tab is open. HuskyCT Helper goes from 1.3.0 to 1.4.0.*
+
+### Added
+
+- **A month calendar** at `/calendar`, with Previous, Next and Today. Every
+  imported and added event shows on its day, and the import card sits at the top
+  of the same page. Add your own event (title, course, date, all-day or a time
+  range, location, a note), or tap any event to edit or delete it. A day's number
+  opens its full list. ([#90])
+- **Corrections to imported events are kept apart from the feed.** An edit or
+  deletion of a HuskyCT event lives in an overlay, so the next collection does not
+  wipe it. **Undo every change on this calendar** clears the overlay in one press;
+  events you added yourself are not affected. ([#90])
+- **Save materials to your computer.** **Save to a folder…** (Chrome, Edge) writes
+  one folder per course, skips files already there with the same size, and leaves
+  a links page beside them. **Download as ZIP** works in any browser. A folder
+  export can be imported back. ([#87])
+- **Collect everything sends to BetterHuskyCT on its own.** When a BetterHuskyCT
+  tab is already open, the helper hands the deadlines and announcements over
+  without a link to paste and without a confirmation banner. If no such tab is
+  open, **Send everything to BetterHuskyCT** is still there. HuskyCT Helper 1.4.0.
+  ([#89])
+
+### Changed
+
+- **The Tasks page is a to-do list**, and the sidebar calls it **To-do**. It lists
+  every deadline still to hand in, grouped by how soon it is due, with a filter by
+  course. Work HuskyCT shows as submitted or graded is folded away, labelled
+  **Submitted** or **Graded**. ([#88])
+- **Matching errs towards leaving a task open.** A task needs its course and its
+  whole title to match the gradebook. A started attempt does not count as
+  submitted, and ticking a task HuskyCT marked done reopens it. ([#88])
+
+### Fixed
+
+- **A gradebook can no longer lose rows silently.** A slow pager made a course
+  look like a single page, so a 35-row course could come back with 25 and still be
+  reported complete. The helper now reads each page's own number, waits for Next to
+  switch on, retries a lost press, retries an incomplete course once with more
+  patience, and says where a course stopped. HuskyCT Helper 1.3.1. ([#86])
+
 ## [1.14.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.14.0) — Choose which model writes your summaries
 
 *Minor: a reader can pin announcement summaries to one model. HuskyCT Helper is unchanged at 1.3.0.*
@@ -1307,6 +1350,11 @@ saying what to work on next.*
 [#81]: https://github.com/NoGod3524/betterhuskyct/pull/81
 [#82]: https://github.com/NoGod3524/betterhuskyct/pull/82
 [#84]: https://github.com/NoGod3524/betterhuskyct/pull/84
+[#86]: https://github.com/NoGod3524/betterhuskyct/pull/86
+[#87]: https://github.com/NoGod3524/betterhuskyct/pull/87
+[#88]: https://github.com/NoGod3524/betterhuskyct/pull/88
+[#89]: https://github.com/NoGod3524/betterhuskyct/pull/89
+[#90]: https://github.com/NoGod3524/betterhuskyct/pull/90
 
 
 
