@@ -62,3 +62,34 @@ export function buildTodo(tasks: CalendarTask[], doneIds: Set<string>, now: Date
   const openCount = Object.values(open).reduce((total, list) => total + list.length, 0);
   return { open, done: done.sort((a, b) => b.due - a.due).map((entry) => entry.task), openCount };
 }
+
+export type Completion = { completed: number; total: number };
+
+/**
+ * How much of the whole term's work is done, overall and per course. Unlike
+ * the list above this is not limited to a window of days: a completion rate
+ * for last month still counts. Only deadlines count, since a lecture is not
+ * work owed; `codeOf` names the course a task sits under, or null for none.
+ */
+export function completionOf(
+  tasks: CalendarTask[],
+  doneIds: Set<string>,
+  codeOf: (task: CalendarTask) => string | null,
+): { overall: Completion; byCourse: Map<string, Completion> } {
+  const overall: Completion = { completed: 0, total: 0 };
+  const byCourse = new Map<string, Completion>();
+  for (const task of tasks) {
+    if (!isDeadline(task)) continue;
+    const done = doneIds.has(task.id) ? 1 : 0;
+    overall.total += 1;
+    overall.completed += done;
+
+    const code = codeOf(task);
+    if (!code) continue;
+    const row = byCourse.get(code) ?? { completed: 0, total: 0 };
+    row.total += 1;
+    row.completed += done;
+    byCourse.set(code, row);
+  }
+  return { overall, byCourse };
+}

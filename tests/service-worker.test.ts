@@ -121,7 +121,7 @@ test("a route never visited falls back to the home page offline", async () => {
   await worker.fire("activate");
   worker.network.online = false;
 
-  assert.equal(await worker.navigate("/insights"), "/ page");
+  assert.equal(await worker.navigate("/tasks"), "/ page");
 });
 
 test("activating clears the old cache, whose shell may be another route's page", async () => {

@@ -51,7 +51,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Dark mode** — follows the device, or pick light or dark from the top bar; the choice is kept in this browser and applied before the page is drawn
 - **Announcement summaries** — pick a course and one press turns its announcements into key points (deadlines, exams, moved or cancelled classes) in your language, on any device. Written by Z.ai's free GLM model, with Google Gemini's free tier covering when GLM is busy; the page names both, and what each does with the text, before you press — and nothing is sent until you do. A **Model** menu beside the button lets you pin it to Z.ai only or Gemini only instead of the automatic order; a chosen model is the only one your text is sent to, with no quiet fallback, and the choice is kept in this browser
 - **To-do that ticks itself** — every deadline still to hand in, overdue first, by course. Work HuskyCT's gradebook says is handed in ("1 attempt submitted") or graded is marked done for you, matched on course and whole title, and badged *Submitted* or *Graded*; it errs towards leaving a task open, and pressing the tick reopens one that is wrong. Anything else you tick yourself, and the state is saved in your browser
-- **Workload insights** — completion rate, tasks per course, and the next 7 days / 4 weeks at a glance
+- **Completion on the to-do list** — how much of the term's work is done, overall and per course
 - **English / 简体中文** — one-click language toggle, remembered across visits
 - **Local persistence** — re-importing the same calendar preserves your completion state
 - **Optional auto-refresh** — off by default; tick **Remember new links** and BetterHuskyCT re-imports those feeds whenever you open it
@@ -174,7 +174,6 @@ src/
 │  ├─ announcements/page.tsx         # /announcements  course announcements
 │  ├─ materials/page.tsx             # /materials      course files, videos and links
 │  ├─ grades/page.tsx                # /grades         gradebook rows and the points so far
-│  ├─ insights/page.tsx              # /insights  workload analytics
 │  ├─ helper/page.tsx                # /helper    install the browser helper
 │  ├─ globals.css
 │  └─ icon.tsx
@@ -188,7 +187,6 @@ src/
 │  ├─ todo-section.tsx               # The to-do list: open work by when, done work apart
 │  ├─ task-card.tsx                  # One task: badges, time, room, course picker
 │  ├─ course-picker.tsx              # Per-task course override
-│  ├─ insights-section.tsx           # Workload analytics
 │  ├─ announcements-section.tsx      # Course announcements, grouped and filterable
 │  ├─ materials-section.tsx          # Course materials, by course and folder; receives from the helper
 │  ├─ grades-section.tsx             # Grades by course; receives from the helper
@@ -209,7 +207,6 @@ src/
    ├─ courses.ts                     # Course list, per-task overrides, 1.0.1 migration
    ├─ calendar-source.ts             # Opt-in remembered feed URL
    ├─ export.ts                      # CSV export
-   ├─ insights.ts                    # Workload analytics (completion, per course, per week)
    ├─ reminders.ts                   # Due-soon detection and reminder settings
    ├─ calendar-file.ts               # Reading a dropped .ics: size, sanity, file-name labelling
    ├─ subscriptions.ts               # The list of calendars: cached events, names, opt-in URLs
@@ -312,7 +309,7 @@ BetterHuskyCT started as a personal tool. Deadlines were spread across HuskyCT, 
 ## Roadmap
 
 - [x] CI: run `test` / `lint` / `build` on every pull request
-- [x] Insights view: workload by course, busiest weeks, completion rate
+- [x] To-do completion rate, overall and per course (replaces the Insights view)
 - [x] Installable PWA with an offline app shell
 - [x] Due-soon reminders (while the app is open)
 - [x] Optional, opt-in auto-refresh (stores the feed URL locally, off by default)

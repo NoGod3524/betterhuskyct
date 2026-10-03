@@ -1,7 +1,6 @@
 import {
   Award,
   CalendarDays,
-  ChartColumn,
   Check,
   FolderOpen,
   LayoutDashboard,
@@ -29,7 +28,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/announcements", key: "nav.announcements", Icon: Megaphone },
   { href: "/materials", key: "nav.materials", Icon: FolderOpen },
   { href: "/grades", key: "nav.grades", Icon: Award },
-  { href: "/insights", key: "insights.eyebrow", Icon: ChartColumn },
   { href: "/helper", key: "nav.helper", Icon: Puzzle },
 ];
 

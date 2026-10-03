@@ -47,7 +47,7 @@ BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好�
 - **课程公告** —— 浏览器助手在送 deadline 的同一按里把课程公告一起带来，按课程分组、最新的在最前
 - **公告总结** —— 选一门课，按一下就把它的公告浓缩成要点（截止日期、考试、调课停课），用你的界面语言，任何设备都能用。由 Z.ai 的免费 GLM 模型生成，GLM 忙时改用 Google Gemini 免费版；按下之前页面就写明两家分别会怎么处理这些内容，不按就什么都不发。按钮旁边的「模型」菜单可以把它固定为仅 Z.ai 或仅 Gemini，代替自动顺序；选定的模型就是你的文本唯一会发给的那一家，不会悄悄改用另一家，这个选择只保存在这个浏览器里
 - **完成勾选** —— 勾选任务；状态存在浏览器里，刷新不丢
-- **任务负担洞察** —— 完成率、各课程任务量、未来 7 天 / 4 周一览
+- **待办完成率** —— 整学期的完成情况，总体与各课程
 - **English / 简体中文** —— 一键切换语言，选择会被记住
 - **本地持久化** —— 重新导入同一份日历，勾选状态会保留
 - **可选自动刷新** —— 默认关闭；勾选「记住新加的链接」后，每次打开都会自动重新导入这些订阅
@@ -166,7 +166,6 @@ src/
 │  ├─ tasks/page.tsx                 # /tasks     滚动 7 天清单
 │  ├─ calendar/page.tsx              # /calendar  再加一个日历
 │  ├─ announcements/page.tsx         # /announcements 课程公告
-│  ├─ insights/page.tsx              # /insights  负担分析
 │  ├─ helper/page.tsx                # /helper    安装浏览器助手
 │  ├─ globals.css
 │  └─ icon.tsx
@@ -179,7 +178,6 @@ src/
 │  ├─ tasks-section.tsx              # 任务分组与卡片
 │  ├─ task-card.tsx                  # 单条任务：标签、时间、教室、课程下拉
 │  ├─ course-picker.tsx              # 单条任务的课程覆盖
-│  ├─ insights-section.tsx           # 负担分析
 │  ├─ announcements-section.tsx      # 课程公告：按课程分组、可筛选
 │  ├─ hero-section.tsx               # 总览页头部与状态行
 │  ├─ app-footer.tsx                 # 版本号页脚
@@ -195,7 +193,6 @@ src/
    ├─ courses.ts                     # 课程列表、单条覆盖、1.0.1 数据迁移
    ├─ calendar-source.ts             # 可选记住的订阅链接
    ├─ export.ts                      # CSV 导出
-   ├─ insights.ts                    # 任务负担分析（完成率、各课程、各周）
    ├─ reminders.ts                   # 到期检测与提醒设置
    ├─ calendar-file.ts               # 读取拖入的 .ics：大小、格式检查、按文件名命名
    ├─ subscriptions.ts               # 订阅列表：缓存的事件、名字、可选保存的链接
@@ -272,7 +269,7 @@ BetterHuskyCT 最初是一个自用工具。deadline 散落在 HuskyCT、课程�
 ## 路线图
 
 - [x] CI：每个 Pull Request 自动跑 `test` / `lint` / `build`
-- [x] 洞察页：按课程的任务量、最忙的周、完成率
+- [x] 待办页完成率：总体与各课程（取代原洞察页）
 - [x] 可安装的 PWA（含离线应用外壳）
 - [x] 到期提醒（App 打开时生效）
 - [x] 可选自动刷新（链接存在本机，默认关闭）
