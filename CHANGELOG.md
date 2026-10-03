@@ -23,7 +23,9 @@ which helper version they ship.
 - **A QR code for the sync link.** On the computer, the code sits under the copy
   button; the phone's camera opens the same link, which still asks before anything
   is added. The code is drawn in the browser and is never sent anywhere. A set-up
-  too large for a code says so and points to the copy button. ([#95])
+  too large for a code says so and points to the copy button. A link is now a
+  compact form: a term's worth of deadlines, ticks and recent announcements fits
+  in a code, and the link is far shorter to copy. ([#95])
 - **HuskyCT's done states go with a sync.** A phone has no gradebook, so work
   handed in on the computer used to show as open on the phone. A link now carries
   HuskyCT's reading and the tasks you reopened; the phone keeps them beside its
