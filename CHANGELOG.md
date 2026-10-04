@@ -14,6 +14,30 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.16.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.16.2) — Grades are read from HuskyCT's new gradebook table
+
+*Patch: HuskyCT redrew the gradebook, and the helper found no grades in it. HuskyCT Helper goes from 1.5.1 to 1.5.3.*
+
+### Fixed
+
+- **Grades are read from the new gradebook table.** HuskyCT now draws the gradebook
+  as a table, one row per item, without the marker the helper looked for, so every
+  course was reported as not opened. A row is read from either layout. Its id is
+  the one on its name, the same id as before, so grades already in BetterHuskyCT
+  still line up. The score, or the words standing in for it, are read from the
+  grade cell only, so a status such as "Submitted" is never taken for a grade.
+  HuskyCT Helper 1.5.3. ([#100])
+- **The to-do list counts the table's own status words.** "Submitted" and "Graded"
+  in the status column mark work as handed in and graded; "Not submitted" does
+  not. ([#100])
+
+### Changed
+
+- **A gradebook that does not open says why.** The self-check now adds, for the
+  first course that failed, what the page looked like then: its address, how many
+  gradebook rows, empty pictures and pagers it had, whether the tab was in the
+  back, and whether it was a sign-in page. HuskyCT Helper 1.5.2. ([#99])
+
 ## [1.16.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.16.1) — Collect everything reads the gradebooks again
 
 *Patch: a fix to Collect everything. HuskyCT Helper goes from 1.5.0 to 1.5.1.*
@@ -1403,6 +1427,8 @@ saying what to work on next.*
 [#94]: https://github.com/NoGod3524/betterhuskyct/pull/94
 [#95]: https://github.com/NoGod3524/betterhuskyct/pull/95
 [#97]: https://github.com/NoGod3524/betterhuskyct/pull/97
+[#99]: https://github.com/NoGod3524/betterhuskyct/pull/99
+[#100]: https://github.com/NoGod3524/betterhuskyct/pull/100
 
 
 
