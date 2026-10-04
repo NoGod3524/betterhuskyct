@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.5.4
+// @version      1.6.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.5.4";
+  const VERSION = "1.6.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -439,6 +439,96 @@
     }
 
     return records;
+  }
+
+  // --- announcements, read from HuskyCT's own data -------------------------------------
+
+  /**
+   * A course's announcements, asked for as the Announcements page itself asks.
+   *
+   * Recorded on 2026-10-04: `GET /learn/api/v1/courses/<id>/announcements?limit=10&offset=0
+   * &sort=startDateRestriction(desc)` answers `{ paging: { nextPage }, results: [...] }`, each
+   * result holding `title`, `body.displayText` (HTML), `startDateRestriction` (an ISO time),
+   * `isDraft` and `readStatus`. `paging.nextPage` is the next request's address, a path.
+   *
+   * It is one request a page of announcements, with no page to open and no scrolling, so it is
+   * quick and does not move the tab the student is on. It sends the student's own session,
+   * as the page does, and only to HuskyCT. Anything unexpected gives null, and the caller
+   * reads the page instead.
+   */
+  const ANNOUNCEMENTS_PAGE = 50;
+  const ANNOUNCEMENTS_PER_COURSE = 100;
+
+  /** A GET of HuskyCT's own data as JSON, or null if it did not answer in time or well. */
+  async function fetchJson(path, timeout) {
+    if (typeof window.fetch !== "function") return null;
+    const controller = typeof window.AbortController === "function" ? new window.AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), timeout) : null;
+    try {
+      const response = await window.fetch(path, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+        signal: controller ? controller.signal : undefined,
+      });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch {
+      return null;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /** The text of an HTML fragment, read in a document of its own so nothing in it runs. */
+  function htmlToText(html) {
+    if (!html) return "";
+    try {
+      const parsed = new window.DOMParser().parseFromString(String(html), "text/html");
+      // Code and styling are not words an announcement says.
+      for (const node of parsed.querySelectorAll("script, style, noscript")) node.remove();
+      return textOf(parsed.body);
+    } catch {
+      return "";
+    }
+  }
+
+  /**
+   * A time as the Announcements page writes it, "9/25/26, 4:00 PM". An announcement's id is
+   * made from this text, so the same announcement must come out the same whichever way it was read.
+   */
+  function postedText(iso) {
+    const at = new Date(iso);
+    if (Number.isNaN(at.valueOf())) return null;
+    return at
+      .toLocaleString("en-US", { year: "2-digit", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })
+      .replace(/[  ]/g, " ");
+  }
+
+  /** The course's announcements as { title, body, posted } rows, newest first, or null if they could not be read this way. */
+  async function readAnnouncementsApi(courseId, opts) {
+    const timeout = (opts && opts.apiTimeout) || 8000;
+    const rows = [];
+    let next = "/learn/api/v1/courses/" + encodeURIComponent(courseId) + "/announcements?limit=" + ANNOUNCEMENTS_PAGE + "&offset=0&sort=startDateRestriction(desc)";
+
+    for (let page = 0; next && rows.length < ANNOUNCEMENTS_PER_COURSE; page++) {
+      const answer = await fetchJson(next, timeout);
+      if (!answer || !Array.isArray(answer.results)) return null;
+      for (const item of answer.results) {
+        if (!item || item.isDraft) continue;
+        const title = textOf({ textContent: item.title });
+        if (!title) continue;
+        const body = item.body || {};
+        rows.push({
+          title,
+          body: htmlToText(body.displayText || body.rawText),
+          posted: postedText(item.startDateRestriction || item.createdDate),
+        });
+      }
+      // Only HuskyCT's own data address is followed, never one the answer names elsewhere.
+      const following = answer.paging && answer.paging.nextPage ? String(answer.paging.nextPage) : "";
+      next = /^\/learn\/api\/v1\/courses\//.test(following) && answer.results.length > 0 ? following : null;
+    }
+    return rows.slice(0, ANNOUNCEMENTS_PER_COURSE);
   }
 
   /** The course id out of a course URL, e.g. `/ultra/courses/_203765_1/outline`. */
@@ -1279,7 +1369,9 @@
         const course = queue[index];
         opts.onProgress({ step: "course", course, index: index + 1, total: queue.length });
 
-        const rows = await readAnnouncementsOf(course.id, course.code, opts);
+        // HuskyCT's own data first: no page to open. The page is read only if that failed.
+        const direct = opts.useApi === false ? null : await readAnnouncementsApi(course.id, opts);
+        const rows = direct !== null ? direct : await readAnnouncementsOf(course.id, course.code, opts);
         if (rows === null) {
           report.skipped.push(course.code || course.id);
           continue;
@@ -1912,7 +2004,7 @@
    */
   function pageSnapshot() {
     const count = (selector) => document.querySelectorAll(selector).length;
-    const title = String(document.title || "").replace(/s+/g, " ").trim().slice(0, 50);
+    const title = String(document.title || "").replace(/\s+/g, " ").trim().slice(0, 50);
     return [
       "path=" + window.location.pathname.slice(0, 60),
       "rows=" + count(GRADE_ROWS),
@@ -3772,6 +3864,9 @@
       coursesToCollect,
       termCodeFor,
       readAnnouncementsOf,
+      readAnnouncementsApi,
+      postedText,
+      htmlToText,
       collectEverything,
       findCourses,
       splitItemLabel,
