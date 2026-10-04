@@ -4,6 +4,7 @@ import "./globals.css";
 import { AppShell } from "@/components/app-shell";
 import { CalendarProvider } from "@/components/calendar-provider";
 import { HelperDeliveries } from "@/components/helper-deliveries";
+import { HelperSyncProvider } from "@/components/helper-sync-button";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 // Single source of truth for the version shown in the footer.
 import packageJson from "../../package.json";
@@ -68,7 +69,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             and reminder settings without re-mounting or flashing demo data. */}
         <CalendarProvider initialNow={new Date().toISOString()}>
           <HelperDeliveries />
-          <AppShell version={packageJson.version}>{children}</AppShell>
+          <HelperSyncProvider>
+            <AppShell version={packageJson.version}>{children}</AppShell>
+          </HelperSyncProvider>
         </CalendarProvider>
         <ServiceWorkerRegistrar />
       </body>

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.9.0
+// @version      1.10.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.9.0";
+  const VERSION = "1.10.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -3140,6 +3140,12 @@
   const AUTO_SYNC_AFTER_MS = 6 * 60 * 60 * 1000;
   /** Set once this tab has opened BetterHuskyCT, so a later page load knows its named tab may still be there. */
   const BHC_OPENED_KEY = "huskypilot.helper.bhcOpened";
+  /**
+   * What BetterHuskyCT's own Sync button says to this tab, and what this tab says back. The button opens
+   * (or finds) a HuskyCT tab and asks it for a sync; the answer is an ack, progress, and a done, all sent
+   * to the tab that asked. Only BetterHuskyCT's origin is heard.
+   */
+  const SYNC_PROTOCOL = "betterhuskyct/sync@1";
 
   function emptySyncState() {
     return { at: null, auto: true, pending: false, grades: null };
@@ -3753,7 +3759,12 @@
      * One sync, from a press or on its own. `tab` is where to send what it reads, or null; with
      * none, the reading is kept and the Send buttons carry it on a press.
      */
-    async function runSync(tab, automatic) {
+    async function runSync(tab, automatic, report) {
+      // What a requesting BetterHuskyCT tab hears; a press or an automatic sync has no one to tell.
+      const say = (message) => {
+        if (report) report(message);
+      };
+      const nothing = { courses: 0, announcements: 0, gradeItems: 0, skipped: [], sent: false };
       walk = { stop: false, kind: "sync" };
       refreshBasket();
       syncLine.hidden = false;
@@ -3763,13 +3774,16 @@
         const out = await syncLight({
           shouldStop: () => walk.stop,
           onProgress(progress) {
-            syncLine.textContent = t("syncingCourse", { course: progress.course.code || progress.course.id, index: progress.index, total: progress.total });
+            const course = progress.course.code || progress.course.id;
+            syncLine.textContent = t("syncingCourse", { course, index: progress.index, total: progress.total });
+            say({ kind: "progress", course, index: progress.index, total: progress.total });
           },
         });
         if (!out.ok) {
           syncLine.className = "note warn";
           syncLine.textContent = automatic ? "" : t("syncNoData");
           syncLine.hidden = Boolean(automatic);
+          say(Object.assign({ kind: "done", ok: false }, nothing));
           return;
         }
         if (out.grades) grades = out.grades;
@@ -3778,9 +3792,11 @@
 
         const readText = t("syncDone", { courses: out.courses, announcements: out.announcements, items: out.gradeItems });
         const skipped = out.skipped.length ? t("syncSkipped", { courses: out.skipped.join(", ") }) : "";
+        const read = { courses: out.courses, announcements: out.announcements, gradeItems: out.gradeItems, skipped: out.skipped };
         if (!tab) {
           syncLine.className = "note warn";
           syncLine.textContent = readText + skipped + t(automatic ? "syncAutoReady" : "syncNotSent");
+          say(Object.assign({ kind: "done", ok: true, sent: false }, read));
           return;
         }
         syncLine.textContent = readText + t("sendingToBhc");
@@ -3790,7 +3806,9 @@
           writeSyncState(window.localStorage, syncState);
           syncLine.className = "note ok";
           syncLine.textContent = readText + skipped + t("sentAll", { parts: sent.parts.join(t("sentPartsJoin")) });
+          say(Object.assign({ kind: "done", ok: true, sent: true }, read));
         } else {
+          say(Object.assign({ kind: "done", ok: true, sent: false }, read));
           syncLine.className = "note warn";
           syncLine.textContent = readText + skipped + t(sent.parts.length ? "sentPartial" : "sendToBhcFailed", { parts: sent.parts.join(t("sentPartsJoin")) });
         }
@@ -3798,6 +3816,7 @@
         syncLine.hidden = false;
         syncLine.className = "note warn";
         syncLine.textContent = t("collectFailed", { message: error.message });
+        say(Object.assign({ kind: "done", ok: false }, nothing));
       } finally {
         walk = null;
         syncButton.disabled = false;
@@ -3821,6 +3840,34 @@
         void runSync(findBhcTab(), true);
       }, 3000);
     }
+
+    /**
+     * BetterHuskyCT's Sync button asking for a sync. It is answered only if it comes from BetterHuskyCT's own
+     * origin, by a window that can be answered; a sync already running, or a sign-in page, is said so.
+     * What is read is sent back to the window that asked, so nothing has to be pressed here.
+     */
+    window.addEventListener("message", (event) => {
+      if (event.origin !== bhcOrigin() || !event.source) return;
+      const data = event.data;
+      if (!data || data.protocol !== SYNC_PROTOCOL || data.kind !== "request") return;
+      const reply = (message) => {
+        try {
+          event.source.postMessage(Object.assign({ protocol: SYNC_PROTOCOL }, message), event.origin);
+        } catch {
+          /* the window that asked is gone */
+        }
+      };
+      if (walk) {
+        reply({ kind: "ack", state: "busy" });
+        return;
+      }
+      reply({ kind: "ack", state: "started" });
+      if (looksSignedOut()) {
+        reply({ kind: "done", ok: false, courses: 0, announcements: 0, gradeItems: 0, skipped: [], sent: false });
+        return;
+      }
+      void runSync(event.source, false, reply);
+    });
 
     wrap.addEventListener("click", async (event) => {
       const button = event.target.closest("button.act");
