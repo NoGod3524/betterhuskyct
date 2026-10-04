@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.5.1
+// @version      1.5.2
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.5.1";
+  const VERSION = "1.5.2";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1866,6 +1866,25 @@
     return { page: Number(numbers[0]), pages: Number(numbers[numbers.length - 1]) };
   }
 
+  /**
+   * What the page looks like right now, in one line, for a self-check that has
+   * to say why a gradebook did not open: where the tab is, whether any gradebook
+   * rows, the empty picture or the pager are on it, and whether the tab is in the back.
+   */
+  function pageSnapshot() {
+    const count = (selector) => document.querySelectorAll(selector).length;
+    const title = String(document.title || "").replace(/s+/g, " ").trim().slice(0, 50);
+    return [
+      "path=" + window.location.pathname.slice(0, 60),
+      "rows=" + count(GRADE_ROWS),
+      "empty=" + count(GRADES_EMPTY),
+      "pager=" + (pagerState() ? "yes" : "no"),
+      "hidden=" + (document.hidden ? "yes" : "no"),
+      "signin=" + (looksSignedOut() ? "yes" : "no"),
+      'title="' + title + '"',
+    ].join(" ");
+  }
+
   /** True when HuskyCT has sent the tab back to its sign-in page. */
   function looksSignedOut() {
     if (window.location.pathname === "/" && /[?&]new_loc=/.test(window.location.search)) return true;
@@ -1896,7 +1915,7 @@
       opts.every,
       opts.pageTimeout,
     );
-    if (!shown) return { items: [], complete: false, reason: "never", at: null };
+    if (!shown) return { items: [], complete: false, reason: "never", at: null, seen: pageSnapshot() };
     if (shown === "empty") return { items: [], complete: true, reason: null, at: null };
 
     const items = [];
@@ -2004,6 +2023,7 @@
           skipped: !read.complete,
           reason: read.reason,
           at: read.at,
+          seen: read.seen || null,
         });
         if (!read.complete && looksSignedOut()) {
           manifest.signedOut = true;
@@ -2020,8 +2040,15 @@
     const skipped = manifest.courses
       .filter((course) => course.skipped)
       .map((course) => (course.code || course.id) + (course.reason === "page" && course.at ? " (page " + course.at + ")" : ""));
+    // What the page showed when the first one failed to open, so a failure can be told apart.
+    const firstSeen = manifest.courses.find((course) => course.skipped && course.seen);
     if (manifest.signedOut) manifest.problems.push({ key: "problemSignedOut" });
-    else if (skipped.length) manifest.problems.push({ key: "problemGrades", params: { courses: skipped.join(", ") } });
+    else if (skipped.length) {
+      manifest.problems.push({
+        key: "problemGrades",
+        params: { courses: skipped.join(", ") + (firstSeen ? " [" + (firstSeen.code || firstSeen.id) + ": " + firstSeen.seen + "]" : "") },
+      });
+    }
     return manifest;
   }
 
