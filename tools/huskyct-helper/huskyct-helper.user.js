@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.8.0
+// @version      1.9.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.8.0";
+  const VERSION = "1.9.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -96,6 +96,16 @@
       hidePanel: "Hide the panel",
       sendDeadlines: "Send everything to BetterHuskyCT",
       privacy: "Nothing is uploaded. Everything stays in this browser.",
+      sync: "Sync",
+      autoOn: "Sync on its own when HuskyCT opens: on",
+      autoOff: "Sync on its own when HuskyCT opens: off",
+      syncing: "Syncing your courses, announcements and grades…",
+      syncingCourse: "Syncing {course} ({index} of {total})…",
+      syncDone: "Synced {courses} course(s): {announcements} announcement(s), {items} grade item(s).",
+      syncSkipped: " Could not read: {courses}.",
+      syncNotSent: " Not sent yet. Press the Send buttons below.",
+      syncAutoReady: " Read on its own. Press Sync to send it to BetterHuskyCT.",
+      syncNoData: "Nothing could be read this way. Press Collect everything instead.",
       recStart: "Diagnose: record the page's data requests",
       recRunning: "Recording. Open a course's Grades page and its Announcements page as you normally would, then press the button again.",
       recCopy: "Stop and copy the recording",
@@ -208,6 +218,16 @@
       hidePanel: "收起面板",
       sendDeadlines: "全部发给 BetterHuskyCT",
       privacy: "不上传任何东西，全部留在这个浏览器里。",
+      sync: "同步",
+      autoOn: "打开 HuskyCT 时自动同步：开",
+      autoOff: "打开 HuskyCT 时自动同步：关",
+      syncing: "正在同步课程、公告和成绩……",
+      syncingCourse: "正在同步 {course}（第 {index} / {total} 门）……",
+      syncDone: "已同步 {courses} 门课：{announcements} 条公告、{items} 项成绩。",
+      syncSkipped: " 没能读取：{courses}。",
+      syncNotSent: " 还没发送，按下面的发送按钮。",
+      syncAutoReady: " 已自动读取，按「同步」发给 BetterHuskyCT。",
+      syncNoData: "这种方式读不到任何东西，请改按「一键收集全部」。",
       recStart: "诊断：记录页面的数据请求",
       recRunning: "正在记录。像平时一样打开某门课的成绩页和公告页，然后再按一次这个按钮。",
       recCopy: "停止并复制记录",
@@ -1316,6 +1336,8 @@
     // HuskyCT's own list first. A walk that wants only the list needs no page at all;
     // one that reads the Courses page itself (its to-do list) still goes there below.
     const listed = opts.useApi === false ? null : await readCoursesApi(opts);
+    // A sync that must not touch the page the student is on stops here, list or no list.
+    if (opts.apiOnly) return listed;
     if (listed && !onCoursesPage) return listed;
 
     // A course's own page is full of links into `/ultra/courses/`, and it stays
@@ -3019,7 +3041,41 @@
       } catch {
         /* already a page of BetterHuskyCT: leave it alone */
       }
+      try {
+        window.sessionStorage.setItem(BHC_OPENED_KEY, "1");
+      } catch {
+        /* a later automatic sync then simply does not look for the tab */
+      }
       return tab;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The BetterHuskyCT tab this tab opened earlier, if one may still be open, for a sync that
+   * nobody pressed. It never opens one: with no press, a new tab is a popup the browser blocks
+   * and flags. So it looks only when this tab has opened one, and a blank tab that comes back
+   * (the old one was closed) is shut again.
+   */
+  function findBhcTab() {
+    try {
+      if (window.sessionStorage.getItem(BHC_OPENED_KEY) !== "1") return null;
+      const tab = window.open("", "betterhuskyct");
+      let gone = !tab || tab.closed;
+      if (tab && !gone) {
+        try {
+          // Reading another site's address throws: that is BetterHuskyCT, still there.
+          if (tab.location.href === "about:blank") {
+            tab.close();
+            gone = true;
+          }
+        } catch {
+          /* still there */
+        }
+      }
+      if (gone) window.sessionStorage.removeItem(BHC_OPENED_KEY);
+      return gone ? null : tab;
     } catch {
       return null;
     }
@@ -3064,6 +3120,131 @@
       return t("guideCourse");
     }
     return t("guideNeither");
+  }
+
+  // ------------------------------------------------------------------- the sync
+
+  /**
+   * The quick sync: courses, announcements and grades, all from HuskyCT's own data.
+   *
+   * It opens no page and moves nothing on the screen, so it can run while the student reads
+   * HuskyCT, and on its own when HuskyCT is opened. That is also its limit: a course whose data
+   * cannot be read this way is skipped, never read from its page, because reading a page would
+   * take the screen away. The to-do list and the course files still need pages, and stay with
+   * Collect everything; the due dates come to BetterHuskyCT through the calendar link.
+   *
+   * What it reads goes into the basket (announcements) and, as one reading, into the sync state
+   * (grades), so the Send buttons have it.
+   */
+  const SYNC_KEY = "huskypilot.helper.sync.v1";
+  const AUTO_SYNC_AFTER_MS = 6 * 60 * 60 * 1000;
+  /** Set once this tab has opened BetterHuskyCT, so a later page load knows its named tab may still be there. */
+  const BHC_OPENED_KEY = "huskypilot.helper.bhcOpened";
+
+  function emptySyncState() {
+    return { at: null, auto: true, pending: false, grades: null };
+  }
+
+  function readSyncState(storage) {
+    try {
+      const parsed = JSON.parse(storage.getItem(SYNC_KEY) || "null");
+      if (!parsed || typeof parsed !== "object") return emptySyncState();
+      return {
+        at: typeof parsed.at === "string" && !Number.isNaN(Date.parse(parsed.at)) ? parsed.at : null,
+        auto: parsed.auto !== false,
+        pending: parsed.pending === true,
+        grades: parsed.grades && Array.isArray(parsed.grades.courses) ? parsed.grades : null,
+      };
+    } catch {
+      return emptySyncState();
+    }
+  }
+
+  function writeSyncState(storage, state) {
+    try {
+      storage.setItem(SYNC_KEY, JSON.stringify(state));
+    } catch {
+      /* the reading holds for this visit and is read again next time */
+    }
+  }
+
+  /** Whether an automatic sync is due: switched on, and not done within the last few hours. */
+  function autoSyncDue(state, now) {
+    if (!state.auto) return false;
+    return !state.at || now.valueOf() - Date.parse(state.at) >= AUTO_SYNC_AFTER_MS;
+  }
+
+  async function syncLight(options) {
+    const opts = Object.assign(
+      { every: 300, pageTimeout: 15000, apiTimeout: 8000, gap: 100, onProgress() {}, shouldStop: () => false },
+      options,
+    );
+    const storage = window.localStorage;
+    const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, skipped: [], stopped: false, grades: null };
+
+    const found = await findCourses(Object.assign({}, opts, { apiOnly: true }));
+    if (!found || found.queue.length === 0) return out;
+    const queue = found.queue;
+    out.courses = queue.length;
+    const save = (result) => {
+      if (result.changed) writeBasket(storage, result.basket);
+    };
+    save(rememberCourses(readBasket(storage), queue));
+
+    const userId = await readUserId(opts);
+    const manifest = { term: walkTerm(found), courses: [], stopped: false, signedOut: false, problems: [] };
+    let readAny = false;
+    for (let index = 0; index < queue.length; index++) {
+      if (opts.shouldStop()) {
+        out.stopped = true;
+        manifest.stopped = true;
+        break;
+      }
+      const course = queue[index];
+      opts.onProgress({ step: "course", course, index: index + 1, total: queue.length });
+
+      const rows = await readAnnouncementsApi(course.id, opts);
+      if (rows === null) out.skipped.push(course.code || course.id);
+      else {
+        readAny = true;
+        out.announcements += rows.length;
+        // Re-read first: a collection in another HuskyCT tab may have written to the basket meanwhile.
+        save(rememberAnnouncements(readBasket(storage), course, rows, new Date()));
+      }
+
+      const items = userId ? await readGradesApi(course.id, userId, opts) : null;
+      manifest.courses.push({ id: course.id, code: course.code, items: items || [], skipped: items === null, reason: items === null ? "never" : null, at: null });
+      if (items) out.gradeItems += items.length;
+      await pause(opts.gap);
+    }
+
+    out.grades = manifest.courses.some((course) => !course.skipped) ? manifest : null;
+    out.ok = readAny || out.grades !== null;
+    return out;
+  }
+
+  /**
+   * Sends a sync's results to BetterHuskyCT over `postMessage`: the basket (announcements and
+   * whatever deadlines it holds), then the gradebooks. Returns the parts that arrived and
+   * whether any did not.
+   */
+  async function deliverSync(tab, basket, grades, timing) {
+    const parts = [];
+    let failed = false;
+    // A BetterHuskyCT tab that has only just been opened needs a few seconds to load before it answers.
+    const waits = Object.assign({ connectTimeout: 15000 }, timing);
+    const summary = basketSummary(basket);
+    if (summary.deadlines > 0 || summary.announcements > 0) {
+      const result = await sendTasksToBhc(tab, basket, waits);
+      if (result.connected && result.stored) parts.push(t("sentPartTasks", result));
+      else failed = true;
+    }
+    if (grades && grades.courses.some((course) => !course.skipped)) {
+      const result = await sendGradesToBhc(tab, grades, waits);
+      if (result.connected && result.stored) parts.push(t("sentPartGrades", result));
+      else failed = true;
+    }
+    return { parts, failed };
   }
 
   // ---------------------------------------------------------- the API recorder
@@ -3283,6 +3464,11 @@
     }
     button.act:hover { border-color: #9fb7d1; }
     button.act.primary { background: #2a71d8; border-color: #2a71d8; color: #fff; }
+    /* The one big button: the quick sync. It is not part of the Collect/Send lead that "primary" hands between. */
+    button.act.big {
+      background: #1b4f9c; border-color: #1b4f9c; color: #fff;
+      padding: 14px 12px; font-size: 15px; font-weight: 700; text-align: center;
+    }
     button.act:disabled { opacity: .55; cursor: wait; }
     textarea {
       width: 100%; box-sizing: border-box; min-height: 150px; resize: vertical;
@@ -3318,6 +3504,10 @@
       <div class="body">
         <div class="note" data-role="hint"></div>
         <div class="note" data-role="basket">${t("basketEmpty")}</div>
+        <button class="act big" data-act="sync">${t("sync")}</button>
+        <div class="note" data-role="sync" hidden></div>
+        <button class="act" data-act="autosync">${t("autoOn")}</button>
+        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
         <button class="act primary" data-act="collectall">${t("collectAll")}</button>
         <button class="act" data-act="todos">${t("sendDeadlines")}</button>
         <button class="act" data-act="emptybasket">${t("clearBasket")}</button>
@@ -3401,6 +3591,9 @@
     const gradesButton = wrap.querySelector('[data-act="grades"]');
     const gradesLine = wrap.querySelector('[data-role="grades"]');
     const sendGradesButton = wrap.querySelector('[data-act="sendgrades"]');
+    const syncButton = wrap.querySelector('[data-act="sync"]');
+    const syncLine = wrap.querySelector('[data-role="sync"]');
+    const autoSyncButton = wrap.querySelector('[data-act="autosync"]');
     // The walk in progress, if any — `kind` says which button started it, and
     // that button becomes its Stop. The timer's own capture stands aside while
     // it runs: the walk reads each page itself, and knows when a page is really
@@ -3408,8 +3601,9 @@
     let walk = null;
     // The last materials walk, kept for the save buttons.
     let materials = null;
-    // The last grades walk, kept for the send button.
-    let grades = null;
+    // The last grades reading, kept for the send button. The sync keeps its own across visits.
+    let syncState = readSyncState(window.localStorage);
+    let grades = syncState.grades;
     // The API recorder while it is running, and the line it reports on.
     let recorder = null;
     const recLine = wrap.querySelector('[data-role="rec"]');
@@ -3457,15 +3651,20 @@
       const basketWalk = Boolean(walk && walk.kind === "basket");
       const materialsWalk = Boolean(walk && walk.kind === "materials");
       const gradesWalk = Boolean(walk && walk.kind === "grades");
+      const syncWalk = Boolean(walk && walk.kind === "sync");
       collectButton.textContent = basketWalk ? t("stopCollecting") : t("collectAll");
-      collectButton.disabled = materialsWalk || gradesWalk;
+      collectButton.disabled = materialsWalk || gradesWalk || syncWalk;
+      syncButton.textContent = syncWalk ? t("stopCollecting") : t("sync");
+      syncButton.disabled = basketWalk || materialsWalk || gradesWalk;
+      autoSyncButton.textContent = syncState.auto ? t("autoOn") : t("autoOff");
+      autoSyncButton.disabled = Boolean(walk);
       collectButton.classList.toggle("primary", !ready);
       sendButton.classList.toggle("primary", ready);
       sendButton.disabled = Boolean(walk);
       emptyBasketButton.disabled = Boolean(walk);
 
       materialsButton.textContent = materialsWalk ? t("stopCollecting") : t("collectMaterials");
-      materialsButton.disabled = basketWalk || gradesWalk;
+      materialsButton.disabled = basketWalk || gradesWalk || syncWalk;
       const found = materials ? materialsSummary(materials) : null;
       const canSaveFolder = typeof window.showDirectoryPicker === "function";
       saveFilesButton.hidden = !found || found.files === 0;
@@ -3478,7 +3677,7 @@
       sendMaterialsButton.textContent = found ? t("sendMaterials", { count: found.files }) : "";
 
       gradesButton.textContent = gradesWalk ? t("stopCollecting") : t("collectGrades");
-      gradesButton.disabled = basketWalk || materialsWalk;
+      gradesButton.disabled = basketWalk || materialsWalk || syncWalk;
       const gradesFound = grades ? gradesSummary(grades) : null;
       sendGradesButton.hidden = !gradesFound || gradesFound.items === 0;
       sendGradesButton.disabled = Boolean(walk);
@@ -3543,11 +3742,85 @@
     // `relabel` sets every string, the page guidance included, so it is the
     // whole first render.
     relabel();
+    autoSyncOnOpen();
 
     wrap.querySelector(".close").addEventListener("click", () => {
       setCollapsed(true);
     });
 
+
+    /**
+     * One sync, from a press or on its own. `tab` is where to send what it reads, or null; with
+     * none, the reading is kept and the Send buttons carry it on a press.
+     */
+    async function runSync(tab, automatic) {
+      walk = { stop: false, kind: "sync" };
+      refreshBasket();
+      syncLine.hidden = false;
+      syncLine.className = "note";
+      syncLine.textContent = t("syncing");
+      try {
+        const out = await syncLight({
+          shouldStop: () => walk.stop,
+          onProgress(progress) {
+            syncLine.textContent = t("syncingCourse", { course: progress.course.code || progress.course.id, index: progress.index, total: progress.total });
+          },
+        });
+        if (!out.ok) {
+          syncLine.className = "note warn";
+          syncLine.textContent = automatic ? "" : t("syncNoData");
+          syncLine.hidden = Boolean(automatic);
+          return;
+        }
+        if (out.grades) grades = out.grades;
+        syncState = Object.assign({}, syncState, { at: new Date().toISOString(), pending: true, grades });
+        writeSyncState(window.localStorage, syncState);
+
+        const readText = t("syncDone", { courses: out.courses, announcements: out.announcements, items: out.gradeItems });
+        const skipped = out.skipped.length ? t("syncSkipped", { courses: out.skipped.join(", ") }) : "";
+        if (!tab) {
+          syncLine.className = "note warn";
+          syncLine.textContent = readText + skipped + t(automatic ? "syncAutoReady" : "syncNotSent");
+          return;
+        }
+        syncLine.textContent = readText + t("sendingToBhc");
+        const sent = await deliverSync(tab, readBasket(window.localStorage), grades);
+        if (sent.parts.length > 0 && !sent.failed) {
+          syncState = Object.assign({}, syncState, { pending: false });
+          writeSyncState(window.localStorage, syncState);
+          syncLine.className = "note ok";
+          syncLine.textContent = readText + skipped + t("sentAll", { parts: sent.parts.join(t("sentPartsJoin")) });
+        } else {
+          syncLine.className = "note warn";
+          syncLine.textContent = readText + skipped + t(sent.parts.length ? "sentPartial" : "sendToBhcFailed", { parts: sent.parts.join(t("sentPartsJoin")) });
+        }
+      } catch (error) {
+        syncLine.hidden = false;
+        syncLine.className = "note warn";
+        syncLine.textContent = t("collectFailed", { message: error.message });
+      } finally {
+        walk = null;
+        syncButton.disabled = false;
+        basket = readBasket(window.localStorage);
+        refreshBasket();
+        refreshGuidance();
+      }
+    }
+
+    /**
+     * The sync nobody pressed, once as HuskyCT is opened: if it is switched on, a few hours have
+     * passed, and the student is signed in. It reads no page. It sends only to a BetterHuskyCT tab
+     * this tab opened before and that is still there; otherwise the reading waits for a press.
+     */
+    function autoSyncOnOpen() {
+      const state = readSyncState(window.localStorage);
+      if (walk || !autoSyncDue(state, new Date()) || looksSignedOut()) return;
+      if (!/^\/ultra(\/|$)/.test(window.location.pathname)) return;
+      window.setTimeout(() => {
+        if (walk) return;
+        void runSync(findBhcTab(), true);
+      }, 3000);
+    }
 
     wrap.addEventListener("click", async (event) => {
       const button = event.target.closest("button.act");
@@ -3871,6 +4144,25 @@
         return;
       }
 
+      if (act === "autosync") {
+        syncState = Object.assign({}, syncState, { auto: !syncState.auto });
+        writeSyncState(window.localStorage, syncState);
+        refreshBasket();
+        return;
+      }
+
+      if (act === "sync") {
+        if (walk) {
+          walk.stop = true;
+          button.disabled = true;
+          return;
+        }
+        // Opened on the press, as a browser only allows. The sync reads no page, so the focus
+        // the new tab takes costs it nothing.
+        await runSync(openBhcTab(), false);
+        return;
+      }
+
       if (act === "recapi") {
         if (!recorder) {
           recorder = startApiRecorder();
@@ -4033,6 +4325,12 @@
       readAnnouncementsOf,
       readAnnouncementsApi,
       readUserId,
+      readSyncState,
+      writeSyncState,
+      autoSyncDue,
+      syncLight,
+      deliverSync,
+      findBhcTab,
       readCoursesApi,
       courseCardFromApi,
       termOfCourse,

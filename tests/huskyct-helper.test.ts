@@ -684,11 +684,12 @@ test("every panel button has a handler, and the labels match", () => {
   for (const gone of ["acquire", "export", "clear", "course", "copy", "merge"]) {
     assert.ok(!actions.includes(gone), `the single-page "${gone}" button is back`);
   }
+  // "sync" and "autosync" are the quick sync that reads HuskyCT's own data, and its switch.
   // "recapi" is the diagnostic that records the page's data requests, so the helper can
   // later read HuskyCT's answers directly; it is not a way to collect and goes when that is done.
   assert.deepEqual(
     [...new Set(actions)].sort(),
-    ["collectall", "emptybasket", "grades", "materials", "recapi", "savefiles", "sendgrades", "sendmaterials", "todos"],
+    ["autosync", "collectall", "emptybasket", "grades", "materials", "recapi", "savefiles", "sendgrades", "sendmaterials", "sync", "todos"],
   );
 });
 
