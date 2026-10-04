@@ -14,6 +14,19 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.16.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.16.1) — Collect everything reads the gradebooks again
+
+*Patch: a fix to Collect everything. HuskyCT Helper goes from 1.5.0 to 1.5.1.*
+
+### Fixed
+
+- **Collect everything could not open any gradebook.** It opened the BetterHuskyCT
+  tab the moment you pressed it, so HuskyCT went to the back for the whole walk,
+  and a tab in the back does not draw its pages. The tab is now looked for after
+  the walk, by its name. When none is open, the Send buttons open it on a press,
+  and the next collect finds it. A walk that falls short in a tab in the back now
+  says so. HuskyCT Helper 1.5.1. ([#97])
+
 ## [1.16.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.16.0) — Sync by QR code, and a collection that brings everything
 
 *Minor: the sync link can be scanned from the computer's screen, and it carries what HuskyCT says is done. Collect everything reads the gradebooks and files, and sends them on its own. The Insights page is folded into To-do. HuskyCT Helper goes from 1.4.0 to 1.5.0.*
@@ -1389,6 +1402,7 @@ saying what to work on next.*
 [#93]: https://github.com/NoGod3524/betterhuskyct/pull/93
 [#94]: https://github.com/NoGod3524/betterhuskyct/pull/94
 [#95]: https://github.com/NoGod3524/betterhuskyct/pull/95
+[#97]: https://github.com/NoGod3524/betterhuskyct/pull/97
 
 
 
