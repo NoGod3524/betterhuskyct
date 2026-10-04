@@ -688,6 +688,19 @@ test("Collect everything opens no tab on the press, so HuskyCT stays in front fo
   assert.equal(page.opened.length, 0, "a stopped walk is not sent, so it looks for no tab");
 });
 
+test("the diagnose button records, then stops and says when there was nothing to record", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>");
+  const start = page.text('[data-act="recapi"]');
+
+  page.button("recapi").click();
+  await until(() => page.text('[data-act="recapi"]') !== start);
+  assert.match(page.text('[data-role="rec"]'), /Recording/);
+
+  page.button("recapi").click();
+  await until(() => page.text('[data-act="recapi"]') === start);
+  assert.match(page.text('[data-role="rec"]'), /Nothing was recorded/);
+});
+
 test("only this term's courses are read, and a later term's too", () => {
   const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
   const cards = [

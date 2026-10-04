@@ -684,9 +684,11 @@ test("every panel button has a handler, and the labels match", () => {
   for (const gone of ["acquire", "export", "clear", "course", "copy", "merge"]) {
     assert.ok(!actions.includes(gone), `the single-page "${gone}" button is back`);
   }
+  // "recapi" is the diagnostic that records the page's data requests, so the helper can
+  // later read HuskyCT's answers directly; it is not a way to collect and goes when that is done.
   assert.deepEqual(
     [...new Set(actions)].sort(),
-    ["collectall", "emptybasket", "grades", "materials", "savefiles", "sendgrades", "sendmaterials", "todos"],
+    ["collectall", "emptybasket", "grades", "materials", "recapi", "savefiles", "sendgrades", "sendmaterials", "todos"],
   );
 });
 
