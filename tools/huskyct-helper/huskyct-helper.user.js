@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.5.3
+// @version      1.5.4
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.5.3";
+  const VERSION = "1.5.4";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -96,6 +96,12 @@
       hidePanel: "Hide the panel",
       sendDeadlines: "Send everything to BetterHuskyCT",
       privacy: "Nothing is uploaded. Everything stays in this browser.",
+      recStart: "Diagnose: record the page's data requests",
+      recRunning: "Recording. Open a course's Grades page and its Announcements page as you normally would, then press the button again.",
+      recCopy: "Stop and copy the recording",
+      recCopied: "Copied {count} request(s), structure only: no scores, titles or names. Paste it where you were asked.",
+      recManual: "Could not copy on its own. {count} request(s), structure only, are in the box: select all and copy.",
+      recEmpty: "Nothing was recorded. Open a course's Grades page after pressing the first button, then try again.",
       guideTodo:
         "Press Collect everything: the panel reads this to-do list, every course's announcements, gradebooks and files by itself, then sends them to BetterHuskyCT.",
       guideCourse: "Press Collect everything to read every course's announcements, this one included.",
@@ -202,6 +208,12 @@
       hidePanel: "收起面板",
       sendDeadlines: "全部发给 BetterHuskyCT",
       privacy: "不上传任何东西，全部留在这个浏览器里。",
+      recStart: "诊断：记录页面的数据请求",
+      recRunning: "正在记录。像平时一样打开某门课的成绩页和公告页，然后再按一次这个按钮。",
+      recCopy: "停止并复制记录",
+      recCopied: "已复制 {count} 条请求，只含结构，不含分数、标题和姓名。请粘贴到需要的地方。",
+      recManual: "没能自动复制。{count} 条请求（只含结构）在下面的框里，请全选后复制。",
+      recEmpty: "没有记到任何请求。请在按了第一个按钮之后再打开某门课的成绩页，然后重试。",
       guideTodo: "按「一键收集全部」：面板会自己读取待办、每门课的公告、成绩册和课件，然后发给 BetterHuskyCT。",
       guideCourse: "按「一键收集全部」，读取每门课的公告，包括这一门。",
       guideAnnouncements: "这门课的公告已经收进篮子。",
@@ -2795,6 +2807,172 @@
     return t("guideNeither");
   }
 
+  // ---------------------------------------------------------- the API recorder
+
+  /**
+   * A diagnostic, not a feature of the collection: it writes down what HuskyCT's
+   * own page asks its server for, so the helper can later read those answers
+   * directly instead of walking the pages.
+   *
+   * It records structure only. A query keeps its parameter names, and the values
+   * of a few that say how much to ask for; ids are written as _N_N; and every
+   * string in a request or an answer is replaced by its length, except the
+   * value of a field that names a kind of thing ("status", "type"), so a score,
+   * a title or a name never leaves the page. Nothing is sent anywhere: the result
+   * is copied to the clipboard for the student to paste.
+   */
+  const API_QUERY_KEEP = /^(expand|fields|limit|offset|sort|orderby|view|type|filter|includecount)$/i;
+  const API_WORD_KEYS = /^(status|type|kind|state|category|format|role|availability|gradingtype|displayas|mode|source|method)$/i;
+  const API_MAX_ENTRIES = 80;
+  const API_MAX_CHARS = 60000;
+
+  /** A same-origin address with its ids and query values removed, or null for anyone else's. */
+  function apiPathOf(href) {
+    try {
+      const url = new URL(href, window.location.href);
+      if (url.origin !== window.location.origin) return null;
+      const query = [...url.searchParams.keys()].map((key) => key + "=" + (API_QUERY_KEEP.test(key) ? String(url.searchParams.get(key)).slice(0, 80) : "…"));
+      const path = url.pathname
+        .replace(/_\d+_\d+/g, "_N_N")
+        .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "UUID");
+      return path + (query.length ? "?" + query.join("&") : "");
+    } catch {
+      return null;
+    }
+  }
+
+  /** What a value is made of, with none of what it says. */
+  function shapeOf(value, key, depth) {
+    if (value === null) return "null";
+    if (Array.isArray(value)) {
+      if (depth >= 6) return "array(" + value.length + ")";
+      const items = value.slice(0, 5).map((item) => shapeOf(item, key, depth + 1));
+      // Rows do not all carry every field, so the first few are merged.
+      const merged = items.every((item) => item && typeof item === "object" && !Array.isArray(item))
+        ? Object.assign({}, ...items.slice().reverse())
+        : items[0];
+      return { "[length]": value.length, "[items]": value.length ? merged : "none" };
+    }
+    if (typeof value === "object") {
+      if (depth >= 6) return "object";
+      const out = {};
+      const keys = Object.keys(value);
+      for (let index = 0; index < keys.length && index < 40; index++) out[keys[index].replace(/_\d+_\d+/g, "_N_N")] = shapeOf(value[keys[index]], keys[index], depth + 1);
+      if (keys.length > 40) out["…"] = keys.length + " keys";
+      return out;
+    }
+    if (typeof value === "string") {
+      // An address in the page's own API says where the data is, which is the point.
+      if (/^\/(learn|ultra)\//.test(value)) return "path:" + (apiPathOf(value) || "?");
+      return API_WORD_KEYS.test(key || "") && value.length <= 30 ? "string:" + value : "string(" + Math.min(value.length, 99) + ")";
+    }
+    return typeof value;
+  }
+
+  function bodyShape(body) {
+    if (body === undefined || body === null) return null;
+    if (typeof body !== "string") return "(" + Object.prototype.toString.call(body).slice(8, -1) + ")";
+    try {
+      return shapeOf(JSON.parse(body), "", 0);
+    } catch {
+      return "(not json, " + body.length + " chars)";
+    }
+  }
+
+  function renderApiRecording(entries, page) {
+    const lines = ["HuskyCT helper API recording, structure only. Page: " + apiPathOf(page || "/"), ""];
+    entries.forEach((entry, index) => {
+      lines.push("[" + (index + 1) + "] " + entry.id + " -> " + entry.status);
+      if (entry.body !== null) lines.push("  request body: " + JSON.stringify(entry.body, null, 1).replace(/\n/g, "\n  "));
+      lines.push("  response: " + JSON.stringify(entry.response, null, 1).replace(/\n/g, "\n  "));
+      lines.push("");
+    });
+    const text = lines.join("\n");
+    return text.length > API_MAX_CHARS ? text.slice(0, API_MAX_CHARS) + "\n…(cut)" : text;
+  }
+
+  /** Starts recording this page's requests. `finish()` stops, puts everything back and returns { count, text }. */
+  function startApiRecorder() {
+    const entries = [];
+    const seen = new Set();
+    const originalFetch = window.fetch;
+    const proto = window.XMLHttpRequest && window.XMLHttpRequest.prototype;
+    const originalOpen = proto && proto.open;
+    const originalSend = proto && proto.send;
+
+    function note(method, href, body, status, contentType, text) {
+      const path = apiPathOf(href);
+      if (!path || entries.length >= API_MAX_ENTRIES || !/json/i.test(contentType || "")) return;
+      const id = method + " " + path;
+      if (seen.has(id)) return;
+      seen.add(id);
+      let response = "(not json)";
+      if (typeof text === "string" && text.length > 2000000) response = "(too large)";
+      else {
+        try {
+          response = shapeOf(JSON.parse(text), "", 0);
+        } catch {
+          /* left as not json */
+        }
+      }
+      entries.push({ id, status, body: bodyShape(body), response });
+    }
+
+    if (originalFetch) {
+      window.fetch = function (input, init) {
+        const promise = originalFetch.apply(this, arguments);
+        try {
+          const href = typeof input === "string" ? input : String(input && input.url ? input.url : input);
+          const method = String((init && init.method) || (input && input.method) || "GET").toUpperCase();
+          const body = init && init.body;
+          promise.then(
+            (response) => {
+              try {
+                response.clone().text().then((text) => note(method, href, body, response.status, response.headers.get("content-type"), text), () => {});
+              } catch {
+                /* a response that cannot be cloned is skipped */
+              }
+            },
+            () => {},
+          );
+        } catch {
+          /* recording never gets in the page's way */
+        }
+        return promise;
+      };
+    }
+    if (proto) {
+      proto.open = function (method, href) {
+        this.__bhcRecord = { method: String(method).toUpperCase(), href: String(href) };
+        return originalOpen.apply(this, arguments);
+      };
+      proto.send = function (body) {
+        const info = this.__bhcRecord;
+        if (info) {
+          this.addEventListener("loadend", () => {
+            try {
+              note(info.method, info.href, body, this.status, this.getResponseHeader("content-type"), this.responseText);
+            } catch {
+              /* not a text response */
+            }
+          });
+        }
+        return originalSend.apply(this, arguments);
+      };
+    }
+
+    return {
+      finish() {
+        if (originalFetch) window.fetch = originalFetch;
+        if (proto) {
+          proto.open = originalOpen;
+          proto.send = originalSend;
+        }
+        return { count: entries.length, text: renderApiRecording(entries, window.location.pathname) };
+      },
+    };
+  }
+
   // -------------------------------------------------------------------- panel
 
   const style = `
@@ -2893,6 +3071,9 @@
         <button class="act" data-act="grades">${t("collectGrades")}</button>
         <div class="note" data-role="grades" hidden></div>
         <button class="act primary" data-act="sendgrades" hidden></button>
+        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
+        <button class="act" data-act="recapi">${t("recStart")}</button>
+        <div class="note" data-role="rec" hidden></div>
         <div class="note" data-role="status">${t("privacy")}</div>
       </div>
     `;
@@ -2970,6 +3151,9 @@
     let materials = null;
     // The last grades walk, kept for the send button.
     let grades = null;
+    // The API recorder while it is running, and the line it reports on.
+    let recorder = null;
+    const recLine = wrap.querySelector('[data-role="rec"]');
     // The basket in memory, re-read from storage on every tick so two HuskyCT
     // tabs collecting at once do not overwrite each other's courses.
     let basket = readBasket(window.localStorage);
@@ -3428,6 +3612,42 @@
         return;
       }
 
+      if (act === "recapi") {
+        if (!recorder) {
+          recorder = startApiRecorder();
+          recLine.hidden = false;
+          recLine.className = "note";
+          recLine.textContent = t("recRunning");
+          button.textContent = t("recCopy");
+          return;
+        }
+        const recording = recorder.finish();
+        recorder = null;
+        button.textContent = t("recStart");
+        recLine.hidden = false;
+        if (recording.count === 0) {
+          recLine.className = "note warn";
+          recLine.textContent = t("recEmpty");
+          return;
+        }
+        try {
+          await window.navigator.clipboard.writeText(recording.text);
+          recLine.className = "note ok";
+          recLine.textContent = t("recCopied", { count: recording.count });
+        } catch {
+          // The clipboard can be refused; the text is put where it can be selected and copied by hand.
+          const box = document.createElement("textarea");
+          box.value = recording.text;
+          box.readOnly = true;
+          box.style.cssText = "width:100%;height:140px;margin-top:6px;font:11px/1.4 monospace";
+          recLine.className = "note warn";
+          recLine.textContent = t("recManual", { count: recording.count });
+          recLine.appendChild(box);
+          box.select();
+        }
+        return;
+      }
+
       if (act === "emptybasket") {
         basket = emptyBasket();
         writeBasket(window.localStorage, basket);
@@ -3569,6 +3789,9 @@
       GRADES_PROTOCOL,
       sendGradesToBhc,
       openBhcTab,
+      startApiRecorder,
+      apiPathOf,
+      shapeOf,
       problemsText,
       DOCUMENTS_KEY,
       termLabel,
