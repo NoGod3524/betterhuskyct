@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.5.2
+// @version      1.5.3
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.5.2";
+  const VERSION = "1.5.3";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1777,23 +1777,50 @@
    *   inside a wrapper that exists only once the grades have loaded — so an empty
    *   course can be told from a page still loading without reading its English.
    * - Some courses show no overall grade at all, so none is read.
+   *
+   * Measured again on 2026-10-04, when HuskyCT changed the page: the rows are
+   * now a table (`course-student-grades-sortable-table`), one
+   * `tr[data-testid="course-student-grades-table-row-<title>"]` each, with no
+   * `data-grade-id`. The item's id is on its name, `course-student-grades-item-name-_N_N`,
+   * the same id the old marker carried. The cells are named by `aria-describedby`
+   * (`…-header-status`, `…-header-grade`): the status is "Submitted" or "Graded", and
+   * the grade cell holds the score in three spans or the words "Not graded". Both
+   * layouts are read, so a page that has not changed over yet still works.
    */
-  const GRADE_ROWS = "[data-grade-id]";
+  const GRADE_ROWS = '[data-grade-id], tr[data-testid^="course-student-grades-table-row-"]';
+  const GRADE_NAME = '[id^="course-student-grades-item-name-"]';
   const GRADE_NEXT = '[data-analytics-id="course.student.grade.components.common.pagination.pageUpButton"]';
   const GRADES_EMPTY = 'img[src*="StudentNoGrades"]';
   const MAX_GRADE_PAGES = 40;
   const MAX_GRADE_POINTS = 1000000;
   const GRADE_SCORE = /^\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*$/;
 
+  /** A row's id: the old marker, or the id on its name (…-item-name-_3876639_1). Null if it has neither. */
+  function gradeRowId(row) {
+    const marked = row.getAttribute("data-grade-id");
+    if (marked) return marked;
+    const name = row.querySelector(GRADE_NAME);
+    return name ? String(name.id).slice("course-student-grades-item-name-".length) : null;
+  }
+
+  /** The table cell for one column of a row, or null on the old layout, which has no cells. */
+  function gradeCell(row, column) {
+    return row.querySelector('[aria-describedby$="-header-' + column + '"]');
+  }
+
   /** One gradebook row as { id, title, status, earned, possible, label }, or null if it is not one. */
   function readGradeRow(row) {
-    const id = row.getAttribute("data-grade-id");
+    const id = gradeRowId(row);
     if (!/^_\d+_\d+$/.test(String(id))) return null;
-    const link = row.querySelector('a[id^="course-student-grades-item-name-"]');
+    const link = row.querySelector(GRADE_NAME);
     const title = textOf(link);
     if (!title) return null;
-    const described = row.querySelector('[data-testid="item-description"]');
+    // The old layout has a line under the title; the table has a status column.
+    const described = row.querySelector('[data-testid="item-description"]') || gradeCell(row, "status");
     const status = textOf(described);
+    // Where the score or the words that stand in for it are: the grade cell, so a
+    // status like "Submitted" is never taken for one. The old layout has no cells.
+    const result = gradeCell(row, "grade") || row;
     const item = {
       id,
       title: title.slice(0, 400),
@@ -1803,7 +1830,7 @@
       label: null,
     };
 
-    for (const span of row.querySelectorAll('span[aria-hidden="true"]')) {
+    for (const span of result.querySelectorAll('span[aria-hidden="true"]')) {
       const score = GRADE_SCORE.exec(textOf(span));
       if (!score) continue;
       const earned = Number(score[1]);
@@ -1815,7 +1842,7 @@
       }
     }
     // No score: what the row shows instead ("Not graded", a letter, "Exempt").
-    for (const span of row.querySelectorAll("span")) {
+    for (const span of result.querySelectorAll("span")) {
       if (span.children.length || (link && link.contains(span)) || (described && described.contains(span))) continue;
       const words = textOf(span);
       if (words) {
@@ -1901,14 +1928,14 @@
    */
   async function readGradesOnce(courseId, code, opts) {
     const path = "/ultra/courses/" + courseId + "/grades";
-    const before = new Set([...document.querySelectorAll(GRADE_ROWS)].map((row) => row.getAttribute("data-grade-id")));
+    const before = new Set([...document.querySelectorAll(GRADE_ROWS)].map(gradeRowId));
     const emptyBefore = new Set(document.querySelectorAll(GRADES_EMPTY));
     routeTo(path);
     const shown = await waitFor(
       () => {
         if (window.location.pathname.indexOf(path) !== 0) return false;
         const rows = [...document.querySelectorAll(GRADE_ROWS)];
-        if (rows.some((row) => !before.has(row.getAttribute("data-grade-id")))) return "rows";
+        if (rows.some((row) => !before.has(gradeRowId(row)))) return "rows";
         const empty = document.querySelector(GRADES_EMPTY);
         return empty && !emptyBefore.has(empty) && titleNames(code) ? "empty" : false;
       },
@@ -1940,10 +1967,10 @@
       if (pages >= MAX_GRADE_PAGES) return { items, complete: false, reason: "page", at: state.page + "/" + state.pages };
 
       // More pages: Next may still be switching on, so wait for it, then press it.
-      const onThisPage = new Set(rows.map((row) => row.getAttribute("data-grade-id")));
+      const onThisPage = new Set(rows.map(gradeRowId));
       const turned = () => {
         const now = pagerState();
-        return Boolean(now && now.page > state.page) && [...document.querySelectorAll(GRADE_ROWS)].some((row) => !onThisPage.has(row.getAttribute("data-grade-id")));
+        return Boolean(now && now.page > state.page) && [...document.querySelectorAll(GRADE_ROWS)].some((row) => !onThisPage.has(gradeRowId(row)));
       };
       let moved = false;
       // A press that lands while the page is still drawing is lost, so it is made twice.

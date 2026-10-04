@@ -52,6 +52,9 @@ export function doneReasonOf(item: GradeItem): DoneReason | null {
   // "1 attempt submitted" (and "2 attempts submitted (1 Late)"), but not "Attempt 2 started".
   if (item.status && /\battempts?\s+submitted\b/i.test(item.status)) return "submitted";
   if (item.status && /^first participated\b/i.test(item.status)) return "submitted";
+  // The gradebook table's status column says "Submitted" or "Graded" ("Not submitted" is neither).
+  if (item.status && /^submitted\b/i.test(item.status)) return "submitted";
+  if (item.status && /^graded\b/i.test(item.status)) return "graded";
   return null;
 }
 
