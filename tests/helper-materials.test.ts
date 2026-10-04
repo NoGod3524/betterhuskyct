@@ -225,6 +225,8 @@ function fakeHuskyct(window: Window, visited: string[]) {
 function fileStore() {
   const requests: string[] = [];
   const fetchImpl = async (url: string) => {
+    // HuskyCT's own data is not what this stands in for: the helper reads the pages instead.
+    if (String(url).startsWith("/learn/api/")) throw new Error("no data in tests");
     requests.push(url);
     const rid = (url.match(/rid-(\d+)_1/) || [])[1] || "0";
     const storeUrl =

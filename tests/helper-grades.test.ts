@@ -361,6 +361,42 @@ test("grades come from HuskyCT's own data when it answers, and from the page for
   assert.deepEqual(manifest.problems, []);
 });
 
+test("the course list and the grades both come from HuskyCT's data, so no page is opened at all", async () => {
+  const { window, helper, visited } = openHuskyct();
+  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  const course = (id: string, displayName: string, courseId: string) => ({
+    courseId: id,
+    isAvailable: true,
+    userHasHidden: false,
+    course: { id, courseId, displayName, isOrganization: false, isAvailable: true, effectiveAvailability: true },
+  });
+  (window as unknown as { fetch: unknown }).fetch = async (path: string) => {
+    if (path.startsWith("/learn/api/v1/users/me/memberships")) {
+      return json({
+        paging: { count: 2, nextPage: "" },
+        results: [
+          course(MATH, "MATH-1070Q-Mathematics for Business and Economics-SEC100-1268", "1268-UCONN-MATH-1070Q-SEC100-1191"),
+          course(ECON, "ECON-1201-Principles of Microeconomics-SEC010-1268", "1268-UCONN-ECON-1201-SEC010-5757"),
+        ],
+      });
+    }
+    if (path === "/learn/api/v1/users/me") return json({ id: "_1003488_1" });
+    if (/\/gradebook\/grades\?userId=_1003488_1/.test(path)) return json({ paging: { count: 0, nextPage: "" }, results: [] });
+    return new Response("{}", { status: 404 });
+  };
+
+  const manifest = plain(await helper.collectGrades(FAST));
+
+  assert.deepEqual(manifest.courses.map((entry) => [entry.code, entry.skipped, entry.items.length]), [
+    ["MATH 1070Q", false, 0],
+    ["ECON 1201", false, 0],
+  ]);
+  assert.equal(manifest.term, "Fall 2026");
+  assert.deepEqual(manifest.problems, []);
+  // Neither the Courses page nor a gradebook page was opened.
+  assert.ok(!visited.some((path) => path === "/ultra/course" || /\/grades$/.test(path)), "opened a page: " + visited.join(", "));
+});
+
 test("without the student's id every course is read from its page, as before", async () => {
   const { window, helper, visited } = openHuskyct();
   (window as unknown as { fetch: unknown }).fetch = async () => new Response("{}", { status: 401 });

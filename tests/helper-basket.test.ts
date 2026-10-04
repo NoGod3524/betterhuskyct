@@ -616,6 +616,39 @@ test("a walk that falls short in a tab in the background says why", async () => 
   assert.ok(!(await keys(false)).keys.includes("problemBackground"), "in the front it is not blamed on the background");
 });
 
+test("the course list comes from HuskyCT's data, while the to-do list is still read from the Courses page", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
+  const huskyct = fakeHuskyct(page.window);
+  const membership = (id: string, displayName: string, courseId: string) => ({
+    courseId: id,
+    isAvailable: true,
+    userHasHidden: false,
+    course: { id, courseId, displayName, isOrganization: false, isAvailable: true, effectiveAvailability: true },
+  });
+  (page.window as unknown as { fetch: unknown }).fetch = async (path: string) =>
+    path.startsWith("/learn/api/v1/users/me/memberships")
+      ? new Response(
+          JSON.stringify({
+            paging: { count: 2, nextPage: "" },
+            results: [
+              membership("_203765_1", "MATH-1070Q-Mathematics for Business and Economics-SEC100-1268", "1268-UCONN-MATH-1070Q-SEC100-1191"),
+              membership("_198430_1", "ECON-1201-Principles of Microeconomics-SEC010-1268", "1268-UCONN-ECON-1201-SEC010-5757"),
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        )
+      : new Response("{}", { status: 404 });
+
+  const report = plain(await page.helper.collectEverything(FAST));
+
+  // Two courses from the data, where the pages would have found five.
+  assert.equal(report.courses, 2);
+  assert.equal(report.collected, 2);
+  assert.ok(huskyct.visited.includes("/ultra/course"), "the to-do list was not read from the Courses page");
+  assert.equal(page.basket().todos.length, 1);
+  assert.deepEqual(plain(page.basket().courses.map((course) => course.id)).sort(), ["_198430_1", "_203765_1"]);
+});
+
 test("announcements come from HuskyCT's own data when it answers, and from the page for a course whose answer fails", async () => {
   const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
   const huskyct = fakeHuskyct(page.window);
