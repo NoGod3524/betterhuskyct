@@ -88,16 +88,16 @@ function loadWorker(pages: Record<string, number>) {
 }
 
 test("offline, each route gets its own page back", async () => {
-  const worker = loadWorker({ "/": 200, "/plan": 200, "/tasks": 200 });
+  const worker = loadWorker({ "/": 200, "/calendar": 200, "/tasks": 200 });
   await worker.fire("install");
   await worker.fire("activate");
 
-  for (const path of ["/", "/plan", "/tasks"]) await worker.navigate(path);
+  for (const path of ["/", "/calendar", "/tasks"]) await worker.navigate(path);
   worker.network.online = false;
 
   // Every route used to be stored under "/", so this returned "/tasks page"
   // — whichever was visited last — for all three.
-  assert.equal(await worker.navigate("/plan"), "/plan page");
+  assert.equal(await worker.navigate("/calendar"), "/calendar page");
   assert.equal(await worker.navigate("/tasks"), "/tasks page");
   assert.equal(await worker.navigate("/"), "/ page");
 });
@@ -126,7 +126,7 @@ test("a route never visited falls back to the home page offline", async () => {
 
 test("activating clears the old cache, whose shell may be another route's page", async () => {
   const worker = loadWorker({ "/": 200 });
-  worker.store.set("huskypilot-v1", new Map([["/", "/plan page"]]));
+  worker.store.set("huskypilot-v1", new Map([["/", "/calendar page"]]));
 
   await worker.fire("install");
   await worker.fire("activate");
