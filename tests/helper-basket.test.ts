@@ -143,6 +143,10 @@ function openPage(url: string, html: string, stored?: Basket) {
   windows.push(window);
   window.document.body.innerHTML = html;
   if (stored) window.localStorage.setItem("huskypilot.helper.basket.v1", JSON.stringify(stored));
+  // The stand-in HuskyCT serves pages, not data: the helper's direct reading finds
+  // nothing to ask and reads the page, which is what these tests are about. Nothing
+  // here may reach the real network.
+  (window as unknown as { fetch: () => Promise<never> }).fetch = () => Promise.reject(new Error("no network in tests"));
 
   const opened: Opened[] = [];
   const fakeTab = { opener: {} as unknown, focus() {} };
@@ -610,6 +614,33 @@ test("a walk that falls short in a tab in the background says why", async () => 
   assert.ok(back.short, "the stand-in HuskyCT does not serve every gradebook, so something fell short");
   assert.ok(back.keys.includes("problemBackground"), "a walk that fell short in the background is told why");
   assert.ok(!(await keys(false)).keys.includes("problemBackground"), "in the front it is not blamed on the background");
+});
+
+test("announcements come from HuskyCT's own data when it answers, and from the page for a course whose answer fails", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
+  const huskyct = fakeHuskyct(page.window);
+  const answers: Record<string, unknown> = {
+    _203765_1: { paging: { nextPage: "" }, results: [{ title: "From the data", body: { displayText: "<p>Straight <b>from</b> HuskyCT</p>" }, startDateRestriction: "2026-09-25T20:00:00.000Z", isDraft: false }] },
+    _198430_1: { paging: { nextPage: "" }, results: [] },
+  };
+  (page.window as unknown as { fetch: unknown }).fetch = async (path: string) => {
+    const id = /courses\/([^/]+)\/announcements/.exec(path)?.[1] ?? "";
+    return id in answers
+      ? new Response(JSON.stringify(answers[id]), { status: 200, headers: { "content-type": "application/json" } })
+      : new Response("{}", { status: 500 });
+  };
+
+  const report = plain(await page.helper.collectEverything(FAST));
+
+  const basket = page.basket();
+  const course = (id: string) => basket.courses.find((entry) => entry.id === id);
+  assert.deepEqual(course("_203765_1")?.announcements.map((a) => [a.title, a.body]), [["From the data", "Straight from HuskyCT"]]);
+  assert.ok(course("_198430_1")?.announcementsAt, "a course with no announcements was not ticked off");
+  // Those two never had their Announcements page opened; the course whose answer failed did.
+  assert.ok(!huskyct.visited.some((path) => /_203765_1\/announcements|_198430_1\/announcements/.test(path)), "opened a page it had the data for");
+  assert.ok(huskyct.visited.some((path) => /_200541_1\/announcements/.test(path)), "did not fall back to the page");
+  assert.deepEqual(course("_200541_1")?.announcements.map((a) => a.title), ["Field trip Friday"]);
+  assert.equal(report.collected, 4);
 });
 
 test("one press reads the to-do list and every current course, then goes back where it started (narrow screen)", async () => {
