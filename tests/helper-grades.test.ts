@@ -224,6 +224,10 @@ function openPage() {
   windows.push(window);
   window.document.body.innerHTML = "<main><p>Activity stream</p></main>";
   window.localStorage.clear();
+  // The stand-in HuskyCT serves pages, not data: the helper's direct reading finds
+  // nothing to ask and reads the page, which is what most of these tests are about.
+  // Nothing here may reach the real network.
+  (window as unknown as { fetch: () => Promise<never> }).fetch = () => Promise.reject(new Error("no network in tests"));
   const sandbox = {
     window,
     document: window.document,
@@ -321,6 +325,51 @@ test("a gradebook drawn as the table is walked and read like the cards were", as
 });
 
 // --- walking the gradebooks ------------------------------------------------------------
+
+test("grades come from HuskyCT's own data when it answers, and from the page for a course whose answer fails", async () => {
+  const { window, helper, visited } = openHuskyct();
+  const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  (window as unknown as { fetch: unknown }).fetch = async (path: string) => {
+    if (path === "/learn/api/v1/users/me") return json({ id: "_1003488_1" });
+    if (path.startsWith(`/learn/api/v1/courses/${MATH}/gradebook/grades?userId=_1003488_1`)) {
+      return json({
+        paging: { count: 1, nextPage: "" },
+        results: [
+          {
+            columnId: "_3876640_1",
+            column: { id: "_3876640_1", effectiveColumnName: "Take-home Quiz 1", possible: 100 },
+            status: "GRADED",
+            pointsPossible: 100,
+            displayGrade: { score: 95 },
+            lastAttempt: { status: "COMPLETED" },
+          },
+        ],
+      });
+    }
+    return new Response("{}", { status: 500 });
+  };
+
+  const manifest = plain(await helper.collectGrades(FAST));
+
+  const math = manifest.courses.find((course) => course.code === "MATH 1070Q");
+  assert.deepEqual(math?.items, [{ id: "_3876640_1", title: "Take-home Quiz 1", status: "Graded", earned: 95, possible: 100, label: null }]);
+  assert.equal(math?.skipped, false);
+  // MATH's gradebook page was never opened; the courses whose answer failed were read from theirs.
+  assert.ok(!visited.some((path) => path === `/ultra/courses/${MATH}/grades`), "opened a page it had the data for");
+  assert.ok(visited.includes(`/ultra/courses/${SOCI}/grades`), "did not fall back to the page");
+  assert.equal(manifest.courses.find((course) => course.code === "SOCI 1501")?.items.length, 2);
+  assert.deepEqual(manifest.problems, []);
+});
+
+test("without the student's id every course is read from its page, as before", async () => {
+  const { window, helper, visited } = openHuskyct();
+  (window as unknown as { fetch: unknown }).fetch = async () => new Response("{}", { status: 401 });
+
+  const manifest = plain(await helper.collectGrades(FAST));
+
+  assert.ok(visited.includes(`/ultra/courses/${MATH}/grades`));
+  assert.equal(manifest.courses.find((course) => course.code === "MATH 1070Q")?.items.length, 35);
+});
 
 test("every course's gradebook is read, all its pages, empty courses included", async () => {
   const { window, helper, visited } = openHuskyct();
