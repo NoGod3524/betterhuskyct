@@ -14,6 +14,62 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.18.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.18.0) — Sync from BetterHuskyCT, and the helper reads HuskyCT's own data
+
+*Minor: BetterHuskyCT gets a Sync button that has the helper read HuskyCT in the background, and the helper reads announcements, grades and the course list from the data HuskyCT's own pages use instead of walking those pages. HuskyCT Helper goes from 1.5.3 to 1.10.0.*
+
+### Added
+
+- **A Sync button in BetterHuskyCT**, big under the overview's heading and compact in
+  the header, sharing one sync. A press opens (or finds) a HuskyCT tab named
+  `huskyct` and asks the helper in it for a sync, repeating the request for up to 90
+  seconds so a sign-in has time. The helper reads in the background and sends what
+  it read back; the button shows its progress and result. It needs helper 1.10.0 or
+  newer, and says so when the helper does not answer. The first press takes you to
+  the new HuskyCT tab; keep that tab open. Desktop only, as the helper is. ([#109])
+- **A Sync button in the helper's own panel, and a sync that starts on its own** when
+  HuskyCT is opened (switchable, on by default, at most once in six hours). It reads
+  no page and sends only to a BetterHuskyCT tab the HuskyCT tab opened before and
+  that is still there, since a tab opened without a press is a popup the browser
+  blocks; otherwise the reading waits for a press. A course it cannot read this way
+  is skipped and named, never read from its page. A sync that arrives only in part
+  is not called sent. HuskyCT Helper 1.9.0. ([#108])
+- **A diagnostic in the helper's panel that records the structure of the page's data
+  requests**: paths with ids made generic, and every value replaced by its type or
+  length, so no score, title or name leaves the page. It is how the readers below
+  were written, and is removed once the last of them is in. HuskyCT Helper 1.5.4.
+  ([#104])
+
+### Changed
+
+- **Announcements are read from HuskyCT's own data.** One request a page of results
+  instead of opening each course's Announcements page, so it is quick and does not
+  move the tab. A course whose answer is refused is read from its page, as before.
+  The posted time is written as the page writes it, so an announcement is not stored
+  twice. HuskyCT Helper 1.6.0. ([#105])
+- **Gradebooks are read from HuskyCT's own data.** No page to open and no Next to
+  press, and no longer dependent on the table's markup. Only what was seen is
+  trusted: a score counts only on a GRADED row and an attempt counts as handed in
+  only when COMPLETED, so a value never seen leaves work open. A gradebook that
+  stops short of the count HuskyCT gives is read from its page. HuskyCT Helper 1.7.0.
+  ([#106])
+- **The course list is read from HuskyCT's own data**, so the grades and course
+  files walks no longer open the Courses page, and Collect everything no longer opens
+  and scrolls "View All". An empty or short list is read from the page instead.
+  HuskyCT Helper 1.8.0. ([#107])
+
+### Fixed
+
+- **The page title in a gradebook's self-check kept no letter s.** ([#105])
+
+### Notes
+
+- The to-do list and the course files are still read from their pages, by Collect
+  everything. The due dates reach BetterHuskyCT through the calendar link.
+- Reading HuskyCT's data was written from one recording of one course. If a course
+  or a grade ever looks different from HuskyCT, the helper's page reading is still
+  the fallback, and Collect everything uses it.
+
 ## [1.17.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.17.0) — The Plan page is gone
 
 *Minor: a page is removed. HuskyCT Helper is unchanged at 1.5.3.*
@@ -1449,6 +1505,12 @@ saying what to work on next.*
 [#99]: https://github.com/NoGod3524/betterhuskyct/pull/99
 [#100]: https://github.com/NoGod3524/betterhuskyct/pull/100
 [#102]: https://github.com/NoGod3524/betterhuskyct/pull/102
+[#104]: https://github.com/NoGod3524/betterhuskyct/pull/104
+[#105]: https://github.com/NoGod3524/betterhuskyct/pull/105
+[#106]: https://github.com/NoGod3524/betterhuskyct/pull/106
+[#107]: https://github.com/NoGod3524/betterhuskyct/pull/107
+[#108]: https://github.com/NoGod3524/betterhuskyct/pull/108
+[#109]: https://github.com/NoGod3524/betterhuskyct/pull/109
 
 
 
