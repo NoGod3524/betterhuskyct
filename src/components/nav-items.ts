@@ -4,7 +4,6 @@ import {
   Check,
   FolderOpen,
   LayoutDashboard,
-  ListChecks,
   Megaphone,
   Puzzle,
   type LucideIcon,
@@ -22,7 +21,6 @@ export type NavItem = { href: string; key: TranslationKey; Icon: LucideIcon };
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/", key: "nav.dashboard", Icon: LayoutDashboard },
-  { href: "/plan", key: "nav.plan", Icon: ListChecks },
   { href: "/tasks", key: "nav.tasks", Icon: Check },
   { href: "/calendar", key: "nav.calendar", Icon: CalendarDays },
   { href: "/announcements", key: "nav.announcements", Icon: Megaphone },

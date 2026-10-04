@@ -16,15 +16,11 @@
 
 ![总览页](./public/screenshots/overview.zh.png)
 
-**计划** —— 接下来做什么，以及哪些已经来不及。
-
-![计划页](./public/screenshots/plan.zh.png)
-
 **安排** —— 今天 / 明天 / 本周，可勾选完成。
 
 ![安排页](./public/screenshots/tasks.zh.png)
 
-英文界面：[`overview.png`](./public/screenshots/overview.png) · [`plan.png`](./public/screenshots/plan.png) · [`tasks.png`](./public/screenshots/tasks.png)
+英文界面：[`overview.png`](./public/screenshots/overview.png) · [`tasks.png`](./public/screenshots/tasks.png)
 
 ## 为什么做这个
 
@@ -39,7 +35,6 @@ BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好�
 - **导入任意 ICS 日历** —— 把下载好的 `.ics` 文件拖到页面任何位置，或者粘贴私人订阅链接；一次多个也行
 - **自动填上课程号** —— Blackboard 的订阅只写「Environmental Science」不写课号，所以 App 会去 UConn 公开的课程目录里查，自己填上 `NRE 1000E`。不用任何配置
 - **不用服务器就能同步到手机** —— 点「同步」把日历、勾选、课程，以及助手带回来的课程公告，压成一条链接（120 条 deadline + 40 条公告大约 3,100 字符）。它放在 URL 的 fragment 里，不会被上传；你的订阅链接**故意不包含在内**
-- **计划** —— 给每件事标个工作量大中小，剩下的天数不够时 BetterHuskyCT 会诚实地提醒你，并把已过期的任务重新捞出来
 - **多个日历、多门课** —— HuskyCT 是每门课一条订阅，你有几条就加几条；每条订阅归到一门课（课程代码 + LEC / DIS / LAB / SEM），任务行就会显示它属于哪门课、是「上课」还是「作业」、在哪个教室、精确到分钟的截止时间；默认不对的那条可以单独改
 - **滚动 7 天视图** —— 今天 / 明天 / 本周，分组并按时间排序
 - **到期提醒** —— 未来 24 小时有任务到期时显示横幅；可选开启浏览器通知（App 打开时生效）
@@ -162,7 +157,6 @@ src/
 │  ├─ layout.tsx                     # 元数据、主题、状态 Provider、常驻外壳
 │  ├─ manifest.ts                    # PWA 清单（可安装）
 │  ├─ page.tsx                       # /          总览
-│  ├─ plan/page.tsx                  # /plan      接下来做什么
 │  ├─ tasks/page.tsx                 # /tasks     滚动 7 天清单
 │  ├─ calendar/page.tsx              # /calendar  再加一个日历
 │  ├─ announcements/page.tsx         # /announcements 课程公告
@@ -174,7 +168,6 @@ src/
 │  ├─ app-shell.tsx                  # 侧边栏、页头、页脚
 │  ├─ connect-section.tsx            # 导入表单、课程列表、帮助说明
 │  ├─ helper-section.tsx             # 怎么安装浏览器助手
-│  ├─ plan-section.tsx               # 已过期 / 有风险 / 接下来 三组计划行
 │  ├─ tasks-section.tsx              # 任务分组与卡片
 │  ├─ task-card.tsx                  # 单条任务：标签、时间、教室、课程下拉
 │  ├─ course-picker.tsx              # 单条任务的课程覆盖
@@ -189,7 +182,6 @@ src/
    ├─ calendar-types.ts              # 共享类型
    ├─ date-utils.ts                  # 共享的本地日期工具
    ├─ effort.ts                      # 每条任务的工作量估计
-   ├─ plan.ts                        # 剩余工作量 vs 剩余天数 -> 风险判断
    ├─ courses.ts                     # 课程列表、单条覆盖、1.0.1 数据迁移
    ├─ calendar-source.ts             # 可选记住的订阅链接
    ├─ export.ts                      # CSV 导出

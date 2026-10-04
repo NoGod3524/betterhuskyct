@@ -35,7 +35,7 @@ function pageRoutes(): string[] {
 
 test("every page can be reached from the navigation, and nothing in it goes nowhere", () => {
   const routes = pageRoutes();
-  assert.ok(routes.length >= 8, "found too few pages: " + routes.join(", "));
+  assert.ok(routes.length >= 7, "found too few pages: " + routes.join(", "));
   const listed = NAV_ITEMS.map((item) => item.href);
   for (const route of routes) assert.ok(listed.includes(route), `${route} is a page no navigation links to`);
   for (const href of listed) assert.ok(routes.includes(href), `${href} is in the navigation but is not a page`);
@@ -87,10 +87,10 @@ async function mountBar(pathname: string) {
 test("the bar shows the four main pages and a More, with the current page marked", async () => {
   const bar = await mountBar("/tasks");
 
-  assert.deepEqual(bar.links(), ["/", "/plan", "/tasks", "/calendar"]);
+  assert.deepEqual(bar.links(), ["/", "/tasks", "/calendar", "/announcements"]);
   assert.ok(bar.more(), "no More button");
   assert.equal(bar.q('a[href="/tasks"]')!.getAttribute("aria-current"), "page");
-  assert.equal(bar.q('a[href="/plan"]')!.getAttribute("aria-current"), null);
+  assert.equal(bar.q('a[href="/calendar"]')!.getAttribute("aria-current"), null);
   assert.equal(bar.q("nav")!.getAttribute("aria-label"), t("en", "nav.main"));
   assert.equal(bar.q("[role=dialog]"), null, "the sheet was open from the start");
   await bar.unmount();

@@ -16,15 +16,11 @@
 
 ![Overview route](./public/screenshots/overview.png)
 
-**Plan** — what to do next, and what no longer fits in the days left.
-
-![Plan route](./public/screenshots/plan.png)
-
 **Tasks** — Today / Tomorrow / This week, with per-course filters and completion.
 
 ![Tasks route](./public/screenshots/tasks.png)
 
-The same routes in Chinese: [`overview.zh.png`](./public/screenshots/overview.zh.png) · [`plan.zh.png`](./public/screenshots/plan.zh.png) · [`tasks.zh.png`](./public/screenshots/tasks.zh.png)
+The same routes in Chinese: [`overview.zh.png`](./public/screenshots/overview.zh.png) · [`tasks.zh.png`](./public/screenshots/tasks.zh.png)
 
 ## Why
 
@@ -39,7 +35,6 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Import any ICS calendar** — drop a downloaded `.ics` file anywhere on the page, or paste a private feed URL; several at once is fine
 - **Courses named for you** — a Blackboard feed titles a class meeting `Environmental Science` and never says which course it is, so the app looks the title up in UConn's public course catalogue and fills in `NRE 1000E` itself. Nothing to configure
 - **Sync to your phone without a server** — *Sync* packs the calendars, your ticks, your courses and the announcements the helper brought in into one link (about 3,100 characters for a term of 120 deadlines and 40 announcements). It rides in the URL fragment, so it is never uploaded, and your feed link is left out of it on purpose
-- **Plan** — set how big each task is (quick / medium / long) and BetterHuskyCT warns you honestly when the days left no longer fit the work, and resurfaces anything already overdue
 - **Several calendars, several courses** — HuskyCT issues one feed per course, so add as many as you have; file each under a course (code plus LEC / DIS / LAB / SEM), and every task shows its course, whether it is a class meeting or an assignment, its room, and the exact due time — with a per-task picker for the rows the default gets wrong
 - **Rolling 7-day view** — Today / Tomorrow / This week, grouped and time-sorted
 - **Due-soon reminders** — an in-app banner for anything due in the next 24 hours, plus optional browser notifications while the app is open
@@ -168,7 +163,6 @@ src/
 │  ├─ layout.tsx                     # Metadata, theme setup, provider, persistent shell
 │  ├─ manifest.ts                    # Web app manifest (installable PWA)
 │  ├─ page.tsx                       # /          overview
-│  ├─ plan/page.tsx                  # /plan      what to do next
 │  ├─ tasks/page.tsx                 # /tasks     the to-do list
 │  ├─ calendar/page.tsx              # /calendar  add another calendar
 │  ├─ announcements/page.tsx         # /announcements  course announcements
@@ -182,7 +176,6 @@ src/
 │  ├─ app-shell.tsx                  # Sidebar, header, footer
 │  ├─ connect-section.tsx            # Import form, course list, help text
 │  ├─ helper-section.tsx             # How to install the browser helper
-│  ├─ plan-section.tsx               # Overdue / at risk / upcoming plan rows
 │  ├─ tasks-section.tsx              # The dashboard's Today / Tomorrow / This week board
 │  ├─ todo-section.tsx               # The to-do list: open work by when, done work apart
 │  ├─ task-card.tsx                  # One task: badges, time, room, course picker
@@ -203,7 +196,6 @@ src/
    ├─ calendar-types.ts              # Shared types
    ├─ date-utils.ts                  # Shared local-date helpers
    ├─ effort.ts                      # Per-task effort estimates
-   ├─ plan.ts                        # Work remaining vs days left -> at-risk judgement
    ├─ courses.ts                     # Course list, per-task overrides, 1.0.1 migration
    ├─ calendar-source.ts             # Opt-in remembered feed URL
    ├─ export.ts                      # CSV export

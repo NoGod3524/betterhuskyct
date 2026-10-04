@@ -208,16 +208,6 @@ test("grades that arrive while the page is open tick the work without a reload",
   await view.unmount();
 });
 
-test("done work is left out of the plan", async () => {
-  const view = await mountTodo({ grades: GRADES });
-  const { overdue, atRisk, upcoming } = view.calendar.plan;
-  const planned = [...overdue, ...atRisk, ...upcoming].map((item) => item.task.title);
-
-  assert.ok(!planned.includes("Section 4.1 Homework") && !planned.includes("Section 4.2 Homework"), planned.join(", "));
-  assert.ok(planned.includes("Section 4.3 Homework"));
-  await view.unmount();
-});
-
 test("the course filter narrows the list to one course", async () => {
   const view = await mountTodo({ grades: GRADES });
 

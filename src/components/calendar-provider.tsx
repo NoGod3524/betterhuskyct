@@ -80,13 +80,7 @@ import {
   type CompletionSource,
 } from "@/lib/completion-storage";
 import { createDemoTasks, groupTasks } from "@/lib/calendar-view";
-import {
-  restoreEffortMap,
-  saveEffortMap,
-  withEffort,
-  type EffortLevel,
-  type EffortMap,
-} from "@/lib/effort";
+import { restoreEffortMap, saveEffortMap, type EffortMap } from "@/lib/effort";
 import { isCourseCatalogueLoaded, loadCourseCatalogue } from "@/lib/course-catalogue";
 import type { GradesSnapshot } from "@/lib/grades";
 import { GRADES_CHANGED, openGradesStore } from "@/lib/grades-store";
@@ -101,7 +95,6 @@ import {
   type DoneLabel,
   type DoneReason,
 } from "@/lib/task-status";
-import { buildPlan, type Plan } from "@/lib/plan";
 import {
   EMPTY_COURSE_BOOK,
   addCourse as addCourseToBook,
@@ -157,8 +150,6 @@ type CalendarContextValue = {
   visibleCount: number;
   dueSoon: CalendarTask[];
 
-  efforts: EffortMap;
-  setTaskEffort: (taskId: string, level: EffortLevel) => void;
   courses: Course[];
   addCourse: (code: string, component: CourseComponent | null) => void;
   editCourse: (
@@ -171,7 +162,6 @@ type CalendarContextValue = {
   followDefaultCourse: (taskId: string) => void;
   courseIdForTask: (taskId: string) => string | null | undefined;
   courseLabelFor: (task: CalendarTask) => CourseLabel | null;
-  plan: Plan;
 
   formattedToday: string;
 
@@ -822,14 +812,6 @@ export function CalendarProvider({
   // Work already handed in is not due soon.
   const dueSoon = useMemo(() => dueSoonTasks(tasks.filter((task) => !doneIds.has(task.id)), now), [tasks, doneIds, now]);
 
-  function setTaskEffort(taskId: string, level: EffortLevel) {
-    setEfforts((previous) => {
-      const next = withEffort(previous, taskId, level);
-      saveEffortMap(window.localStorage, next);
-      return next;
-    });
-  }
-
   /**
    * Course edits are saved on every keystroke, so the code is stored exactly as
    * typed — trimming here would swallow the space in "NRE 1000E".
@@ -1068,12 +1050,6 @@ export function CalendarProvider({
     clearSyncFragment();
   }
 
-  // Recomputed from the current tasks, so the plan always matches the screen.
-  const plan = useMemo(
-    () => buildPlan(tasks, doneIds, efforts, now),
-    [tasks, doneIds, efforts, now],
-  );
-
   // Nudge at most once per set of due tasks, and only while the app is open:
   // without a push server a web page cannot wake itself up in the background.
   useEffect(() => {
@@ -1219,8 +1195,6 @@ export function CalendarProvider({
     groups,
     visibleCount,
     dueSoon,
-    efforts,
-    setTaskEffort,
     courses: courseBook.courses,
     addCourse,
     editCourse,
@@ -1230,7 +1204,6 @@ export function CalendarProvider({
     followDefaultCourse,
     courseIdForTask: (taskId: string) => courseIdForTask(courseBook, taskId),
     courseLabelFor: labelFor,
-    plan,
     formattedToday,
     calendarName,
     formattedImportedAt,
