@@ -299,6 +299,8 @@ function openPage() {
     setTimeout,
     clearTimeout,
   };
+  // The sync that starts on its own when HuskyCT opens is tested on its own; here it would run in the middle of the tests.
+  window.localStorage.setItem("huskypilot.helper.sync.v1", JSON.stringify({ auto: false }));
   vm.createContext(sandbox);
   vm.runInContext(SOURCE, sandbox);
   const helper = (window as unknown as { __huskyctHelper: Helper }).__huskyctHelper;

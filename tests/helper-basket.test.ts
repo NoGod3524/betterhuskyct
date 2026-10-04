@@ -68,6 +68,7 @@ type Helper = {
   collectDueDates: (root: unknown) => Array<{ uid: string; title: string; course: string | null; due: Date }>;
   rememberDueDates: (basket: Basket, records: Basket["todos"], now?: Date) => { basket: Basket; changed: boolean };
   deadlineRecords: (basket: Basket) => Basket["todos"];
+  readSyncState: (storage: unknown) => { at: string | null; auto: boolean; pending: boolean; grades: unknown };
   collectEverything: (options?: Record<string, unknown>) => Promise<{
     courses: number;
     collected: number;
@@ -138,7 +139,16 @@ const ECON_ANNOUNCEMENTS = announcementsPage(
 type Opened = { url: string; target: string };
 
 /** A HuskyCT tab with the helper running in it. */
-function openPage(url: string, html: string, stored?: Basket) {
+type PageExtras = {
+  /** The helper's saved sync state. Off by default, so the sync that starts on its own does not run in the middle of other tests. */
+  sync?: Record<string, unknown>;
+  /** What HuskyCT's own data answers, where the default refuses everything. */
+  fetch?: (path: string) => Promise<unknown>;
+  /** What the page's window.open returns, where the default is a tab that answers nothing. */
+  open?: (link: string, target: string) => unknown;
+};
+
+function openPage(url: string, html: string, stored?: Basket, extras: PageExtras = {}) {
   const window = new Window({ url });
   windows.push(window);
   window.document.body.innerHTML = html;
@@ -146,13 +156,13 @@ function openPage(url: string, html: string, stored?: Basket) {
   // The stand-in HuskyCT serves pages, not data: the helper's direct reading finds
   // nothing to ask and reads the page, which is what these tests are about. Nothing
   // here may reach the real network.
-  (window as unknown as { fetch: () => Promise<never> }).fetch = () => Promise.reject(new Error("no network in tests"));
+  (window as unknown as { fetch: unknown }).fetch = extras.fetch ?? (() => Promise.reject(new Error("no network in tests")));
 
   const opened: Opened[] = [];
   const fakeTab = { opener: {} as unknown, focus() {} };
   (window as unknown as { open: (url: string, target: string) => unknown }).open = (link, target) => {
     opened.push({ url: String(link), target: String(target) });
-    return fakeTab;
+    return extras.open ? extras.open(link, target) : fakeTab;
   };
 
   const sandbox = {
@@ -171,6 +181,8 @@ function openPage(url: string, html: string, stored?: Basket) {
     setTimeout,
     clearTimeout,
   };
+  // The sync that starts on its own when HuskyCT opens is tested on its own; here it would run in the middle of the tests.
+  window.localStorage.setItem("huskypilot.helper.sync.v1", JSON.stringify(extras.sync ?? { auto: false }));
   vm.createContext(sandbox);
   vm.runInContext(SOURCE, sandbox);
 
@@ -614,6 +626,170 @@ test("a walk that falls short in a tab in the background says why", async () => 
   assert.ok(back.short, "the stand-in HuskyCT does not serve every gradebook, so something fell short");
   assert.ok(back.keys.includes("problemBackground"), "a walk that fell short in the background is told why");
   assert.ok(!(await keys(false)).keys.includes("problemBackground"), "in the front it is not blamed on the background");
+});
+
+// --- the quick sync ---------------------------------------------------------------------
+
+const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+
+/** HuskyCT's own data for two courses: their list, the student, announcements and gradebooks. */
+function syncData(log: string[] = []) {
+  const membership = (id: string, displayName: string, courseId: string) => ({
+    courseId: id,
+    isAvailable: true,
+    userHasHidden: false,
+    course: { id, courseId, displayName, isOrganization: false, isAvailable: true, effectiveAvailability: true },
+  });
+  return async (path: string) => {
+    log.push(path);
+    if (path.startsWith("/learn/api/v1/users/me/memberships")) {
+      return json({
+        paging: { count: 2, nextPage: "" },
+        results: [
+          membership("_203765_1", "MATH-1070Q-Mathematics for Business and Economics-SEC100-1268", "1268-UCONN-MATH-1070Q-SEC100-1191"),
+          membership("_198430_1", "ECON-1201-Principles of Microeconomics-SEC010-1268", "1268-UCONN-ECON-1201-SEC010-5757"),
+        ],
+      });
+    }
+    if (path === "/learn/api/v1/users/me") return json({ id: "_1003488_1" });
+    if (/\/_203765_1\/announcements/.test(path)) {
+      return json({ paging: { nextPage: "" }, results: [{ title: "Exam 1 is NEXT Tuesday!", body: { displayText: "<p>Covers Chapter 4.</p>" }, startDateRestriction: "2026-09-22T13:00:00.000Z", isDraft: false }] });
+    }
+    if (/\/announcements/.test(path)) return json({ paging: { nextPage: "" }, results: [] });
+    if (/\/_203765_1\/gradebook\/grades/.test(path)) {
+      return json({
+        paging: { count: 1, nextPage: "" },
+        results: [{ columnId: "_3876640_1", column: { id: "_3876640_1", effectiveColumnName: "Take-home Quiz 1" }, status: "GRADED", pointsPossible: 100, displayGrade: { score: 100 }, lastAttempt: { status: "COMPLETED" } }],
+      });
+    }
+    if (/\/gradebook\/grades/.test(path)) return json({ paging: { count: 0, nextPage: "" }, results: [] });
+    return new Response("{}", { status: 404 });
+  };
+}
+
+/** A BetterHuskyCT tab that answers the helper's hello and stores what it is sent, as the app does. */
+function appTab(getWindow: () => Window, messages: Array<{ protocol: string; kind: string }>, refuseGrades = false) {
+  return {
+    opener: {} as unknown,
+    closed: false,
+    focus() {},
+    location: { href: "about:blank" },
+    postMessage(message: { protocol: string; kind: string }) {
+      messages.push(message);
+      const answer = message.kind === "hello" ? { protocol: message.protocol, kind: "ready" } : ["sync", "grades"].includes(message.kind) ? { protocol: message.protocol, kind: "stored", ok: !(refuseGrades && message.kind === "grades") } : null;
+      if (!answer) return;
+      setTimeout(() => {
+        const window = getWindow() as unknown as { dispatchEvent: (event: unknown) => void; MessageEvent: new (type: string, init: unknown) => unknown };
+        window.dispatchEvent(new window.MessageEvent("message", { data: answer, origin: "https://betterhuskyct.vercel.app" }));
+      }, 0);
+    },
+  };
+}
+
+test("pressing Sync reads HuskyCT's data, opens no page, and sends it to BetterHuskyCT", async () => {
+  const messages: Array<{ protocol: string; kind: string }> = [];
+  const page: ReturnType<typeof openPage> = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, {
+    fetch: syncData(),
+    open: () => appTab(() => page.window, messages),
+  });
+  let moved = 0;
+  page.window.addEventListener("popstate", () => moved++);
+
+  page.button("sync").click();
+  await until(() => /Sent to BetterHuskyCT/.test(page.text('[data-role="sync"]')), 8000);
+
+  assert.match(page.text('[data-role="sync"]'), /Synced 2 course\(s\): 1 announcement\(s\), 1 grade item\(s\)/);
+  assert.equal(page.opened.length, 1);
+  assert.equal(page.opened[0].target, "betterhuskyct");
+  // Deadlines and announcements, then the gradebooks.
+  assert.deepEqual(messages.filter((message) => message.kind !== "hello").map((message) => message.protocol), ["betterhuskyct/tasks@1", "betterhuskyct/grades@1"]);
+  assert.equal(moved, 0, "a page was opened");
+  assert.equal(page.window.location.pathname, "/ultra/stream");
+  assert.deepEqual(page.basket().courses.find((course) => course.id === "_203765_1")?.announcements.map((a) => a.title), ["Exam 1 is NEXT Tuesday!"]);
+  const state = plain(page.helper.readSyncState(page.window.localStorage));
+  assert.equal(state.pending, false);
+  assert.ok(state.at && state.grades, "the reading was not kept");
+  assert.equal(page.text('[data-act="sync"]'), "Sync", "the button did not come back");
+});
+
+test("a sync that arrives only in part is not called sent, and stays waiting", async () => {
+  const messages: Array<{ protocol: string; kind: string }> = [];
+  const page: ReturnType<typeof openPage> = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, {
+    fetch: syncData(),
+    open: () => appTab(() => page.window, messages, true),
+  });
+
+  page.button("sync").click();
+  await until(() => /Only part of it reached/.test(page.text('[data-role="sync"]')), 8000);
+
+  assert.doesNotMatch(page.text('[data-role="sync"]'), /Sent to BetterHuskyCT/);
+  assert.equal(plain(page.helper.readSyncState(page.window.localStorage)).pending, true, "a half-sent sync was marked as done");
+});
+
+test("when the browser refuses the tab, the reading is kept and the Send buttons carry it on", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, { fetch: syncData(), open: () => null });
+
+  page.button("sync").click();
+  await until(() => /Not sent yet/.test(page.text('[data-role="sync"]')), 8000);
+
+  assert.equal(plain(page.helper.readSyncState(page.window.localStorage)).pending, true);
+  assert.equal(page.button("sendgrades").hidden, false, "the gradebooks cannot be sent from here");
+  assert.equal(page.button("todos").classList.contains("primary"), true, "the announcements cannot be sent from here");
+});
+
+test("when nothing can be read this way, Sync says so, moves nothing, and gives the screen back", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>");
+  let moved = 0;
+  page.window.addEventListener("popstate", () => moved++);
+
+  page.button("sync").click();
+  await until(() => /Nothing could be read this way/.test(page.text('[data-role="sync"]')), 8000);
+
+  assert.equal(moved, 0, "it fell back to opening pages");
+  assert.equal(page.text('[data-act="sync"]'), "Sync");
+  assert.equal(page.button("collectall").disabled, false);
+});
+
+test("on its own at open: a sync is read in the background, sends nowhere without a tab, and waits for a press", async () => {
+  const asked: string[] = [];
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, { fetch: syncData(asked), sync: { auto: true, at: null } });
+  let moved = 0;
+  page.window.addEventListener("popstate", () => moved++);
+
+  await until(() => /Read on its own/.test(page.text('[data-role="sync"]')), 8000);
+
+  assert.ok(asked.some((path) => path.includes("/announcements")), "nothing was read");
+  assert.equal(page.opened.length, 0, "a tab was opened with no press");
+  assert.equal(moved, 0);
+  assert.equal(plain(page.helper.readSyncState(page.window.localStorage)).pending, true);
+});
+
+test("on its own at open: not when it was done recently, not when it is switched off, not when HuskyCT cannot be read", async () => {
+  const recent = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const askedRecent: string[] = [];
+  const askedOff: string[] = [];
+  openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, { fetch: syncData(askedRecent), sync: { auto: true, at: recent } });
+  openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, { fetch: syncData(askedOff), sync: { auto: false, at: null } });
+  const signedOut = openPage("https://lms.uconn.edu/", `<form id="loginFormDiv"><input name="user_id"></form>`, undefined, { fetch: syncData(), sync: { auto: true, at: null } });
+
+  await new Promise((resolve) => setTimeout(resolve, 3600));
+
+  assert.deepEqual(askedRecent, [], "it ran again within hours");
+  assert.deepEqual(askedOff, [], "it ran when switched off");
+  assert.equal(signedOut.text('[data-role="sync"]'), "", "it ran on the sign-in page");
+});
+
+test("the switch for the sync on its own is kept, and says which way it is", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>");
+  assert.match(page.text('[data-act="autosync"]'), /: off$/, "the tests start with it off");
+
+  page.button("autosync").click();
+  await until(() => /: on$/.test(page.text('[data-act="autosync"]')));
+  assert.equal(plain(page.helper.readSyncState(page.window.localStorage)).auto, true);
+
+  page.button("autosync").click();
+  await until(() => /: off$/.test(page.text('[data-act="autosync"]')));
+  assert.equal(plain(page.helper.readSyncState(page.window.localStorage)).auto, false);
 });
 
 test("the course list comes from HuskyCT's data, while the to-do list is still read from the Courses page", async () => {
