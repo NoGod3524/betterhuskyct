@@ -712,6 +712,82 @@ test("pressing Sync reads HuskyCT's data, opens no page, and sends it to BetterH
   assert.equal(page.text('[data-act="sync"]'), "Sync", "the button did not come back");
 });
 
+// --- BetterHuskyCT's own Sync button asking the helper ----------------------------------
+
+const BHC = "https://betterhuskyct.vercel.app";
+const SYNC_PROTOCOL = "betterhuskyct/sync@1";
+
+/** BetterHuskyCT's window, as the helper sees it: it records what it is sent, and answers like the app. */
+function asker(getWindow: () => Window) {
+  const heard: Array<Record<string, unknown>> = [];
+  const tab = appTab(getWindow, heard as Array<{ protocol: string; kind: string }>);
+  return { tab, heard };
+}
+
+function request(page: ReturnType<typeof openPage>, source: unknown, origin = BHC, data: unknown = { protocol: SYNC_PROTOCOL, kind: "request" }) {
+  const target = page.window as unknown as { dispatchEvent: (event: unknown) => void; MessageEvent: new (type: string, init: unknown) => unknown };
+  target.dispatchEvent(new target.MessageEvent("message", { data, origin, source }));
+}
+
+test("BetterHuskyCT's request is answered, reported on as it goes, and what is read is sent back to the window that asked", async () => {
+  const page: ReturnType<typeof openPage> = openPage("https://lms.uconn.edu/ultra/course", "<main></main>", undefined, { fetch: syncData() });
+  const { tab, heard } = asker(() => page.window);
+  let moved = 0;
+  page.window.addEventListener("popstate", () => moved++);
+
+  request(page, tab);
+  await until(() => heard.some((message) => message.protocol === SYNC_PROTOCOL && message.kind === "done"), 8000);
+
+  const ofSync = plain(heard.filter((message) => message.protocol === SYNC_PROTOCOL));
+  assert.deepEqual(ofSync[0], { protocol: SYNC_PROTOCOL, kind: "ack", state: "started" });
+  assert.deepEqual(ofSync.filter((message) => message.kind === "progress").map((message) => [message.course, message.index, message.total]), [["MATH 1070Q", 1, 2], ["ECON 1201", 2, 2]]);
+  const done = ofSync[ofSync.length - 1];
+  assert.deepEqual(done, { protocol: SYNC_PROTOCOL, kind: "done", ok: true, courses: 2, announcements: 1, gradeItems: 1, skipped: [], sent: true });
+  // The announcements and the gradebooks went to the window that asked, nowhere else.
+  assert.deepEqual(heard.filter((message) => message.kind === "sync" || message.kind === "grades").map((message) => message.protocol), ["betterhuskyct/tasks@1", "betterhuskyct/grades@1"]);
+  assert.equal(page.opened.length, 0, "a tab was opened for a request that came from one");
+  assert.equal(moved, 0, "a page was opened");
+});
+
+test("a request while a sync is running is answered busy, and does not start a second one", async () => {
+  const page: ReturnType<typeof openPage> = openPage("https://lms.uconn.edu/ultra/course", "<main></main>", undefined, { fetch: syncData() });
+  const { tab, heard } = asker(() => page.window);
+
+  request(page, tab);
+  request(page, tab);
+  await until(() => heard.some((message) => message.protocol === SYNC_PROTOCOL && message.kind === "done"), 8000);
+
+  const acks = heard.filter((message) => message.protocol === SYNC_PROTOCOL && message.kind === "ack").map((message) => message.state);
+  assert.deepEqual(acks, ["started", "busy"]);
+  assert.equal(heard.filter((message) => message.kind === "done").length, 1, "two syncs ran");
+});
+
+test("only BetterHuskyCT's origin is heard, and only a request in the right shape", async () => {
+  const asked: string[] = [];
+  const page = openPage("https://lms.uconn.edu/ultra/course", "<main></main>", undefined, { fetch: syncData(asked) });
+  const { tab, heard } = asker(() => page.window);
+
+  request(page, tab, "https://evil.example");
+  request(page, tab, BHC, { protocol: SYNC_PROTOCOL, kind: "something-else" });
+  request(page, tab, BHC, { protocol: "other", kind: "request" });
+  request(page, tab, BHC, "request");
+  request(page, null);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  assert.equal(heard.length, 0, "something that should not have been answered was");
+  assert.deepEqual(asked, [], "a sync ran for a request that should have been refused");
+});
+
+test("a request on the sign-in page is answered, and then says nothing could be read", async () => {
+  const page = openPage("https://lms.uconn.edu/", `<form id="loginFormDiv"><input name="user_id"></form>`, undefined, { fetch: syncData() });
+  const { tab, heard } = asker(() => page.window);
+
+  request(page, tab);
+  await until(() => heard.some((message) => message.protocol === SYNC_PROTOCOL && message.kind === "done"), 3000);
+
+  assert.deepEqual(heard.filter((message) => message.protocol === SYNC_PROTOCOL).map((message) => [message.kind, message.ok ?? message.state]), [["ack", "started"], ["done", false]]);
+});
+
 test("a sync that arrives only in part is not called sent, and stays waiting", async () => {
   const messages: Array<{ protocol: string; kind: string }> = [];
   const page: ReturnType<typeof openPage> = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, {

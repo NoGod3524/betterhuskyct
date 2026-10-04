@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { HelperSyncButton } from "@/components/helper-sync-button";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   BellOff,
@@ -236,6 +237,7 @@ export function AppShell({
               <span className="font-display hidden text-lg font-semibold sm:inline">{t(locale, "app.name")}</span>
             </div>
             <div className="ml-auto flex items-center gap-3">
+              <HelperSyncButton variant="compact" />
               <div
                 role="group"
                 aria-label={t(locale, "language.label")}
