@@ -14,6 +14,25 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.17.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.17.0) — The Plan page is gone
+
+*Minor: a page is removed. HuskyCT Helper is unchanged at 1.5.3.*
+
+### Removed
+
+- **The Plan page.** The to-do list says what is overdue and what is due, with
+  done work folded away, and the calendar says when, so the Plan page repeated
+  both. Its sidebar and bottom-bar entry, its route and its strings are gone; the
+  bottom bar's four slots are now Dashboard, To-do, Calendar and Announcements,
+  with Materials, Grades and Helper behind More. A bookmark of `/plan` no longer
+  opens anything. ([#102])
+
+### Notes
+
+- **Effort marks are kept, but nothing sets them.** They were only ever set on the
+  Plan page. They are still stored and carried through a sync, so a link or a
+  saved set-up from before reads and writes back as it was.
+
 ## [1.16.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.16.2) — Grades are read from HuskyCT's new gradebook table
 
 *Patch: HuskyCT redrew the gradebook, and the helper found no grades in it. HuskyCT Helper goes from 1.5.1 to 1.5.3.*
@@ -1429,6 +1448,7 @@ saying what to work on next.*
 [#97]: https://github.com/NoGod3524/betterhuskyct/pull/97
 [#99]: https://github.com/NoGod3524/betterhuskyct/pull/99
 [#100]: https://github.com/NoGod3524/betterhuskyct/pull/100
+[#102]: https://github.com/NoGod3524/betterhuskyct/pull/102
 
 
 
