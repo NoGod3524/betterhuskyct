@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.7.0
+// @version      1.8.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.7.0";
+  const VERSION = "1.8.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1055,6 +1055,75 @@
     return found;
   }
 
+  // --- the course list, read from HuskyCT's own data --------------------------------------
+
+  /**
+   * The student's courses, asked for as the Courses page asks.
+   *
+   * Recorded on 2026-10-04: `GET /learn/api/v1/users/me/memberships?includeCount=true&limit=…
+   * &offset=0&expand=course.effectiveAvailability&sort=lastAccessDate(desc:nullslast)` answers
+   * `{ paging: { count, nextPage }, results: [...] }`, each a membership with `courseId` ("_203765_1"),
+   * `userHasHidden`, `isAvailable`, and a `course` holding `displayName` ("MATH-1070Q-…-SEC100-1268"),
+   * `courseId` (the readable id, which begins with the term code), `term.name` ("Fall 2026"),
+   * `isOrganization` and `effectiveAvailability`.
+   *
+   * It lists every course at once, with no "View All" to open and no cards to scroll into view. The
+   * same cards the page drew come out: not organizations, not courses the student cannot open, not
+   * ones they hid. Anything unexpected, or nothing at all, gives null and the page is read.
+   */
+  const COURSES_PAGE = 50;
+  const COURSES_MAX_PAGES = 20;
+
+  /** The term code of a course ("1268"), from its readable id or, failing that, its term's name. */
+  function termOfCourse(course) {
+    const fromId = /^(\d{4})-/.exec(String(course.courseId || ""));
+    if (fromId) return fromId[1];
+    const named = /(spring|summer|fall)\s+(\d{4})/i.exec(String((course.term && course.term.name) || ""));
+    if (!named) return null;
+    const season = { spring: 3, summer: 5, fall: 8 }[named[1].toLowerCase()];
+    return String(1000 + (Number(named[2]) % 100) * 10 + season);
+  }
+
+  /** A membership of HuskyCT's data as { id, code, term }, or null if it is not a course the student can read. */
+  function courseCardFromApi(membership) {
+    if (!membership || typeof membership !== "object") return null;
+    const course = membership.course && typeof membership.course === "object" ? membership.course : null;
+    const id = String(membership.courseId || (course && course.id) || "");
+    if (!course || !/^_\d+_\d+$/.test(id) || course.isOrganization) return null;
+    if (course.effectiveAvailability === false || course.isAvailable === false || membership.isAvailable === false || membership.userHasHidden === true) return null;
+    return {
+      id,
+      code: courseCodeFromDisplay(course.displayName) || courseCodeFromDisplay(course.name),
+      term: termOfCourse(course),
+    };
+  }
+
+  /** { recent, cards, queue, pageFound } for every course HuskyCT lists, or null if it could not be read this way. */
+  async function readCoursesApi(opts) {
+    const timeout = (opts && opts.apiTimeout) || 8000;
+    const cards = new Map();
+    let next = "/learn/api/v1/users/me/memberships?includeCount=true&limit=" + COURSES_PAGE + "&offset=0&expand=course.effectiveAvailability&sort=lastAccessDate(desc:nullslast)";
+    let rows = 0;
+    let expected = null;
+
+    for (let page = 0; next && page < COURSES_MAX_PAGES; page++) {
+      const answer = await fetchJson(next, timeout);
+      if (!answer || !Array.isArray(answer.results)) return null;
+      rows += answer.results.length;
+      if (answer.paging && typeof answer.paging.count === "number") expected = answer.paging.count;
+      for (const membership of answer.results) {
+        const card = courseCardFromApi(membership);
+        if (card && !cards.has(card.id)) cards.set(card.id, card);
+      }
+      const following = answer.paging && answer.paging.nextPage ? String(answer.paging.nextPage) : "";
+      next = /^\/learn\/api\/v1\/users\/me\/memberships/.test(following) && answer.results.length > 0 ? following : null;
+    }
+    // Short of what HuskyCT says is there, or nothing at all: not a course list to trust.
+    if (next || cards.size === 0 || (expected !== null && rows < expected)) return null;
+    const list = [...cards.values()];
+    return { recent: [], cards: list, queue: coursesToCollect(list, [], new Date()), pageFound: true };
+  }
+
   /**
    * UConn's term code for a date: `1` + the year's last two digits + the
    * season — 3 spring, 5 summer, 8 fall. 2026-09-27 is 1268, the prefix on
@@ -1244,6 +1313,11 @@
    * All" replaces it, for whatever else the caller wants from it.
    */
   async function findCourses(opts, onCoursesPage) {
+    // HuskyCT's own list first. A walk that wants only the list needs no page at all;
+    // one that reads the Courses page itself (its to-do list) still goes there below.
+    const listed = opts.useApi === false ? null : await readCoursesApi(opts);
+    if (listed && !onCoursesPage) return listed;
+
     // A course's own page is full of links into `/ultra/courses/`, and it stays
     // on screen for a moment after the move. Taking it for the Courses page read
     // one course, or none — so only what appears after the move counts, unless
@@ -1263,6 +1337,11 @@
     );
     const recent = courseLinksOnPage(document);
     if (onCoursesPage) await onCoursesPage(recent);
+    // The page's recent strip still says which term is current, as it always did; the
+    // list itself is HuskyCT's, so there is no "View All" to open and scroll.
+    if (listed) {
+      return { recent, cards: listed.cards, queue: coursesToCollect(listed.cards, recent, new Date()), pageFound: Boolean(pageFound) };
+    }
 
     const viewAll = document.querySelector(VIEW_ALL_COURSES);
     if (viewAll) viewAll.click();
@@ -3954,6 +4033,9 @@
       readAnnouncementsOf,
       readAnnouncementsApi,
       readUserId,
+      readCoursesApi,
+      courseCardFromApi,
+      termOfCourse,
       readGradesApi,
       gradeItemFromApi,
       postedText,
