@@ -69,7 +69,12 @@ test("a row says done when it has a score, is complete, or is handed in; not whe
   assert.equal(doneReasonOf(submitted("_1_1", "HW")), "submitted");
   assert.equal(doneReasonOf(row("_1_1", "HW", { status: "2 attempts submitted (1 Late)" })), "submitted");
   assert.equal(doneReasonOf(row("_1_1", "EA", { status: "First participated on 9/22/26" })), "submitted");
+  // The gradebook table's own words for its status column.
+  assert.equal(doneReasonOf(row("_1_1", "Exam", { status: "Submitted", label: "Not graded" })), "submitted");
+  assert.equal(doneReasonOf(row("_1_1", "Quiz", { status: "Graded" })), "graded");
+  assert.equal(doneReasonOf(row("_1_1", "Late", { status: "Submitted (Late)" })), "submitted");
   // Not in yet.
+  assert.equal(doneReasonOf(row("_1_1", "HW", { status: "Not submitted" })), null);
   assert.equal(doneReasonOf(row("_1_1", "HW")), null);
   assert.equal(doneReasonOf(row("_1_1", "Test", { status: "Attempt 2 started" })), null);
   assert.equal(doneReasonOf(row("_1_1", "EA", { status: "No participation (Late)" })), null);

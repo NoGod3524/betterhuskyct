@@ -113,6 +113,40 @@ const SOCI_PAGE = loaded(
     gradeRow("_4002_1", "EA 12: Assimilation: Into What?", { status: "No participation (Late)", score: [5, 10] }) +
     pager(1, 1),
 );
+/**
+ * A gradebook row as the table the page switched to on 2026-10-04 draws it: a
+ * `tr` with no `data-grade-id`, the item's id on its name, a status cell
+ * ("Submitted", "Graded") and a grade cell with the score or "Not graded".
+ */
+function tableRow(id: string, title: string, options: { status?: string; score?: [number, number]; label?: string; restricted?: boolean } = {}) {
+  const cell = (column: string, inside: string) => `<td tabindex="-1" aria-describedby="course-student-grades-header-${column}">${inside}</td>`;
+  const result = options.score
+    ? `<div><div><span aria-hidden="true"><span>${options.score[0]}</span><span>/</span><span>${options.score[1]}</span></span>` +
+      `<div>Final Grade: ${options.score[0]} points out of ${options.score[1]} points possible</div></div></div>`
+    : `<div><div><span>${options.label ?? "Not graded"}</span></div></div>`;
+  return (
+    `<tr data-testid="course-student-grades-table-row-${title}">` +
+    cell(
+      "itemName",
+      `<div><span><svg focusable="false" aria-hidden="true" role="presentation" viewBox="0 0 24 24"><path d="M6 8"></path></svg></span><div><div>` +
+        `<a href="#" data-analytics-id="course.student.grade.tableBody.tableRow._99_1.tableRow.table.item.link">` +
+        `<div id="course-student-grades-item-name-${id}">${title}${options.restricted ? `<span data-testid="student-item-name-restricted-label">(Content isn't available)</span>` : ""}</div></a></div></div></div>`,
+    ) +
+    cell("dueDate", `<div>9/11/26</div>`) +
+    cell("status", options.status ? `<div><span>${options.status}</span></div>` : "") +
+    cell("grade", result) +
+    cell("results", `<div><button>View</button></div>`) +
+    `</tr>`
+  );
+}
+
+const SOCI_TABLE_PAGE = loaded(
+  `<table><tbody>` +
+    tableRow("_4001_1", "EA 1: When Did You First Realize You Had a Race?", { status: "Graded", score: [10, 10] }) +
+    tableRow("_4002_1", "Exam 1", { status: "Submitted", restricted: true }) +
+    `</tbody></table>` +
+    pager(1, 1),
+);
 const ECON_PAGE = loaded(`<div><img src="./static/images/ftue/ftuMMicon_StudentNoGrades.png" alt=""><h1>Kick back and relax for now!</h1></div>`);
 
 const COURSE_CARDS =
@@ -137,6 +171,8 @@ type Trouble = {
   ignoreFirstNext?: boolean;
   /** Opening this course sends the tab to the sign-in page. */
   signedOutAt?: string;
+  /** SOCI is drawn as the table HuskyCT switched to, not as the cards it had before. */
+  tableLayout?: boolean;
 };
 
 function fakeHuskyct(window: Window, visited: string[], trouble: Trouble = {}) {
@@ -169,7 +205,7 @@ function fakeHuskyct(window: Window, visited: string[], trouble: Trouble = {}) {
       }, 60 + trouble.slowPager);
     } else if (grades && grades[1] === MATH) render(mathPage(1), TITLES[MATH]);
     else if (grades && grades[1] === ECON) render(ECON_PAGE, TITLES[ECON]);
-    else if (grades && grades[1] === SOCI) render(SOCI_PAGE, TITLES[SOCI]);
+    else if (grades && grades[1] === SOCI) render(trouble.tableLayout ? SOCI_TABLE_PAGE : SOCI_PAGE, TITLES[SOCI]);
     else render(`<p>${path}</p>`);
   });
 
@@ -246,6 +282,42 @@ test("a row reads as its title, its line, and a score or what is shown instead",
   assert.equal(read[5], null, "a row without a HuskyCT id was read");
   assert.equal(read[6], null, "a row without a title was read");
   assert.ok(window);
+});
+
+test("the table layout's rows are read: the id from the name, the status cell, and the score or its words from the grade cell", () => {
+  const { window, helper } = openPage();
+  window.document.body.innerHTML =
+    `<table><tbody>` +
+    tableRow("_3876639_1", "Exam 1", { status: "Submitted", restricted: true }) +
+    tableRow("_3876640_1", "Take-home Quiz 1", { status: "Graded", score: [100, 100] }) +
+    tableRow("_3876641_1", "Not due yet") +
+    tableRow("_3876642_1", "Lettered", { status: "Graded", label: "B+" }) +
+    `<tr data-testid="course-student-grades-table-row-Total"><td><div id="course-student-grades-item-name-undefined">Total</div></td></tr>` +
+    `</tbody></table>`;
+  const rows = [...window.document.querySelectorAll('tr[data-testid^="course-student-grades-table-row-"]')];
+
+  const read = rows.map((row) => plain(helper.readGradeRow(row)));
+
+  // "Not graded" is the words in the grade cell: the status "Submitted" beside it is not taken for them.
+  assert.deepEqual(read[0], { id: "_3876639_1", title: "Exam 1(Content isn't available)", status: "Submitted", earned: null, possible: null, label: "Not graded" });
+  assert.deepEqual(read[1], { id: "_3876640_1", title: "Take-home Quiz 1", status: "Graded", earned: 100, possible: 100, label: null });
+  assert.deepEqual([read[2]?.status, read[2]?.label], [null, "Not graded"]);
+  assert.equal(read[3]?.label, "B+");
+  assert.equal(read[4], null, "a row with no HuskyCT id in its name was read");
+});
+
+test("a gradebook drawn as the table is walked and read like the cards were", async () => {
+  const { helper } = openHuskyct({ tableLayout: true });
+
+  const manifest = plain(await helper.collectGrades(FAST));
+
+  assert.deepEqual(manifest.problems, []);
+  const soci = manifest.courses.find((course) => course.code === "SOCI 1501");
+  assert.equal(soci?.skipped, false);
+  assert.deepEqual(soci?.items.map((item) => [item.id, item.status, item.earned, item.label]), [
+    ["_4001_1", "Graded", 10, null],
+    ["_4002_1", "Submitted", null, "Not graded"],
+  ]);
 });
 
 // --- walking the gradebooks ------------------------------------------------------------
