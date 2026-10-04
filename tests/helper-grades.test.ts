@@ -293,8 +293,12 @@ test("a gradebook that never shows is left out, and reported", async () => {
     ["ECON 1201", true],
     ["SOCI 1501", false],
   ]);
-  assert.deepEqual(manifest.problems, [{ key: "problemGrades", params: { courses: "ECON 1201" } }]);
-  assert.equal(helper.problemsText(manifest.problems), "Self-check: these courses' grades did not open completely: ECON 1201.");
+  // The course is named, and so is what the page showed when it would not open.
+  assert.equal(manifest.problems.length, 1);
+  assert.equal(manifest.problems[0].key, "problemGrades");
+  const named = String((manifest.problems[0].params as { courses: string }).courses);
+  assert.match(named, /^ECON 1201 \[ECON 1201: path=\/ultra\/courses\/\S+\/grades rows=0 empty=0 pager=no hidden=(yes|no) signin=no title="/);
+  assert.match(helper.problemsText(manifest.problems), /^Self-check: these courses' grades did not open completely: ECON 1201 \[/);
   // What was not read is not sent, so it cannot replace what the app has.
   const sent = plain(helper.gradesSnapshotFrom(manifest)) as { courses: Array<{ code: string }> };
   assert.deepEqual(sent.courses.map((course) => course.code), ["MATH 1070Q", "SOCI 1501"]);
@@ -360,7 +364,8 @@ test("a course that never draws is tried twice, then named, and the others are s
 
   const manifest = plain(await helper.collectGrades({ ...FAST, retryPause: 20 }));
 
-  assert.deepEqual(manifest.problems, [{ key: "problemGrades", params: { courses: "ECON 1201" } }]);
+  assert.equal(manifest.problems.length, 1);
+  assert.match(String((manifest.problems[0].params as { courses: string }).courses), /^ECON 1201 \[ECON 1201: path=/);
   assert.equal(manifest.courses.find((course) => course.code === "SOCI 1501")?.items.length, 2);
 });
 
