@@ -597,6 +597,21 @@ test("one press also reads every course's gradebook and files, not only its anno
   assert.ok(Array.isArray(report.materials.courses));
 });
 
+test("a walk that falls short in a tab in the background says why", async () => {
+  const keys = async (hidden: boolean) => {
+    const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
+    fakeHuskyct(page.window);
+    Object.defineProperty(page.window.document, "hidden", { value: hidden, configurable: true });
+    const report = plain(await page.helper.collectEverything(FAST));
+    return { keys: report.problems.map((problem) => problem.key), short: [report.grades, report.materials].some((walked) => walked && (walked.courses as Array<{ skipped?: boolean }>).some((course) => course.skipped)) };
+  };
+
+  const back = await keys(true);
+  assert.ok(back.short, "the stand-in HuskyCT does not serve every gradebook, so something fell short");
+  assert.ok(back.keys.includes("problemBackground"), "a walk that fell short in the background is told why");
+  assert.ok(!(await keys(false)).keys.includes("problemBackground"), "in the front it is not blamed on the background");
+});
+
 test("one press reads the to-do list and every current course, then goes back where it started (narrow screen)", async () => {
   const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
   const huskyct = fakeHuskyct(page.window);
@@ -657,6 +672,20 @@ test("the panel's Collect everything turns into Stop while it runs, and Send lea
   assert.equal(page.button("todos").disabled, false);
   // The to-do list was read before the stop, so there is something to send.
   assert.equal(page.button("todos").classList.contains("primary"), true);
+});
+
+test("Collect everything opens no tab on the press, so HuskyCT stays in front for the whole walk", async () => {
+  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>");
+  fakeHuskyct(page.window);
+
+  page.button("collectall").click();
+  await until(() => page.text('[data-act="collectall"]') === "Stop");
+  // A tab opened now would take the focus, and a tab in the back does not load its pages.
+  assert.equal(page.opened.length, 0, "a tab was opened while the walk was still to run");
+
+  page.button("collectall").click();
+  await until(() => page.text('[data-act="collectall"]') === "Collect everything", 10000);
+  assert.equal(page.opened.length, 0, "a stopped walk is not sent, so it looks for no tab");
 });
 
 test("only this term's courses are read, and a later term's too", () => {

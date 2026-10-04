@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.5.0
+// @version      1.5.1
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.5.0";
+  const VERSION = "1.5.1";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -146,6 +146,7 @@
       gradesStopped: "Stopped. What was found so far is below.",
       gradesFailed: "Collecting grades stopped with an error: {message}",
       problemGrades: "these courses' grades did not open completely: {courses}.",
+      problemBackground: "This tab was in the background while it read, and a tab in the background does not load its pages. Keep this tab in front until it is done.",
       problemSignedOut: "HuskyCT asked you to sign in again part-way through. Sign in, then press Collect grades once more.",
       sendGrades: "Send grades to BetterHuskyCT ({count} item(s))",
       gradesSent: "In BetterHuskyCT: grades for {courses} course(s), {items} item(s).",
@@ -175,7 +176,7 @@
       collectFailed: "Collecting stopped with an error: {message}",
       sendingToBhc: " Sending it to BetterHuskyCT…",
       sentToBhc: " Sent to BetterHuskyCT: {deadlines} deadline(s), {announcements} announcement(s).",
-      sendToBhcFailed: " Could not reach BetterHuskyCT on its own. Press “{button}” below once.",
+      sendToBhcFailed: " Could not reach BetterHuskyCT on its own. Press the Send buttons below once.",
       clearBasket: "Clear basket",
       basketCleared: "Basket cleared.",
       basketNothing: "Nothing collected yet.",
@@ -245,6 +246,7 @@
       gradesStopped: "已停止。下面是目前读到的。",
       gradesFailed: "收集成绩时出错停止了：{message}",
       problemGrades: "这些课的成绩没能完整读取：{courses}。",
+      problemBackground: "读取时这个标签页在后台，后台的标签页不会加载页面。读取完成前请一直把它留在前台。",
       problemSignedOut: "读取到一半时 HuskyCT 让你重新登录了。请登录后再按一次「收集成绩」。",
       sendGrades: "把成绩发送到 BetterHuskyCT（{count} 项）",
       gradesSent: "BetterHuskyCT 里：{courses} 门课、{items} 项成绩。",
@@ -273,7 +275,7 @@
       collectFailed: "收集时出错停止了：{message}",
       sendingToBhc: "正在发给 BetterHuskyCT……",
       sentToBhc: "已发给 BetterHuskyCT：{deadlines} 条 deadline、{announcements} 条公告。",
-      sendToBhcFailed: "没能自动连上 BetterHuskyCT，按一下下面的「{button}」。",
+      sendToBhcFailed: "没能自动连上 BetterHuskyCT，按一下下面的发送按钮。",
       clearBasket: "清空篮子",
       basketCleared: "篮子已清空。",
       basketNothing: "还没有收集到任何内容。",
@@ -1310,6 +1312,10 @@
       if ((report.grades && report.grades.stopped) || (report.materials && report.materials.stopped)) {
         report.stopped = true;
       }
+      // A tab in the back does not draw its pages, so the walks read nothing. Say so,
+      // rather than only listing the courses that failed.
+      const fellShort = [report.grades, report.materials].some((walked) => walked && walked.courses.some((course) => course.skipped));
+      if (fellShort && document.hidden) report.problems.push({ key: "problemBackground" });
     } finally {
       // 5. Back to the page the student pressed the button on.
       routeTo(returnTo);
@@ -2667,13 +2673,15 @@
   }
 
   /**
-   * The BetterHuskyCT tab a press sends to, opened on the press itself.
+   * The BetterHuskyCT tab to send to, found once the walk is over.
    *
-   * A walk takes minutes, and a browser only lets a script open a tab in the
-   * instant of a press: opened later, it is a popup and gets blocked. So the
-   * tab is opened (or the one already open is found) before the walk starts,
-   * and the results are sent to it at the end. A tab that is already on
-   * BetterHuskyCT is left as it is, so nothing reloads under the student.
+   * It must not be opened before the walk: a new tab takes the focus, the
+   * HuskyCT tab goes to the back, and a tab in the back has its timers slowed
+   * and its pages not drawn, so every course fails to open (1.5.0 did this).
+   * After the walk a browser no longer lets a script open a new tab, but a
+   * tab this script opened earlier is found by its name and is not a popup.
+   * When there is none, nothing opens and the Send buttons do it on a press.
+   * A tab already on BetterHuskyCT is left as it is, so nothing reloads.
    */
   function openBhcTab() {
     try {
@@ -3060,8 +3068,6 @@
         }
 
         walk = { stop: false, kind: "basket" };
-        // Opened on the press, before the walk starts: see openBhcTab.
-        const bhcTab = openBhcTab();
         refreshBasket();
         status.className = "note";
         try {
@@ -3107,6 +3113,8 @@
           // then the files. Each is the same route its own button uses, so
           // nothing is pasted or confirmed on the other side. A stopped walk
           // is not sent; its own button sends what it has.
+          // Looked for only now, with the HuskyCT tab still in front for the whole walk.
+          const bhcTab = report.stopped ? null : openBhcTab();
           if (!report.stopped && bhcTab) {
             status.textContent = collectedText + t("sendingToBhc");
             const parts = [];
