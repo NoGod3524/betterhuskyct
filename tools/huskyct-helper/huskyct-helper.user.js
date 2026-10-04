@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.6.0
+// @version      1.7.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -42,7 +42,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.6.0";
+  const VERSION = "1.7.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -2109,6 +2109,90 @@
     return second.complete || second.items.length >= first.items.length ? second : first;
   }
 
+  // --- grades, read from HuskyCT's own data --------------------------------------------
+
+  /**
+   * A course's gradebook rows, asked for as the Grades page asks.
+   *
+   * Recorded on 2026-10-04: `GET /learn/api/v1/courses/<id>/gradebook/grades?userId=<me>&limit=25
+   * &offset=0&sort=…&expand=lastAttempt,attemptsLeft,submissionStatus,column&includeNoGradeItems=…`
+   * answers `{ paging: { count, nextPage }, results: [...] }`. A row has `columnId` (the item's id, the
+   * same one the page's table carried), `column.effectiveColumnName` (its name), `status` ("GRADED"),
+   * `displayGrade.score` and `pointsPossible`, `lastAttempt.status` ("COMPLETED" once handed in) and
+   * `isExempt`.
+   *
+   * Only what was seen is trusted. A score counts only on a row whose status is GRADED, and an
+   * attempt counts as handed in only when it is COMPLETED, so a value this has not seen leaves the
+   * work open rather than marking it done, which is what the to-do list prefers. Anything unexpected,
+   * or fewer rows than the answer says there are, gives null and the page is read instead.
+   */
+  const GRADES_PAGE = 25;
+  const GRADES_MAX_PAGES = 40;
+
+  /** The signed-in student's id, as "_1003488_1", or null. */
+  async function readUserId(opts) {
+    const me = await fetchJson("/learn/api/v1/users/me", (opts && opts.apiTimeout) || 8000);
+    const id = me && typeof me.id === "string" ? me.id : null;
+    return id && /^_\d+_\d+$/.test(id) ? id : null;
+  }
+
+  /** One gradebook row of HuskyCT's data as { id, title, status, earned, possible, label }, or null if it is not an item. */
+  function gradeItemFromApi(row) {
+    if (!row || typeof row !== "object") return null;
+    const column = row.column && typeof row.column === "object" ? row.column : {};
+    const id = String(row.columnId || column.id || "");
+    if (!/^_\d+_\d+$/.test(id) || column.deleted) return null;
+    const title = textOf({ textContent: column.effectiveColumnName || column.columnName });
+    if (!title) return null;
+
+    const item = { id, title: title.slice(0, 400), status: null, earned: null, possible: null, label: null };
+    const graded = row.status === "GRADED";
+    const display = row.displayGrade && typeof row.displayGrade === "object" ? row.displayGrade : {};
+    const score = typeof display.score === "number" ? display.score : typeof row.effectiveScore === "number" ? row.effectiveScore : null;
+    const possible = typeof row.pointsPossible === "number" ? row.pointsPossible : typeof column.possible === "number" ? column.possible : null;
+    if (graded && score !== null && possible !== null && score <= MAX_GRADE_POINTS && possible <= MAX_GRADE_POINTS) {
+      item.earned = score;
+      item.possible = possible;
+      item.status = "Graded";
+      return item;
+    }
+    const attempt = row.lastAttempt && typeof row.lastAttempt === "object" ? row.lastAttempt : null;
+    if (attempt && attempt.status === "COMPLETED") item.status = "Submitted";
+    item.label = row.isExempt ? "Exempt" : "Not graded";
+    return item;
+  }
+
+  /** The course's gradebook items, or null if they could not be read this way. */
+  async function readGradesApi(courseId, userId, opts) {
+    const timeout = (opts && opts.apiTimeout) || 8000;
+    const items = [];
+    const seen = new Set();
+    let next =
+      "/learn/api/v1/courses/" + encodeURIComponent(courseId) + "/gradebook/grades?userId=" + encodeURIComponent(userId) +
+      "&limit=" + GRADES_PAGE + "&offset=0&sort=column.position(asc)&expand=lastAttempt,attemptsLeft,submissionStatus,column&includeNoGradeItems=true";
+    let rows = 0;
+    let expected = null;
+
+    for (let page = 0; next && page < GRADES_MAX_PAGES; page++) {
+      const answer = await fetchJson(next, timeout);
+      if (!answer || !Array.isArray(answer.results)) return null;
+      rows += answer.results.length;
+      if (answer.paging && typeof answer.paging.count === "number") expected = answer.paging.count;
+      for (const row of answer.results) {
+        const item = gradeItemFromApi(row);
+        if (item && !seen.has(item.id)) {
+          seen.add(item.id);
+          items.push(item);
+        }
+      }
+      const following = answer.paging && answer.paging.nextPage ? String(answer.paging.nextPage) : "";
+      next = /^\/learn\/api\/v1\/courses\//.test(following) && answer.results.length > 0 ? following : null;
+    }
+    // Stopped short of what HuskyCT says is there: not a whole gradebook, so it is not sent as one.
+    if (next || (expected !== null && rows < expected)) return null;
+    return items;
+  }
+
   /**
    * The walk for grades: each current course's gradebook, all its pages.
    * A course whose gradebook did not open, or not to the last page, is marked
@@ -2138,6 +2222,8 @@
       const { queue } = found;
       manifest.problems.push(...coursesProblems(found));
       manifest.term = walkTerm(found);
+      // Who is signed in, which HuskyCT's gradebook data is asked for by. Without it every course is read from its page.
+      const userId = opts.useApi === false ? null : await readUserId(opts);
 
       for (let index = 0; index < queue.length; index++) {
         if (opts.shouldStop()) {
@@ -2146,7 +2232,9 @@
         }
         const course = queue[index];
         opts.onProgress({ step: "grades", course, index: index + 1, total: queue.length });
-        const read = await readGradesOf(course.id, course.code, opts);
+        // HuskyCT's own data first: no page to open. The page is read only if that failed.
+        const direct = userId ? await readGradesApi(course.id, userId, opts) : null;
+        const read = direct ? { items: direct, complete: true, reason: null, at: null } : await readGradesOf(course.id, course.code, opts);
         manifest.courses.push({
           id: course.id,
           code: course.code,
@@ -3865,6 +3953,9 @@
       termCodeFor,
       readAnnouncementsOf,
       readAnnouncementsApi,
+      readUserId,
+      readGradesApi,
+      gradeItemFromApi,
       postedText,
       htmlToText,
       collectEverything,
