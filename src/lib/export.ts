@@ -17,7 +17,7 @@ const CSV_HEADERS = [
 export const CSV_BOM = "\uFEFF";
 
 /** Quote a cell when it contains a delimiter, a quote, or a line break. */
-function csvCell(value: string): string {
+export function csvCell(value: string): string {
   if (/[",\r\n]/.test(value)) {
     return `"${value.replaceAll('"', '""')}"`;
   }
