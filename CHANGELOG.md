@@ -14,6 +14,34 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.20.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.20.0) — AI finds the dates in syllabi and announcements
+
+*Minor: a new capability. HuskyCT Helper is unchanged at 1.10.0.*
+
+### Added
+
+- **Dates found by AI**, a card on the to-do page, off until turned on. It reads
+  each course's syllabus among the helper's files (a PDF or Word file named like
+  one, and a separate schedule if there is one) once, and each new announcement
+  once, and lists the exams, due dates, days off and things to do in them, each
+  with the source's own words. Rows are ticked unless they are already in the
+  calendar or already past; a date can be changed; a weekday in the source that
+  does not fall on the date (last year's syllabus) is pointed out. Ticked dated
+  rows become calendar events, and so to-dos; unticked ones are let go and not
+  offered again. The text goes, with email addresses, phone numbers and links
+  replaced, through a new endpoint (`/api/plan/extract`) to the same models and
+  under the same Model choice as the summaries. The overview says when there is
+  something to check. ([#114])
+- **A No date group on the to-do page**, for what has no day: "buy the
+  textbook", or an exam a syllabus puts only in "Week 5". Each can be ticked done
+  or removed. ([#114])
+
+### Fixed
+
+- **An all-day event added on the calendar landed a day early** anywhere ahead of
+  UTC, such as New Zealand: its day was taken from the UTC date of local midnight.
+  It now keeps the local day it was added on. ([#113])
+
 ## [1.19.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.19.0) — Grades can be exported as a CSV file
 
 *Minor: a new capability. HuskyCT Helper is unchanged at 1.10.0.*
@@ -1527,6 +1555,8 @@ saying what to work on next.*
 [#108]: https://github.com/NoGod3524/betterhuskyct/pull/108
 [#109]: https://github.com/NoGod3524/betterhuskyct/pull/109
 [#111]: https://github.com/NoGod3524/betterhuskyct/pull/111
+[#113]: https://github.com/NoGod3524/betterhuskyct/pull/113
+[#114]: https://github.com/NoGod3524/betterhuskyct/pull/114
 
 
 
