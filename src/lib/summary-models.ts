@@ -118,7 +118,7 @@ export function redactRequest(request: SummaryRequest): SummaryRequest {
   };
 }
 
-type ChatMessage = { role: "system" | "user"; content: string };
+export type ChatMessage = { role: "system" | "user"; content: string };
 
 /** Named in the language itself as well, which small models follow more reliably. */
 const LANGUAGE_NAMES: Record<SummaryLocale, string> = {
@@ -213,7 +213,7 @@ export class ModelError extends Error {
   }
 }
 
-type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
+export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
 type ChatResponse = {
   choices?: Array<{ message?: { content?: unknown }; finish_reason?: unknown }>;
@@ -222,7 +222,28 @@ type ChatResponse = {
 /** Finish reasons that mean a filter stopped the answer: GLM's, then the OpenAI-style one Gemini uses. */
 const FILTERED = new Set(["sensitive", "content_filter"]);
 
-async function callOnce(provider: ModelProvider, request: SummaryRequest, fetchImpl: FetchLike): Promise<string> {
+/** How one request to a provider is shaped. Summaries keep the defaults. */
+export type ChatOptions = {
+  temperature?: number;
+  maxTokens?: number;
+  /** Ask for a JSON object back; both providers' OpenAI-style endpoints take it. */
+  json?: boolean;
+  timeoutMs?: number;
+};
+
+/**
+ * One request to one provider, and its answer's text.
+ *
+ * Every way it can go wrong becomes a `ModelError`: a 429 is `busy`, a content
+ * filter is `refused`, and anything else — no answer, an empty one, a timeout —
+ * is `failed`.
+ */
+export async function chatOnce(
+  provider: ModelProvider,
+  messages: ChatMessage[],
+  fetchImpl: FetchLike,
+  options: ChatOptions = {},
+): Promise<string> {
   let response: Response;
   try {
     response = await fetchImpl(provider.endpoint, {
@@ -233,12 +254,13 @@ async function callOnce(provider: ModelProvider, request: SummaryRequest, fetchI
       },
       body: JSON.stringify({
         model: provider.model,
-        messages: summaryMessages(request),
-        temperature: 0.3,
-        max_tokens: 1024,
+        messages,
+        temperature: options.temperature ?? 0.3,
+        max_tokens: options.maxTokens ?? 1024,
+        ...(options.json ? { response_format: { type: "json_object" } } : {}),
         ...provider.extra,
       }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(options.timeoutMs ?? TIMEOUT_MS),
     });
   } catch {
     throw new ModelError("failed", provider.id);
@@ -261,10 +283,15 @@ async function callOnce(provider: ModelProvider, request: SummaryRequest, fetchI
 
   const content = typeof choice?.message?.content === "string" ? choice.message.content.trim() : "";
   if (!content) throw new ModelError("failed", provider.id, response.status);
+  return content;
+}
+
+async function callOnce(provider: ModelProvider, request: SummaryRequest, fetchImpl: FetchLike): Promise<string> {
+  const content = await chatOnce(provider, summaryMessages(request), fetchImpl);
   // A summary in the wrong language is not shown: the next provider gets a
   // turn, and if none writes in the page's language the reader is told it
   // failed rather than handed one they asked not to read.
-  if (!writtenIn(content, request.locale)) throw new ModelError("failed", provider.id, response.status);
+  if (!writtenIn(content, request.locale)) throw new ModelError("failed", provider.id);
   return content;
 }
 
@@ -275,37 +302,34 @@ function combinedProblem(errors: ModelError[]): ModelProblem {
   return "failed";
 }
 
+export type FallbackOptions = {
+  providers: ModelProvider[];
+  country?: string | null;
+  wait?: (ms: number) => Promise<void>;
+  onError?: (error: ModelError) => void;
+};
+
 /**
- * One summary from the first provider that gives one.
+ * The first answer any provider gives, trying them in order.
  *
- * The request is redacted once, before any provider sees it. A provider that
- * cannot serve the reader's country is skipped. A busy provider is passed over
- * for the next one straight away; only the last one left is waited on and
- * retried once. `onError` sees every failure, for the server log.
+ * A provider that cannot serve the reader's country is skipped. A busy provider
+ * is passed over for the next one straight away; only the last one left is
+ * waited on and retried once. `onError` sees every failure, for the server log.
  */
-export async function summarizeAnnouncements(
-  request: SummaryRequest,
-  options: {
-    providers: ModelProvider[];
-    country?: string | null;
-    fetchImpl?: FetchLike;
-    wait?: (ms: number) => Promise<void>;
-    onError?: (error: ModelError) => void;
-  },
-): Promise<{ text: string; provider: ProviderId }> {
-  const fetchImpl = options.fetchImpl ?? fetch;
+export async function firstAnswer<T>(
+  options: FallbackOptions,
+  ask: (provider: ModelProvider) => Promise<T>,
+): Promise<{ value: T; provider: ProviderId }> {
   const wait = options.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const usable = options.providers.filter((provider) => provider.servesCountry(options.country ?? null));
   if (usable.length === 0) throw new ModelError("failed");
 
-  const safe = redactRequest(request);
   const errors: ModelError[] = [];
-
   for (const [index, provider] of usable.entries()) {
     const isLast = index === usable.length - 1;
     for (let attempt = 0; attempt < (isLast ? 2 : 1); attempt += 1) {
       try {
-        return { text: await callOnce(provider, safe, fetchImpl), provider: provider.id };
+        return { value: await ask(provider), provider: provider.id };
       } catch (caught) {
         const error = caught instanceof ModelError ? caught : new ModelError("failed", provider.id);
         errors.push(error);
@@ -317,4 +341,19 @@ export async function summarizeAnnouncements(
   }
 
   throw new ModelError(combinedProblem(errors));
+}
+
+/**
+ * One summary from the first provider that gives one.
+ *
+ * The request is redacted once, before any provider sees it.
+ */
+export async function summarizeAnnouncements(
+  request: SummaryRequest,
+  options: FallbackOptions & { fetchImpl?: FetchLike },
+): Promise<{ text: string; provider: ProviderId }> {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const safe = redactRequest(request);
+  const { value, provider } = await firstAnswer(options, (provider) => callOnce(provider, safe, fetchImpl));
+  return { text: value, provider };
 }

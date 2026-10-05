@@ -4,8 +4,10 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronRight } from "lucide-react";
 
+import { AiPlanPanel } from "@/components/ai-plan-panel";
 import { useCalendar } from "@/components/calendar-provider";
 import { TaskCard } from "@/components/task-card";
+import { UndatedTodoList } from "@/components/undated-todo-list";
 import { isDeadline, type CalendarTask } from "@/lib/calendar-types";
 import { dueTimestamp } from "@/lib/date-utils";
 import { intlLocale, t, type Locale, type TranslationKey } from "@/lib/i18n";
@@ -129,6 +131,8 @@ export function TodoSection() {
         )}
       </p>
 
+      <AiPlanPanel />
+
       {codes.length > 1 ? (
         <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label={t(locale, "todo.filter")}>
           <FilterChip active={course === null} onClick={() => setCourse(null)}>
@@ -196,6 +200,10 @@ export function TodoSection() {
           ) : null}
         </div>
       )}
+
+      <div className="mt-6 empty:hidden">
+        <UndatedTodoList locale={locale} course={course} />
+      </div>
     </section>
   );
 }
