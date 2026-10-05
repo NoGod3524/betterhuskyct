@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 import { AppShell } from "@/components/app-shell";
+import { AiPlanProvider } from "@/components/ai-plan-provider";
 import { CalendarProvider } from "@/components/calendar-provider";
 import { HelperDeliveries } from "@/components/helper-deliveries";
 import { HelperSyncProvider } from "@/components/helper-sync-button";
@@ -70,7 +71,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <CalendarProvider initialNow={new Date().toISOString()}>
           <HelperDeliveries />
           <HelperSyncProvider>
-            <AppShell version={packageJson.version}>{children}</AppShell>
+            <AiPlanProvider>
+              <AppShell version={packageJson.version}>{children}</AppShell>
+            </AiPlanProvider>
           </HelperSyncProvider>
         </CalendarProvider>
         <ServiceWorkerRegistrar />

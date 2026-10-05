@@ -221,6 +221,8 @@ type CalendarContextValue = {
   /** Whether this imported event has been corrected or deleted on this device. */
   isEventEdited: (taskId: string) => boolean;
   addCustomEvent: (input: CustomEventInput) => void;
+  /** Several at once, as one save: the AI list adds what was ticked in one press. */
+  addCustomEvents: (inputs: CustomEventInput[]) => void;
 };
 
 const CalendarContext = createContext<CalendarContextValue | null>(null);
@@ -391,6 +393,10 @@ export function CalendarProvider({
 
   function addCustomEvent(input: CustomEventInput) {
     commitCustomEvents([...customEvents, buildCustomEvent(input)]);
+  }
+
+  function addCustomEvents(inputs: CustomEventInput[]) {
+    if (inputs.length > 0) commitCustomEvents([...customEvents, ...inputs.map(buildCustomEvent)]);
   }
 
   /**
@@ -1248,6 +1254,7 @@ export function CalendarProvider({
     eventNoteFor,
     isEventEdited,
     addCustomEvent,
+    addCustomEvents,
   };
 
   return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>;
