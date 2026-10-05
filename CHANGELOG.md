@@ -14,6 +14,21 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.19.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.19.0) — Grades can be exported as a CSV file
+
+*Minor: a new capability. HuskyCT Helper is unchanged at 1.10.0.*
+
+### Added
+
+- **An Export CSV button in Grades**, next to Clear grades. It saves the stored
+  gradebooks as `huskypilot-grades-YYYY-MM-DD.csv`, one row per item in HuskyCT's
+  order: course, term, item, status, earned, possible, the item's own percent to a
+  tenth, HuskyCT's result label, and when it was read. The percent is blank when
+  there is no score or the item is out of 0, and it is not a course grade, since
+  weights and drops are not in what HuskyCT shows. Text a spreadsheet would run as
+  a formula is written as text. The file is made in the browser and starts with a
+  byte-order mark so Excel reads Chinese correctly; nothing is sent anywhere. ([#111])
+
 ## [1.18.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.18.0) — Sync from BetterHuskyCT, and the helper reads HuskyCT's own data
 
 *Minor: BetterHuskyCT gets a Sync button that has the helper read HuskyCT in the background, and the helper reads announcements, grades and the course list from the data HuskyCT's own pages use instead of walking those pages. HuskyCT Helper goes from 1.5.3 to 1.10.0.*
@@ -1511,6 +1526,7 @@ saying what to work on next.*
 [#107]: https://github.com/NoGod3524/betterhuskyct/pull/107
 [#108]: https://github.com/NoGod3524/betterhuskyct/pull/108
 [#109]: https://github.com/NoGod3524/betterhuskyct/pull/109
+[#111]: https://github.com/NoGod3524/betterhuskyct/pull/111
 
 
 
