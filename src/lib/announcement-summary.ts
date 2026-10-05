@@ -110,7 +110,7 @@ type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 /** A summary, and which service wrote it — the page says so under the text. */
 export type ReceivedSummary = { text: string; provider: ProviderId | null };
 
-const PROVIDERS: readonly ProviderId[] = ["glm", "gemini"];
+const PROVIDERS: readonly ProviderId[] = ["glm", "gemini", "groq"];
 
 export async function requestSummary(
   request: SummaryRequest,

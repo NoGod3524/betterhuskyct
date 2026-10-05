@@ -220,6 +220,8 @@ export async function extractPlan(
       maxTokens: 4096,
       json: true,
       timeoutMs: PLAN_TIMEOUT_MS,
+      // Fewer than this and a long list would be cut off mid-answer.
+      minTokens: 1_500,
     });
     const items = parsePlanAnswer(content, safe.announcements.length);
     if (!items) throw new ModelError("failed", provider.id);

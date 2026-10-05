@@ -31,6 +31,7 @@ type MadeSummary = {
 const CREDIT_KEYS = {
   glm: "summary.creditGlm",
   gemini: "summary.creditGemini",
+  groq: "summary.creditGroq",
 } as const;
 
 /**
@@ -68,12 +69,14 @@ const CHOICE_KEYS = {
   auto: "summary.choiceAuto",
   glm: "summary.choiceGlm",
   gemini: "summary.choiceGemini",
+  groq: "summary.choiceGroq",
 } as const;
 
 /** What the choice means for where the text goes, said under the button. */
 const CHOICE_NOTE_KEYS = {
   glm: "summary.choiceNoteGlm",
   gemini: "summary.choiceNoteGemini",
+  groq: "summary.choiceNoteGroq",
 } as const;
 
 /**

@@ -243,13 +243,13 @@ test("the page says, in both languages, who Z.ai is and that it is on the U.S. E
   assert.match(t("zh-CN", "summary.disclosure"), /2025 年 1 月/);
 });
 
-test("the panel offers the three models, automatic first, and says what each means", async () => {
+test("the panel offers the four models, automatic first, and says what each means", async () => {
   unique += 1;
   const view = await render(panel("en", MATH, [announcement("a")]));
   const dropdown = window.document.querySelector("select") as unknown as HTMLSelectElement;
 
   assert.ok(dropdown, "no model choice");
-  assert.deepEqual([...dropdown.options].map((o) => o.value), ["auto", "glm", "gemini"]);
+  assert.deepEqual([...dropdown.options].map((o) => o.value), ["auto", "glm", "gemini", "groq"]);
   assert.equal(dropdown.value, "auto");
   assert.ok(view.text().includes(t("en", "summary.choiceAuto")));
   // Automatic needs no extra note: the standing disclosure covers it.
@@ -336,4 +336,20 @@ test("the model choice is labelled in Chinese too", () => {
   for (const key of ["summary.modelLabel", "summary.choiceAuto", "summary.choiceGlm", "summary.choiceGemini", "summary.choiceNoteGlm", "summary.choiceNoteGemini", "summary.errorRegion", "summary.errorChoice"] as const) {
     assert.ok(t("zh-CN", key) && t("zh-CN", key) !== t("en", key), `${key} is not translated`);
   }
+});
+
+test("choosing Groq only says it reads a limited amount, sends the choice, and credits Groq", async () => {
+  unique += 1;
+  const sent = stubEndpoint(() => Response.json({ summary: "- ok", provider: "groq" }));
+  const view = await render(panel("en", MATH, [announcement("a")]));
+
+  await choose("groq");
+  assert.ok(view.text().includes(t("en", "summary.choiceNoteGroq")));
+  assert.match(t("zh-CN", "summary.choiceNoteGroq"), /8000/);
+
+  await act(async () => view.button("Summarize")!.click());
+  await settle();
+  assert.equal((sent[0].body as { provider?: string }).provider, "groq");
+  assert.ok(view.text().includes(t("en", "summary.creditGroq")), "the summary did not say Groq wrote it");
+  await view.unmount();
 });

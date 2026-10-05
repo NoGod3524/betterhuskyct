@@ -34,8 +34,8 @@ const blocked = {
   },
 };
 
-test("there are three choices, and only those are accepted", () => {
-  assert.deepEqual([...SUMMARY_CHOICES], ["auto", "glm", "gemini"]);
+test("there are four choices, and only those are accepted", () => {
+  assert.deepEqual([...SUMMARY_CHOICES], ["auto", "glm", "gemini", "groq"]);
   for (const ok of SUMMARY_CHOICES) assert.equal(isSummaryChoice(ok), true);
   for (const bad of ["openai", "", "GLM", null, undefined, 1, {}]) assert.equal(isSummaryChoice(bad), false, String(bad));
 });

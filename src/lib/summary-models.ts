@@ -1,8 +1,8 @@
 /**
  * Summarising announcements with a hosted model, on the server.
  *
- * Two free providers, tried in order, both through the same OpenAI-style chat
- * endpoint:
+ * Up to three free providers, tried in order, all through the same OpenAI-style
+ * chat endpoint:
  *
  * 1. Z.ai's `glm-4.7-flash`. Operated from Singapore; its API terms say content
  *    is "processed in real-time … and is not saved on our servers". It serves
@@ -12,12 +12,16 @@
  *    read by reviewers, personal information should not be sent, and it may not
  *    serve users in the EEA, Switzerland or the UK. Hence the redaction below,
  *    the region check, and the page saying all of this before anyone presses.
+ * 3. Groq, when both are busy or failing. Its terms say inputs are not used for
+ *    training and are not kept unless it is investigating abuse. Its free tier
+ *    takes at most 8,000 tokens a request, counting the answer it is allowed to
+ *    give, so a long syllabus skips it.
  *
  * Keys live only in the server's environment; the page never sees them. Every
  * function takes `fetch` as a parameter so each path is testable offline.
  */
 
-export type ProviderId = "glm" | "gemini";
+export type ProviderId = "glm" | "gemini" | "groq";
 
 export type SummaryLocale = "en" | "zh-CN";
 
@@ -44,6 +48,11 @@ export type ModelProvider = {
   extra: Record<string, unknown>;
   /** Whether this provider may serve a reader in the given country (ISO code, or null if unknown). */
   servesCountry: (country: string | null) => boolean;
+  /**
+   * The most a single request may hold, question and allowed answer together,
+   * when the provider refuses anything bigger outright rather than queueing it.
+   */
+  maxRequestTokens?: number;
 };
 
 const TIMEOUT_MS = 30_000;
@@ -63,7 +72,7 @@ const PAID_ONLY_GEMINI_COUNTRIES = new Set([
 /**
  * The providers this server has keys for, in the order to try them.
  *
- * Model names can be overridden, because both companies move their free
+ * Model names can be overridden, because the companies move their free
  * models around; the defaults are the ones current when this was written.
  */
 export function providersFromEnv(env: Record<string, string | undefined>): ModelProvider[] {
@@ -89,7 +98,32 @@ export function providersFromEnv(env: Record<string, string | undefined>): Model
       servesCountry: (country) => !country || !PAID_ONLY_GEMINI_COUNTRIES.has(country.toUpperCase()),
     });
   }
+  if (env.GROQ_API_KEY) {
+    const model = env.GROQ_MODEL || "openai/gpt-oss-120b";
+    providers.push({
+      id: "groq",
+      endpoint: "https://api.groq.com/openai/v1/chat/completions",
+      model,
+      apiKey: env.GROQ_API_KEY,
+      // gpt-oss reasons before it answers; a little is enough here, and none of it is wanted back.
+      // Other models take other values for this, so it is only sent to gpt-oss.
+      extra: model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low", include_reasoning: false } : {},
+      servesCountry: () => true,
+      maxRequestTokens: 8_000,
+    });
+  }
   return providers;
+}
+
+const CJK_CHARACTER = /[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/g;
+
+/**
+ * Roughly how many tokens some text is, erring high: a CJK character is about
+ * one, other text about one per three characters (English runs nearer four).
+ */
+export function estimateTokens(text: string): number {
+  const cjk = (text.match(CJK_CHARACTER) ?? []).length;
+  return cjk + Math.ceil((text.length - cjk) / 3);
 }
 
 /**
@@ -229,6 +263,8 @@ export type ChatOptions = {
   /** Ask for a JSON object back; both providers' OpenAI-style endpoints take it. */
   json?: boolean;
   timeoutMs?: number;
+  /** The smallest answer worth asking for, where a provider caps a request's size. */
+  minTokens?: number;
 };
 
 /**
@@ -244,6 +280,15 @@ export async function chatOnce(
   fetchImpl: FetchLike,
   options: ChatOptions = {},
 ): Promise<string> {
+  let maxTokens = options.maxTokens ?? 1024;
+  if (provider.maxRequestTokens) {
+    // Messages carry a few tokens of framing each, on top of their text.
+    const asked = messages.reduce((total, message) => total + estimateTokens(message.content) + 8, 0);
+    const room = provider.maxRequestTokens - asked;
+    // Too big for this provider: it would refuse it, so it is not sent, and the next provider gets it.
+    if (room < (options.minTokens ?? 512)) throw new ModelError("failed", provider.id);
+    maxTokens = Math.min(maxTokens, room);
+  }
   let response: Response;
   try {
     response = await fetchImpl(provider.endpoint, {
@@ -256,7 +301,7 @@ export async function chatOnce(
         model: provider.model,
         messages,
         temperature: options.temperature ?? 0.3,
-        max_tokens: options.maxTokens ?? 1024,
+        max_tokens: maxTokens,
         ...(options.json ? { response_format: { type: "json_object" } } : {}),
         ...provider.extra,
       }),

@@ -48,7 +48,7 @@ const requestSchema = z.object({
     .min(1)
     .max(40),
   /** Which model the reader allows. Absent means automatic, as before there was a choice. */
-  provider: z.enum(["auto", "glm", "gemini"]).optional(),
+  provider: z.enum(["auto", "glm", "gemini", "groq"]).optional(),
 });
 
 const MAX_BODY_LENGTH = 100_000;
