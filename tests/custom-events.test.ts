@@ -32,13 +32,24 @@ test("a built event gets a stable, recognisable id and the fields given", () => 
 });
 
 test("an all-day event's date key comes from its own start, not today", () => {
-  const event = buildCustomEvent(input({ allDay: true, start: "2026-09-22T00:00:00.000Z" }));
+  const event = buildCustomEvent(input({ allDay: true, start: new Date(2026, 8, 22).toISOString() }));
   assert.equal(event.dateKey, "2026-09-22");
+});
+
+test("an all-day date key is the local day, even where local midnight is the previous UTC day", () => {
+  // The calendar page sends local midnight as a UTC string; ahead of UTC (run
+  // with TZ=Pacific/Auckland) that string still reads "2026-09-21".
+  const start = new Date(2026, 8, 22).toISOString();
+  const event = buildCustomEvent(input({ allDay: true, start }));
+  assert.equal(event.dateKey, "2026-09-22");
+  const timed = buildCustomEvent(input());
+  const [edited] = editCustomEvent([timed], timed.id, { allDay: true, start });
+  assert.equal(edited.dateKey, "2026-09-22");
 });
 
 test("editing changes only the named fields, including moving to all-day", () => {
   const event = buildCustomEvent(input());
-  const [edited] = editCustomEvent([event], event.id, { title: "Renamed", allDay: true, start: "2026-09-23T00:00:00.000Z" });
+  const [edited] = editCustomEvent([event], event.id, { title: "Renamed", allDay: true, start: new Date(2026, 8, 23).toISOString() });
   assert.equal(edited.title, "Renamed");
   assert.equal(edited.location, "Library", "an untouched field was overwritten");
   assert.equal(edited.dateKey, "2026-09-23");

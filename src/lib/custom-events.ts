@@ -87,13 +87,25 @@ export type CustomEventInput = {
   note: string | null;
 };
 
+/**
+ * The local calendar day `start` falls on. The calendar page passes local
+ * midnight as a UTC ISO string, so slicing the string would land a day early
+ * anywhere ahead of UTC; `taskDate` reads the key back as a local date too.
+ */
+function localDateKey(start: string): string {
+  const date = new Date(start);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 export function buildCustomEvent(input: CustomEventInput): CustomEvent {
   return {
     id: createCustomEventId(),
     title: input.title,
     course: input.course,
     start: input.start,
-    dateKey: input.allDay ? input.start.slice(0, 10) : null,
+    dateKey: input.allDay ? localDateKey(input.start) : null,
     end: input.end,
     allDay: input.allDay,
     location: input.location,
@@ -112,7 +124,7 @@ export function editCustomEvent(events: CustomEvent[], id: string, patch: Partia
       title: patch.title ?? event.title,
       course: patch.course !== undefined ? patch.course : event.course,
       start,
-      dateKey: allDay ? start.slice(0, 10) : null,
+      dateKey: allDay ? localDateKey(start) : null,
       end: patch.end !== undefined ? patch.end : event.end,
       allDay,
       location: patch.location !== undefined ? patch.location : event.location,
