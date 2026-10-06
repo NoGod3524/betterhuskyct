@@ -183,3 +183,39 @@ test("every state has words in both languages, and a result that arrived in part
     t("zh-CN", "helpersync.nodata") + "（卡在：课程列表，回应是 HTTP 403）",
   );
 });
+
+test("a helper that says it is here after the page's ask has timed out is used", async () => {
+  const target = window as unknown as {
+    open: (...args: unknown[]) => unknown;
+    postMessage: (message: unknown, origin: string) => void;
+  };
+  const realOpen = target.open;
+  const realPost = target.postMessage;
+  let opened = 0;
+  const posted: unknown[] = [];
+  target.open = () => {
+    opened++;
+    return null;
+  };
+  target.postMessage = (message) => void posted.push(message);
+  try {
+    const view = await render({ schedule: noTimers });
+    // The page's own ask, which nobody answered, runs out.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1700));
+    });
+    // Then the helper starts: its hello arrives unasked.
+    await act(async () => {
+      window.dispatchEvent(new window.MessageEvent("message", { data: { protocol: "betterhuskyct/bridge@1", kind: "pong" }, origin: window.location.origin, source: window as never }));
+    });
+
+    await view.click(view.buttons()[0]);
+
+    assert.equal(opened, 0, "HuskyCT was opened in front, as if there were no helper");
+    assert.ok(posted.some((message) => JSON.stringify(message) === JSON.stringify({ protocol: "betterhuskyct/bridge@1", kind: "open" })), "the helper was not asked to open HuskyCT behind");
+    await view.unmount();
+  } finally {
+    target.open = realOpen;
+    target.postMessage = realPost;
+  }
+});

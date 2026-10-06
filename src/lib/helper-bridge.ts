@@ -65,14 +65,20 @@ export function helperMessage(event: { origin: string; data: unknown; source: un
   return { origin: event.origin, data: event.data, source: event.source };
 }
 
+/**
+ * Whether a message is the helper on this page saying it is there: its answer to a ping, or what
+ * it says on its own as it starts, for a page that pinged before the helper was listening.
+ */
+export function isBridgeHello(event: { origin: string; data: unknown; source: unknown }, win: BridgeWindow): boolean {
+  if (event.source !== (win as unknown) || event.origin !== win.location.origin) return false;
+  return isRecord(event.data) && event.data.protocol === BRIDGE_CONTROL && event.data.kind === "pong";
+}
+
 /** Whether the helper on this page can reach HuskyCT behind it. */
 export function pingBridge(win: BridgeWindow, timeoutMs = PING_TIMEOUT_MS): Promise<boolean> {
   return new Promise((resolve) => {
     const listen = (event: Event) => {
-      const message = event as MessageEvent;
-      if (message.source !== (win as unknown) || message.origin !== win.location.origin) return;
-      if (!isRecord(message.data) || message.data.protocol !== BRIDGE_CONTROL || message.data.kind !== "pong") return;
-      finish(true);
+      if (isBridgeHello(event as MessageEvent, win)) finish(true);
     };
     const finish = (found: boolean) => {
       win.removeEventListener("message", listen);
