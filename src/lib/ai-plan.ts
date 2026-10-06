@@ -62,7 +62,17 @@ export type PlanState = {
   decided: Record<string, "added" | "dismissed">;
   /** Each course's syllabus summary, by HuskyCT course id. */
   summaries: Record<string, SyllabusSummary>;
+  /**
+   * What has been offered, waiting or decided, in brief, so the same thing
+   * found again in another course's syllabus is not offered a second time.
+   */
+  offered: OfferedItem[];
 };
+
+/** Enough of a suggestion to tell whether a later find is the same thing. */
+export type OfferedItem = Pick<Suggestion, "kind" | "title" | "date" | "course">;
+
+const MAX_OFFERED = 1000;
 
 export const EMPTY_PLAN_STATE: PlanState = {
   enabled: false,
@@ -72,9 +82,21 @@ export const EMPTY_PLAN_STATE: PlanState = {
   pending: [],
   decided: {},
   summaries: {},
+  offered: [],
 };
 
 const PROVIDER_IDS: readonly string[] = ["glm", "gemini", "groq"];
+
+function parseOffered(value: unknown): OfferedItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(-MAX_OFFERED).flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.title !== "string" || !entry.title) return [];
+    if (!(PLAN_ITEM_KINDS as readonly unknown[]).includes(entry.kind)) return [];
+    if (entry.date !== null && (typeof entry.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(entry.date))) return [];
+    if (entry.course !== null && typeof entry.course !== "string") return [];
+    return [{ kind: entry.kind as PlanItem["kind"], title: entry.title, date: entry.date as string | null, course: entry.course as string | null }];
+  });
+}
 
 function parseSummaries(value: unknown): Record<string, SyllabusSummary> {
   if (!isRecord(value)) return {};
@@ -146,7 +168,7 @@ export function parsePlanState(raw: string | null): PlanState {
     for (const [id, verdict] of Object.entries(stringMap(parsed.decided))) {
       if (verdict === "added" || verdict === "dismissed") decided[id] = verdict;
     }
-    return {
+    const restored: PlanState = {
       enabled: parsed.enabled === true,
       enabledAt: typeof parsed.enabledAt === "string" ? parsed.enabledAt : null,
       read: stringMap(parsed.read),
@@ -157,7 +179,13 @@ export function parsePlanState(raw: string | null): PlanState {
       }),
       decided,
       summaries: parseSummaries(parsed.summaries),
+      offered: parseOffered(parsed.offered),
     };
+    // Lists made before duplicates were merged are merged on the way in.
+    const pending = tidyPending(restored.pending);
+    const same = (a: OfferedItem, b: OfferedItem) => a.kind === b.kind && a.title === b.title && a.date === b.date && a.course === b.course;
+    const missing = pending.map(brief).filter((item) => !restored.offered.some((other) => same(item, other)));
+    return { ...restored, pending, offered: [...restored.offered, ...missing].slice(-MAX_OFFERED) };
   } catch {
     return EMPTY_PLAN_STATE;
   }
@@ -176,6 +204,7 @@ export function savePlanState(storage: Pick<Storage, "setItem">, state: PlanStat
   const decided = Object.entries(state.decided);
   const trimmed: PlanState = {
     ...state,
+    offered: state.offered.slice(-MAX_OFFERED),
     pending: state.pending.slice(0, MAX_PENDING),
     decided: Object.fromEntries(decided.slice(Math.max(0, decided.length - MAX_DECIDED))),
   };
@@ -209,21 +238,110 @@ export function suggestionId(course: string | null, title: string, date: string 
   return "ai-" + hash(`${(course ?? "").toLowerCase()}|${normalTitle(title)}|${date ?? ""}`);
 }
 
-/** Adds what a read found, leaving out what is already waiting or was already decided. */
+/** Words that say a day is off without saying which one: "No class", "Break", "Recess". */
+const DAY_OFF_WORDS = new Set([
+  "no", "class", "classes", "lecture", "lectures", "lab", "labs", "break", "recess", "holiday", "holidays",
+  "day", "days", "off", "university", "campus", "closed", "closure", "cancelled", "canceled", "week",
+  "observed", "the", "of", "and", "for", "on", "in",
+]);
+
+function dayNumber(day: string): number {
+  const [year, month, date] = day.split("-").map(Number);
+  return Date.UTC(year, month - 1, date) / 86_400_000;
+}
+
+function brief(suggestion: Suggestion): OfferedItem {
+  return { kind: suggestion.kind, title: suggestion.title, date: suggestion.date, course: suggestion.course };
+}
+
+/**
+ * Whether two days off are the same break. Every syllabus lists Thanksgiving,
+ * each in its own words and some from its first day, some from the holiday
+ * itself: within a week of each other and sharing a word that names the break
+ * ("thanksgiving", "spring") is the same break. Two that name none, plain "No
+ * class", are the same only on the same day.
+ */
+export function sameDayOff(left: OfferedItem, right: OfferedItem): boolean {
+  if (left.kind !== "no-class" || right.kind !== "no-class" || !left.date || !right.date) return false;
+  const apart = Math.abs(dayNumber(left.date) - dayNumber(right.date));
+  if (apart > 7) return false;
+  const named = (title: string) => new Set([...words(title)].filter((word) => !DAY_OFF_WORDS.has(word)));
+  const a = named(left.title);
+  const b = named(right.title);
+  if (a.size === 0 || b.size === 0) return apart === 0;
+  return [...a].some((word) => b.has(word));
+}
+
+/** Whether a find without a date is one the same course already has with a date. */
+function datedElsewhere(undated: OfferedItem, dated: OfferedItem): boolean {
+  return (
+    undated.date === null &&
+    dated.date !== null &&
+    (undated.course ?? "") === (dated.course ?? "") &&
+    similarTitles(undated.title, dated.title)
+  );
+}
+
+/** A day off with no day says nothing a calendar can use. */
+function dayOffWithoutDay(item: Pick<PlanItem, "kind" | "date">): boolean {
+  return item.kind === "no-class" && item.date === null;
+}
+
+/**
+ * A list with its duplicates merged: one entry per break across courses, which
+ * then belongs to none of them, and no undated entry for what has a dated one.
+ */
+export function tidyPending(pending: Suggestion[]): Suggestion[] {
+  const kept: Suggestion[] = [];
+  for (const suggestion of pending) {
+    if (dayOffWithoutDay(suggestion)) continue;
+    if (pending.some((other) => datedElsewhere(suggestion, other))) continue;
+    const twin = kept.findIndex((other) => sameDayOff(suggestion, other));
+    if (twin >= 0) {
+      if (kept[twin].course !== suggestion.course) kept[twin] = { ...kept[twin], course: null };
+      continue;
+    }
+    kept.push(suggestion);
+  }
+  return kept;
+}
+
+/**
+ * Adds what a read found, leaving out what is already waiting or was already
+ * decided — by id, and as the same thing in other words: a break another
+ * course already listed, or an undated item the course has a date for. A
+ * dated find takes the place of an undated one still waiting.
+ */
 export function addFound(
   state: PlanState,
   items: PlanItem[],
   meta: { course: string | null; from: SuggestionSource; fromLabel: (item: PlanItem) => string; foundAt: string },
 ): PlanState {
   const known = new Set([...state.pending.map((suggestion) => suggestion.id), ...Object.keys(state.decided)]);
-  const added: Suggestion[] = [];
+  let pending = state.pending;
+  const offered = [...state.offered];
+  let changed = false;
   for (const item of items) {
+    if (dayOffWithoutDay(item)) continue;
     const id = suggestionId(meta.course, item.title, item.date);
     if (known.has(id)) continue;
+    const candidate: OfferedItem = { kind: item.kind, title: item.title, date: item.date, course: meta.course };
+    if (offered.some((other) => sameDayOff(candidate, other))) {
+      // Another course's break too: the one waiting belongs to no single course.
+      pending = pending.map((other) =>
+        sameDayOff(candidate, other) && other.course !== meta.course ? { ...other, course: null } : other,
+      );
+      changed = true;
+      continue;
+    }
+    if (offered.some((other) => datedElsewhere(candidate, other))) continue;
     known.add(id);
-    added.push({ ...item, id, course: meta.course, from: meta.from, fromLabel: meta.fromLabel(item), foundAt: meta.foundAt });
+    if (item.date) pending = pending.filter((other) => !datedElsewhere(other, candidate));
+    pending = [...pending, { ...item, id, course: meta.course, from: meta.from, fromLabel: meta.fromLabel(item), foundAt: meta.foundAt }];
+    offered.push(candidate);
+    changed = true;
   }
-  return added.length === 0 ? state : { ...state, pending: [...state.pending, ...added] };
+  return changed ? { ...state, pending, offered } : state;
 }
 
 export function markRead(state: PlanState, key: string, signature: string): PlanState {

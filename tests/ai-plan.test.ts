@@ -262,3 +262,103 @@ test("the endpoint's summary is kept for a syllabus in the page's language, and 
   const announcements = { ...syllabus, kind: "announcements" as const, text: "", announcements: [{ title: "A", body: "B", posted: null }] };
   assert.equal((await requestPlan(announcements, answer({ items: [], summary: "- 考试 60%" }))).summary, null);
 });
+
+const found = (course: string, overrides: Partial<PlanItem>[]) => (state: PlanState) =>
+  addFound(
+    state,
+    overrides.map((override) => item({ kind: "no-class", time: null, evidence: "", ...override })),
+    { course, from: "syllabus", fromLabel: () => `${course}.pdf`, foundAt: "2026-09-01T12:00:00.000Z" },
+  );
+
+test("Thanksgiving in every syllabus, in other words and from other days, is offered once and belongs to no single course", () => {
+  let state: PlanState = EMPTY_PLAN_STATE;
+  state = found("MATH 1070Q", [{ title: "Thanksgiving Break", date: "2026-11-22" }])(state);
+  state = found("SOCI 1501", [{ title: "No class – Thanksgiving recess", date: "2026-11-26" }])(state);
+  state = found("CSE 2050", [{ title: "Thanksgiving", date: "2026-11-23" }])(state);
+
+  assert.equal(state.pending.length, 1, state.pending.map((s) => `${s.course}: ${s.title} ${s.date}`).join(" | "));
+  assert.equal(state.pending[0].date, "2026-11-22", "the first one found was not kept");
+  assert.equal(state.pending[0].course, null);
+});
+
+test("a day off with no day is never offered", () => {
+  const state = found("MATH 1070Q", [{ title: "Thanksgiving recess", date: null }])(EMPTY_PLAN_STATE);
+  assert.deepEqual(state.pending, []);
+});
+
+test("different breaks stay apart, and plain 'No class' only joins the same day", () => {
+  let state: PlanState = EMPTY_PLAN_STATE;
+  state = found("A", [
+    { title: "Fall break", date: "2026-10-12" },
+    { title: "Thanksgiving recess", date: "2026-11-22" },
+    { title: "Spring break", date: "2027-03-14" },
+    { title: "No class", date: "2026-09-30" },
+    { title: "Labor Day – no class", date: "2026-09-07" },
+    { title: "Rosh Hashanah (no class)", date: "2026-09-12" },
+  ])(state);
+  state = found("B", [
+    { title: "No class", date: "2026-10-02" },
+    { title: "Class cancelled", date: "2026-09-30" },
+  ])(state);
+
+  assert.deepEqual(
+    state.pending.map((s) => s.title),
+    ["Fall break", "Thanksgiving recess", "Spring break", "No class", "Labor Day – no class", "Rosh Hashanah (no class)", "No class"],
+  );
+});
+
+test("a break let go in one course is not offered again by the next course's syllabus", () => {
+  let state = found("MATH 1070Q", [{ title: "Thanksgiving Break", date: "2026-11-22" }])(EMPTY_PLAN_STATE);
+  state = decide(state, { [state.pending[0].id]: "dismissed" });
+  state = found("SOCI 1501", [{ title: "Thanksgiving recess (no class)", date: "2026-11-25" }])(state);
+  assert.deepEqual(state.pending, []);
+});
+
+test("an undated find gives way to the same thing with a date, whichever comes first", () => {
+  const exam = (date: string | null) => ({ title: "Final Exam", date, kind: "exam" as const });
+
+  let undatedFirst = found("MATH 1070Q", [exam(null)])(EMPTY_PLAN_STATE);
+  undatedFirst = found("MATH 1070Q", [exam("2026-12-10")])(undatedFirst);
+  assert.deepEqual(undatedFirst.pending.map((s) => s.date), ["2026-12-10"]);
+
+  let datedFirst = found("MATH 1070Q", [exam("2026-12-10")])(EMPTY_PLAN_STATE);
+  datedFirst = found("MATH 1070Q", [{ ...exam(null), title: "Final exam (cumulative)" }])(datedFirst);
+  assert.deepEqual(datedFirst.pending.map((s) => s.date), ["2026-12-10"]);
+
+  const otherCourse = found("SOCI 1501", [exam(null)])(datedFirst);
+  assert.equal(otherCourse.pending.length, 2, "another course's undated final was taken for this one's");
+});
+
+test("a list saved with duplicates is merged when it is read back, and reading it again adds nothing", () => {
+  const make = (course: string, title: string, date: string | null, kind: PlanItem["kind"] = "no-class") => ({
+    ...item({ title, date, kind, time: null }),
+    id: suggestionId(course, title, date),
+    course,
+    from: "syllabus" as const,
+    fromLabel: "",
+    foundAt: "2026-09-01T00:00:00.000Z",
+  });
+  const saved = JSON.stringify({
+    ...EMPTY_PLAN_STATE,
+    enabled: true,
+    offered: undefined,
+    pending: [
+      make("A", "Thanksgiving Break", "2026-11-22"),
+      make("B", "Thanksgiving recess", "2026-11-25"),
+      make("C", "Thanksgiving", null),
+      make("A", "Midterm 1", null, "exam"),
+      make("A", "Midterm 1", "2026-10-14", "exam"),
+    ],
+  });
+
+  const once = parsePlanState(saved);
+  assert.deepEqual(
+    once.pending.map((s) => [s.course, s.title, s.date]),
+    [
+      [null, "Thanksgiving Break", "2026-11-22"],
+      ["A", "Midterm 1", "2026-10-14"],
+    ],
+  );
+  const twice = parsePlanState(JSON.stringify(once));
+  assert.equal(twice.offered.length, once.offered.length, "what was offered grew on every visit");
+});
