@@ -158,7 +158,7 @@ test("a result that read nothing keeps where it stopped, and a signed-out one as
   // What the helper says is cut down to plain words before it is shown.
   assert.deepEqual(run({ reason: "error", detail: "<img src=x onerror=alert(1)>" + "x".repeat(100) }), {
     phase: "nodata",
-    why: { step: "error", detail: ("img srcx onerroralert1" + "x".repeat(100)).slice(0, 60) },
+    why: { step: "error", detail: ("img srcx onerroralert1" + "x".repeat(100)).slice(0, 90) },
   });
   // A reason this does not know is left out, not shown.
   assert.deepEqual(run({ reason: "whatever", detail: "HTTP 403" }), { phase: "nodata" });
