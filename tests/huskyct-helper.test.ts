@@ -688,9 +688,11 @@ test("every panel button has a handler, and the labels match", () => {
   // BetterHuskyCT's Sync button now; the panel's own Sync button and the diagnostic went in 1.11.0.
   assert.deepEqual(
     [...new Set(actions)].sort(),
-    ["autosync", "collectall", "emptybasket", "grades", "materials", "savefiles", "sendgrades", "sendmaterials", "todos"],
+    ["autosync", "collectall", "emptybasket", "todos"],
   );
-  for (const gone of ["sync", "recapi"]) assert.ok(!actions.includes(gone), `the "${gone}" button is back`);
+  // The separate Collect and Send buttons for materials and grades, and Save files, went in 2.0.0:
+  // Collect everything and BetterHuskyCT's Sync carry both, and the Materials page saves the files.
+  for (const gone of ["sync", "recapi", "materials", "sendmaterials", "savefiles", "grades", "sendgrades"]) assert.ok(!actions.includes(gone), `the "${gone}" button is back`);
 });
 
 /**
@@ -889,7 +891,6 @@ test("the panel markup renders in Chinese, with nothing left in English", () => 
     "Collect everything",
     "Send everything to BetterHuskyCT",
     "Clear basket",
-    "Collect course materials",
   ];
   for (const label of englishLabels) {
     assert.ok(english.includes(label), `the English panel lost: ${label}`);
@@ -899,7 +900,7 @@ test("the panel markup renders in Chinese, with nothing left in English", () => 
   const chinese = surface.panelMarkup();
 
   // Every translated label must be present in the markup, in Chinese.
-  for (const key of ["collectAll", "sendDeadlines", "clearBasket", "collectMaterials"]) {
+  for (const key of ["collectAll", "sendDeadlines", "clearBasket"]) {
     const text = surface.t(key);
     assert.match(text, /[\u4e00-\u9fff]/, `not translated: ${key}`);
     assert.ok(chinese.includes(text), `the rendered panel is missing the translation for ${key}`);
@@ -930,23 +931,17 @@ test("the panel leads with the guidance and Collect everything", () => {
   assert.ok(hintAt !== -1, "the panel lost its hint");
   assert.ok(hintAt < collectAt, "the guidance is not at the top of the panel");
 
-  // Collect everything leads, then Send, then course materials. Collect is the
-  // primary to start with; the panel hands that to Send once the basket has
-  // something in it (tested on a mounted panel in helper-basket.test.ts).
+  // Collect everything leads, then Send. Collect is the primary to start with; the
+  // panel hands that to Send once the basket has something in it (tested on a
+  // mounted panel in helper-basket.test.ts).
   const todosAt = panel.indexOf('data-act="todos"');
-  const materialsAt = panel.indexOf('data-act="materials"');
-  assert.ok(collectAt !== -1 && todosAt !== -1 && materialsAt !== -1, "the panel lost a button");
-  assert.ok(collectAt < todosAt && todosAt < materialsAt, "the panel's actions are out of order");
+  assert.ok(collectAt !== -1 && todosAt !== -1, "the panel lost a button");
+  assert.ok(collectAt < todosAt, "the panel's actions are out of order");
   assert.match(panel, /class="act primary" data-act="collectall"/, "Collect everything is not the primary button");
-  // Three primaries in the markup, two of them hidden until materials or
-  // grades are collected: only one ever shows before then.
+  // One primary in the markup: Collect everything.
   const primaries = [...panel.matchAll(/class="act primary" data-act="([a-z]+)"( hidden)?/g)];
   assert.deepEqual(
     primaries.map((match) => [match[1], Boolean(match[2])]),
-    [
-      ["collectall", false],
-      ["sendmaterials", true],
-      ["sendgrades", true],
-    ],
+    [["collectall", false]],
   );
 });

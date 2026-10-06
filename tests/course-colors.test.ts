@@ -16,7 +16,6 @@ import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 const SOURCE = readFileSync(new URL("../tools/huskyct-helper/huskyct-helper.user.js", import.meta.url), "utf8");
 
 type Helper = {
-  readCourseColors: (root: unknown) => Record<string, string>;
   readColors: (storage: unknown) => Record<string, string>;
   colorsByCode: (storage: unknown, basket: unknown) => Record<string, string>;
   COLORS_KEY: string;
@@ -40,20 +39,7 @@ function helperOn(html: string) {
   return { window, helper: (window as unknown as { __huskyctHelper: Helper }).__huskyctHelper };
 }
 
-const card = (id: string, inner: string) => `<article class="element-card course-element-card" data-course-id="${id}">${inner}<h4>Course ${id}</h4></article>`;
 const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value));
-
-test("a card's colour is its most vivid one, whether a background, a gradient or a drawing; a grey card has none", () => {
-  const { window, helper } = helperOn(
-    card("_1_1", `<div style="background-color: rgb(255, 255, 255)"><div style="background-color: rgb(30, 110, 200)"></div></div>`) +
-      card("_2_1", `<div style="background-image: linear-gradient(rgb(200, 40, 60), rgb(245, 245, 245))"></div>`) +
-      card("_3_1", `<div style="background-color: rgb(240, 240, 240)"><p style="background-color: #222222">x</p></div>`) +
-      card("_4_1", `<svg><rect style="fill: rgb(40, 160, 90)" width="10" height="10"></rect></svg>`) +
-      card("", `<div style="background-color: rgb(30, 110, 200)"></div>`),
-  );
-
-  assert.deepEqual(plain(helper.readCourseColors(window.document)), { _1_1: "#1e6ec8", _2_1: "#c8283c", _4_1: "#28a05a" });
-});
 
 test("colours are kept by course id, and go out by course code for the courses in the basket", () => {
   const { window, helper } = helperOn("");
