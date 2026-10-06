@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.12.3
+// @version      1.12.4
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -53,7 +53,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.12.3";
+  const VERSION = "1.12.4";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -3613,6 +3613,10 @@
   const KEEP_MS = 60000;
   /** A request a tab finds as it loads is answered only if this new: older, nobody is waiting for it. */
   const ANSWER_WITHIN_MS = 30000;
+  /** How long a HuskyCT tab that looks alive has to answer before one is opened anyway. A live one answers within a second or two. */
+  const OPEN_ANYWAY_MS = 6000;
+  /** The helper says it is here once more this long after BetterHuskyCT has loaded, by when the page listens. */
+  const HELLO_AFTER_LOAD_MS = 1500;
 
   function manager() {
     if (typeof GM_getValue !== "function" || typeof GM_setValue !== "function" || typeof GM_addValueChangeListener !== "function") {
@@ -3679,22 +3683,38 @@
     const origin = window.location.origin;
     // The tab opened for a sync, closed again when it is over; a tab the student opened is left alone.
     let opened = null;
+    // When a HuskyCT tab last said anything here.
+    let heardAt = 0;
     const toPage = (message) => window.postMessage(message, origin);
+    const hello = () => toPage({ protocol: BRIDGE_CONTROL, kind: "pong", version: VERSION });
+    const openHuskyct = () => {
+      try {
+        opened = store.openInTab(HUSKYCT_HOME, { active: false, insert: true, setParent: true });
+      } catch {
+        opened = null;
+      }
+    };
 
     window.addEventListener("message", (event) => {
       if (event.source !== window || event.origin !== origin) return;
       const data = event.data;
       if (!data || typeof data !== "object") return;
       if (data.protocol === BRIDGE_CONTROL && data.kind === "ping") {
-        toPage({ protocol: BRIDGE_CONTROL, kind: "pong", version: VERSION });
+        hello();
       } else if (data.protocol === BRIDGE_CONTROL && data.kind === "open") {
-        if (aliveHuskyctTabs(store).length === 0 && store.openInTab) {
-          try {
-            opened = store.openInTab(HUSKYCT_HOME, { active: false, insert: true, setParent: true });
-          } catch {
-            opened = null;
-          }
+        if (!store.openInTab) return;
+        if (aliveHuskyctTabs(store).length === 0) {
+          openHuskyct();
+          return;
         }
+        // A HuskyCT tab that was closed may not have said so, and looks alive for a while after.
+        // If none of the tabs that look alive speaks up soon, they are forgotten and one is opened.
+        const askedAt = Date.now();
+        window.setTimeout(() => {
+          if (heardAt >= askedAt || opened) return;
+          store.set(BRIDGE_ALIVE, {});
+          openHuskyct();
+        }, OPEN_ANYWAY_MS);
       } else if (data.protocol === BRIDGE_OUT) {
         pushQueue(store, BRIDGE_TO_HUSKYCT, data.data);
       }
@@ -3704,6 +3724,7 @@
       store,
       BRIDGE_TO_BHC,
       (data) => {
+        heardAt = Date.now();
         toPage({ protocol: BRIDGE_IN, origin: HUSKYCT_ORIGIN, data });
         if (opened && data && data.protocol === SYNC_PROTOCOL && data.kind === "done") {
           const tab = opened;
@@ -3719,6 +3740,13 @@
       },
       0,
     );
+
+    // The page asks once whether the helper is here, and the manager may start this after it has.
+    // So say it unasked as well: now, and once the page has loaded and its own code is listening.
+    hello();
+    const helloLater = () => window.setTimeout(hello, HELLO_AFTER_LOAD_MS);
+    if (document.readyState === "complete") helloLater();
+    else window.addEventListener("load", helloLater, { once: true });
   }
 
   /**

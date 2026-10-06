@@ -5,7 +5,7 @@ import Link from "next/link";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
-import { helperMessage, openThroughBridge, pingBridge } from "@/lib/helper-bridge";
+import { helperMessage, isBridgeHello, openThroughBridge, pingBridge } from "@/lib/helper-bridge";
 import {
   createHelperSync,
   HUSKYCT_TAB_NAME,
@@ -70,13 +70,18 @@ export function HelperSyncProvider({ children, deps }: { children: ReactNode; de
   }
 
   useEffect(() => {
-    const listener = (event: MessageEvent) => sync.current?.receive(helperMessage(event, window));
+    const listener = (event: MessageEvent) => {
+      // A helper that started after the ping says so itself.
+      if (isBridgeHello(event, window)) bridge.found = true;
+      sync.current?.receive(helperMessage(event, window));
+    };
     window.addEventListener("message", listener);
     let live = true;
-    // Asked once: the helper is there from before this page's own code runs, or not at all.
+    // Asked once, for a helper that was there before this page's own code ran. One that the
+    // userscript manager starts later announces itself, and the listener above hears it.
     if (!deps?.open) {
       void pingBridge(window).then((found) => {
-        if (live) bridge.found = found;
+        if (live && found) bridge.found = true;
       });
     }
     return () => {

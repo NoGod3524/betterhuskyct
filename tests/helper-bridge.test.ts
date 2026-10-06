@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 import { Window } from "happy-dom";
 
-import { BRIDGE_IN, bridgeTab, helperMessage, openThroughBridge, pingBridge } from "../src/lib/helper-bridge.ts";
+import { BRIDGE_IN, bridgeTab, helperMessage, isBridgeHello, openThroughBridge, pingBridge } from "../src/lib/helper-bridge.ts";
 import { BACKGROUND_GIVE_UP_MS, createHelperSync, GIVE_UP_AFTER_MS, type HelperSyncState } from "../src/lib/helper-sync.ts";
 
 /**
@@ -45,9 +45,9 @@ function userscriptManager() {
   };
 }
 
-function load(url: string, gm?: Record<string, unknown>, fetchImpl?: (path: string) => Promise<Response>) {
-  const window = new Window({ url });
-  windows.push(window);
+function load(url: string, gm?: Record<string, unknown>, fetchImpl?: (path: string) => Promise<Response>, into?: Window) {
+  const window = into ?? new Window({ url });
+  if (!into) windows.push(window);
   window.document.body.innerHTML = "<main></main>";
   (window as unknown as { fetch: unknown }).fetch = fetchImpl ?? (() => Promise.reject(new Error("no network in tests")));
   // The sync that starts on its own as HuskyCT opens would run in the middle of these.
@@ -217,4 +217,83 @@ test("only a message this window posted, wrapped by the bridge and naming HuskyC
   assert.equal(helperMessage(elsewhere, win).origin, BHC, "another window's message was unwrapped");
   assert.equal(helperMessage({ origin: "https://evil.example", data: wrapped, source: win }, win).origin, "https://evil.example");
   assert.equal(helperMessage({ origin: BHC, data: { ...wrapped, origin: "https://evil.example" }, source: win }, win).origin, BHC, "a non-HuskyCT origin was accepted");
+});
+
+/** The page's own timers, run this many times faster, so a wait of seconds takes a test a moment. */
+function hurry(window: Window, by = 20) {
+  const target = window as unknown as { setTimeout: (run: () => void, ms?: number) => unknown };
+  const real = target.setTimeout.bind(window);
+  target.setTimeout = (run, ms = 0) => real(run, ms / by);
+}
+
+test("a helper that starts after the page has asked says it is here unasked", async () => {
+  const manager = userscriptManager();
+  const bhc = new Window({ url: `${BHC}/` });
+  windows.push(bhc);
+  const win = bhc as unknown as Window & typeof globalThis;
+  hurry(bhc);
+
+  // The page asks before the userscript manager has started the helper: nobody answers.
+  assert.equal(await pingBridge(win, 100), false);
+
+  const hellos: unknown[] = [];
+  bhc.addEventListener("message", ((event: MessageEvent) => {
+    if (isBridgeHello(event, win)) hellos.push(event.data);
+  }) as never);
+  load(`${BHC}/`, manager.gm, undefined, bhc);
+  await until(() => hellos.length >= 1, 2000);
+  // Said again once the page has loaded, for a page whose own code was not yet listening.
+  (bhc as unknown as { dispatchEvent: (event: unknown) => void }).dispatchEvent(new bhc.Event("load"));
+  await until(() => hellos.length >= 2, 2000);
+  assert.deepEqual(JSON.parse(JSON.stringify(hellos[0])), { protocol: "betterhuskyct/bridge@1", kind: "pong", version: SOURCE.match(/const VERSION = "([^"]+)"/)?.[1] });
+
+  // Only this window's own pong counts, not one from elsewhere or of another kind.
+  const pong = { protocol: "betterhuskyct/bridge@1", kind: "pong" };
+  assert.equal(isBridgeHello({ origin: BHC, data: pong, source: win }, win), true);
+  assert.equal(isBridgeHello({ origin: "https://evil.example", data: pong, source: win }, win), false);
+  assert.equal(isBridgeHello({ origin: BHC, data: pong, source: {} }, win), false);
+  assert.equal(isBridgeHello({ origin: BHC, data: { ...pong, kind: "ping" }, source: win }, win), false);
+});
+
+test("a HuskyCT tab that closed without saying so is forgotten when it does not answer, and one is opened", async () => {
+  const manager = userscriptManager();
+  // A tab that was closed but whose last heartbeat is still recent.
+  manager.gm.GM_setValue("bridge.huskyctAlive", { "00000000a0-dead00-1": Date.now() });
+  const bhc = load(`${BHC}/`, manager.gm, undefined, (() => {
+    const window = new Window({ url: `${BHC}/` });
+    windows.push(window);
+    hurry(window);
+    return window;
+  })());
+  const { sync } = controller(bhc);
+  receivers(bhc);
+
+  sync.start();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(manager.tabs.length, 0, "it did not give the tab that looks alive a moment to answer");
+
+  await until(() => manager.tabs.length === 1, 2000);
+  assert.deepEqual(manager.gm.GM_getValue("bridge.huskyctAlive", null), {}, "the closed tab is still taken for alive");
+
+  // The tab it opened loads, and answers.
+  load(manager.tabs[0].url, manager.gm, huskyctData);
+  await until(() => sync.state.phase === "done");
+  assert.equal((sync.state as Extract<HelperSyncState, { phase: "done" }>).courses, 1);
+});
+
+test("a HuskyCT tab that is alive and answers is used, and no other is opened", async () => {
+  const manager = userscriptManager();
+  load("https://lms.uconn.edu/ultra/course", manager.gm, huskyctData);
+  const bhcWindow = new Window({ url: `${BHC}/` });
+  windows.push(bhcWindow);
+  hurry(bhcWindow);
+  const bhc = load(`${BHC}/`, manager.gm, undefined, bhcWindow);
+  const { sync } = controller(bhc);
+  receivers(bhc);
+
+  sync.start();
+  await until(() => sync.state.phase === "done");
+  // Past the time it waits before opening one anyway.
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  assert.equal(manager.tabs.length, 0, "a second HuskyCT tab was opened beside one that answered");
 });
