@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.12.0
+// @version      1.12.1
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -14,6 +14,7 @@
 // @grant        GM_setValue
 // @grant        GM_addValueChangeListener
 // @grant        GM_openInTab
+// @grant        unsafeWindow
 // ==/UserScript==
 
 /**
@@ -40,13 +41,19 @@
  * UConn's systems.
  */
 
-(function () {
+/*
+ * `window` below is the page's own window. Granting the userscript manager's storage (1.11.0) also
+ * put the script in the manager's sandbox, where `window` is a stand-in: calling the page's fetch
+ * through it fails, and a message from the page is not from it. So the page's window is handed in
+ * as `window`, and everything reads HuskyCT exactly as it did when the script ran in the page.
+ */
+(function (window) {
   "use strict";
 
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.12.0";
+  const VERSION = "1.12.1";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -4577,4 +4584,4 @@
       mountPanel();
     }
   }
-})();
+})(typeof unsafeWindow !== "undefined" ? unsafeWindow : window);
