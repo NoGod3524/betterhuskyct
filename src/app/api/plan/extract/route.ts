@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { MAX_ANNOUNCEMENT_BODY } from "@/lib/announcements";
-import { extractPlan, isIsoDay, MAX_PLAN_ITEMS, MAX_PLAN_TEXT, parsePlanAnswer } from "@/lib/plan-models";
+import { extractPlan, isIsoDay, MAX_PLAN_ITEMS, MAX_PLAN_TEXT, parsePlanResult } from "@/lib/plan-models";
 import { clientKey, createRateLimiter } from "@/lib/rate-limit";
 import { createSummaryCache } from "@/lib/summary-cache";
 import { ModelError, providersFromEnv } from "@/lib/summary-models";
@@ -22,9 +22,12 @@ const limiter = createRateLimiter({ windowMs: 60_000, max: 4 });
 /**
  * Answers shared by everyone who sends the same source — the students of one
  * course reading one syllabus — keyed by a hash of the request, as summaries are.
+ * Kept for a term: a syllabus rarely changes, and when it does its text, and so
+ * its key, changes with it.
  */
 const cache = createSummaryCache({
   onError: (command) => console.error("Plan cache failed", { command }),
+  ttlSeconds: 120 * 24 * 60 * 60,
 });
 
 const requestSchema = z
@@ -44,6 +47,7 @@ const requestSchema = z
       )
       .max(40),
     provider: z.enum(["auto", "glm", "gemini", "groq"]).optional(),
+    locale: z.enum(["en", "zh-CN"]).optional(),
   })
   .refine((request) =>
     request.kind === "syllabus"
@@ -90,8 +94,9 @@ export async function POST(request: Request) {
   }
 
   const hit = await cache.get(key, geminiAllowed);
-  const cached = hit ? parsePlanAnswer(hit.summary, content.announcements.length) : null;
-  if (hit && cached) return json({ items: cached, provider: hit.provider });
+  const summaryLocale = content.kind === "syllabus" ? (content.locale ?? "en") : null;
+  const cached = hit ? parsePlanResult(hit.summary, content.announcements.length, summaryLocale) : null;
+  if (hit && cached) return json({ ...cached, provider: hit.provider });
 
   const limit = limiter(clientKey(request));
   if (!limit.allowed) {
@@ -99,15 +104,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { items, provider } = await extractPlan(content, {
+    const { items, summary, provider } = await extractPlan(content, {
       providers: allowed,
       country,
       onError: (error) =>
         console.error("Plan model failed", { provider: error.provider, problem: error.problem, status: error.status }),
     });
     const kept = items.slice(0, MAX_PLAN_ITEMS);
-    await cache.set(key, JSON.stringify({ items: kept }), provider);
-    return json({ items: kept, provider });
+    await cache.set(key, JSON.stringify({ items: kept, summary }), provider);
+    return json({ items: kept, summary, provider });
   } catch (error) {
     const problem = error instanceof ModelError ? error.problem : "failed";
     if (problem === "busy") return json({ problem: "busy" }, 503, { "Retry-After": "10" });

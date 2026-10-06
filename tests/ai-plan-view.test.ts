@@ -23,6 +23,7 @@ const { createRoot } = await import("react-dom/client");
 const { CalendarProvider, useCalendar } = await import("../src/components/calendar-provider.tsx");
 const { AiPlanProvider } = await import("../src/components/ai-plan-provider.tsx");
 const { TodoSection } = await import("../src/components/todo-section.tsx");
+const { MaterialsSection } = await import("../src/components/materials-section.tsx");
 
 type Calendar = ReturnType<typeof useCalendar>;
 const { window } = dom;
@@ -73,7 +74,7 @@ const SYLLABUS_ITEMS = {
   provider: "glm",
 };
 
-async function mount(options: { store?: MaterialsStore; answer?: Answer; announcements?: Announcement[]; realWait?: boolean } = {}) {
+async function mount(options: { store?: MaterialsStore; answer?: Answer; announcements?: Announcement[]; realWait?: boolean; withMaterials?: boolean } = {}) {
   const store = options.store ?? (await storeWithSyllabus());
   const { requests, fetchImpl } = endpoint(options.answer ?? (() => SYLLABUS_ITEMS));
 
@@ -94,7 +95,13 @@ async function mount(options: { store?: MaterialsStore; answer?: Answer; announc
           fetchImpl,
           // The page itself passes no `wait`; `realWait` mounts it that way.
           ...(options.realWait ? {} : { wait: async () => {} }),
-          children: createElement(Fragment, null, createElement(Probe), createElement(TodoSection)),
+          children: createElement(
+            Fragment,
+            null,
+            createElement(Probe),
+            createElement(TodoSection),
+            options.withMaterials ? createElement(MaterialsSection, { openStore: async () => store }) : null,
+          ),
         }),
       }),
     );
@@ -235,5 +242,26 @@ test("on the page as it is mounted for real, a service that is not set up is ask
 
   assert.equal(view.requests.length, 1, `asked ${view.requests.length} times`);
   assert.ok(view.text().includes(t("en", "aiPlan.problem.unavailable")), view.text().slice(0, 600));
+  await view.unmount();
+});
+
+test("each syllabus is summed up at the top of its course on the Materials page, once the reading is on", async () => {
+  const view = await mount({
+    withMaterials: true,
+    answer: () => ({ ...SYLLABUS_ITEMS, summary: "- Grading: exams 60%, homework 40%\n- Late work loses 10% a day" }),
+  });
+  assert.ok(view.text().includes(t("en", "materials.syllabusHint")), "nothing said where summaries come from");
+
+  await view.click(view.button(t("en", "aiPlan.enable")));
+  await settle(60);
+  assert.ok(!view.text().includes(t("en", "materials.syllabusHint")), "the hint stayed once it was on");
+
+  const course = [...window.document.querySelectorAll("article button")].find((b) => (b.textContent ?? "").includes("MATH 1070Q"));
+  await view.click(course);
+  const card = window.document.querySelector("[data-syllabus-summary]");
+  assert.ok(card, "no summary on the course");
+  assert.ok((card.textContent ?? "").includes("Grading: exams 60%, homework 40%"));
+  assert.ok((card.textContent ?? "").includes(t("en", "materials.syllabusFrom", { files: "MATH1070 Syllabus.pdf" })));
+  assert.equal(view.requests[0].locale, "en", "the page's language was not sent");
   await view.unmount();
 });

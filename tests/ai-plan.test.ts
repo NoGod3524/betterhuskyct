@@ -15,11 +15,13 @@ import {
   parsePlanState,
   requestPlan,
   selectedByDefault,
+  setSummary,
   similarTitles,
   suggestionFlags,
   suggestionId,
   suggestionToEvent,
   suggestionToUndated,
+  syllabusSignature,
   weekdayMismatch,
   type PlanState,
   type Suggestion,
@@ -228,4 +230,35 @@ test("what the endpoint sends back is checked again, and its problems keep their
     requestPlan(request, async () => new Response("<html>", { status: 504 })),
     (error: unknown) => error instanceof SummaryError && error.problem === "unavailable",
   );
+});
+
+test("a syllabus is read again when its language changes, and once more if it was read before summaries", () => {
+  const files = [{ key: "k", savedAt: "2026-09-01T00:00:00.000Z" }];
+  const english = syllabusSignature(files, "en");
+  assert.notEqual(english, syllabusSignature(files, "zh-CN"));
+  assert.notEqual(english, "k@2026-09-01T00:00:00.000Z", "a read from before summaries counts as read with one");
+  assert.equal(english, syllabusSignature(files, "en"));
+});
+
+test("stored summaries are checked like the model's answer, and a bad one is dropped", () => {
+  const good = { text: "- Exams 60%\n- Late work -10% a day", files: "syllabus.pdf", locale: "en", provider: "glm", at: "2026-09-01T00:00:00.000Z" };
+  const state = parsePlanState(
+    JSON.stringify({
+      ...EMPTY_PLAN_STATE,
+      summaries: { _1_1: good, _2_1: { ...good, text: "no bullets here" }, _3_1: { ...good, locale: "fr" }, _4_1: "nope" },
+    }),
+  );
+  assert.deepEqual(Object.keys(state.summaries), ["_1_1"]);
+  assert.deepEqual(state.summaries._1_1, good);
+  assert.deepEqual(setSummary(state, "_9_1", null), state, "no summary replaced the state");
+});
+
+test("the endpoint's summary is kept for a syllabus in the page's language, and never for announcements", async () => {
+  const answer = (body: unknown) => async () => Response.json(body);
+  const syllabus = { kind: "syllabus" as const, courseLabel: "M", term: null, today: "2026-09-01", text: "x", announcements: [], locale: "zh-CN" as const };
+
+  assert.equal((await requestPlan(syllabus, answer({ items: [], summary: "- 考试 60%" }))).summary, "- 考试 60%");
+  assert.equal((await requestPlan(syllabus, answer({ items: [], summary: "- Exams 60%" }))).summary, null);
+  const announcements = { ...syllabus, kind: "announcements" as const, text: "", announcements: [{ title: "A", body: "B", posted: null }] };
+  assert.equal((await requestPlan(announcements, answer({ items: [], summary: "- 考试 60%" }))).summary, null);
 });

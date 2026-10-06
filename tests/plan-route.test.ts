@@ -129,3 +129,18 @@ test("with no key the endpoint says it is not set up", async () => {
   assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { problem: "not-configured" });
 });
+
+test("a syllabus comes back with its summary, which is cached with it, separately for each language", async () => {
+  const calls = stubUpstream(says('{"summary":"- 成绩：考试 60%","items":[]}'));
+
+  const first = await call(syllabus({ locale: "zh-CN" }));
+  assert.equal(first.status, 200);
+  assert.equal((await first.json()).summary, "- 成绩：考试 60%");
+
+  const cached = await call(syllabus({ locale: "zh-CN", today: "2026-09-02" }));
+  assert.equal((await cached.json()).summary, "- 成绩：考试 60%");
+  assert.equal(calls.length, 1, "the same syllabus in the same language was read twice");
+
+  await call(syllabus({ locale: "en" }));
+  assert.equal(calls.length, 2, "an English page was handed the Chinese summary");
+});

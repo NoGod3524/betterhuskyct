@@ -155,7 +155,7 @@ export function redactRequest(request: SummaryRequest): SummaryRequest {
 export type ChatMessage = { role: "system" | "user"; content: string };
 
 /** Named in the language itself as well, which small models follow more reliably. */
-const LANGUAGE_NAMES: Record<SummaryLocale, string> = {
+export const LANGUAGE_NAMES: Record<SummaryLocale, string> = {
   en: "English",
   "zh-CN": "Simplified Chinese (简体中文)",
 };

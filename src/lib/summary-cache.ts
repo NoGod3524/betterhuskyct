@@ -8,7 +8,8 @@ const TIMEOUT_MS = 1_000;
 const PREFIX = "betterhuskyct:summary:v1:";
 
 const entrySchema = z.object({
-  summary: z.string().trim().min(1).max(16_000),
+  // A plan answer (dates and a syllabus summary, as JSON) runs longer than a summary.
+  summary: z.string().trim().min(1).max(64_000),
   provider: z.enum(["glm", "gemini", "groq"]),
   at: z.number().int().nonnegative(),
 });
@@ -37,13 +38,16 @@ export function createSummaryCache(options: {
   fetchImpl?: typeof fetch;
   now?: () => number;
   onError?: (command: "GET" | "SET") => void;
+  /** How long an answer is kept; six hours unless said otherwise. */
+  ttlSeconds?: number;
 } = {}) {
+  const ttlSeconds = options.ttlSeconds ?? TTL_SECONDS;
   const local = new Map<string, Entry>();
   const now = options.now ?? Date.now;
 
   function usable(entry: Entry, geminiAllowed: boolean) {
     const age = now() - entry.at;
-    return age >= 0 && age < TTL_SECONDS * 1_000 && (entry.provider !== "gemini" || geminiAllowed);
+    return age >= 0 && age < ttlSeconds * 1_000 && (entry.provider !== "gemini" || geminiAllowed);
   }
 
   function keep(key: string, entry: Entry) {
@@ -103,7 +107,7 @@ export function createSummaryCache(options: {
       const entry = { summary, provider, at: now() };
       keep(key, entry);
       // Await the bounded write: serverless work can stop once the response is sent.
-      await command(["SET", PREFIX + key, JSON.stringify(entry), "EX", TTL_SECONDS]);
+      await command(["SET", PREFIX + key, JSON.stringify(entry), "EX", ttlSeconds]);
     },
   };
 }

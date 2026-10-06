@@ -2,11 +2,14 @@ import {
   chatOnce,
   firstAnswer,
   ModelError,
+  LANGUAGE_NAMES,
   redactContactDetails,
+  writtenIn,
   type ChatMessage,
   type FallbackOptions,
   type FetchLike,
   type ProviderId,
+  type SummaryLocale,
 } from "./summary-models.ts";
 
 /**
@@ -16,6 +19,10 @@ import {
  * What comes back is a list the student checks before anything is added to the
  * calendar: a model can misread a date, so nothing here is final. The rules
  * below lean towards leaving a date out over guessing one.
+ *
+ * A syllabus is also summed up in the same request, in the reader's language:
+ * grading, exams, late work, attendance, AI rules. Reading it once for both
+ * costs one syllabus of input instead of two.
  */
 
 export type PlanSourceKind = "syllabus" | "announcements";
@@ -33,6 +40,8 @@ export type PlanRequest = {
   text: string;
   /** Newest first. Empty for a syllabus. */
   announcements: PlanAnnouncement[];
+  /** The language a syllabus's summary is written in. Absent reads as English, as before there was a summary. */
+  locale?: SummaryLocale;
 };
 
 export const PLAN_ITEM_KINDS = ["exam", "quiz", "assignment", "project", "presentation", "no-class", "task"] as const;
@@ -54,6 +63,8 @@ export type PlanItem = {
 };
 
 export const MAX_PLAN_ITEMS = 60;
+/** Room for ten full bullets in either language; a longer answer is cut, not refused. */
+export const MAX_SYLLABUS_SUMMARY = 4_000;
 /** About 15,000 tokens: a long syllabus with its schedule, and quick enough on a free model. */
 export const MAX_PLAN_TEXT = 60_000;
 const MAX_TITLE = 120;
@@ -102,7 +113,10 @@ export function planMessages(request: PlanRequest): ChatMessage[] {
     'Give "evidence": the text\'s own words for the item, at most 150 characters, copied exactly.',
     KIND_RULE,
     "Never invent an item, a date or a time. When unsure of a date, set it to null.",
-    `Answer with JSON only, in this shape: {"items":[{"title":"","date":null,"time":null,"kind":"assignment","evidence":"","source":null}]}. At most ${MAX_PLAN_ITEMS} items, in date order, undated ones last. If there is nothing, answer {"items":[]}.`,
+    ...(request.kind === "syllabus" ? summaryRules(request.locale ?? "en") : []),
+    request.kind === "syllabus"
+      ? `Answer with JSON only, in this shape: {"summary":"- …\\n- …","items":[{"title":"","date":null,"time":null,"kind":"assignment","evidence":"","source":null}]}. At most ${MAX_PLAN_ITEMS} items, in date order, undated ones last. If there are no dates, give "items":[].`
+      : `Answer with JSON only, in this shape: {"items":[{"title":"","date":null,"time":null,"kind":"assignment","evidence":"","source":null}]}. At most ${MAX_PLAN_ITEMS} items, in date order, undated ones last. If there is nothing, answer {"items":[]}.`,
   ].join("\n");
 
   const context = [
@@ -127,6 +141,22 @@ export function planMessages(request: PlanRequest): ChatMessage[] {
   return [
     { role: "system", content: system },
     { role: "user", content: `${context}\n\n${body}` },
+  ];
+}
+
+/**
+ * What a syllabus summary covers. The numbers in it are what a student acts on
+ * — a weighting, a late penalty, an attendance limit — so they are copied, not
+ * rounded or worked out, and anything the syllabus does not say is left out
+ * rather than guessed.
+ */
+function summaryRules(locale: SummaryLocale): string[] {
+  const language = LANGUAGE_NAMES[locale];
+  return [
+    `Also give "summary": the syllabus summed up for a student, written in ${language} whatever language the syllabus is in.`,
+    'Cover, when the syllabus says it: how the grade is made up (each part and its weight); exams and quizzes (how many, format, what they cover); the late-work and make-up policy; attendance and participation rules; the rules on using AI tools; required textbook, software or materials; anything else a student could lose marks over.',
+    "Copy every number, percentage, date and name of a policy exactly as the syllabus states it. Leave out what it does not say; never fill a gap with what is usual.",
+    'Write 5 to 10 bullet points, one per line, each starting with "- ". Keep course codes, book titles and tool names as written. Plain text: no headings, no bold.',
   ];
 }
 
@@ -178,13 +208,36 @@ function parseItem(value: unknown, sources: number): PlanItem | null {
 }
 
 /**
- * The model's answer as items, or null when it is not the JSON asked for.
+ * A summary as the page will show it: bullet lines only, Markdown emphasis
+ * taken off, cut to size — or null when there is none worth showing, or when it
+ * is not in the language asked for (a summary the reader cannot read is no
+ * summary; the dates in the same answer still count).
+ */
+export function cleanSummary(value: unknown, locale: SummaryLocale | null): string | null {
+  if (typeof value !== "string") return null;
+  const lines = value
+    .replace(/\*\*|__/g, "")
+    .split("\n")
+    .map((line) => line.trim().replace(/^[*•]\s+/, "- "))
+    .filter((line) => line.startsWith("- ") && line.length > 2);
+  if (lines.length === 0) return null;
+  const text = lines.join("\n").slice(0, MAX_SYLLABUS_SUMMARY).trim();
+  if (locale && !writtenIn(text, locale)) return null;
+  return text;
+}
+
+export type PlanResult = { items: PlanItem[]; summary: string | null };
+
+/**
+ * The model's answer as items and, for a syllabus, its summary; or null when
+ * it is not the JSON asked for.
  *
  * Models wrap JSON in a code fence now and then even when told not to, so a
  * fence is taken off first. `sources` is how many announcements were sent, so
- * a `source` that points past them is not kept.
+ * a `source` that points past them is not kept. `locale` is the summary's
+ * language, checked when given.
  */
-export function parsePlanAnswer(content: string, sources = 0): PlanItem[] | null {
+export function parsePlanResult(content: string, sources = 0, locale: SummaryLocale | null = null): PlanResult | null {
   const unfenced = content
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
@@ -197,20 +250,27 @@ export function parsePlanAnswer(content: string, sources = 0): PlanItem[] | null
   }
   const list = isRecord(parsed) ? parsed.items : Array.isArray(parsed) ? parsed : null;
   if (!Array.isArray(list)) return null;
-  return list.slice(0, MAX_PLAN_ITEMS).flatMap((entry) => {
+  const items = list.slice(0, MAX_PLAN_ITEMS).flatMap((entry) => {
     const item = parseItem(entry, sources);
     return item ? [item] : [];
   });
+  return { items, summary: isRecord(parsed) ? cleanSummary(parsed.summary, locale) : null };
+}
+
+/** The items alone, as {@link parsePlanResult} reads them. */
+export function parsePlanAnswer(content: string, sources = 0): PlanItem[] | null {
+  return parsePlanResult(content, sources)?.items ?? null;
 }
 
 /**
- * The dates and work in one source, from the first provider that answers with
- * usable JSON. The request is redacted once, before any provider sees it.
+ * The dates and work in one source, and a syllabus's summary, from the first
+ * provider that answers with usable JSON. The request is redacted once, before
+ * any provider sees it.
  */
 export async function extractPlan(
   request: PlanRequest,
   options: FallbackOptions & { fetchImpl?: FetchLike },
-): Promise<{ items: PlanItem[]; provider: ProviderId }> {
+): Promise<PlanResult & { provider: ProviderId }> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const safe = redactPlanRequest(request);
   const messages = planMessages(safe);
@@ -223,9 +283,10 @@ export async function extractPlan(
       // Fewer than this and a long list would be cut off mid-answer.
       minTokens: 1_500,
     });
-    const items = parsePlanAnswer(content, safe.announcements.length);
-    if (!items) throw new ModelError("failed", provider.id);
-    return items;
+    const result = parsePlanResult(content, safe.announcements.length, safe.kind === "syllabus" ? (safe.locale ?? "en") : null);
+    if (!result) throw new ModelError("failed", provider.id);
+    // Only a syllabus is summed up; whatever else a model volunteers is not kept.
+    return safe.kind === "syllabus" ? result : { items: result.items, summary: null };
   });
-  return { items: value, provider };
+  return { ...value, provider };
 }

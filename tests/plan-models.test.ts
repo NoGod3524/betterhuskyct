@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { extractPlan, parsePlanAnswer, planMessages, type PlanRequest } from "../src/lib/plan-models.ts";
+import { extractPlan, parsePlanAnswer, parsePlanResult, planMessages, type PlanRequest } from "../src/lib/plan-models.ts";
 import { ModelError, providersFromEnv } from "../src/lib/summary-models.ts";
 
 const SYLLABUS: PlanRequest = {
@@ -117,4 +117,44 @@ test("when every provider is busy the problem is busy, so the page can try again
     extractPlan(SYLLABUS, { providers, fetchImpl, wait: async () => {} }),
     (error: unknown) => error instanceof ModelError && error.problem === "busy",
   );
+});
+
+test("a syllabus is also summed up, in the reader's language, with its numbers copied; announcements are not", () => {
+  const [syllabusSystem] = planMessages({ ...SYLLABUS, locale: "zh-CN" });
+  assert.match(syllabusSystem.content, /"summary"/);
+  assert.match(syllabusSystem.content, /Simplified Chinese/);
+  assert.match(syllabusSystem.content, /how the grade is made up/);
+  assert.match(syllabusSystem.content, /Copy every number, percentage/);
+
+  const [announcementSystem] = planMessages({ ...SYLLABUS, kind: "announcements", text: "", announcements: [{ title: "A", body: "B", posted: null }] });
+  assert.doesNotMatch(announcementSystem.content, /"summary"/);
+});
+
+test("a summary keeps its bullets, loses its Markdown, and is dropped when in the wrong language, without losing the dates", () => {
+  const items = [{ title: "Midterm 1", date: "2026-10-14", time: null, kind: "exam", evidence: "", source: null }];
+  const answer = (summary: string) => JSON.stringify({ summary, items });
+
+  const english = parsePlanResult(answer("Here is the summary:\n- **Grading:** exams 60%, homework 40%\n* Late work: -10% a day\n"), 0, "en");
+  assert.equal(english?.summary, "- Grading: exams 60%, homework 40%\n- Late work: -10% a day");
+
+  const chinese = parsePlanResult(answer("- 成绩：考试 60%，作业 40%\n- 迟交每天扣 10%"), 0, "zh-CN");
+  assert.equal(chinese?.summary, "- 成绩：考试 60%，作业 40%\n- 迟交每天扣 10%");
+
+  const wrong = parsePlanResult(answer("- Grading: exams 60%, homework 40%"), 0, "zh-CN");
+  assert.equal(wrong?.summary, null, "an English summary was kept for a Chinese page");
+  assert.equal(wrong?.items.length, 1, "the dates went with the summary");
+
+  assert.equal(parsePlanResult(JSON.stringify({ items }), 0, "en")?.summary, null);
+});
+
+test("only a syllabus's summary is kept: one a model adds to announcements is dropped", async () => {
+  const { fetchImpl } = stub({ glm: [says('{"summary":"- Something","items":[]}')] });
+  const result = await extractPlan(
+    { ...SYLLABUS, kind: "announcements", text: "", announcements: [{ title: "A", body: "B", posted: null }] },
+    { providers, fetchImpl },
+  );
+  assert.equal(result.summary, null);
+
+  const { fetchImpl: again } = stub({ glm: [says('{"summary":"- Exams 60%","items":[]}')] });
+  assert.equal((await extractPlan(SYLLABUS, { providers, fetchImpl: again })).summary, "- Exams 60%");
 });
