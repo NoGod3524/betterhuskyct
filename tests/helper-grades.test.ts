@@ -6,6 +6,7 @@ import vm from "node:vm";
 import { Window } from "happy-dom";
 
 import { createGradesReceiver, memoryGradesStore, parseGradesSnapshot, type GradesStore } from "../src/lib/grades.ts";
+import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
 
 /**
  * "Collect grades", run as shipped on pages shaped like the live HuskyCT ones,
@@ -221,6 +222,7 @@ function fakeHuskyct(window: Window, visited: string[], trouble: Trouble = {}) {
 
 function openPage() {
   const window = new Window({ url: "https://lms.uconn.edu/ultra/stream" });
+  onlyAtHuskyct(window);
   windows.push(window);
   window.document.body.innerHTML = "<main><p>Activity stream</p></main>";
   window.localStorage.clear();

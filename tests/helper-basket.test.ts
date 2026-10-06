@@ -6,6 +6,7 @@ import vm from "node:vm";
 import { Window } from "happy-dom";
 
 import { decodeSyncPayload } from "../src/lib/sync.ts";
+import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
 
 /**
  * The helper's basket, run as shipped — panel, timer and all — on pages shaped
@@ -152,6 +153,7 @@ type PageExtras = {
 
 function openPage(url: string, html: string, stored?: Basket, extras: PageExtras = {}) {
   const window = new Window({ url });
+  onlyAtHuskyct(window);
   windows.push(window);
   window.document.body.innerHTML = html;
   if (stored) window.localStorage.setItem("huskypilot.helper.basket.v1", JSON.stringify(stored));

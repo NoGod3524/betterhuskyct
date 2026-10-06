@@ -4,6 +4,7 @@ import { after, test } from "node:test";
 import vm from "node:vm";
 
 import { Window } from "happy-dom";
+import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
 
 /**
  * Announcements read from HuskyCT's own data, shaped as the page's requests were
@@ -26,6 +27,7 @@ after(async () => {
 /** A page whose `fetch` answers from `serve`, and a log of every address it was asked for. */
 function openPage(serve: (path: string) => unknown | null) {
   const window = new Window({ url: "https://lms.uconn.edu/ultra/stream" });
+  onlyAtHuskyct(window);
   windows.push(window);
   const asked: Array<{ path: string; init: Record<string, unknown> }> = [];
   (window as unknown as { fetch: unknown }).fetch = async (path: string, init: Record<string, unknown>) => {
