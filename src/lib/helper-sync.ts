@@ -65,7 +65,7 @@ const NO_DATA_STEPS = new Set<string>(["courses", "read", "nocourses", "error", 
 /** What HuskyCT said, as the helper put it, cut to something short and plain enough to show. */
 function detailOf(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const plain = value.replace(/[^\w .:/-]/g, "").trim().slice(0, 90);
+  const plain = value.replace(/[^\w .:/-]/g, "").trim().slice(0, 240);
   return plain || null;
 }
 

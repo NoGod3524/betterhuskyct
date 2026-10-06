@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.12.6
+// @version      1.12.7
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -53,7 +53,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.12.6";
+  const VERSION = "1.12.7";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -556,8 +556,15 @@
     const open = proto.open;
     const setRequestHeader = proto.setRequestHeader;
     const send = proto.send;
+    // What HuskyCT's own code asked for and what it got ("v1/users/_9_1/memberships 200"), the
+    // last few, and the address of the last one answered: for a refusal to compare against.
+    const appLog = [];
+    let lastGood = null;
+    const shortPath = (url) =>
+      String(url).replace(/^https?:\/\/[^/]+/, "").replace(/^\/learn\/api\//, "").split("?")[0].slice(0, 40);
     proto.open = function (...args) {
       this.__betterhuskyctApi = /\/learn\/api\//.test(String(args[1]));
+      this.__betterhuskyctUrl = String(args[1]);
       return open.apply(this, args);
     };
     proto.setRequestHeader = function (...args) {
@@ -566,8 +573,51 @@
       return setRequestHeader.apply(this, args);
     };
     proto.send = function (...args) {
-      if (this.__betterhuskyctApi) root.setAttribute("data-betterhuskyct-app", "1");
+      if (this.__betterhuskyctApi) {
+        root.setAttribute("data-betterhuskyct-app", "1");
+        const url = this.__betterhuskyctUrl;
+        this.addEventListener("loadend", () => {
+          appLog.push(shortPath(url) + " " + this.status);
+          if (appLog.length > 4) appLog.shift();
+          if (this.status >= 200 && this.status < 300) lastGood = url;
+        });
+      }
       return send.apply(this, args);
+    };
+    const say = function (id, fields) {
+      fields.id = id;
+      document.dispatchEvent(new CustomEvent("betterhuskyct:api-answer", { detail: JSON.stringify(fields) }));
+    };
+    /**
+     * What HuskyCT's own code asked for, and what the agent gets asking for the last address it
+     * was answered at, the same way: the same answer means the agent's addresses are wrong; a
+     * refusal means HuskyCT tells its own code from anything else.
+     */
+    const report = function (id) {
+      const seen = "app " + (appLog.length ? appLog.join(" ") : "none");
+      if (!lastGood) return say(id, { report: seen + " replay none" });
+      let told = false;
+      const tell = (words) => {
+        if (told) return;
+        told = true;
+        say(id, { report: seen + " replay " + shortPath(lastGood) + " " + words });
+      };
+      try {
+        const request = new XHR();
+        open.call(request, "GET", lastGood, true);
+        for (const name of Object.keys(heard)) {
+          try {
+            setRequestHeader.call(request, name, heard[name]);
+          } catch {
+            /* a header this request may not carry */
+          }
+        }
+        request.onload = () => tell(String(request.status));
+        request.onerror = () => tell("no answer");
+        send.call(request);
+      } catch {
+        tell("threw");
+      }
     };
     document.addEventListener("betterhuskyct:api-request", function (event) {
       let ask;
@@ -576,6 +626,7 @@
       } catch {
         return;
       }
+      if (ask && typeof ask.id === "string" && ask.kind === "report") return report(ask.id);
       if (!ask || typeof ask.id !== "string" || typeof ask.path !== "string" || ask.path.indexOf("/learn/api/v1/") !== 0) return;
       let done = false;
       const names = [];
@@ -700,6 +751,33 @@
     });
   }
 
+  let pageReportText = null;
+
+  /** The agent's report on HuskyCT's own requests, in plain words, or "" if it did not give one in time. */
+  function pageReport(timeout) {
+    return new Promise((resolve) => {
+      const id = "report-" + Date.now() + "-" + ++pageAsks;
+      let timer = null;
+      const finish = (words) => {
+        document.removeEventListener(PAGE_API_ANSWER, listen);
+        clearTimeout(timer);
+        resolve(words);
+      };
+      const listen = (event) => {
+        let answer;
+        try {
+          answer = JSON.parse(String(event.detail));
+        } catch {
+          return;
+        }
+        if (answer && answer.id === id) finish(String(answer.report || "").replace(/[^\w .:/-]/g, "").slice(0, 160));
+      };
+      timer = setTimeout(() => finish(""), timeout);
+      document.addEventListener(PAGE_API_ANSWER, listen);
+      document.dispatchEvent(new window.CustomEvent(PAGE_API_REQUEST, { detail: JSON.stringify({ id, kind: "report" }) }));
+    });
+  }
+
   /**
    * A GET of HuskyCT's own data as JSON, or null if it did not answer in time or well. Asked
    * from here first; refused as coming from elsewhere, or not let out at all, it is asked again
@@ -715,7 +793,10 @@
       }
       const page = await pageFetchJson(path, timeout);
       if (page.failure) {
-        lastApiFailure = direct.failure + " then page " + page.failure;
+        // Refused there too: what HuskyCT's own code asked for, and whether its last address
+        // works when the agent asks for it, are asked once and said with every refusal after.
+        if (/^HTTP 403/.test(page.failure) && pageReportText === null) pageReportText = await pageReport(timeout);
+        lastApiFailure = direct.failure + " then page " + page.failure + (pageReportText ? " / " + pageReportText : "");
         return null;
       }
       apiThroughPage = true;
