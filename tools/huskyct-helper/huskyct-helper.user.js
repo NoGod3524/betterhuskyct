@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.12.7
+// @version      1.12.8
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -53,7 +53,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.12.7";
+  const VERSION = "1.12.8";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -364,18 +364,12 @@
   /**
    * Everything in this section reads what the browser has already rendered.
    *
-   * Reading HuskyCT's own API is not an option. Measured on 2026-09-19: a
-   * request the page itself makes to /learn/api/v1/users/me returns 200, an
-   * identical-looking one from a script returns 403 with an S3-style
-   * AccessDenied body, and adding any header of our own resets the connection.
-   * A path that cannot exist returns the same 403 as a real one, so the edge in
-   * front of HuskyCT admits the application's own calls and refuses everything
-   * else — regardless of the path.
-   *
-   * Trying to forge those calls is both futile and the one part of this script
-   * that would look like scraping in a log. The rendered page has what is
-   * needed, and reading it sends no request at all: announcements, the content
-   * outline and the course's name are all already on screen.
+   * The rendered page has announcements, the content outline and the course's
+   * name on screen, and reading it sends no request at all. Where HuskyCT's own
+   * data serves better, it is read from there (below), at HuskyCT's own address:
+   * the 403 with an S3-style AccessDenied that a script's request got on
+   * 2026-09-19 came from the page's `<base>`, which sends a bare path to
+   * Blackboard's file store (see huskyctUrl).
    */
 
   function textOf(node) {
@@ -480,334 +474,54 @@
 
   /**
    * Why the last read of HuskyCT's data came back empty: "HTTP 403", "timeout", "no answer",
-   * "not JSON" or "no fetch", and, if it was asked again through the page, what that got
-   * ("HTTP 403 then page HTTP 403", "… then page blocked"). A sync that reads nothing says it, so the cause can be told apart
+   * "not JSON" or "no fetch". A sync that reads nothing says it, so the cause can be told apart
    * from afar.
    */
   let lastApiFailure = null;
 
   /**
-   * Whether HuskyCT's data is asked for through the page itself. Measured on 2026-10-06: the
-   * helper's own request for the course list got 403 under Tampermonkey's sandbox, while the
-   * page's identical one is answered. HuskyCT answers 403 "Invalid CORS request" to any
-   * request whose Origin is not its own — an extension's, `null`, even huskyct.uconn.edu —
-   * before it looks at the session, and the sandbox's requests can carry one. A request made
-   * by the page's own code cannot. Once that has worked, the rest of the visit uses it.
+   * Where a HuskyCT path is asked for: HuskyCT's own address, never the page's base. Measured on
+   * 2026-10-06: HuskyCT's pages carry `<base href="https://ultra.content.blackboardcdn.com/ultra/…">`,
+   * so a path given to fetch as it is goes to Blackboard's file store, which answers every path
+   * with an S3 AccessDenied (and refuses outright one with a header of its own). That was every
+   * 403 the helper ever got from HuskyCT's data.
    */
-  let apiThroughPage = false;
-  const PAGE_API_REQUEST = "betterhuskyct:api-request";
-  const PAGE_API_ANSWER = "betterhuskyct:api-answer";
-  const PAGE_API_MARK = "data-betterhuskyct-api";
-  /** Set by the agent once HuskyCT's own code has asked for its data. */
-  const PAGE_APP_MARK = "data-betterhuskyct-app";
-  const APP_WAIT_MS = 12000;
-  let appWaited = false;
-  let pageAsks = 0;
+  function huskyctUrl(path) {
+    return new URL(String(path), window.location.origin).href;
+  }
 
-  /** A GET of HuskyCT's data from here, as { data } or { failure }. */
-  async function directFetchJson(path, timeout) {
-    if (typeof window.fetch !== "function") return { failure: "no fetch" };
+  /** A GET of HuskyCT's own data as JSON, or null if it did not answer in time or well. */
+  async function fetchJson(path, timeout) {
+    if (typeof window.fetch !== "function") {
+      lastApiFailure = "no fetch";
+      return null;
+    }
     const controller = typeof window.AbortController === "function" ? new window.AbortController() : null;
     const timer = controller ? setTimeout(() => controller.abort(), timeout) : null;
     let response;
     try {
-      response = await window.fetch(path, {
+      response = await window.fetch(huskyctUrl(path), {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
         signal: controller ? controller.signal : undefined,
       });
     } catch (error) {
+      lastApiFailure = error && error.name === "AbortError" ? "timeout" : "no answer";
       if (timer) clearTimeout(timer);
-      return { failure: error && error.name === "AbortError" ? "timeout" : "no answer" };
+      return null;
     }
     try {
-      if (!response.ok) return { failure: "HTTP " + response.status };
-      return { data: await response.json() };
+      if (!response.ok) {
+        lastApiFailure = "HTTP " + response.status;
+        return null;
+      }
+      return await response.json();
     } catch (error) {
-      return { failure: error && error.name === "AbortError" ? "timeout" : "not JSON" };
+      lastApiFailure = error && error.name === "AbortError" ? "timeout" : "not JSON";
+      return null;
     } finally {
       if (timer) clearTimeout(timer);
     }
-  }
-
-  /**
-   * What runs in the page itself, put there as a script of its own: it fetches the HuskyCT data
-   * path it is asked for, as the page's own code would, and says what came back. It is turned into
-   * text, so it uses nothing from outside itself, and it asks for nothing but HuskyCT's data.
-   * The two sides speak in strings, which pass between the page and the sandbox as they are.
-   *
-   * Measured on 2026-10-06: a request the page itself makes this way is refused with 403 too,
-   * though HuskyCT's own code is answered. What its code adds is not known from here (an
-   * anti-forgery header is the likely thing), so the agent listens to it: the headers HuskyCT's
-   * own code puts on its requests for its data (made with XMLHttpRequest, as the app does) are
-   * kept and put on the agent's own. It marks the page once that code has asked for anything.
-   * Its answer names the headers it copied (never their values), for a refusal to say.
-   */
-  function pageApiAgent() {
-    const root = document.documentElement;
-    if (!root || root.hasAttribute("data-betterhuskyct-api")) return;
-    root.setAttribute("data-betterhuskyct-api", "1");
-    const heard = {};
-    const XHR = window.XMLHttpRequest;
-    const proto = XHR && XHR.prototype;
-    if (!proto) return;
-    // The request's own methods as they are now, before anything wraps them: the agent's own
-    // requests use these, so they are neither heard as the app's nor changed by anyone else.
-    const open = proto.open;
-    const setRequestHeader = proto.setRequestHeader;
-    const send = proto.send;
-    // What HuskyCT's own code asked for and what it got ("v1/users/_9_1/memberships 200"), the
-    // last few, and the address of the last one answered: for a refusal to compare against.
-    const appLog = [];
-    let lastGood = null;
-    const shortPath = (url) =>
-      String(url).replace(/^https?:\/\/[^/]+/, "").replace(/^\/learn\/api\//, "").split("?")[0].slice(0, 40);
-    proto.open = function (...args) {
-      this.__betterhuskyctApi = /\/learn\/api\//.test(String(args[1]));
-      this.__betterhuskyctUrl = String(args[1]);
-      return open.apply(this, args);
-    };
-    proto.setRequestHeader = function (...args) {
-      const name = String(args[0]).toLowerCase();
-      if (this.__betterhuskyctApi && name !== "content-type" && name !== "content-length") heard[name] = String(args[1]);
-      return setRequestHeader.apply(this, args);
-    };
-    proto.send = function (...args) {
-      if (this.__betterhuskyctApi) {
-        root.setAttribute("data-betterhuskyct-app", "1");
-        const url = this.__betterhuskyctUrl;
-        this.addEventListener("loadend", () => {
-          appLog.push(shortPath(url) + " " + this.status);
-          if (appLog.length > 4) appLog.shift();
-          if (this.status >= 200 && this.status < 300) lastGood = url;
-        });
-      }
-      return send.apply(this, args);
-    };
-    const say = function (id, fields) {
-      fields.id = id;
-      document.dispatchEvent(new CustomEvent("betterhuskyct:api-answer", { detail: JSON.stringify(fields) }));
-    };
-    /**
-     * What HuskyCT's own code asked for, and what the agent gets asking for the last address it
-     * was answered at, the same way: the same answer means the agent's addresses are wrong; a
-     * refusal means HuskyCT tells its own code from anything else.
-     */
-    const report = function (id) {
-      const seen = "app " + (appLog.length ? appLog.join(" ") : "none");
-      if (!lastGood) return say(id, { report: seen + " replay none" });
-      let told = false;
-      const tell = (words) => {
-        if (told) return;
-        told = true;
-        say(id, { report: seen + " replay " + shortPath(lastGood) + " " + words });
-      };
-      try {
-        const request = new XHR();
-        open.call(request, "GET", lastGood, true);
-        for (const name of Object.keys(heard)) {
-          try {
-            setRequestHeader.call(request, name, heard[name]);
-          } catch {
-            /* a header this request may not carry */
-          }
-        }
-        request.onload = () => tell(String(request.status));
-        request.onerror = () => tell("no answer");
-        send.call(request);
-      } catch {
-        tell("threw");
-      }
-    };
-    document.addEventListener("betterhuskyct:api-request", function (event) {
-      let ask;
-      try {
-        ask = JSON.parse(String(event.detail));
-      } catch {
-        return;
-      }
-      if (ask && typeof ask.id === "string" && ask.kind === "report") return report(ask.id);
-      if (!ask || typeof ask.id !== "string" || typeof ask.path !== "string" || ask.path.indexOf("/learn/api/v1/") !== 0) return;
-      let done = false;
-      const names = [];
-      const answer = function (fields) {
-        if (done) return;
-        done = true;
-        fields.id = ask.id;
-        fields.copied = names.length;
-        fields.names = names.join(" ");
-        document.dispatchEvent(new CustomEvent("betterhuskyct:api-answer", { detail: JSON.stringify(fields) }));
-      };
-      try {
-        // Made as HuskyCT's own code makes them, with XMLHttpRequest: a fetch carrying the same
-        // headers got no answer at all (measured on 2026-10-06).
-        const request = new XHR();
-        open.call(request, "GET", ask.path, true);
-        setRequestHeader.call(request, "Accept", "application/json");
-        for (const name of Object.keys(heard)) {
-          if (name === "accept") continue;
-          try {
-            setRequestHeader.call(request, name, heard[name]);
-            names.push(name);
-          } catch {
-            /* a header this request may not carry */
-          }
-        }
-        request.onload = function () {
-          answer({ status: request.status, text: String(request.responseText || "") });
-        };
-        request.onerror = function () {
-          answer({ error: "no answer" });
-        };
-        request.onabort = function () {
-          answer({ error: "aborted" });
-        };
-        send.call(request);
-      } catch (error) {
-        answer({ error: "threw " + String((error && error.name) || "error") });
-      }
-    });
-  }
-
-  /** What HuskyCT said with a refusal, in a few words: its JSON message, an XML error code, or the start of the text. */
-  function refusalWords(text) {
-    const raw = String(text || "");
-    try {
-      const parsed = JSON.parse(raw);
-      return parsed && (parsed.message || parsed.code) ? String(parsed.message || parsed.code).slice(0, 40) : "";
-    } catch {
-      /* not JSON */
-    }
-    const code = /<Code>([^<]{1,40})<\/Code>/.exec(raw);
-    if (code) return code[1];
-    return raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 30);
-  }
-
-  /** Puts the agent in the page once. False if the page would not run it. */
-  function installPageAgent() {
-    const root = document.documentElement;
-    if (!root) return false;
-    if (root.hasAttribute(PAGE_API_MARK)) return true;
-    try {
-      const script = document.createElement("script");
-      script.textContent = "(" + pageApiAgent.toString() + ")();";
-      (document.head || root).appendChild(script);
-      script.remove();
-    } catch {
-      /* told by the mark below */
-    }
-    // The agent marks the page as it starts, so whether it ran is known at once.
-    return root.hasAttribute(PAGE_API_MARK);
-  }
-
-  /**
-   * A GET of HuskyCT's data made by the page itself, as { data } or { failure }. The first one
-   * waits, a little, for HuskyCT's own code to have asked for its data, so there are headers to
-   * copy: a tab opened for a sync is asked before the app in it has started.
-   */
-  async function pageFetchJson(path, timeout) {
-    if (!installPageAgent()) return { failure: "blocked" };
-    const root = document.documentElement;
-    if (!appWaited) {
-      appWaited = true;
-      await waitFor(() => root.hasAttribute(PAGE_APP_MARK), 250, APP_WAIT_MS);
-    }
-    // Said with a refusal: how many of the app's headers went with it, and their names, or that the app was never heard.
-    const sent = (answer) => {
-      if (!root.hasAttribute(PAGE_APP_MARK)) return " noapp";
-      const names = String(answer.names || "").replace(/[^a-z0-9 -]/g, "").trim().slice(0, 40);
-      return " h" + (Number(answer.copied) || 0) + (names ? " " + names : "");
-    };
-    return new Promise((resolve) => {
-      const id = "ask-" + Date.now() + "-" + ++pageAsks;
-      let timer = null;
-      const finish = (result) => {
-        document.removeEventListener(PAGE_API_ANSWER, listen);
-        clearTimeout(timer);
-        resolve(result);
-      };
-      const listen = (event) => {
-        let answer;
-        try {
-          answer = JSON.parse(String(event.detail));
-        } catch {
-          return;
-        }
-        if (!answer || answer.id !== id) return;
-        if (answer.error) return finish({ failure: String(answer.error) + sent(answer) });
-        if (!(answer.status >= 200 && answer.status < 300)) {
-          const words = refusalWords(answer.text);
-          return finish({ failure: "HTTP " + answer.status + sent(answer) + (words ? " " + words : "") });
-        }
-        try {
-          finish({ data: JSON.parse(String(answer.text)) });
-        } catch {
-          finish({ failure: "not JSON" });
-        }
-      };
-      timer = setTimeout(() => finish({ failure: "timeout" }), timeout);
-      document.addEventListener(PAGE_API_ANSWER, listen);
-      document.dispatchEvent(new window.CustomEvent(PAGE_API_REQUEST, { detail: JSON.stringify({ id, path }) }));
-    });
-  }
-
-  let pageReportText = null;
-
-  /** The agent's report on HuskyCT's own requests, in plain words, or "" if it did not give one in time. */
-  function pageReport(timeout) {
-    return new Promise((resolve) => {
-      const id = "report-" + Date.now() + "-" + ++pageAsks;
-      let timer = null;
-      const finish = (words) => {
-        document.removeEventListener(PAGE_API_ANSWER, listen);
-        clearTimeout(timer);
-        resolve(words);
-      };
-      const listen = (event) => {
-        let answer;
-        try {
-          answer = JSON.parse(String(event.detail));
-        } catch {
-          return;
-        }
-        if (answer && answer.id === id) finish(String(answer.report || "").replace(/[^\w .:/-]/g, "").slice(0, 160));
-      };
-      timer = setTimeout(() => finish(""), timeout);
-      document.addEventListener(PAGE_API_ANSWER, listen);
-      document.dispatchEvent(new window.CustomEvent(PAGE_API_REQUEST, { detail: JSON.stringify({ id, kind: "report" }) }));
-    });
-  }
-
-  /**
-   * A GET of HuskyCT's own data as JSON, or null if it did not answer in time or well. Asked
-   * from here first; refused as coming from elsewhere, or not let out at all, it is asked again
-   * through the page.
-   */
-  async function fetchJson(path, timeout) {
-    if (!apiThroughPage) {
-      const direct = await directFetchJson(path, timeout);
-      if (!direct.failure) return direct.data;
-      if (direct.failure !== "HTTP 403" && direct.failure !== "no answer") {
-        lastApiFailure = direct.failure;
-        return null;
-      }
-      const page = await pageFetchJson(path, timeout);
-      if (page.failure) {
-        // Refused there too: what HuskyCT's own code asked for, and whether its last address
-        // works when the agent asks for it, are asked once and said with every refusal after.
-        if (/^HTTP 403/.test(page.failure) && pageReportText === null) pageReportText = await pageReport(timeout);
-        lastApiFailure = direct.failure + " then page " + page.failure + (pageReportText ? " / " + pageReportText : "");
-        return null;
-      }
-      apiThroughPage = true;
-      return page.data;
-    }
-    const page = await pageFetchJson(path, timeout);
-    if (page.failure) {
-      lastApiFailure = "page " + page.failure;
-      return null;
-    }
-    return page.data;
   }
 
   /** The text of an HTML fragment, read in a document of its own so nothing in it runs. */
@@ -2934,7 +2648,8 @@
    * the permission, and it refuses a request that carries credentials.
    */
   async function fetchMaterial(url) {
-    const response = await window.fetch(url);
+    // A file's address may be a bare path, which the page's <base> would send elsewhere.
+    const response = await window.fetch(huskyctUrl(url));
     if (!response.ok) throw new Error("HTTP " + response.status);
     const blob = await response.blob();
     return { blob, name: nameFromStoreUrl(response.url) };
@@ -3672,7 +3387,7 @@
     // When nothing is read, which step it stopped at and what HuskyCT said. A 401 is HuskyCT
     // saying the student is signed out, whatever page the tab shows.
     const fail = (step) => {
-      out.reason = /\bHTTP 401\b/.test(lastApiFailure || "") ? "signedout" : step;
+      out.reason = lastApiFailure === "HTTP 401" ? "signedout" : step;
       out.detail = lastApiFailure || "unexpected answer";
       return out;
     };
@@ -4860,7 +4575,6 @@
       termCodeFor,
       readAnnouncementsOf,
       readAnnouncementsApi,
-      pageApiAgent,
       readUserId,
       readSyncState,
       writeSyncState,
@@ -4933,8 +4647,6 @@
   if (typeof document !== "undefined" && window.location.origin === bhcOrigin()) {
     startBridgeOnBhc();
   } else if (typeof document !== "undefined") {
-    // In the page from the start, so it hears HuskyCT's own code from its first request.
-    installPageAgent();
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", mountPanel, { once: true });
     } else {

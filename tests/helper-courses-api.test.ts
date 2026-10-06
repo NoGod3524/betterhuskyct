@@ -4,6 +4,7 @@ import { after, test } from "node:test";
 import vm from "node:vm";
 
 import { Window } from "happy-dom";
+import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
 
 /**
  * The course list read from HuskyCT's own data, shaped as the Courses page's request was
@@ -26,6 +27,7 @@ after(async () => {
 
 function openPage(serve: (path: string) => unknown | null) {
   const window = new Window({ url: "https://lms.uconn.edu/ultra/stream" });
+  onlyAtHuskyct(window);
   windows.push(window);
   const asked: string[] = [];
   (window as unknown as { fetch: unknown }).fetch = async (path: string) => {

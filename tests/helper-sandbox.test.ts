@@ -4,6 +4,7 @@ import { after, test } from "node:test";
 import vm from "node:vm";
 
 import { Window } from "happy-dom";
+import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
 
 /**
  * The helper under a userscript manager that sandboxes it, as Tampermonkey does once a script is
@@ -60,6 +61,7 @@ function huskyct(path: string): Promise<Response> {
 
 function load(url: string, extra: Record<string, unknown> = {}) {
   const page = new Window({ url });
+  onlyAtHuskyct(page);
   windows.push(page);
   page.document.body.innerHTML = "<main></main>";
   (page as unknown as { fetch: unknown }).fetch = huskyct;

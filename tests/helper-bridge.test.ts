@@ -7,6 +7,7 @@ import { Window } from "happy-dom";
 
 import { BRIDGE_IN, bridgeTab, helperMessage, isBridgeHello, openThroughBridge, pingBridge } from "../src/lib/helper-bridge.ts";
 import { BACKGROUND_GIVE_UP_MS, createHelperSync, GIVE_UP_AFTER_MS, type HelperSyncState } from "../src/lib/helper-sync.ts";
+import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
 
 /**
  * BetterHuskyCT's side of the helper's bridge, against the real helper: one copy on a
@@ -47,6 +48,7 @@ function userscriptManager() {
 
 function load(url: string, gm?: Record<string, unknown>, fetchImpl?: (path: string) => Promise<Response>, into?: Window) {
   const window = into ?? new Window({ url });
+  if (!into) onlyAtHuskyct(window);
   if (!into) windows.push(window);
   window.document.body.innerHTML = "<main></main>";
   (window as unknown as { fetch: unknown }).fetch = fetchImpl ?? (() => Promise.reject(new Error("no network in tests")));
