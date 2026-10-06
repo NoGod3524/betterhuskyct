@@ -189,7 +189,7 @@ const pageEvent = (window: Window, type: string, detail: string) => new window.C
  * document, so the agent the helper puts in it never starts. This answers as the agent would,
  * from `serve`, the page's own fetch.
  */
-function pageAnswers(window: Window, serve: (path: string) => Promise<Response>, options: { copied?: number; appAfter?: number } = {}) {
+function pageAnswers(window: Window, serve: (path: string) => Promise<Response>, options: { copied?: number; names?: string; appAfter?: number } = {}) {
   const asked: string[] = [];
   const document = window.document;
   document.documentElement.setAttribute("data-betterhuskyct-api", "1");
@@ -201,7 +201,7 @@ function pageAnswers(window: Window, serve: (path: string) => Promise<Response>,
     const ask = JSON.parse(String((event as unknown as { detail: string }).detail)) as { id: string; path: string };
     asked.push(ask.path);
     void serve(ask.path).then(async (response) => {
-      const detail = JSON.stringify({ id: ask.id, status: response.status, text: await response.text(), copied: options.copied ?? 0 });
+      const detail = JSON.stringify({ id: ask.id, status: response.status, text: await response.text(), copied: options.copied ?? 0, names: options.names ?? "" });
       document.dispatchEvent(pageEvent(window, "betterhuskyct:api-answer", detail));
     });
   });
@@ -227,8 +227,8 @@ test("refused as coming from elsewhere, HuskyCT's data is asked for through the 
 
 test("what the page got is said too, and a 401 there is still a sign-in", async () => {
   const forbidden = openPage(async () => new Response("{}", { status: 403 }));
-  pageAnswers(forbidden.window, async () => new Response('{"status":403,"message":"Invalid CORS request."}', { status: 403 }), { copied: 2 });
-  assert.deepEqual(pick(await forbidden.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 403 then page HTTP 403 h2 Invalid CORS request." });
+  pageAnswers(forbidden.window, async () => new Response('{"status":403,"message":"Invalid CORS request."}', { status: 403 }), { copied: 2, names: "x-blackboard-xsrf x-<b>" });
+  assert.deepEqual(pick(await forbidden.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 403 then page HTTP 403 h2 x-blackboard-xsrf x-b Invalid CORS request." });
 
   // An S3-style refusal is told by its code.
   const s3 = openPage(async () => new Response("{}", { status: 403 }));
@@ -262,65 +262,105 @@ test("the first ask through the page waits for HuskyCT's own code to have asked 
   assert.ok(Date.now() - started >= 550, "it asked before HuskyCT's own code had");
 });
 
-test("the agent puts the headers HuskyCT's own code uses for its data on its own requests", async () => {
-  const inits: Array<{ path: string; headers: Record<string, string> }> = [];
-  const { window, helper } = openPage(async (path, init?: { headers?: Record<string, string> }) => {
-    inits.push({ path, headers: { ...(init?.headers ?? {}) } });
-    return json(LIST);
-  });
-  // No request leaves this document: what the app would send is only recorded.
-  const proto = (window as unknown as { XMLHttpRequest: { prototype: { send: () => void } } }).XMLHttpRequest.prototype;
-  proto.send = () => undefined;
+/**
+ * The page's XMLHttpRequest, as a stand-in that sends nothing: it records what each request
+ * carried and answers from `respond`, a moment later, as the network would.
+ */
+function fakeRequests(window: Window, respond: (path: string) => { status: number; text: string } | "error") {
+  const sent: Array<{ path: string; headers: Record<string, string> }> = [];
+  type Request = {
+    path: string;
+    headers: Record<string, string>;
+    status: number;
+    responseText: string;
+    onload: (() => void) | null;
+    onerror: (() => void) | null;
+  };
+  function FakeRequest(this: Request) {
+    this.status = 0;
+    this.responseText = "";
+    this.onload = null;
+    this.onerror = null;
+  }
+  FakeRequest.prototype.open = function (this: Request, _method: string, path: string) {
+    this.path = path;
+    this.headers = {};
+  };
+  FakeRequest.prototype.setRequestHeader = function (this: Request, name: string, value: string) {
+    this.headers[name.toLowerCase()] = value;
+  };
+  FakeRequest.prototype.send = function (this: Request) {
+    sent.push({ path: this.path, headers: { ...this.headers } });
+    setTimeout(() => {
+      const answer = respond(this.path);
+      if (answer === "error") this.onerror?.();
+      else {
+        this.status = answer.status;
+        this.responseText = answer.text;
+        this.onload?.();
+      }
+    }, 0);
+  };
+  (window as unknown as { XMLHttpRequest: unknown }).XMLHttpRequest = FakeRequest;
+  return {
+    sent,
+    /** A request made as HuskyCT's own code makes one. */
+    app(path: string, headers: Record<string, string>) {
+      const request = new (FakeRequest as unknown as new () => { open: (m: string, p: string) => void; setRequestHeader: (n: string, v: string) => void; send: () => void })();
+      request.open("GET", path);
+      for (const [name, value] of Object.entries(headers)) request.setRequestHeader(name, value);
+      request.send();
+    },
+  };
+}
+
+function agentIn(window: Window, helper: Helper) {
   (helper as unknown as { pageApiAgent: () => void }).pageApiAgent();
+  const answers: Array<{ id: string; status?: number; text?: string; error?: string; copied: number; names: string }> = [];
+  window.document.addEventListener("betterhuskyct:api-answer", (event) => answers.push(JSON.parse(String((event as unknown as { detail: string }).detail))));
+  const ask = (id: string, path: string) => window.document.dispatchEvent(pageEvent(window, "betterhuskyct:api-request", JSON.stringify({ id, path })));
+  return { answers, ask };
+}
+
+test("the agent puts the headers HuskyCT's own code uses for its data on its own requests, and names them", async () => {
+  const { window, helper } = openPage(data());
+  const requests = fakeRequests(window, () => ({ status: 200, text: JSON.stringify(LIST) }));
+  const { answers, ask } = agentIn(window, helper);
   const root = window.document.documentElement;
 
-  const XHR = (window as unknown as { XMLHttpRequest: new () => { open: (m: string, u: string) => void; setRequestHeader: (n: string, v: string) => void; send: () => void } }).XMLHttpRequest;
-  const other = new XHR();
-  other.open("GET", "/ultra/course");
-  other.setRequestHeader("X-Elsewhere", "no");
-  other.send();
+  requests.app("/ultra/course", { "X-Elsewhere": "no" });
   assert.equal(root.hasAttribute("data-betterhuskyct-app"), false, "a request for something other than HuskyCT's data counted as the app's");
 
-  const app = new XHR();
-  app.open("GET", "/learn/api/v1/users/me");
-  app.setRequestHeader("X-Blackboard-XSRF", "token-1");
-  app.setRequestHeader("Content-Type", "application/json");
-  app.send();
+  requests.app("/learn/api/v1/users/me", { "X-Blackboard-XSRF": "token-1", "Content-Type": "application/json" });
   assert.equal(root.getAttribute("data-betterhuskyct-app"), "1");
 
-  const answers: Array<{ id: string; copied: number }> = [];
-  window.document.addEventListener("betterhuskyct:api-answer", (event) => answers.push(JSON.parse(String((event as unknown as { detail: string }).detail))));
-  window.document.dispatchEvent(pageEvent(window, "betterhuskyct:api-request", JSON.stringify({ id: "one", path: "/learn/api/v1/users/me/memberships" })));
+  ask("one", "/learn/api/v1/users/me/memberships");
   await new Promise((resolve) => setTimeout(resolve, 50));
 
-  assert.deepEqual(inits.map((init) => init.headers), [{ accept: "application/json", "x-blackboard-xsrf": "token-1" }]);
-  assert.deepEqual(answers.map((answer) => [answer.id, answer.copied]), [["one", 1]]);
+  const own = requests.sent.filter((request) => request.path === "/learn/api/v1/users/me/memberships");
+  assert.deepEqual(own.map((request) => request.headers), [{ accept: "application/json", "x-blackboard-xsrf": "token-1" }]);
+  assert.deepEqual(answers.map((answer) => [answer.id, answer.status, answer.copied, answer.names]), [["one", 200, 1, "x-blackboard-xsrf"]]);
+  assert.deepEqual(JSON.parse(answers[0].text ?? ""), LIST);
 });
 
-test("the agent in the page fetches HuskyCT's data with the page's fetch, once, and nothing else", async () => {
-  const fetched: string[] = [];
-  const { window, helper } = openPage(async (path) => {
-    fetched.push(path);
-    return json(LIST);
-  });
-  const agent = (helper as unknown as { pageApiAgent: () => void }).pageApiAgent;
-  agent();
-  agent();
-  const answers: Array<{ id: string; status: number; text: string }> = [];
-  window.document.addEventListener("betterhuskyct:api-answer", (event) => answers.push(JSON.parse(String((event as unknown as { detail: string }).detail))));
-  const ask = (id: string, path: string) =>
-    window.document.dispatchEvent(pageEvent(window, "betterhuskyct:api-request", JSON.stringify({ id, path })));
+test("the agent asks for HuskyCT's data only, once however often it is put in, and says when nothing came back", async () => {
+  const { window, helper } = openPage(data());
+  const requests = fakeRequests(window, (path) => (path.includes("broken") ? "error" : { status: 200, text: "{}" }));
+  (helper as unknown as { pageApiAgent: () => void }).pageApiAgent();
+  const { answers, ask } = agentIn(window, helper);
 
   ask("one", "/learn/api/v1/users/me/memberships?limit=50");
   ask("two", "/ultra/course");
   ask("three", "https://evil.example/learn/api/v1/");
+  ask("four", "/learn/api/v1/broken");
   window.document.dispatchEvent(pageEvent(window, "betterhuskyct:api-request", "{not json"));
   await new Promise((resolve) => setTimeout(resolve, 50));
 
-  assert.deepEqual(fetched, ["/learn/api/v1/users/me/memberships?limit=50"], "it fetched something other than HuskyCT's data, or twice");
-  assert.deepEqual(answers.map((answer) => [answer.id, answer.status]), [["one", 200]]);
-  assert.deepEqual(JSON.parse(answers[0].text), LIST);
+  assert.deepEqual(requests.sent.map((request) => request.path), ["/learn/api/v1/users/me/memberships?limit=50", "/learn/api/v1/broken"], "it asked for something other than HuskyCT's data, or twice");
+  assert.deepEqual(answers.map((answer) => [answer.id, answer.status ?? answer.error]), [["one", 200], ["four", "no answer"]]);
   assert.equal(window.document.documentElement.getAttribute("data-betterhuskyct-api"), "1");
+  // Its own requests are not taken for HuskyCT's code asking.
+  assert.equal(window.document.documentElement.hasAttribute("data-betterhuskyct-app"), false, "the agent's own request was heard as the app's");
 });
 
 test("without the student's id the announcements still come, and no gradebook is claimed", async () => {

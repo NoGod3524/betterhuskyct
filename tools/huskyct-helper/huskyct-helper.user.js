@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.12.5
+// @version      1.12.6
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -53,7 +53,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.12.5";
+  const VERSION = "1.12.6";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -532,7 +532,7 @@
 
   /**
    * What runs in the page itself, put there as a script of its own: it fetches the HuskyCT data
-   * path it is asked for, with the page's own fetch, and says what came back. It is turned into
+   * path it is asked for, as the page's own code would, and says what came back. It is turned into
    * text, so it uses nothing from outside itself, and it asks for nothing but HuskyCT's data.
    * The two sides speak in strings, which pass between the page and the sandbox as they are.
    *
@@ -541,33 +541,34 @@
    * anti-forgery header is the likely thing), so the agent listens to it: the headers HuskyCT's
    * own code puts on its requests for its data (made with XMLHttpRequest, as the app does) are
    * kept and put on the agent's own. It marks the page once that code has asked for anything.
+   * Its answer names the headers it copied (never their values), for a refusal to say.
    */
   function pageApiAgent() {
     const root = document.documentElement;
     if (!root || root.hasAttribute("data-betterhuskyct-api")) return;
     root.setAttribute("data-betterhuskyct-api", "1");
     const heard = {};
-    const proto = window.XMLHttpRequest && window.XMLHttpRequest.prototype;
-    if (proto) {
-      const open = proto.open;
-      const setRequestHeader = proto.setRequestHeader;
-      const send = proto.send;
-      proto.open = function (...args) {
-        this.__betterhuskyctApi = /\/learn\/api\//.test(String(args[1]));
-        return open.apply(this, args);
-      };
-      proto.setRequestHeader = function (...args) {
-        const name = String(args[0]).toLowerCase();
-        if (this.__betterhuskyctApi && name !== "content-type" && name !== "content-length") heard[name] = String(args[1]);
-        return setRequestHeader.apply(this, args);
-      };
-      proto.send = function (...args) {
-        if (this.__betterhuskyctApi) root.setAttribute("data-betterhuskyct-app", "1");
-        return send.apply(this, args);
-      };
-    }
-    // The page's fetch as it is now, before anything wraps it.
-    const fetch = window.fetch;
+    const XHR = window.XMLHttpRequest;
+    const proto = XHR && XHR.prototype;
+    if (!proto) return;
+    // The request's own methods as they are now, before anything wraps them: the agent's own
+    // requests use these, so they are neither heard as the app's nor changed by anyone else.
+    const open = proto.open;
+    const setRequestHeader = proto.setRequestHeader;
+    const send = proto.send;
+    proto.open = function (...args) {
+      this.__betterhuskyctApi = /\/learn\/api\//.test(String(args[1]));
+      return open.apply(this, args);
+    };
+    proto.setRequestHeader = function (...args) {
+      const name = String(args[0]).toLowerCase();
+      if (this.__betterhuskyctApi && name !== "content-type" && name !== "content-length") heard[name] = String(args[1]);
+      return setRequestHeader.apply(this, args);
+    };
+    proto.send = function (...args) {
+      if (this.__betterhuskyctApi) root.setAttribute("data-betterhuskyct-app", "1");
+      return send.apply(this, args);
+    };
     document.addEventListener("betterhuskyct:api-request", function (event) {
       let ask;
       try {
@@ -576,26 +577,44 @@
         return;
       }
       if (!ask || typeof ask.id !== "string" || typeof ask.path !== "string" || ask.path.indexOf("/learn/api/v1/") !== 0) return;
+      let done = false;
+      const names = [];
       const answer = function (fields) {
+        if (done) return;
+        done = true;
         fields.id = ask.id;
+        fields.copied = names.length;
+        fields.names = names.join(" ");
         document.dispatchEvent(new CustomEvent("betterhuskyct:api-answer", { detail: JSON.stringify(fields) }));
       };
-      const headers = { accept: "application/json" };
-      let copied = 0;
-      for (const name of Object.keys(heard)) {
-        headers[name] = heard[name];
-        copied++;
+      try {
+        // Made as HuskyCT's own code makes them, with XMLHttpRequest: a fetch carrying the same
+        // headers got no answer at all (measured on 2026-10-06).
+        const request = new XHR();
+        open.call(request, "GET", ask.path, true);
+        setRequestHeader.call(request, "Accept", "application/json");
+        for (const name of Object.keys(heard)) {
+          if (name === "accept") continue;
+          try {
+            setRequestHeader.call(request, name, heard[name]);
+            names.push(name);
+          } catch {
+            /* a header this request may not carry */
+          }
+        }
+        request.onload = function () {
+          answer({ status: request.status, text: String(request.responseText || "") });
+        };
+        request.onerror = function () {
+          answer({ error: "no answer" });
+        };
+        request.onabort = function () {
+          answer({ error: "aborted" });
+        };
+        send.call(request);
+      } catch (error) {
+        answer({ error: "threw " + String((error && error.name) || "error") });
       }
-      fetch.call(window, ask.path, { credentials: "same-origin", headers: headers }).then(
-        function (response) {
-          return response.text().then(function (text) {
-            answer({ status: response.status, text: text, copied: copied });
-          });
-        },
-        function () {
-          answer({ error: "no answer", copied: copied });
-        },
-      );
     });
   }
 
@@ -642,8 +661,12 @@
       appWaited = true;
       await waitFor(() => root.hasAttribute(PAGE_APP_MARK), 250, APP_WAIT_MS);
     }
-    // Said with a refusal: how many of the app's headers went with it, or that the app was never heard.
-    const sent = (copied) => (root.hasAttribute(PAGE_APP_MARK) ? " h" + (Number(copied) || 0) : " noapp");
+    // Said with a refusal: how many of the app's headers went with it, and their names, or that the app was never heard.
+    const sent = (answer) => {
+      if (!root.hasAttribute(PAGE_APP_MARK)) return " noapp";
+      const names = String(answer.names || "").replace(/[^a-z0-9 -]/g, "").trim().slice(0, 40);
+      return " h" + (Number(answer.copied) || 0) + (names ? " " + names : "");
+    };
     return new Promise((resolve) => {
       const id = "ask-" + Date.now() + "-" + ++pageAsks;
       let timer = null;
@@ -660,10 +683,10 @@
           return;
         }
         if (!answer || answer.id !== id) return;
-        if (answer.error) return finish({ failure: String(answer.error) + sent(answer.copied) });
+        if (answer.error) return finish({ failure: String(answer.error) + sent(answer) });
         if (!(answer.status >= 200 && answer.status < 300)) {
           const words = refusalWords(answer.text);
-          return finish({ failure: "HTTP " + answer.status + sent(answer.copied) + (words ? " " + words : "") });
+          return finish({ failure: "HTTP " + answer.status + sent(answer) + (words ? " " + words : "") });
         }
         try {
           finish({ data: JSON.parse(String(answer.text)) });
