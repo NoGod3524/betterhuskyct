@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
+import { helperMessage, openThroughBridge, pingBridge } from "@/lib/helper-bridge";
 import {
   createHelperSync,
   HUSKYCT_TAB_NAME,
@@ -38,16 +39,27 @@ function openHuskyctTab(): HuskyctTab | null {
 type Value = { state: HelperSyncState; start: () => void };
 const Context = createContext<Value>({ state: { phase: "idle" }, start: () => undefined });
 
+/** HuskyCT in front, for signing in: a sync behind this page cannot show the sign-in page. */
+function showHuskyct() {
+  window.open(HUSKYCT_URL, HUSKYCT_TAB_NAME);
+}
+
 /**
  * Holds the one sync in progress for every Sync button on the page, and listens for what the helper
  * says about it. `deps` is for tests; the app uses the real window.
+ *
+ * When the helper runs on this page too (1.11.0 and later) the sync goes through its bridge: HuskyCT
+ * opens behind this tab, or an open HuskyCT tab is used, and the student stays here. Otherwise
+ * HuskyCT opens in front, as it did.
  */
 export function HelperSyncProvider({ children, deps }: { children: ReactNode; deps?: Partial<SyncDeps> }) {
   const [state, setState] = useState<HelperSyncState>({ phase: "idle" });
   const sync = useRef<ReturnType<typeof createHelperSync> | null>(null);
+  // Whether the helper on this page can reach HuskyCT behind it; found out once the page has loaded.
+  const [bridge] = useState(() => ({ found: false }));
   if (sync.current === null) {
     sync.current = createHelperSync({
-      open: deps?.open ?? openHuskyctTab,
+      open: deps?.open ?? (() => (bridge.found ? openThroughBridge(window) : openHuskyctTab())),
       schedule: deps?.schedule ?? ((run, ms) => {
         const id = window.setTimeout(run, ms);
         return () => window.clearTimeout(id);
@@ -58,10 +70,20 @@ export function HelperSyncProvider({ children, deps }: { children: ReactNode; de
   }
 
   useEffect(() => {
-    const listener = (event: MessageEvent) => sync.current?.receive({ origin: event.origin, data: event.data, source: event.source });
+    const listener = (event: MessageEvent) => sync.current?.receive(helperMessage(event, window));
     window.addEventListener("message", listener);
-    return () => window.removeEventListener("message", listener);
-  }, []);
+    let live = true;
+    // Asked once: the helper is there from before this page's own code runs, or not at all.
+    if (!deps?.open) {
+      void pingBridge(window).then((found) => {
+        if (live) bridge.found = found;
+      });
+    }
+    return () => {
+      live = false;
+      window.removeEventListener("message", listener);
+    };
+  }, [deps?.open, bridge]);
 
   const start = useCallback(() => sync.current?.start(), []);
   const value = useMemo(() => ({ state, start }), [state, start]);
@@ -89,7 +111,16 @@ export function syncStatusText(locale: Locale, state: HelperSyncState): string {
     case "nodata":
       return t(locale, "helpersync.nodata");
     case "failed":
-      return t(locale, state.reason === "stalled" ? "helpersync.stalled" : state.reason === "closed" ? "helpersync.closed" : "helpersync.noanswer");
+      return t(
+        locale,
+        state.reason === "stalled"
+          ? "helpersync.stalled"
+          : state.reason === "closed"
+            ? "helpersync.closed"
+            : state.reason === "signin"
+              ? "helpersync.signin"
+              : "helpersync.noanswer",
+      );
   }
 }
 
@@ -135,6 +166,14 @@ export function HelperSyncButton({ variant }: { variant: "big" | "compact" }) {
       </button>
       <p role="status" className={`mt-2 text-sm ${failed ? "text-[var(--c-9f3527)]" : "text-[var(--muted)]"}`}>
         {text || t(locale, "helpersync.hint")}
+        {state.phase === "failed" && state.reason === "signin" ? (
+          <>
+            {" "}
+            <button type="button" onClick={showHuskyct} className="font-semibold text-[var(--link)] hover:underline">
+              {t(locale, "helpersync.openHuskyct")}
+            </button>
+          </>
+        ) : null}
         {state.phase === "failed" && state.reason === "noanswer" ? (
           <>
             {" "}

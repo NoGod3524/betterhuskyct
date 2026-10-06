@@ -1,15 +1,19 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.10.0
+// @version      1.11.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
 // @match        https://huskyct.uconn.edu/*
+// @match        https://betterhuskyct.vercel.app/*
 // @updateURL    https://raw.githubusercontent.com/NoGod3524/betterhuskyct/main/tools/huskyct-helper/huskyct-helper.user.js
 // @downloadURL  https://raw.githubusercontent.com/NoGod3524/betterhuskyct/main/tools/huskyct-helper/huskyct-helper.user.js
 // @run-at       document-start
-// @grant        none
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_addValueChangeListener
+// @grant        GM_openInTab
 // ==/UserScript==
 
 /**
@@ -42,7 +46,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.10.0";
+  const VERSION = "1.11.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -96,7 +100,6 @@
       hidePanel: "Hide the panel",
       sendDeadlines: "Send everything to BetterHuskyCT",
       privacy: "Nothing is uploaded. Everything stays in this browser.",
-      sync: "Sync",
       autoOn: "Sync on its own when HuskyCT opens: on",
       autoOff: "Sync on its own when HuskyCT opens: off",
       syncing: "Syncing your courses, announcements and grades…",
@@ -106,12 +109,6 @@
       syncNotSent: " Not sent yet. Press the Send buttons below.",
       syncAutoReady: " Read on its own. Press Sync to send it to BetterHuskyCT.",
       syncNoData: "Nothing could be read this way. Press Collect everything instead.",
-      recStart: "Diagnose: record the page's data requests",
-      recRunning: "Recording. Open a course's Grades page and its Announcements page as you normally would, then press the button again.",
-      recCopy: "Stop and copy the recording",
-      recCopied: "Copied {count} request(s), structure only: no scores, titles or names. Paste it where you were asked.",
-      recManual: "Could not copy on its own. {count} request(s), structure only, are in the box: select all and copy.",
-      recEmpty: "Nothing was recorded. Open a course's Grades page after pressing the first button, then try again.",
       guideTodo:
         "Press Collect everything: the panel reads this to-do list, every course's announcements, gradebooks and files by itself, then sends them to BetterHuskyCT.",
       guideCourse: "Press Collect everything to read every course's announcements, this one included.",
@@ -218,7 +215,6 @@
       hidePanel: "收起面板",
       sendDeadlines: "全部发给 BetterHuskyCT",
       privacy: "不上传任何东西，全部留在这个浏览器里。",
-      sync: "同步",
       autoOn: "打开 HuskyCT 时自动同步：开",
       autoOff: "打开 HuskyCT 时自动同步：关",
       syncing: "正在同步课程、公告和成绩……",
@@ -228,12 +224,6 @@
       syncNotSent: " 还没发送，按下面的发送按钮。",
       syncAutoReady: " 已自动读取，按「同步」发给 BetterHuskyCT。",
       syncNoData: "这种方式读不到任何东西，请改按「一键收集全部」。",
-      recStart: "诊断：记录页面的数据请求",
-      recRunning: "正在记录。像平时一样打开某门课的成绩页和公告页，然后再按一次这个按钮。",
-      recCopy: "停止并复制记录",
-      recCopied: "已复制 {count} 条请求，只含结构，不含分数、标题和姓名。请粘贴到需要的地方。",
-      recManual: "没能自动复制。{count} 条请求（只含结构）在下面的框里，请全选后复制。",
-      recEmpty: "没有记到任何请求。请在按了第一个按钮之后再打开某门课的成绩页，然后重试。",
       guideTodo: "按「一键收集全部」：面板会自己读取待办、每门课的公告、成绩册和课件，然后发给 BetterHuskyCT。",
       guideCourse: "按「一键收集全部」，读取每门课的公告，包括这一门。",
       guideAnnouncements: "这门课的公告已经收进篮子。",
@@ -3253,170 +3243,183 @@
     return { parts, failed };
   }
 
-  // ---------------------------------------------------------- the API recorder
+  // ----------------------------------------------------------------- the bridge
 
   /**
-   * A diagnostic, not a feature of the collection: it writes down what HuskyCT's
-   * own page asks its server for, so the helper can later read those answers
-   * directly instead of walking the pages.
+   * Lets BetterHuskyCT's Sync button run the sync in a HuskyCT tab the student never has to look at.
    *
-   * It records structure only. A query keeps its parameter names, and the values
-   * of a few that say how much to ask for; ids are written as _N_N; and every
-   * string in a request or an answer is replaced by its length, except the
-   * value of a field that names a kind of thing ("status", "type"), so a score,
-   * a title or a name never leaves the page. Nothing is sent anywhere: the result
-   * is copied to the clipboard for the student to paste.
+   * A page cannot open a tab behind itself, and pages on two sites cannot talk unless one opened
+   * the other. The userscript manager can do both, so the helper also runs on BetterHuskyCT: there
+   * it opens HuskyCT in a background tab when none is open, and it carries messages between the
+   * two through the manager's storage, which every tab running this script shares. Each side hears
+   * the other as it would over postMessage, so the sync and the sending are the same code as ever.
+   *
+   * Without the manager's storage (an install from before 1.11.0, or a test page) none of this
+   * runs, and BetterHuskyCT opens HuskyCT in front, as it did.
    */
-  const API_QUERY_KEEP = /^(expand|fields|limit|offset|sort|orderby|view|type|filter|includecount)$/i;
-  const API_WORD_KEYS = /^(status|type|kind|state|category|format|role|availability|gradingtype|displayas|mode|source|method)$/i;
-  const API_MAX_ENTRIES = 80;
-  const API_MAX_CHARS = 60000;
+  const BRIDGE_CONTROL = "betterhuskyct/bridge@1";
+  const BRIDGE_OUT = "betterhuskyct/bridge-out@1";
+  const BRIDGE_IN = "betterhuskyct/bridge-in@1";
+  const BRIDGE_TO_HUSKYCT = "bridge.toHuskyct";
+  const BRIDGE_TO_BHC = "bridge.toBhc";
+  const BRIDGE_ALIVE = "bridge.huskyctAlive";
+  const HUSKYCT_HOME = "https://lms.uconn.edu/ultra/course";
+  const HUSKYCT_ORIGIN = "https://lms.uconn.edu";
+  /** A tab in the background runs its timers about once a minute, so it is taken for gone only after a few missed beats. */
+  const HEARTBEAT_MS = 20000;
+  const ALIVE_MS = 150000;
+  /** Messages are kept long enough for a tab that is still loading to find them. */
+  const KEEP_MS = 60000;
+  /** A request a tab finds as it loads is answered only if this new: older, nobody is waiting for it. */
+  const ANSWER_WITHIN_MS = 30000;
 
-  /** A same-origin address with its ids and query values removed, or null for anyone else's. */
-  function apiPathOf(href) {
-    try {
-      const url = new URL(href, window.location.href);
-      if (url.origin !== window.location.origin) return null;
-      const query = [...url.searchParams.keys()].map((key) => key + "=" + (API_QUERY_KEEP.test(key) ? String(url.searchParams.get(key)).slice(0, 80) : "…"));
-      const path = url.pathname
-        .replace(/_\d+_\d+/g, "_N_N")
-        .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, "UUID");
-      return path + (query.length ? "?" + query.join("&") : "");
-    } catch {
+  function manager() {
+    if (typeof GM_getValue !== "function" || typeof GM_setValue !== "function" || typeof GM_addValueChangeListener !== "function") {
       return null;
     }
-  }
-
-  /** What a value is made of, with none of what it says. */
-  function shapeOf(value, key, depth) {
-    if (value === null) return "null";
-    if (Array.isArray(value)) {
-      if (depth >= 6) return "array(" + value.length + ")";
-      const items = value.slice(0, 5).map((item) => shapeOf(item, key, depth + 1));
-      // Rows do not all carry every field, so the first few are merged.
-      const merged = items.every((item) => item && typeof item === "object" && !Array.isArray(item))
-        ? Object.assign({}, ...items.slice().reverse())
-        : items[0];
-      return { "[length]": value.length, "[items]": value.length ? merged : "none" };
-    }
-    if (typeof value === "object") {
-      if (depth >= 6) return "object";
-      const out = {};
-      const keys = Object.keys(value);
-      for (let index = 0; index < keys.length && index < 40; index++) out[keys[index].replace(/_\d+_\d+/g, "_N_N")] = shapeOf(value[keys[index]], keys[index], depth + 1);
-      if (keys.length > 40) out["…"] = keys.length + " keys";
-      return out;
-    }
-    if (typeof value === "string") {
-      // An address in the page's own API says where the data is, which is the point.
-      if (/^\/(learn|ultra)\//.test(value)) return "path:" + (apiPathOf(value) || "?");
-      return API_WORD_KEYS.test(key || "") && value.length <= 30 ? "string:" + value : "string(" + Math.min(value.length, 99) + ")";
-    }
-    return typeof value;
-  }
-
-  function bodyShape(body) {
-    if (body === undefined || body === null) return null;
-    if (typeof body !== "string") return "(" + Object.prototype.toString.call(body).slice(8, -1) + ")";
-    try {
-      return shapeOf(JSON.parse(body), "", 0);
-    } catch {
-      return "(not json, " + body.length + " chars)";
-    }
-  }
-
-  function renderApiRecording(entries, page) {
-    const lines = ["HuskyCT helper API recording, structure only. Page: " + apiPathOf(page || "/"), ""];
-    entries.forEach((entry, index) => {
-      lines.push("[" + (index + 1) + "] " + entry.id + " -> " + entry.status);
-      if (entry.body !== null) lines.push("  request body: " + JSON.stringify(entry.body, null, 1).replace(/\n/g, "\n  "));
-      lines.push("  response: " + JSON.stringify(entry.response, null, 1).replace(/\n/g, "\n  "));
-      lines.push("");
-    });
-    const text = lines.join("\n");
-    return text.length > API_MAX_CHARS ? text.slice(0, API_MAX_CHARS) + "\n…(cut)" : text;
-  }
-
-  /** Starts recording this page's requests. `finish()` stops, puts everything back and returns { count, text }. */
-  function startApiRecorder() {
-    const entries = [];
-    const seen = new Set();
-    const originalFetch = window.fetch;
-    const proto = window.XMLHttpRequest && window.XMLHttpRequest.prototype;
-    const originalOpen = proto && proto.open;
-    const originalSend = proto && proto.send;
-
-    function note(method, href, body, status, contentType, text) {
-      const path = apiPathOf(href);
-      if (!path || entries.length >= API_MAX_ENTRIES || !/json/i.test(contentType || "")) return;
-      const id = method + " " + path;
-      if (seen.has(id)) return;
-      seen.add(id);
-      let response = "(not json)";
-      if (typeof text === "string" && text.length > 2000000) response = "(too large)";
-      else {
-        try {
-          response = shapeOf(JSON.parse(text), "", 0);
-        } catch {
-          /* left as not json */
-        }
-      }
-      entries.push({ id, status, body: bodyShape(body), response });
-    }
-
-    if (originalFetch) {
-      window.fetch = function (input, init) {
-        const promise = originalFetch.apply(this, arguments);
-        try {
-          const href = typeof input === "string" ? input : String(input && input.url ? input.url : input);
-          const method = String((init && init.method) || (input && input.method) || "GET").toUpperCase();
-          const body = init && init.body;
-          promise.then(
-            (response) => {
-              try {
-                response.clone().text().then((text) => note(method, href, body, response.status, response.headers.get("content-type"), text), () => {});
-              } catch {
-                /* a response that cannot be cloned is skipped */
-              }
-            },
-            () => {},
-          );
-        } catch {
-          /* recording never gets in the page's way */
-        }
-        return promise;
-      };
-    }
-    if (proto) {
-      proto.open = function (method, href) {
-        this.__bhcRecord = { method: String(method).toUpperCase(), href: String(href) };
-        return originalOpen.apply(this, arguments);
-      };
-      proto.send = function (body) {
-        const info = this.__bhcRecord;
-        if (info) {
-          this.addEventListener("loadend", () => {
-            try {
-              note(info.method, info.href, body, this.status, this.getResponseHeader("content-type"), this.responseText);
-            } catch {
-              /* not a text response */
-            }
-          });
-        }
-        return originalSend.apply(this, arguments);
-      };
-    }
-
     return {
-      finish() {
-        if (originalFetch) window.fetch = originalFetch;
-        if (proto) {
-          proto.open = originalOpen;
-          proto.send = originalSend;
-        }
-        return { count: entries.length, text: renderApiRecording(entries, window.location.pathname) };
-      },
+      get: (key, fallback) => GM_getValue(key, fallback),
+      set: (key, value) => GM_setValue(key, value),
+      listen: (key, run) => GM_addValueChangeListener(key, run),
+      openInTab: typeof GM_openInTab === "function" ? (url, options) => GM_openInTab(url, options) : null,
     };
+  }
+
+  let bridgeCount = 0;
+  /** Sorts by when it was made, so the oldest HuskyCT tab is the one that answers. */
+  function bridgeId() {
+    bridgeCount += 1;
+    return Date.now().toString(36).padStart(10, "0") + "-" + Math.random().toString(36).slice(2, 8) + "-" + bridgeCount;
+  }
+
+  function queueItems(value) {
+    const items = value && Array.isArray(value.items) ? value.items : [];
+    const now = Date.now();
+    return items.filter((item) => item && typeof item.id === "string" && typeof item.at === "number" && now - item.at < KEEP_MS);
+  }
+
+  function pushQueue(store, key, data) {
+    const items = queueItems(store.get(key, null));
+    // Plain data only: what crosses between tabs is what postMessage would have carried.
+    items.push({ id: bridgeId(), at: Date.now(), data: JSON.parse(JSON.stringify(data)) });
+    store.set(key, { items });
+  }
+
+  /**
+   * Hands `run` each message not handled before, whenever the queue changes. What is already there
+   * when this starts is for another page, except what is newer than `keepFirst`.
+   */
+  function drainQueue(store, key, run, keepFirst) {
+    const seen = new Set();
+    const drain = (value, first) => {
+      for (const item of queueItems(value)) {
+        if (seen.has(item.id)) continue;
+        seen.add(item.id);
+        if (first && Date.now() - item.at > keepFirst) continue;
+        run(item.data);
+      }
+    };
+    drain(store.get(key, null), true);
+    store.listen(key, (name, oldValue, newValue) => drain(newValue, false));
+  }
+
+  function aliveHuskyctTabs(store) {
+    const alive = store.get(BRIDGE_ALIVE, {}) || {};
+    const now = Date.now();
+    return Object.keys(alive)
+      .filter((id) => typeof alive[id] === "number" && now - alive[id] < ALIVE_MS)
+      .sort();
+  }
+
+  /** On BetterHuskyCT: open HuskyCT behind it when asked, and carry messages both ways. */
+  function startBridgeOnBhc() {
+    const store = manager();
+    if (!store) return;
+    const origin = window.location.origin;
+    // The tab opened for a sync, closed again when it is over; a tab the student opened is left alone.
+    let opened = null;
+    const toPage = (message) => window.postMessage(message, origin);
+
+    window.addEventListener("message", (event) => {
+      if (event.source !== window || event.origin !== origin) return;
+      const data = event.data;
+      if (!data || typeof data !== "object") return;
+      if (data.protocol === BRIDGE_CONTROL && data.kind === "ping") {
+        toPage({ protocol: BRIDGE_CONTROL, kind: "pong", version: VERSION });
+      } else if (data.protocol === BRIDGE_CONTROL && data.kind === "open") {
+        if (aliveHuskyctTabs(store).length === 0 && store.openInTab) {
+          try {
+            opened = store.openInTab(HUSKYCT_HOME, { active: false, insert: true, setParent: true });
+          } catch {
+            opened = null;
+          }
+        }
+      } else if (data.protocol === BRIDGE_OUT) {
+        pushQueue(store, BRIDGE_TO_HUSKYCT, data.data);
+      }
+    });
+
+    drainQueue(
+      store,
+      BRIDGE_TO_BHC,
+      (data) => {
+        toPage({ protocol: BRIDGE_IN, origin: HUSKYCT_ORIGIN, data });
+        if (opened && data && data.protocol === SYNC_PROTOCOL && data.kind === "done") {
+          const tab = opened;
+          opened = null;
+          window.setTimeout(() => {
+            try {
+              tab.close();
+            } catch {
+              /* already closed */
+            }
+          }, 3000);
+        }
+      },
+      0,
+    );
+  }
+
+  /**
+   * On HuskyCT: say this tab is here, and, if it is the one that answers, take what BetterHuskyCT
+   * sends — a sync request to `answer`, anything else as the message it would have been.
+   */
+  function startBridgeOnHuskyct(answer) {
+    const store = manager();
+    if (!store) return;
+    const me = bridgeId();
+    const beat = () => {
+      const alive = Object.assign({}, store.get(BRIDGE_ALIVE, {}) || {});
+      const now = Date.now();
+      for (const id of Object.keys(alive)) if (typeof alive[id] !== "number" || now - alive[id] >= ALIVE_MS) delete alive[id];
+      alive[me] = now;
+      store.set(BRIDGE_ALIVE, alive);
+    };
+    beat();
+    window.setInterval(beat, HEARTBEAT_MS);
+    window.addEventListener("pagehide", () => {
+      const alive = Object.assign({}, store.get(BRIDGE_ALIVE, {}) || {});
+      delete alive[me];
+      store.set(BRIDGE_ALIVE, alive);
+    });
+
+    // One HuskyCT tab answers, or every open one would read HuskyCT at once.
+    const answers = () => {
+      const alive = aliveHuskyctTabs(store);
+      return alive.length === 0 || alive[0] === me;
+    };
+    const toBhc = { postMessage: (message) => pushQueue(store, BRIDGE_TO_BHC, message) };
+
+    drainQueue(
+      store,
+      BRIDGE_TO_HUSKYCT,
+      (data) => {
+        if (!answers()) return;
+        if (data && data.protocol === SYNC_PROTOCOL && data.kind === "request") answer(toBhc);
+        else window.dispatchEvent(new window.MessageEvent("message", { data, origin: bhcOrigin() }));
+      },
+      ANSWER_WITHIN_MS,
+    );
   }
 
   // -------------------------------------------------------------------- panel
@@ -3470,11 +3473,6 @@
     }
     button.act:hover { border-color: #9fb7d1; }
     button.act.primary { background: #2a71d8; border-color: #2a71d8; color: #fff; }
-    /* The one big button: the quick sync. It is not part of the Collect/Send lead that "primary" hands between. */
-    button.act.big {
-      background: #1b4f9c; border-color: #1b4f9c; color: #fff;
-      padding: 14px 12px; font-size: 15px; font-weight: 700; text-align: center;
-    }
     button.act:disabled { opacity: .55; cursor: wait; }
     textarea {
       width: 100%; box-sizing: border-box; min-height: 150px; resize: vertical;
@@ -3510,7 +3508,6 @@
       <div class="body">
         <div class="note" data-role="hint"></div>
         <div class="note" data-role="basket">${t("basketEmpty")}</div>
-        <button class="act big" data-act="sync">${t("sync")}</button>
         <div class="note" data-role="sync" hidden></div>
         <button class="act" data-act="autosync">${t("autoOn")}</button>
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
@@ -3526,9 +3523,6 @@
         <button class="act" data-act="grades">${t("collectGrades")}</button>
         <div class="note" data-role="grades" hidden></div>
         <button class="act primary" data-act="sendgrades" hidden></button>
-        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
-        <button class="act" data-act="recapi">${t("recStart")}</button>
-        <div class="note" data-role="rec" hidden></div>
         <div class="note" data-role="status">${t("privacy")}</div>
       </div>
     `;
@@ -3597,7 +3591,6 @@
     const gradesButton = wrap.querySelector('[data-act="grades"]');
     const gradesLine = wrap.querySelector('[data-role="grades"]');
     const sendGradesButton = wrap.querySelector('[data-act="sendgrades"]');
-    const syncButton = wrap.querySelector('[data-act="sync"]');
     const syncLine = wrap.querySelector('[data-role="sync"]');
     const autoSyncButton = wrap.querySelector('[data-act="autosync"]');
     // The walk in progress, if any — `kind` says which button started it, and
@@ -3610,9 +3603,6 @@
     // The last grades reading, kept for the send button. The sync keeps its own across visits.
     let syncState = readSyncState(window.localStorage);
     let grades = syncState.grades;
-    // The API recorder while it is running, and the line it reports on.
-    let recorder = null;
-    const recLine = wrap.querySelector('[data-role="rec"]');
     // The basket in memory, re-read from storage on every tick so two HuskyCT
     // tabs collecting at once do not overwrite each other's courses.
     let basket = readBasket(window.localStorage);
@@ -3660,8 +3650,6 @@
       const syncWalk = Boolean(walk && walk.kind === "sync");
       collectButton.textContent = basketWalk ? t("stopCollecting") : t("collectAll");
       collectButton.disabled = materialsWalk || gradesWalk || syncWalk;
-      syncButton.textContent = syncWalk ? t("stopCollecting") : t("sync");
-      syncButton.disabled = basketWalk || materialsWalk || gradesWalk;
       autoSyncButton.textContent = syncState.auto ? t("autoOn") : t("autoOff");
       autoSyncButton.disabled = Boolean(walk);
       collectButton.classList.toggle("primary", !ready);
@@ -3819,7 +3807,6 @@
         say(Object.assign({ kind: "done", ok: false }, nothing));
       } finally {
         walk = null;
-        syncButton.disabled = false;
         basket = readBasket(window.localStorage);
         refreshBasket();
         refreshGuidance();
@@ -3846,13 +3833,10 @@
      * origin, by a window that can be answered; a sync already running, or a sign-in page, is said so.
      * What is read is sent back to the window that asked, so nothing has to be pressed here.
      */
-    window.addEventListener("message", (event) => {
-      if (event.origin !== bhcOrigin() || !event.source) return;
-      const data = event.data;
-      if (!data || data.protocol !== SYNC_PROTOCOL || data.kind !== "request") return;
+    function answerSyncRequest(target, origin) {
       const reply = (message) => {
         try {
-          event.source.postMessage(Object.assign({ protocol: SYNC_PROTOCOL }, message), event.origin);
+          target.postMessage(Object.assign({ protocol: SYNC_PROTOCOL }, message), origin);
         } catch {
           /* the window that asked is gone */
         }
@@ -3866,8 +3850,18 @@
         reply({ kind: "done", ok: false, courses: 0, announcements: 0, gradeItems: 0, skipped: [], sent: false });
         return;
       }
-      void runSync(event.source, false, reply);
+      void runSync(target, false, reply);
+    }
+
+    window.addEventListener("message", (event) => {
+      if (event.origin !== bhcOrigin() || !event.source) return;
+      const data = event.data;
+      if (!data || data.protocol !== SYNC_PROTOCOL || data.kind !== "request") return;
+      answerSyncRequest(event.source, event.origin);
     });
+
+    // The same request, from a BetterHuskyCT tab this tab was not opened by, through the userscript manager.
+    startBridgeOnHuskyct((target) => answerSyncRequest(target, bhcOrigin()));
 
     wrap.addEventListener("click", async (event) => {
       const button = event.target.closest("button.act");
@@ -4198,54 +4192,6 @@
         return;
       }
 
-      if (act === "sync") {
-        if (walk) {
-          walk.stop = true;
-          button.disabled = true;
-          return;
-        }
-        // Opened on the press, as a browser only allows. The sync reads no page, so the focus
-        // the new tab takes costs it nothing.
-        await runSync(openBhcTab(), false);
-        return;
-      }
-
-      if (act === "recapi") {
-        if (!recorder) {
-          recorder = startApiRecorder();
-          recLine.hidden = false;
-          recLine.className = "note";
-          recLine.textContent = t("recRunning");
-          button.textContent = t("recCopy");
-          return;
-        }
-        const recording = recorder.finish();
-        recorder = null;
-        button.textContent = t("recStart");
-        recLine.hidden = false;
-        if (recording.count === 0) {
-          recLine.className = "note warn";
-          recLine.textContent = t("recEmpty");
-          return;
-        }
-        try {
-          await window.navigator.clipboard.writeText(recording.text);
-          recLine.className = "note ok";
-          recLine.textContent = t("recCopied", { count: recording.count });
-        } catch {
-          // The clipboard can be refused; the text is put where it can be selected and copied by hand.
-          const box = document.createElement("textarea");
-          box.value = recording.text;
-          box.readOnly = true;
-          box.style.cssText = "width:100%;height:140px;margin-top:6px;font:11px/1.4 monospace";
-          recLine.className = "note warn";
-          recLine.textContent = t("recManual", { count: recording.count });
-          recLine.appendChild(box);
-          box.select();
-        }
-        return;
-      }
-
       if (act === "emptybasket") {
         basket = emptyBasket();
         writeBasket(window.localStorage, basket);
@@ -4402,9 +4348,6 @@
       GRADES_PROTOCOL,
       sendGradesToBhc,
       openBhcTab,
-      startApiRecorder,
-      apiPathOf,
-      shapeOf,
       problemsText,
       DOCUMENTS_KEY,
       termLabel,
@@ -4443,7 +4386,9 @@
     };
   }
 
-  if (typeof document !== "undefined") {
+  if (typeof document !== "undefined" && window.location.origin === bhcOrigin()) {
+    startBridgeOnBhc();
+  } else if (typeof document !== "undefined") {
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", mountPanel, { once: true });
     } else {

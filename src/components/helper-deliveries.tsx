@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { helperMessage } from "@/lib/helper-bridge";
 import { createGradesReceiver, type GradesReceiveState, type GradesStore } from "@/lib/grades";
 import { openGradesStore } from "@/lib/grades-store";
 import { createMaterialsReceiver, type MaterialsStore, type ReceiveState } from "@/lib/materials";
@@ -54,10 +55,11 @@ export function HelperDeliveries({
           },
         });
         const listener = (event: MessageEvent) => {
-          const source = event.source as Window | null;
+          // From HuskyCT directly, or through the helper's bridge from a tab behind this one.
+          const { origin, data, source } = helperMessage(event, window);
           // Each receiver answers only its own protocol, so both can hear every message.
-          void receiveGrades({ origin: event.origin, data: event.data, source });
-          void receiveMaterials({ origin: event.origin, data: event.data, source });
+          void receiveGrades({ origin, data, source: source as Window | null });
+          void receiveMaterials({ origin, data, source: source as Window | null });
         };
         window.addEventListener("message", listener);
         stop = () => window.removeEventListener("message", listener);

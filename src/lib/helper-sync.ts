@@ -21,6 +21,11 @@ export const HUSKYCT_TAB_NAME = "huskyct";
 /** How often the request is repeated while the helper has not answered, and how long to wait for it (a sign-in takes a while). */
 export const RETRY_EVERY_MS = 1000;
 export const GIVE_UP_AFTER_MS = 90_000;
+/**
+ * A HuskyCT tab opened behind this one has nobody watching it: if it has not answered in this
+ * long, it is most likely on the sign-in page, and the student is told to sign in.
+ */
+export const BACKGROUND_GIVE_UP_MS = 25_000;
 /** Once the helper has answered, how long it may go without a word before the sync is called stalled. */
 export const STALL_AFTER_MS = 120_000;
 
@@ -43,7 +48,7 @@ export type HelperSyncState =
   | ({ phase: "done" } & SyncSummary)
   /** The helper answered but could read nothing this way. */
   | { phase: "nodata" }
-  | { phase: "failed"; reason: "noanswer" | "stalled" | "closed" };
+  | { phase: "failed"; reason: "noanswer" | "stalled" | "closed" | "signin" };
 
 export type SyncMessage =
   | { kind: "ack"; state: "started" | "busy" }
@@ -81,8 +86,11 @@ export function parseSyncMessage(data: unknown): SyncMessage | null {
   return null;
 }
 
-/** What this needs of the HuskyCT tab: somewhere to post to, and whether it has been closed. */
-export type HuskyctTab = { postMessage: (message: unknown, targetOrigin: string) => void; closed?: boolean };
+/**
+ * What this needs of the HuskyCT tab: somewhere to post to, whether it has been closed, and
+ * whether it is a tab behind this one that the helper's bridge reaches.
+ */
+export type HuskyctTab = { postMessage: (message: unknown, targetOrigin: string) => void; closed?: boolean; background?: boolean };
 
 export type SyncDeps = {
   /** Opens the HuskyCT tab, or finds the one already open. Null if the browser refuses. */
@@ -125,8 +133,8 @@ export function createHelperSync(deps: SyncDeps) {
       set({ phase: "failed", reason: "closed" });
       return;
     }
-    if (deps.now() - startedAt > GIVE_UP_AFTER_MS) {
-      set({ phase: "failed", reason: "noanswer" });
+    if (deps.now() - startedAt > (tab.background ? BACKGROUND_GIVE_UP_MS : GIVE_UP_AFTER_MS)) {
+      set({ phase: "failed", reason: tab.background ? "signin" : "noanswer" });
       return;
     }
     try {
