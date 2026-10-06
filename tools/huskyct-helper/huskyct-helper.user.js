@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.12.8
+// @version      1.13.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -53,7 +53,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.12.8";
+  const VERSION = "1.13.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1199,6 +1199,13 @@
 
   /** The course's colour on one card, as `#rrggbb`, or null. */
   function cardColor(card) {
+    // In the list view the colour is a bar HuskyCT draws before the card's content (measured on 2026-10-06).
+    try {
+      const bar = parseCssColor(window.getComputedStyle(card, "::before").backgroundColor);
+      if (isCourseLike(bar)) return toHex(bar);
+    } catch {
+      /* the rest of the card, below */
+    }
     let best = null;
     const consider = (color, area) => {
       if (!isCourseLike(color)) return;
@@ -1249,10 +1256,15 @@
     }
   }
 
-  function rememberColors(storage, found) {
+  /**
+   * Keeps colours by course id. `fillOnly` is for colours read off the page: they fill in a course
+   * with none, and never replace one HuskyCT's course list gave.
+   */
+  function rememberColors(storage, found, fillOnly) {
     if (!found || Object.keys(found).length === 0) return;
     try {
-      storage.setItem(COLORS_KEY, JSON.stringify(Object.assign(readColors(storage), found)));
+      const known = readColors(storage);
+      storage.setItem(COLORS_KEY, JSON.stringify(fillOnly ? Object.assign({}, found, known) : Object.assign(known, found)));
     } catch {
       /* read again next time */
     }
@@ -1311,6 +1323,18 @@
     };
   }
 
+  /**
+   * HuskyCT's ten course colours, in the order of its `course-color-1` to `course-color-10`.
+   * Measured on 2026-10-06: a membership's `courseCardColorIndex` picks the card's class as
+   * `course-color-(index % 10 + 1)` (180 → 1, 77 and 37 → 8, 18 → 9), and these are the colours
+   * those classes draw, as the bar on each card in the list view.
+   */
+  const HUSKYCT_CARD_COLORS = ["#c473d4", "#2fd9fc", "#ffe12b", "#ff6417", "#89f3db", "#fe5b91", "#85f472", "#22c7cc", "#ca22ad", "#157afb"];
+
+  function cardColorFromIndex(index) {
+    return Number.isInteger(index) && index >= 0 ? HUSKYCT_CARD_COLORS[index % HUSKYCT_CARD_COLORS.length] : null;
+  }
+
   /** { recent, cards, queue, pageFound } for every course HuskyCT lists, or null if it could not be read this way. */
   async function readCoursesApi(opts) {
     const timeout = (opts && opts.apiTimeout) || 8000;
@@ -1318,6 +1342,7 @@
     let next = "/learn/api/v1/users/me/memberships?includeCount=true&limit=" + COURSES_PAGE + "&offset=0&expand=course.effectiveAvailability&sort=lastAccessDate(desc:nullslast)";
     let rows = 0;
     let expected = null;
+    const colors = {};
 
     for (let page = 0; next && page < COURSES_MAX_PAGES; page++) {
       const answer = await fetchJson(next, timeout);
@@ -1327,12 +1352,16 @@
       for (const membership of answer.results) {
         const card = courseCardFromApi(membership);
         if (card && !cards.has(card.id)) cards.set(card.id, card);
+        const color = card && cardColorFromIndex(membership.courseCardColorIndex);
+        if (color) colors[card.id] = color;
       }
       const following = answer.paging && answer.paging.nextPage ? String(answer.paging.nextPage) : "";
       next = /^\/learn\/api\/v1\/users\/me\/memberships/.test(following) && answer.results.length > 0 ? following : null;
     }
     // Short of what HuskyCT says is there, or nothing at all: not a course list to trust.
     if (next || cards.size === 0 || (expected !== null && rows < expected)) return null;
+    // The colours HuskyCT gives the courses come with the list, so no card has to be drawn for them.
+    rememberColors(window.localStorage, colors);
     const list = [...cards.values()];
     return { recent: [], cards: list, queue: coursesToCollect(list, [], new Date()), pageFound: true };
   }
@@ -1563,7 +1592,7 @@
     let cards = [];
     if (viewAll || document.querySelector("article[data-course-id]")) {
       cards = await loadEveryCourseCard(opts);
-      rememberColors(window.localStorage, readCourseColors(document));
+      rememberColors(window.localStorage, readCourseColors(document), true);
     }
     return { recent, cards, queue: coursesToCollect(cards, recent, new Date()), pageFound: Boolean(pageFound) };
   }
@@ -1639,7 +1668,7 @@
         await waitFor(() => document.querySelector("[aria-label*=', due ']"), opts.every, opts.todoSettle);
         basket = save(rememberTodos(basket, todosToRecords(collectTodos(document)), new Date()));
         basket = save(rememberCourses(basket, recent));
-        rememberColors(storage, readCourseColors(document));
+        rememberColors(storage, readCourseColors(document), true);
       });
       const queue = found.queue;
       report.problems.push(...coursesProblems(found));
@@ -1978,6 +2007,11 @@
       files.push({ title: name, url: anchor.getAttribute("data-ally-file-preview-url") });
     }
 
+    return { files, links: linksIn(root, documentItem.title) };
+  }
+
+  /** The videos and links out of HuskyCT in a document's content, each once. */
+  function linksIn(root, fallbackTitle) {
     const links = [];
     const seen = new Set();
     const addLink = (href, title) => {
@@ -1985,18 +2019,128 @@
       const url = unwrapLink(href);
       if (seen.has(url)) return;
       seen.add(url);
-      links.push({ title: title || documentItem.title, url, kind: isVideoLink(url) ? "video" : "link" });
+      links.push({ title: title || fallbackTitle, url, kind: isVideoLink(url) ? "video" : "link" });
     };
     for (const video of root.querySelectorAll('[data-bbtype="video"]')) {
       try {
-        addLink(JSON.parse(video.getAttribute("data-bbfile") || "{}").src, documentItem.title);
+        addLink(JSON.parse(video.getAttribute("data-bbfile") || "{}").src, fallbackTitle);
       } catch {
         /* an embed whose description does not parse is left out */
       }
     }
-    for (const frame of root.querySelectorAll("iframe[src]")) addLink(frame.getAttribute("src"), documentItem.title);
+    for (const frame of root.querySelectorAll("iframe[src]")) addLink(frame.getAttribute("src"), fallbackTitle);
     for (const anchor of root.querySelectorAll("a[href]")) addLink(anchor.getAttribute("href"), textOf(anchor));
-    return { files, links };
+    return links;
+  }
+
+  // --- course materials, read from HuskyCT's own data ---------------------------
+
+  /**
+   * A course's content, asked for as its outline asks, with no page to open: so it works in a tab
+   * behind BetterHuskyCT, which draws no pages.
+   *
+   * Measured on 2026-10-06 in one course: `GET /learn/api/v1/courses/<id>/contents/<parent>/children`
+   * (from `ROOT`) answers `{ paging: { nextPage }, results }`, 1000 to a page, each item with
+   * `contentHandler` as a string, `title`, `visibility`, `contentDetail` and `body`:
+   *
+   * - `resource/x-bb-lesson` and `resource/x-bb-folder` hold more items. A folder whose detail has
+   *   `isBbPage` is one of Ultra's documents, shown in the outline as a page, not a folder: its
+   *   items are taken as sitting where it sits, as the outline walk takes a document's attachments.
+   * - `resource/x-bb-file` carries `contentDetail["resource/x-bb-file"].file.permanentUrl`,
+   *   `/bbcswebdav/…`: the same address the outline's file row carries, so a file read either way
+   *   is the same file to BetterHuskyCT, and one already there is not sent again.
+   * - `resource/x-bb-document` carries its HTML in `body.rawText`; its attachments are
+   *   `<a data-bbfile="{…linkName…}" href="/bbcswebdav/…">`.
+   * - `resource/x-bb-externallink` carries its address in its detail; `resource/x-bb-blti-link`
+   *   is a tool launched from HuskyCT.
+   *
+   * The same { files, links, tools, activities, unaddressed, documents } as the outline walk, with
+   * no documents left to open, or null if it could not be read this way.
+   */
+  const CONTENT_ITEMS_MAX = 5000;
+  const CONTENT_DEPTH_MAX = 12;
+
+  async function readMaterialsApi(courseId, opts) {
+    const timeout = (opts && opts.apiTimeout) || 8000;
+    const out = { files: [], links: [], tools: [], activities: 0, unaddressed: 0, documents: [] };
+    const seenFiles = new Set();
+    let items = 0;
+    const addFile = (path, title, href) => {
+      const url = huskyctUrl(href);
+      if (!/^https:\/\/(lms|huskyct)\.uconn\.edu\/bbcswebdav\//.test(url)) return false;
+      if (!seenFiles.has(url)) {
+        seenFiles.add(url);
+        out.files.push({ path, title, url });
+      }
+      return true;
+    };
+
+    const walk = async (parentId, path, depth) => {
+      let next =
+        "/learn/api/v1/courses/" + encodeURIComponent(courseId) + "/contents/" + encodeURIComponent(parentId) + "/children?limit=1000&offset=0";
+      while (next) {
+        const answer = await fetchJson(next, timeout);
+        if (!answer || !Array.isArray(answer.results)) return false;
+        for (const item of answer.results) {
+          if (++items > CONTENT_ITEMS_MAX) return true;
+          if (!item || typeof item.id !== "string" || (item.visibility && item.visibility !== "VISIBLE")) continue;
+          const handler = String(item.contentHandler || "");
+          const detail = (item.contentDetail && item.contentDetail[handler]) || {};
+          const title = textOf({ textContent: item.title });
+          if (handler === "resource/x-bb-lesson" || handler === "resource/x-bb-folder") {
+            if (depth >= CONTENT_DEPTH_MAX) continue;
+            const inside = detail.isBbPage ? path : path.concat(title || "Untitled");
+            if (!(await walk(item.id, inside, depth + 1))) return false;
+          } else if (handler === "resource/x-bb-file") {
+            const file = detail.file || {};
+            if (!file.permanentUrl || !addFile(path, title || textOf({ textContent: file.fileName }), file.permanentUrl)) out.unaddressed += 1;
+          } else if (handler === "resource/x-bb-document") {
+            const html = item.body && typeof item.body === "object" ? item.body.rawText : item.body;
+            const found = documentContents(html, title);
+            for (const file of found.files) addFile(path, file.title, file.href);
+            for (const link of found.links) out.links.push({ path, ...link });
+          } else if (handler === "resource/x-bb-externallink") {
+            const url = unwrapLink(detail.url);
+            if (/^https?:/i.test(url)) out.links.push({ path, title, url, kind: isVideoLink(url) ? "video" : "link" });
+          } else if (handler === "resource/x-bb-blti-link") {
+            out.tools.push({ path, title });
+          } else if (/asmt|assignment|assessment|discussion|journal|survey|test/i.test(handler)) {
+            out.activities += 1;
+          }
+        }
+        // Only HuskyCT's own content address is followed, never one the answer names elsewhere.
+        const following = answer.paging && answer.paging.nextPage ? String(answer.paging.nextPage) : "";
+        next = /^\/learn\/api\/v1\/courses\//.test(following) && answer.results.length > 0 ? following : null;
+      }
+      return true;
+    };
+    return (await walk("ROOT", [], 0)) ? out : null;
+  }
+
+  /** A document's attachments ({ title, href }) and links, from its HTML, read in a document of its own so nothing in it runs. */
+  function documentContents(html, title) {
+    const empty = { files: [], links: [] };
+    if (!html) return empty;
+    let root;
+    try {
+      root = new window.DOMParser().parseFromString(String(html), "text/html").body;
+    } catch {
+      return empty;
+    }
+    const files = [];
+    for (const anchor of root.querySelectorAll("a[data-bbfile][href]")) {
+      const href = anchor.getAttribute("href") || "";
+      if (!/\/bbcswebdav\//.test(href)) continue;
+      let name = "";
+      try {
+        name = String(JSON.parse(anchor.getAttribute("data-bbfile") || "{}").linkName || "");
+      } catch {
+        /* named by its text instead */
+      }
+      files.push({ title: textOf({ textContent: name }) || textOf(anchor) || title, href });
+      anchor.remove();
+    }
+    return { files, links: linksIn(root, title) };
   }
 
   /** `1268` -> "Fall 2026". */
@@ -2091,7 +2235,10 @@
         const where = { course, index: index + 1, total: queue.length };
         opts.onProgress({ step: "outline", ...where });
 
-        const outline = await readOutlineOf(course.id, course.code, opts);
+        // HuskyCT's own data first: no page to open, and every document's attachments come with
+        // it. The outline is read from its page only if that failed.
+        const direct = opts.useApi === false ? null : await readMaterialsApi(course.id, opts);
+        const outline = direct || (await readOutlineOf(course.id, course.code, opts));
         const entry = { id: course.id, code: course.code, files: [], links: [], tools: [], activities: 0, skipped: !outline };
         manifest.courses.push(entry);
         if (!outline) continue;
@@ -2939,7 +3086,7 @@
     );
     const origin = bhcOrigin();
     const post = (message) => target.postMessage(Object.assign({ protocol: MATERIALS_PROTOCOL }, message), origin);
-    const result = { connected: false, sent: 0, skipped: 0, failed: 0 };
+    const result = { connected: false, sent: 0, skipped: 0, failed: 0, tooBig: 0 };
 
     // The app's page may still be loading: say hello until it answers.
     const ready = nextFromApp("ready", null, options.connectTimeout);
@@ -2974,6 +3121,11 @@
       options.onProgress({ index: i + 1, total: toSend.length, name: file.title });
       try {
         const fetched = await fetchMaterial(file.key);
+        // A file too big for the way it would go (the bridge's storage) waits for Collect everything, which hands it over whole.
+        if (target.maxBlobBytes && fetched.blob.size > target.maxBlobBytes) {
+          result.tooBig++;
+          continue;
+        }
         const name = safeName(hasExtension(file.title) ? file.title : fetched.name || file.title, "file");
         const stored = nextFromApp("stored", file.key, options.fileTimeout);
         post({ kind: "file", key: file.key, name, type: fetched.blob.type || "", blob: fetched.blob });
@@ -3383,7 +3535,7 @@
       options,
     );
     const storage = window.localStorage;
-    const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, skipped: [], stopped: false, grades: null, reason: null, detail: null };
+    const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, skipped: [], stopped: false, grades: null, materials: null, reason: null, detail: null };
     // When nothing is read, which step it stopped at and what HuskyCT said. A 401 is HuskyCT
     // saying the student is signed out, whatever page the tab shows.
     const fail = (step) => {
@@ -3403,7 +3555,7 @@
       // Moving nothing: the cards of the page it is already on are read once they are drawn, while
       // the courses are read; by the time anything is sent they usually are.
       void waitFor(() => document.querySelector("article[data-course-id^='_']"), opts.every, 15000).then((card) => {
-        if (card) rememberColors(storage, readCourseColors(document));
+        if (card) rememberColors(storage, readCourseColors(document), true);
       });
     }
     const queue = found.queue;
@@ -3415,6 +3567,9 @@
 
     const userId = await readUserId(opts);
     const manifest = { term: walkTerm(found), courses: [], stopped: false, signedOut: false, problems: [] };
+    // Each course's files, links and tools, in the shape Collect everything gives them, so the same
+    // send carries them and BetterHuskyCT is sent only the files it does not have.
+    const materials = { term: manifest.term, courses: [], stopped: false, reused: 0, problems: [] };
     let readAny = false;
     for (let index = 0; index < queue.length; index++) {
       if (opts.shouldStop()) {
@@ -3437,22 +3592,39 @@
       const items = userId ? await readGradesApi(course.id, userId, opts) : null;
       manifest.courses.push({ id: course.id, code: course.code, items: items || [], skipped: items === null, reason: items === null ? "never" : null, at: null });
       if (items) out.gradeItems += items.length;
+
+      // The files are extra to what a sync is for: what they hit is not what a failed sync reports.
+      const failure = lastApiFailure;
+      const content = await readMaterialsApi(course.id, opts);
+      lastApiFailure = failure;
+      materials.courses.push({
+        id: course.id,
+        code: course.code,
+        files: content ? content.files : [],
+        links: content ? content.links : [],
+        tools: content ? content.tools : [],
+        activities: content ? content.activities : 0,
+        skipped: !content,
+      });
       await pause(opts.gap);
     }
 
     out.grades = manifest.courses.some((course) => !course.skipped) ? manifest : null;
+    materials.stopped = out.stopped;
+    out.materials = materials.courses.some((course) => !course.skipped) ? materials : null;
     out.ok = readAny || out.grades !== null;
     return out.ok || out.stopped ? out : fail("read");
   }
 
   /**
    * Sends a sync's results to BetterHuskyCT over `postMessage`: the basket (announcements and
-   * whatever deadlines it holds), then the gradebooks. Returns the parts that arrived and
-   * whether any did not.
+   * whatever deadlines it holds), then the gradebooks, then the course files BetterHuskyCT does
+   * not have yet. Returns the parts that arrived, whether any did not, and how many files went.
    */
-  async function deliverSync(tab, basket, grades, timing) {
+  async function deliverSync(tab, basket, grades, timing, materials, onFile) {
     const parts = [];
     let failed = false;
+    let files = 0;
     // A BetterHuskyCT tab that has only just been opened needs a few seconds to load before it answers.
     const waits = Object.assign({ connectTimeout: 15000 }, timing);
     const summary = basketSummary(basket);
@@ -3466,7 +3638,17 @@
       if (result.connected && result.stored) parts.push(t("sentPartGrades", result));
       else failed = true;
     }
-    return { parts, failed };
+    if (materials && materials.courses.some((course) => !course.skipped)) {
+      const result = await sendMaterialsToBhc(tab, materials, Object.assign({}, waits, { onProgress: onFile || (() => undefined) }));
+      if (result.connected) {
+        files = result.sent;
+        parts.push(t("sentPartFiles", { files: result.sent + result.skipped }));
+        if (result.failed) failed = true;
+      } else {
+        failed = true;
+      }
+    }
+    return { parts, failed, files };
   }
 
   // ----------------------------------------------------------------- the bridge
@@ -3533,6 +3715,76 @@
     // Plain data only: what crosses between tabs is what postMessage would have carried.
     items.push({ id: bridgeId(), at: Date.now(), data: JSON.parse(JSON.stringify(data)) });
     store.set(key, { items });
+  }
+
+  /**
+   * A file, across the bridge. The manager's storage holds text, not files, so a message carrying a
+   * `blob` (a course file on its way to BetterHuskyCT) goes as the file's bytes in base64, a
+   * piece to a key of its own, and the message itself goes through the queue with a note of
+   * where they are. The other side puts the file back together, hands the message on as it was
+   * sent, and empties those keys. Pieces nobody collected are emptied after a few minutes.
+   */
+  const BRIDGE_BLOBS = "bridge.blobs";
+  const BRIDGE_BLOB_PIECE = 512 * 1024;
+  /** Files above this stay off the bridge: storage is no place for them, and Save files or Collect everything carries them. */
+  const BRIDGE_BLOB_MAX = 100 * 1024 * 1024;
+  const BRIDGE_BLOB_KEEP_MS = 5 * 60 * 1000;
+
+  function hasBlob(message) {
+    const blob = message && message.blob;
+    return Boolean(blob && typeof blob.arrayBuffer === "function" && typeof blob.size === "number");
+  }
+
+  function bytesToBase64(bytes) {
+    let text = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) text += String.fromCharCode.apply(null, bytes.subarray(offset, offset + 0x8000));
+    return window.btoa(text);
+  }
+
+  function base64ToBytes(text) {
+    const raw = window.atob(text);
+    const bytes = new Uint8Array(raw.length);
+    for (let index = 0; index < raw.length; index++) bytes[index] = raw.charCodeAt(index);
+    return bytes;
+  }
+
+  async function pushWithBlob(store, key, message) {
+    const now = Date.now();
+    const kept = [];
+    for (const entry of store.get(BRIDGE_BLOBS, []) || []) {
+      if (!entry || typeof entry.id !== "string") continue;
+      if (now - entry.at < BRIDGE_BLOB_KEEP_MS) kept.push(entry);
+      else for (let index = 0; index < entry.pieces; index++) store.set("bridge.blob." + entry.id + "." + index, "");
+    }
+    const id = bridgeId();
+    const bytes = new Uint8Array(await message.blob.arrayBuffer());
+    const pieces = Math.max(1, Math.ceil(bytes.length / BRIDGE_BLOB_PIECE));
+    for (let index = 0; index < pieces; index++) {
+      store.set("bridge.blob." + id + "." + index, bytesToBase64(bytes.subarray(index * BRIDGE_BLOB_PIECE, (index + 1) * BRIDGE_BLOB_PIECE)));
+    }
+    kept.push({ id, pieces, at: now });
+    store.set(BRIDGE_BLOBS, kept);
+    const rest = Object.assign({}, message, { blob: undefined, bridgeBlob: { id, pieces, size: bytes.length, type: String(message.blob.type || "") } });
+    pushQueue(store, key, rest);
+  }
+
+  /** A message with its file put back together and its pieces emptied, or null if a piece is missing. */
+  function takeBlob(store, data) {
+    const note = data.bridgeBlob;
+    if (!note || typeof note.id !== "string" || !Number.isInteger(note.pieces) || note.pieces < 1 || note.pieces > 1000) return null;
+    const parts = [];
+    for (let index = 0; index < note.pieces; index++) {
+      const key = "bridge.blob." + note.id + "." + index;
+      const piece = store.get(key, null);
+      store.set(key, "");
+      if (typeof piece !== "string" || !piece) return null;
+      parts.push(base64ToBytes(piece));
+    }
+    const blob = new window.Blob(parts, { type: String(note.type || "").slice(0, 200) });
+    if (blob.size !== note.size) return null;
+    const message = Object.assign({}, data, { blob });
+    delete message.bridgeBlob;
+    return message;
   }
 
   /**
@@ -3610,6 +3862,12 @@
       BRIDGE_TO_BHC,
       (data) => {
         heardAt = Date.now();
+        if (data && data.bridgeBlob) {
+          const whole = takeBlob(store, data);
+          // A file that did not arrive whole is not handed on: the sender, unanswered, counts it failed.
+          if (whole) toPage({ protocol: BRIDGE_IN, origin: HUSKYCT_ORIGIN, data: whole });
+          return;
+        }
         toPage({ protocol: BRIDGE_IN, origin: HUSKYCT_ORIGIN, data });
         if (opened && data && data.protocol === SYNC_PROTOCOL && data.kind === "done") {
           const tab = opened;
@@ -3662,7 +3920,13 @@
       const alive = aliveHuskyctTabs(store);
       return alive.length === 0 || alive[0] === me;
     };
-    const toBhc = { postMessage: (message) => pushQueue(store, BRIDGE_TO_BHC, message) };
+    const toBhc = {
+      maxBlobBytes: BRIDGE_BLOB_MAX,
+      postMessage: (message) => {
+        if (hasBlob(message)) void pushWithBlob(store, BRIDGE_TO_BHC, message);
+        else pushQueue(store, BRIDGE_TO_BHC, message);
+      },
+    };
 
     drainQueue(
       store,
@@ -4042,7 +4306,13 @@
           return;
         }
         syncLine.textContent = readText + t("sendingToBhc");
-        const sent = await deliverSync(tab, readBasket(window.localStorage), grades);
+        // Each file that goes says so, here and to the tab that asked, so a long send is not taken for a stall.
+        const onFile = (step) => {
+          syncLine.textContent = readText + t("sendingMaterial", step);
+          say({ kind: "progress", step: "files", course: step.name, index: step.index, total: step.total });
+        };
+        const sent = await deliverSync(tab, readBasket(window.localStorage), grades, undefined, out.materials, onFile);
+        read.files = sent.files;
         if (sent.parts.length > 0 && !sent.failed) {
           syncState = Object.assign({}, syncState, { pending: false });
           writeSyncState(window.localStorage, syncState);
@@ -4558,6 +4828,8 @@
       courseLinksOnPage,
       readCourseColors,
       readColors,
+      rememberColors,
+      cardColorFromIndex,
       colorsByCode,
       COLORS_KEY,
       rememberCourses,
@@ -4595,6 +4867,7 @@
       unwrapLink,
       classifyOutline,
       readOutlineOf,
+      readMaterialsApi,
       readDocument,
       collectMaterials,
       materialsSummary,

@@ -36,6 +36,8 @@ export type SyncSummary = {
   skipped: string[];
   /** Whether everything the helper read arrived here. */
   sent: boolean;
+  /** Course files sent here that were not here before. */
+  files: number;
 };
 
 export type HelperSyncState =
@@ -44,7 +46,8 @@ export type HelperSyncState =
   | { phase: "blocked" }
   /** The tab is open and has not answered yet. */
   | { phase: "waiting" }
-  | { phase: "syncing"; course: string | null; index: number; total: number }
+  /** `files`: the helper is sending course files, and `course` is the file's name. */
+  | { phase: "syncing"; course: string | null; index: number; total: number; files?: boolean }
   | ({ phase: "done" } & SyncSummary)
   /** The helper answered but could read nothing this way; `why` is the step it stopped at and what HuskyCT said. */
   | { phase: "nodata"; why?: NoDataWhy }
@@ -57,7 +60,7 @@ export type NoDataWhy = { step: NoDataStep; detail: string | null };
 
 export type SyncMessage =
   | { kind: "ack"; state: "started" | "busy" }
-  | { kind: "progress"; course: string | null; index: number; total: number }
+  | { kind: "progress"; course: string | null; index: number; total: number; files?: boolean }
   | ({ kind: "done"; ok: boolean; reason?: NoDataStep | "signedout"; detail?: string | null } & SyncSummary);
 
 const NO_DATA_STEPS = new Set<string>(["courses", "read", "nocourses", "error", "signedout"]);
@@ -87,7 +90,9 @@ export function parseSyncMessage(data: unknown): SyncMessage | null {
     const index = count(data.index);
     const total = count(data.total);
     if (index === null || total === null) return null;
-    return { kind: "progress", course: typeof data.course === "string" ? data.course.slice(0, 80) : null, index, total };
+    const progress: SyncMessage = { kind: "progress", course: typeof data.course === "string" ? data.course.slice(0, 80) : null, index, total };
+    if (data.step === "files") progress.files = true;
+    return progress;
   }
   if (data.kind === "done") {
     const courses = count(data.courses);
@@ -95,7 +100,7 @@ export function parseSyncMessage(data: unknown): SyncMessage | null {
     const gradeItems = count(data.gradeItems);
     if (typeof data.ok !== "boolean" || courses === null || announcements === null || gradeItems === null) return null;
     const skipped = Array.isArray(data.skipped) ? data.skipped.filter((code): code is string => typeof code === "string").slice(0, 20).map((code) => code.slice(0, 40)) : [];
-    const done: SyncMessage = { kind: "done", ok: data.ok, courses, announcements, gradeItems, skipped, sent: data.sent === true };
+    const done: SyncMessage = { kind: "done", ok: data.ok, courses, announcements, gradeItems, skipped, sent: data.sent === true, files: count(data.files) ?? 0 };
     if (!data.ok && typeof data.reason === "string" && NO_DATA_STEPS.has(data.reason)) {
       done.reason = data.reason as NoDataStep | "signedout";
       done.detail = detailOf(data.detail);
@@ -196,12 +201,16 @@ export function createHelperSync(deps: SyncDeps) {
         set({ phase: "syncing", course: null, index: 0, total: 0 });
         watch();
       } else if (message.kind === "progress") {
-        set({ phase: "syncing", course: message.course, index: message.index, total: message.total });
+        set(
+          message.files
+            ? { phase: "syncing", course: message.course, index: message.index, total: message.total, files: true }
+            : { phase: "syncing", course: message.course, index: message.index, total: message.total },
+        );
         watch();
       } else {
         stopTimer();
         if (message.ok) {
-          set({ phase: "done", courses: message.courses, announcements: message.announcements, gradeItems: message.gradeItems, skipped: message.skipped, sent: message.sent });
+          set({ phase: "done", courses: message.courses, announcements: message.announcements, gradeItems: message.gradeItems, skipped: message.skipped, sent: message.sent, files: message.files });
         } else if (message.reason === "signedout") {
           set({ phase: "failed", reason: "signedout" });
         } else {

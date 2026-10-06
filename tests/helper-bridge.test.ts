@@ -29,6 +29,7 @@ function userscriptManager() {
   const clone = (value: unknown) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
   return {
     tabs,
+    values,
     gm: {
       GM_getValue: (key: string, fallback: unknown) => (values.has(key) ? clone(values.get(key)) : fallback),
       GM_setValue: (key: string, value: unknown) => {
@@ -111,6 +112,8 @@ function receivers(bhc: Window) {
     const { origin, data, source } = helperMessage(event, bhc as unknown as Window & typeof globalThis);
     if (origin !== "https://lms.uconn.edu" || !data || typeof data !== "object") return;
     const message = data as { protocol: string; kind: string };
+    // Course files have a receiver of their own in the tests that send them.
+    if (message.protocol === "betterhuskyct/materials@1") return;
     const answer = message.kind === "hello" ? { protocol: message.protocol, kind: "ready" } : ["sync", "grades"].includes(message.kind) ? { protocol: message.protocol, kind: "stored", ok: true } : null;
     if (["sync", "grades"].includes(message.kind)) delivered.push(message.protocol);
     if (answer) (source as { postMessage: (message: unknown, origin: string) => void }).postMessage(answer, origin);
@@ -298,4 +301,62 @@ test("a HuskyCT tab that is alive and answers is used, and no other is opened", 
   // Past the time it waits before opening one anyway.
   await new Promise((resolve) => setTimeout(resolve, 600));
   assert.equal(manager.tabs.length, 0, "a second HuskyCT tab was opened beside one that answered");
+});
+
+test("a sync carries the course files BetterHuskyCT does not have across the bridge, whole, and leaves no pieces behind", async () => {
+  const manager = userscriptManager();
+  const file = (n: number) => `/bbcswebdav/pid-${n}-dt-content-rid-${n}_1/xid-${n}_1`;
+  // Big enough to go in several pieces, and every byte value, so nothing is lost in the base64.
+  const bytes = new Uint8Array(1_300_000).map((_, index) => (index * 7) % 256);
+  const huskyct = async (path: string) => {
+    if (path.includes("/contents/ROOT/children")) {
+      return json({
+        paging: { nextPage: "" },
+        results: [1, 2].map((n) => ({
+          id: `_${n}_9`,
+          title: `Notes ${n}.pdf`,
+          contentHandler: "resource/x-bb-file",
+          visibility: "VISIBLE",
+          contentDetail: { "resource/x-bb-file": { file: { permanentUrl: file(n) } } },
+        })),
+      });
+    }
+    if (path === file(2)) return new Response(bytes, { status: 200, headers: { "content-type": "application/pdf" } });
+    if (path.startsWith("/bbcswebdav/")) throw new Error("a file BetterHuskyCT already had was fetched: " + path);
+    return huskyctData(path);
+  };
+  load("https://lms.uconn.edu/ultra/course", manager.gm, huskyct);
+  const bhc = load(`${BHC}/`, manager.gm);
+  const win = bhc as unknown as Window & typeof globalThis;
+  assert.equal(await pingBridge(win, 500), true);
+  receivers(bhc);
+
+  // BetterHuskyCT's Materials receiver as a stand-in: it already has the first file.
+  const stored: Array<{ key: string; name: string; type: string; blob: Blob }> = [];
+  bhc.addEventListener("message", ((event: MessageEvent) => {
+    const { origin, data, source } = helperMessage(event, win);
+    const message = data as { protocol?: string; kind?: string; key?: string; name?: string; type?: string; blob?: Blob };
+    if (origin !== "https://lms.uconn.edu" || !message || message.protocol !== "betterhuskyct/materials@1") return;
+    const reply = (answer: Record<string, unknown>) => (source as { postMessage: (m: unknown, o: string) => void }).postMessage({ protocol: message.protocol, ...answer }, origin);
+    if (message.kind === "hello") reply({ kind: "ready", have: [`https://lms.uconn.edu${file(1)}`] });
+    if (message.kind === "file") {
+      stored.push({ key: message.key!, name: message.name!, type: message.type!, blob: message.blob! });
+      reply({ kind: "stored", key: message.key, ok: true });
+    }
+  }) as never);
+  const { sync } = controller(bhc);
+
+  sync.start();
+  await until(() => sync.state.phase === "done", 20000);
+
+  const done = sync.state as Extract<HelperSyncState, { phase: "done" }>;
+  assert.equal(done.files, 1, "the new file was not counted");
+  assert.equal(done.sent, true);
+  assert.deepEqual(stored.map((entry) => [entry.key, entry.name, entry.type]), [[`https://lms.uconn.edu${file(2)}`, "Notes 2.pdf", "application/pdf"]]);
+  const arrived = new Uint8Array(await stored[0].blob.arrayBuffer());
+  assert.equal(arrived.length, bytes.length);
+  assert.ok(arrived.every((value, index) => value === bytes[index]), "the file did not arrive as it was sent");
+  const pieces = [...manager.values.entries()].filter(([key]) => key.startsWith("bridge.blob."));
+  assert.ok(pieces.length >= 3, "the file did not go in pieces");
+  assert.deepEqual(pieces.filter(([, value]) => value !== ""), [], "pieces were left in the manager's storage");
 });

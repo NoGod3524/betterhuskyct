@@ -621,7 +621,7 @@ test("sent to BetterHuskyCT: every file stored there, then only what is new", as
 
   const first = plain(await helper.sendMaterialsToBhc(app.target, manifest, SEND));
 
-  assert.deepEqual(first, { connected: true, sent: 6, skipped: 0, failed: 0 });
+  assert.deepEqual(first, { connected: true, sent: 6, skipped: 0, failed: 0, tooBig: 0 });
   assert.ok(app.posted.every((post) => post.origin === "https://betterhuskyct.vercel.app"), "posted to another origin");
   assert.equal((await app.store.keys()).length, 6);
   const index = await app.store.getIndex();
@@ -635,7 +635,7 @@ test("sent to BetterHuskyCT: every file stored there, then only what is new", as
 
   const fetchedBefore = fileStoreSeen.requests.length;
   const second = plain(await helper.sendMaterialsToBhc(app.target, manifest, SEND));
-  assert.deepEqual(second, { connected: true, sent: 0, skipped: 6, failed: 0 });
+  assert.deepEqual(second, { connected: true, sent: 0, skipped: 6, failed: 0, tooBig: 0 });
   assert.equal(fileStoreSeen.requests.length, fetchedBefore, "files the app already had were fetched again");
 });
 
@@ -646,7 +646,7 @@ test("an app that never answers is reported, not waited on forever", async () =>
 
   const result = plain(await helper.sendMaterialsToBhc(silent, manifest, { ...SEND, connectTimeout: 200 }));
 
-  assert.deepEqual(result, { connected: false, sent: 0, skipped: 0, failed: 0 });
+  assert.deepEqual(result, { connected: false, sent: 0, skipped: 0, failed: 0, tooBig: 0 });
 });
 
 test("a reply from any other page is ignored", async () => {

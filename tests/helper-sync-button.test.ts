@@ -158,7 +158,7 @@ test("every state has words in both languages, and a result that arrived in part
     { phase: "waiting" },
     { phase: "syncing", course: null, index: 0, total: 0 },
     { phase: "syncing", course: "MATH 1070Q", index: 1, total: 2 },
-    { phase: "done", courses: 1, announcements: 1, gradeItems: 1, skipped: [], sent: true },
+    { phase: "done", courses: 1, announcements: 1, gradeItems: 1, skipped: [], sent: true, files: 0 },
     { phase: "nodata" },
     ...(["courses", "read", "nocourses", "error"] as const).map((step): HelperSyncState => ({ phase: "nodata", why: { step, detail: null } })),
     { phase: "failed", reason: "noanswer" },
@@ -175,7 +175,7 @@ test("every state has words in both languages, and a result that arrived in part
     }
   }
   assert.equal(syncStatusText("en", { phase: "idle" }), "");
-  const partial = syncStatusText("en", { phase: "done", courses: 1, announcements: 1, gradeItems: 1, skipped: [], sent: false });
+  const partial = syncStatusText("en", { phase: "done", courses: 1, announcements: 1, gradeItems: 1, skipped: [], sent: false, files: 0 });
   assert.ok(partial.includes(t("en", "helpersync.partial")));
   // Where a sync that read nothing stopped, and what HuskyCT said, is there to be read out.
   assert.equal(
