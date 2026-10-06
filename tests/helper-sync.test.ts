@@ -189,15 +189,19 @@ const pageEvent = (window: Window, type: string, detail: string) => new window.C
  * document, so the agent the helper puts in it never starts. This answers as the agent would,
  * from `serve`, the page's own fetch.
  */
-function pageAnswers(window: Window, serve: (path: string) => Promise<Response>) {
+function pageAnswers(window: Window, serve: (path: string) => Promise<Response>, options: { copied?: number; appAfter?: number } = {}) {
   const asked: string[] = [];
   const document = window.document;
   document.documentElement.setAttribute("data-betterhuskyct-api", "1");
+  // HuskyCT's own code has asked for its data: at once, or after a while, as in a tab just opened.
+  const appStarts = () => document.documentElement.setAttribute("data-betterhuskyct-app", "1");
+  if (options.appAfter === undefined) appStarts();
+  else setTimeout(appStarts, options.appAfter);
   document.addEventListener("betterhuskyct:api-request", (event) => {
     const ask = JSON.parse(String((event as unknown as { detail: string }).detail)) as { id: string; path: string };
     asked.push(ask.path);
     void serve(ask.path).then(async (response) => {
-      const detail = JSON.stringify({ id: ask.id, status: response.status, text: await response.text() });
+      const detail = JSON.stringify({ id: ask.id, status: response.status, text: await response.text(), copied: options.copied ?? 0 });
       document.dispatchEvent(pageEvent(window, "betterhuskyct:api-answer", detail));
     });
   });
@@ -223,12 +227,17 @@ test("refused as coming from elsewhere, HuskyCT's data is asked for through the 
 
 test("what the page got is said too, and a 401 there is still a sign-in", async () => {
   const forbidden = openPage(async () => new Response("{}", { status: 403 }));
-  pageAnswers(forbidden.window, async () => new Response("{}", { status: 403 }));
-  assert.deepEqual(pick(await forbidden.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 403 then page HTTP 403" });
+  pageAnswers(forbidden.window, async () => new Response('{"status":403,"message":"Invalid CORS request."}', { status: 403 }), { copied: 2 });
+  assert.deepEqual(pick(await forbidden.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 403 then page HTTP 403 h2 Invalid CORS request." });
+
+  // An S3-style refusal is told by its code.
+  const s3 = openPage(async () => new Response("{}", { status: 403 }));
+  pageAnswers(s3.window, async () => new Response("<?xml version=\"1.0\"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>", { status: 403 }));
+  assert.deepEqual(pick(await s3.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 403 then page HTTP 403 h0 AccessDenied" });
 
   const signedOut = openPage(async () => new Response("{}", { status: 403 }));
   pageAnswers(signedOut.window, async () => new Response("{}", { status: 401 }));
-  assert.deepEqual(pick(await signedOut.helper.syncLight()), { ok: false, reason: "signedout", detail: "HTTP 403 then page HTTP 401" });
+  assert.deepEqual(pick(await signedOut.helper.syncLight()), { ok: false, reason: "signedout", detail: "HTTP 403 then page HTTP 401 h0" });
 
   // Other failures are not asked again: a 500 or a timeout would only fail twice.
   let asked = 0;
@@ -239,6 +248,53 @@ test("what the page got is said too, and a 401 there is still a sign-in", async 
   });
   assert.deepEqual(pick(await broken.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 500" });
   assert.equal(asked, 0);
+});
+
+test("the first ask through the page waits for HuskyCT's own code to have asked for its data", async () => {
+  const { window, helper } = openPage(async () => new Response("{}", { status: 403 }));
+  const started = Date.now();
+  const throughPage = pageAnswers(window, data(), { appAfter: 600 });
+
+  const out = plain(await helper.syncLight());
+
+  assert.equal(out.ok, true);
+  assert.ok(throughPage.length > 0);
+  assert.ok(Date.now() - started >= 550, "it asked before HuskyCT's own code had");
+});
+
+test("the agent puts the headers HuskyCT's own code uses for its data on its own requests", async () => {
+  const inits: Array<{ path: string; headers: Record<string, string> }> = [];
+  const { window, helper } = openPage(async (path, init?: { headers?: Record<string, string> }) => {
+    inits.push({ path, headers: { ...(init?.headers ?? {}) } });
+    return json(LIST);
+  });
+  // No request leaves this document: what the app would send is only recorded.
+  const proto = (window as unknown as { XMLHttpRequest: { prototype: { send: () => void } } }).XMLHttpRequest.prototype;
+  proto.send = () => undefined;
+  (helper as unknown as { pageApiAgent: () => void }).pageApiAgent();
+  const root = window.document.documentElement;
+
+  const XHR = (window as unknown as { XMLHttpRequest: new () => { open: (m: string, u: string) => void; setRequestHeader: (n: string, v: string) => void; send: () => void } }).XMLHttpRequest;
+  const other = new XHR();
+  other.open("GET", "/ultra/course");
+  other.setRequestHeader("X-Elsewhere", "no");
+  other.send();
+  assert.equal(root.hasAttribute("data-betterhuskyct-app"), false, "a request for something other than HuskyCT's data counted as the app's");
+
+  const app = new XHR();
+  app.open("GET", "/learn/api/v1/users/me");
+  app.setRequestHeader("X-Blackboard-XSRF", "token-1");
+  app.setRequestHeader("Content-Type", "application/json");
+  app.send();
+  assert.equal(root.getAttribute("data-betterhuskyct-app"), "1");
+
+  const answers: Array<{ id: string; copied: number }> = [];
+  window.document.addEventListener("betterhuskyct:api-answer", (event) => answers.push(JSON.parse(String((event as unknown as { detail: string }).detail))));
+  window.document.dispatchEvent(pageEvent(window, "betterhuskyct:api-request", JSON.stringify({ id: "one", path: "/learn/api/v1/users/me/memberships" })));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  assert.deepEqual(inits.map((init) => init.headers), [{ accept: "application/json", "x-blackboard-xsrf": "token-1" }]);
+  assert.deepEqual(answers.map((answer) => [answer.id, answer.copied]), [["one", 1]]);
 });
 
 test("the agent in the page fetches HuskyCT's data with the page's fetch, once, and nothing else", async () => {
