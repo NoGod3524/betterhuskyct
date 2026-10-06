@@ -160,9 +160,12 @@ test("every state has words in both languages, and a result that arrived in part
     { phase: "syncing", course: "MATH 1070Q", index: 1, total: 2 },
     { phase: "done", courses: 1, announcements: 1, gradeItems: 1, skipped: [], sent: true },
     { phase: "nodata" },
+    ...(["courses", "read", "nocourses", "error"] as const).map((step): HelperSyncState => ({ phase: "nodata", why: { step, detail: null } })),
     { phase: "failed", reason: "noanswer" },
     { phase: "failed", reason: "stalled" },
     { phase: "failed", reason: "closed" },
+    { phase: "failed", reason: "signin" },
+    { phase: "failed", reason: "signedout" },
   ];
   for (const state of states) {
     for (const locale of ["en", "zh-CN"] as const) {
@@ -174,4 +177,9 @@ test("every state has words in both languages, and a result that arrived in part
   assert.equal(syncStatusText("en", { phase: "idle" }), "");
   const partial = syncStatusText("en", { phase: "done", courses: 1, announcements: 1, gradeItems: 1, skipped: [], sent: false });
   assert.ok(partial.includes(t("en", "helpersync.partial")));
+  // Where a sync that read nothing stopped, and what HuskyCT said, is there to be read out.
+  assert.equal(
+    syncStatusText("zh-CN", { phase: "nodata", why: { step: "courses", detail: "HTTP 403" } }),
+    t("zh-CN", "helpersync.nodata") + "（卡在：课程列表，回应是 HTTP 403）",
+  );
 });

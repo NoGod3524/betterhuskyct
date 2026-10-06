@@ -19,6 +19,8 @@ type Sync = {
   gradeItems: number;
   skipped: string[];
   stopped: boolean;
+  reason: string | null;
+  detail: string | null;
   grades: { courses: Array<{ code: string | null; skipped: boolean; items: unknown[] }> } | null;
 };
 type State = { at: string | null; auto: boolean; pending: boolean; grades: unknown };
@@ -40,6 +42,7 @@ after(async () => {
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+const pick = (out: Sync) => ({ ok: out.ok, reason: out.reason, detail: out.detail });
 
 function openPage(serve: (path: string) => Promise<Response>, open?: (link: string, target: string) => unknown) {
   const window = new Window({ url: "https://lms.uconn.edu/ultra/stream" });
@@ -150,6 +153,30 @@ test("with no course list, or nothing readable, a sync is not ok, and still open
   const nothing = openPage(data({ announcements: [MATH, ECON], me: true }));
   assert.equal((await nothing.helper.syncLight()).ok, false);
   assert.equal(nothing.moved(), 0);
+});
+
+test("a sync that reads nothing says which step stopped it and what HuskyCT answered", async () => {
+  const refused = openPage(async (path) => (path.startsWith("/learn/api/v1/users/me/memberships") ? new Response("{}", { status: 403 }) : json({})));
+  assert.deepEqual(pick(await refused.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 403" });
+
+  // A 401 is HuskyCT saying the student is signed out, whichever request heard it.
+  const signedOut = openPage(async () => new Response("{}", { status: 401 }));
+  assert.deepEqual(pick(await signedOut.helper.syncLight()), { ok: false, reason: "signedout", detail: "HTTP 401" });
+
+  const unread = openPage(data({ announcements: [MATH, ECON], me: true }));
+  assert.deepEqual(pick(await unread.helper.syncLight()), { ok: false, reason: "read", detail: "HTTP 500" });
+
+  const unreachable = openPage(async () => {
+    throw new TypeError("Failed to fetch");
+  });
+  assert.deepEqual(pick(await unreachable.helper.syncLight()), { ok: false, reason: "courses", detail: "no answer" });
+
+  const garbled = openPage(async () => new Response("<html>", { status: 200 }));
+  assert.deepEqual(pick(await garbled.helper.syncLight()), { ok: false, reason: "courses", detail: "not JSON" });
+
+  // One that read something carries no reason.
+  const fine = openPage(data());
+  assert.deepEqual(pick(await fine.helper.syncLight()), { ok: true, reason: null, detail: null });
 });
 
 test("without the student's id the announcements still come, and no gradebook is claimed", async () => {

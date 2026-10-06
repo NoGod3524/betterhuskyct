@@ -142,6 +142,28 @@ test("a result that read nothing is nodata, not done", () => {
   assert.equal(sync.state.phase, "nodata");
 });
 
+test("a result that read nothing keeps where it stopped, and a signed-out one asks for a sign-in", () => {
+  const nothing = { ...DONE, ok: false, courses: 0, announcements: 0, gradeItems: 0, skipped: [], sent: false };
+  const run = (extra: Record<string, unknown>) => {
+    const { sync, say } = setup();
+    sync.start();
+    say(message({ kind: "ack", state: "started" }));
+    say(message({ ...nothing, ...extra }));
+    return sync.state;
+  };
+
+  assert.deepEqual(run({ reason: "courses", detail: "HTTP 403" }), { phase: "nodata", why: { step: "courses", detail: "HTTP 403" } });
+  assert.deepEqual(run({ reason: "read", detail: null }), { phase: "nodata", why: { step: "read", detail: null } });
+  assert.deepEqual(run({ reason: "signedout", detail: null }), { phase: "failed", reason: "signedout" });
+  // What the helper says is cut down to plain words before it is shown.
+  assert.deepEqual(run({ reason: "error", detail: "<img src=x onerror=alert(1)>" + "x".repeat(100) }), {
+    phase: "nodata",
+    why: { step: "error", detail: ("img srcx onerroralert1" + "x".repeat(100)).slice(0, 60) },
+  });
+  // A reason this does not know is left out, not shown.
+  assert.deepEqual(run({ reason: "whatever", detail: "HTTP 403" }), { phase: "nodata" });
+});
+
 test("a helper that is busy with a sync of its own is asked again until it is free", () => {
   const { sync, time, sent, say } = setup();
   sync.start();
