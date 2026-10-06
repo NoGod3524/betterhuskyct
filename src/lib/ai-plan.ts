@@ -3,7 +3,7 @@ import type { Announcement } from "./announcements.ts";
 import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import type { CustomEventInput } from "./custom-events.ts";
 import { taskDate } from "./date-utils.ts";
-import { cleanSummary, MAX_PLAN_TEXT, parsePlanResult, PLAN_ITEM_KINDS, type PlanAnnouncement, type PlanItem, type PlanRequest } from "./plan-models.ts";
+import { cleanSummary, isNotAToDo, MAX_PLAN_TEXT, parsePlanResult, PLAN_ITEM_KINDS, type PlanAnnouncement, type PlanItem, type PlanRequest } from "./plan-models.ts";
 import type { SummaryChoice } from "./summary-choice.ts";
 import type { ProviderId, SummaryLocale } from "./summary-models.ts";
 import type { UndatedTodo } from "./undated-todos.ts";
@@ -294,7 +294,7 @@ function dayOffWithoutDay(item: Pick<PlanItem, "kind" | "date">): boolean {
 export function tidyPending(pending: Suggestion[]): Suggestion[] {
   const kept: Suggestion[] = [];
   for (const suggestion of pending) {
-    if (dayOffWithoutDay(suggestion)) continue;
+    if (dayOffWithoutDay(suggestion) || isNotAToDo(suggestion)) continue;
     if (pending.some((other) => datedElsewhere(suggestion, other))) continue;
     const twin = kept.findIndex((other) => sameDayOff(suggestion, other));
     if (twin >= 0) {

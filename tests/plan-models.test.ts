@@ -158,3 +158,26 @@ test("only a syllabus's summary is kept: one a model adds to announcements is dr
   const { fetchImpl: again } = stub({ glm: [says('{"summary":"- Exams 60%","items":[]}')] });
   assert.equal((await extractPlan(SYLLABUS, { providers, fetchImpl: again })).summary, "- Exams 60%");
 });
+
+test("office hours, class meeting times, weekly routines and contact details are not to-dos", async () => {
+  const answer = JSON.stringify({
+    items: [
+      { title: "Office Hours", date: null, time: null, kind: "task", evidence: "Office hours: Tue 2-3pm, MSB 403", source: null },
+      { title: "Prof. Lee available", date: "2026-10-06", time: "14:00", kind: "task", evidence: "Office hours Tuesdays 2-3", source: null },
+      { title: "TA hours", date: null, time: null, kind: "task", evidence: "", source: null },
+      { title: "Lectures meet", date: null, time: null, kind: "task", evidence: "MWF 10:10", source: null },
+      { title: "Weekly reading response", date: null, time: null, kind: "assignment", evidence: "", source: null },
+      { title: "Contact the instructor by email", date: null, time: null, kind: "task", evidence: "", source: null },
+      { title: "Weekly reflection 3 due", date: "2026-10-09", time: null, kind: "assignment", evidence: "", source: null },
+      { title: "Exam review help session", date: "2026-10-12", time: null, kind: "task", evidence: "", source: null },
+      { title: "Buy the textbook", date: null, time: null, kind: "task", evidence: "", source: null },
+      { title: "Lab report 3 due", date: "2026-10-15", time: null, kind: "assignment", evidence: "", source: null },
+    ],
+  });
+
+  assert.deepEqual(
+    parsePlanAnswer(answer)?.map((item) => item.title),
+    ["Weekly reflection 3 due", "Exam review help session", "Buy the textbook", "Lab report 3 due"],
+  );
+  assert.match(planMessages(SYLLABUS)[0].content, /never office hours/);
+});
