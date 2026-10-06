@@ -122,6 +122,7 @@ import {
   type ReminderState,
 } from "@/lib/reminders";
 import { CSV_BOM, exportFileName, tasksToCsv } from "@/lib/export";
+import { courseColor, mergeCourseColors, restoreCourseColors, saveCourseColors, type CourseColors } from "@/lib/course-colors";
 import { helperMessage } from "@/lib/helper-bridge";
 import {
   DEFAULT_LOCALE,
@@ -163,6 +164,8 @@ type CalendarContextValue = {
   followDefaultCourse: (taskId: string) => void;
   courseIdForTask: (taskId: string) => string | null | undefined;
   courseLabelFor: (task: CalendarTask) => CourseLabel | null;
+  /** The course's colour on HuskyCT, when the helper has brought it. */
+  courseColorFor: (code: string | null | undefined) => string | null;
 
   formattedToday: string;
 
@@ -299,6 +302,7 @@ export function CalendarProvider({
   // see `event-overlay.ts` and `custom-events.ts` for why they are kept apart.
   const [eventOverlay, setEventOverlay] = useState<EventOverlay>(EMPTY_OVERLAY);
   const [customEvents, setCustomEvents] = useState<CustomCalendarEvent[]>([]);
+  const [courseColors, setCourseColors] = useState<CourseColors>({});
   // A link from another device is offered, never applied on its own.
   const [pendingSync, setPendingSync] = useState<SyncPayload | null>(null);
   const [outgoingSyncLink, setOutgoingSyncLink] = useState<string | null>(null);
@@ -616,6 +620,7 @@ export function CalendarProvider({
 
       setEventOverlay(restoreEventOverlay(window.localStorage));
       setCustomEvents(restoreCustomEvents(window.localStorage));
+      setCourseColors(restoreCourseColors(window.localStorage));
 
       void refreshRemembered(restored.subscriptions, restoredLocale);
     }, 0);
@@ -985,6 +990,11 @@ export function CalendarProvider({
     const nextSynced = mergeDone(syncedDone, Object.entries(payload.doneByHuskyct));
     saveSyncedDone(window.localStorage, nextSynced);
     setSyncedDone(nextSynced);
+    if (Object.keys(payload.courseColors).length > 0) {
+      const nextColors = mergeCourseColors(courseColors, payload.courseColors);
+      saveCourseColors(window.localStorage, nextColors);
+      setCourseColors(nextColors);
+    }
     const nextReopened = new Set([...reopened, ...payload.reopened]);
     saveReopened(window.localStorage, nextReopened);
     setReopened(nextReopened);
@@ -1214,6 +1224,7 @@ export function CalendarProvider({
     followDefaultCourse,
     courseIdForTask: (taskId: string) => courseIdForTask(courseBook, taskId),
     courseLabelFor: labelFor,
+    courseColorFor: (code) => courseColor(courseColors, code),
     formattedToday,
     calendarName,
     formattedImportedAt,

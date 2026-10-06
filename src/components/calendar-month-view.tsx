@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, GraduationCap, Plus, RotateCcw, Trash2, X } 
 import { useCalendar } from "@/components/calendar-provider";
 import { useAcademicCalendar } from "@/components/use-academic-calendar";
 import { academicByDay, type AcademicEvent } from "@/lib/academic-calendar";
+import { chipStyle } from "@/lib/course-colors";
 import { isCustomEventId } from "@/lib/custom-events";
 import { addDays, startOfLocalDay, taskDate } from "@/lib/date-utils";
 import { t, type Locale } from "@/lib/i18n";
@@ -118,7 +119,10 @@ export function CalendarMonthView({
     eventNoteFor,
     isEventEdited,
     addCustomEvent,
+    courseLabelFor,
+    courseColorFor,
   } = useCalendar();
+  const colorOf = (task: CalendarTask) => courseColorFor(courseLabelFor(task)?.code);
   const [cursor, setCursor] = useState(() => startOfLocalDay(now));
   const [draftFor, setDraftFor] = useState<DraftKind | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -325,7 +329,11 @@ export function CalendarMonthView({
                   className="mt-1 flex w-full flex-wrap items-center justify-center gap-0.5 sm:hidden"
                 >
                   {events.slice(0, MAX_DOTS).map((task) => (
-                    <span key={task.id} className="size-1.5 rounded-full bg-[var(--c-2a71d8)]" />
+                    <span
+                      key={task.id}
+                      className="size-1.5 rounded-full bg-[var(--c-2a71d8)]"
+                      style={colorOf(task) ? { backgroundColor: colorOf(task)! } : undefined}
+                    />
                   ))}
                 </button>
               )}
@@ -342,6 +350,8 @@ export function CalendarMonthView({
                       type="button"
                       onClick={() => openEdit(task)}
                       className="block w-full truncate rounded-md bg-[var(--c-eaf2ff)] px-1.5 py-0.5 text-left text-[11px] font-medium text-[var(--c-245ea9)] transition hover:bg-[var(--c-cdddf4)]"
+                      style={colorOf(task) ? chipStyle(colorOf(task)!) : undefined}
+                      data-course-color={colorOf(task) ?? undefined}
                       title={task.title}
                     >
                       {!task.allDay && (

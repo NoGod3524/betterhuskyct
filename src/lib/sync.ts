@@ -1,3 +1,4 @@
+import { parseCourseColors, type CourseColors } from "./course-colors.ts";
 import {
   MAX_ANNOUNCEMENTS,
   parseAnnouncementCandidates,
@@ -77,6 +78,8 @@ export type SyncPayload = {
   doneByHuskyct: Record<string, DoneReason>;
   /** Tasks the student reopened on that device, which HuskyCT's word does not close. */
   reopened: string[];
+  /** Each course's colour on HuskyCT, by code. Optional on input, like the announcements. */
+  courseColors: CourseColors;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -169,6 +172,7 @@ export function parseSyncPayloadValue(parsed: unknown): SyncPayload | null {
     announcements,
     doneByHuskyct,
     reopened,
+    courseColors: parseCourseColors(parsed.courseColors),
   };
 }
 
@@ -191,6 +195,7 @@ export function buildSyncPayload(input: {
   announcements?: Announcement[];
   doneByHuskyct?: Iterable<[string, DoneReason]>;
   reopened?: Iterable<string>;
+  courseColors?: CourseColors;
   now?: Date;
 }): SyncPayload {
   return {
@@ -206,6 +211,7 @@ export function buildSyncPayload(input: {
     announcements: (input.announcements ?? []).slice(0, MAX_ANNOUNCEMENTS),
     doneByHuskyct: Object.fromEntries(input.doneByHuskyct ?? []),
     reopened: [...(input.reopened ?? [])].slice(0, 5000),
+    courseColors: { ...(input.courseColors ?? {}) },
   };
 }
 
@@ -221,6 +227,7 @@ export function serialiseSyncPayload(payload: SyncPayload): string {
     announcements: payload.announcements,
     doneByHuskyct: payload.doneByHuskyct,
     reopened: payload.reopened,
+    courseColors: payload.courseColors,
   });
 }
 

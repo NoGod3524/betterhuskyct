@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.11.0
+// @version      1.12.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -46,7 +46,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.11.0";
+  const VERSION = "1.12.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1065,6 +1065,174 @@
     return found;
   }
 
+  // --- each course's colour, as the Courses page draws it ----------------------------------
+
+  /**
+   * HuskyCT gives every course a colour on its card, and BetterHuskyCT uses the same one, so a
+   * course looks the same in both. Where on the card the colour is drawn — a background, a
+   * gradient, the card's picture — is HuskyCT's to change, so nothing here names an element: of
+   * everything on a card, the most vivid colour covering the most room is the course's. A card
+   * whose colour cannot be read gives none, and BetterHuskyCT keeps its own for that course.
+   *
+   * Kept by course id across visits, and sent with the deadlines.
+   */
+  const COLORS_KEY = "huskypilot.helper.colors.v1";
+
+  function parseCssColor(text) {
+    const value = String(text || "").trim();
+    const rgb = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+%?))?\s*\)$/i.exec(value);
+    if (rgb) {
+      const alpha = rgb[4] === undefined ? 1 : rgb[4].endsWith("%") ? parseFloat(rgb[4]) / 100 : parseFloat(rgb[4]);
+      return { r: +rgb[1], g: +rgb[2], b: +rgb[3], a: alpha };
+    }
+    const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value);
+    if (hex) {
+      const full = hex[1].length === 3 ? hex[1].replace(/./g, (c) => c + c) : hex[1];
+      return { r: parseInt(full.slice(0, 2), 16), g: parseInt(full.slice(2, 4), 16), b: parseInt(full.slice(4, 6), 16), a: 1 };
+    }
+    return null;
+  }
+
+  /** Saturation and lightness, 0 to 1, as HSL has them. */
+  function vividness(color) {
+    const r = color.r / 255;
+    const g = color.g / 255;
+    const b = color.b / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const lightness = (max + min) / 2;
+    const saturation = max === min ? 0 : (max - min) / (1 - Math.abs(2 * lightness - 1));
+    return { saturation, lightness };
+  }
+
+  /** A colour worth calling a course's: clearly coloured, neither near white nor near black, and not see-through. */
+  function isCourseLike(color) {
+    if (!color || color.a < 0.5) return false;
+    const { saturation, lightness } = vividness(color);
+    return saturation >= 0.25 && lightness >= 0.2 && lightness <= 0.8;
+  }
+
+  function toHex(color) {
+    const part = (value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0");
+    return "#" + part(color.r) + part(color.g) + part(color.b);
+  }
+
+  /** The colours a gradient is made of. */
+  function colorsIn(css) {
+    return (String(css || "").match(/rgba?\([^)]*\)|#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/gi) || []).map(parseCssColor).filter(Boolean);
+  }
+
+  /** A picture's average colour over its coloured pixels, when the browser lets it be read. */
+  function averageImageColor(image) {
+    try {
+      if (!image.complete || !image.naturalWidth || typeof document.createElement("canvas").getContext !== "function") return null;
+      const canvas = document.createElement("canvas");
+      canvas.width = 24;
+      canvas.height = 24;
+      const context = canvas.getContext("2d");
+      if (!context) return null;
+      context.drawImage(image, 0, 0, 24, 24);
+      // Throws for a picture from another site: the browser keeps its pixels to itself.
+      const pixels = context.getImageData(0, 0, 24, 24).data;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let count = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        const pixel = { r: pixels[index], g: pixels[index + 1], b: pixels[index + 2], a: pixels[index + 3] / 255 };
+        if (!isCourseLike(pixel)) continue;
+        r += pixel.r;
+        g += pixel.g;
+        b += pixel.b;
+        count += 1;
+      }
+      return count >= 24 ? { r: r / count, g: g / count, b: b / count, a: 1 } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function areaOf(node) {
+    try {
+      const box = node.getBoundingClientRect();
+      // A page not laid out (a test page, a hidden one) gives no sizes: every candidate counts the same.
+      return Math.max(1, Math.min(200000, box.width * box.height));
+    } catch {
+      return 1;
+    }
+  }
+
+  /** The course's colour on one card, as `#rrggbb`, or null. */
+  function cardColor(card) {
+    let best = null;
+    const consider = (color, area) => {
+      if (!isCourseLike(color)) return;
+      const score = vividness(color).saturation * area;
+      if (!best || score > best.score) best = { color, score };
+    };
+    const nodes = [card, ...card.querySelectorAll("*")].slice(0, 400);
+    for (const node of nodes) {
+      let style;
+      try {
+        style = window.getComputedStyle(node);
+      } catch {
+        continue;
+      }
+      const area = areaOf(node);
+      consider(parseCssColor(style.backgroundColor), area);
+      for (const color of colorsIn(style.backgroundImage)) consider(color, area);
+      if (node.namespaceURI === "http://www.w3.org/2000/svg") consider(parseCssColor(style.fill), area);
+      if (node.tagName === "IMG") consider(averageImageColor(node), area);
+    }
+    return best ? toHex(best.color) : null;
+  }
+
+  /** Every course card's colour on the page, by course id. */
+  function readCourseColors(root) {
+    const found = {};
+    for (const card of (root || document).querySelectorAll("article[data-course-id]")) {
+      const id = card.getAttribute("data-course-id");
+      if (!/^_\d+_\d+$/.test(String(id))) continue;
+      const color = cardColor(card);
+      if (color) found[id] = color;
+    }
+    return found;
+  }
+
+  function readColors(storage) {
+    try {
+      const parsed = JSON.parse(storage.getItem(COLORS_KEY) || "{}");
+      const colors = {};
+      if (parsed && typeof parsed === "object") {
+        for (const [id, color] of Object.entries(parsed)) {
+          if (/^_\d+_\d+$/.test(id) && /^#[0-9a-f]{6}$/i.test(String(color))) colors[id] = String(color).toLowerCase();
+        }
+      }
+      return colors;
+    } catch {
+      return {};
+    }
+  }
+
+  function rememberColors(storage, found) {
+    if (!found || Object.keys(found).length === 0) return;
+    try {
+      storage.setItem(COLORS_KEY, JSON.stringify(Object.assign(readColors(storage), found)));
+    } catch {
+      /* read again next time */
+    }
+  }
+
+  /** The colours as BetterHuskyCT takes them: by course code, for the courses in the basket. */
+  function colorsByCode(storage, basket) {
+    const byId = readColors(storage);
+    const out = {};
+    for (const course of (basket && basket.courses) || []) {
+      if (course && course.code && byId[course.id]) out[course.code] = byId[course.id];
+    }
+    return out;
+  }
+
   // --- the course list, read from HuskyCT's own data --------------------------------------
 
   /**
@@ -1360,6 +1528,7 @@
     let cards = [];
     if (viewAll || document.querySelector("article[data-course-id]")) {
       cards = await loadEveryCourseCard(opts);
+      rememberColors(window.localStorage, readCourseColors(document));
     }
     return { recent, cards, queue: coursesToCollect(cards, recent, new Date()), pageFound: Boolean(pageFound) };
   }
@@ -1435,6 +1604,7 @@
         await waitFor(() => document.querySelector("[aria-label*=', due ']"), opts.every, opts.todoSettle);
         basket = save(rememberTodos(basket, todosToRecords(collectTodos(document)), new Date()));
         basket = save(rememberCourses(basket, recent));
+        rememberColors(storage, readCourseColors(document));
       });
       const queue = found.queue;
       report.problems.push(...coursesProblems(found));
@@ -2937,7 +3107,7 @@
    * `announcements` is always present, empty or not, so the shape of what this
    * sends does not change with which page the button was pressed on.
    */
-  function syncPayload(records, now, announcements) {
+  function syncPayload(records, now, announcements, courseColors) {
     const stamp = (now || new Date()).toISOString();
     return {
       version: SYNC_VERSION,
@@ -2954,6 +3124,7 @@
       efforts: {},
       courses: { version: 1, courses: [], assignments: {} },
       announcements: announcements || [],
+      courseColors: courseColors || {},
     };
   }
 
@@ -2999,7 +3170,7 @@
     result.connected = true;
 
     const { records, announcements } = basketContents(basket);
-    const payload = syncPayload(records, new Date(), announcements);
+    const payload = syncPayload(records, new Date(), announcements, colorsByCode(window.localStorage, basket));
     const stored = nextFromApp("stored", null, options.storedTimeout, TASKS_PROTOCOL);
     post({ kind: "sync", payload });
     const ack = await stored;
@@ -3180,6 +3351,13 @@
 
     const found = await findCourses(Object.assign({}, opts, { apiOnly: true }));
     if (!found || found.queue.length === 0) return out;
+    if (/^\/ultra\/course\/?$/.test(window.location.pathname)) {
+      // Moving nothing: the cards of the page it is already on are read once they are drawn, while
+      // the courses are read; by the time anything is sent they usually are.
+      void waitFor(() => document.querySelector("article[data-course-id^='_']"), opts.every, 15000).then((card) => {
+        if (card) rememberColors(storage, readCourseColors(document));
+      });
+    }
     const queue = found.queue;
     out.courses = queue.length;
     const save = (result) => {
@@ -4302,6 +4480,10 @@
       readBasket,
       writeBasket,
       courseLinksOnPage,
+      readCourseColors,
+      readColors,
+      colorsByCode,
+      COLORS_KEY,
       rememberCourses,
       rememberAnnouncements,
       rememberTodos,

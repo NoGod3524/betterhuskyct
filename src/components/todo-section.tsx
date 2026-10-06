@@ -43,7 +43,7 @@ function dueLabel(task: CalendarTask, locale: Locale): string {
  * still there for the rest, and for reopening one the gradebook got wrong.
  */
 export function TodoSection() {
-  const { now, locale, tasks, doneIds, doneLabelFor, toggleTaskCompletion, courseLabelFor, hasGrades } = useCalendar();
+  const { now, locale, tasks, doneIds, doneLabelFor, toggleTaskCompletion, courseLabelFor, courseColorFor, hasGrades } = useCalendar();
   const [pickedCourse, setCourse] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
 
@@ -140,6 +140,9 @@ export function TodoSection() {
           </FilterChip>
           {codes.map((code) => (
             <FilterChip key={code} active={course === code} onClick={() => setCourse(code)}>
+              {courseColorFor(code) ? (
+                <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: courseColorFor(code)! }} aria-hidden />
+              ) : null}
               {code}
               <span className="opacity-70">
                 {completion.byCourse.get(code)?.completed ?? 0}/{completion.byCourse.get(code)?.total ?? 0}

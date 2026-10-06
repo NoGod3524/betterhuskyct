@@ -5,6 +5,7 @@ import { Clock3, MapPin } from "lucide-react";
 import { useCalendar } from "@/components/calendar-provider";
 import { CoursePicker } from "@/components/course-picker";
 import type { CalendarTask, TaskGroup } from "@/lib/calendar-types";
+import { chipStyle } from "@/lib/course-colors";
 import { formatTaskTime, isDueSoon } from "@/lib/calendar-view";
 import { t, type Locale } from "@/lib/i18n";
 import type { DoneLabel } from "@/lib/task-status";
@@ -48,7 +49,7 @@ export function TaskCard({
   onToggleComplete: (taskId: string) => void;
   locale: Locale;
 }) {
-  const { courseLabelFor } = useCalendar();
+  const { courseLabelFor, courseColorFor } = useCalendar();
   // Blackboard exports no course name on graded items. Rather than invent one,
   // fall back to the user's pick, then the feed, then the default course — and
   // show nothing when none of them applies.
@@ -75,8 +76,12 @@ export function TaskCard({
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
               {course && (
                 <span
-                  className={`max-w-full truncate rounded-md px-2 py-1 text-[10px] font-bold tracking-[0.06em] ${styleForCourse(course.code)}`}
+                  className={`max-w-full truncate rounded-md px-2 py-1 text-[10px] font-bold tracking-[0.06em] ${
+                    courseColorFor(course.code) ? "" : styleForCourse(course.code)
+                  }`}
+                  style={courseColorFor(course.code) ? chipStyle(courseColorFor(course.code)!) : undefined}
                   title={course.code}
+                  data-course-color={courseColorFor(course.code) ?? undefined}
                 >
                   {course.code}
                   {course.component ? ` · ${course.component}` : ""}
