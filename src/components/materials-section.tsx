@@ -19,6 +19,7 @@ import {
 import { useCalendar } from "@/components/calendar-provider";
 import { DELIVERY_EVENT, type DeliveryDetail } from "@/components/helper-deliveries";
 import { ListSkeleton } from "@/components/list-skeleton";
+import { SyllabusSummaryCard, SyllabusSummaryHint } from "@/components/syllabus-summary";
 import { t } from "@/lib/i18n";
 import {
   folderTree,
@@ -424,6 +425,8 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
             </span>
           </div>
 
+          <SyllabusSummaryHint locale={locale} />
+
           <div className="mt-4 space-y-3">
             {shown.map((course) => {
               const outline = huskyctCourseUrl(course);
@@ -455,6 +458,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
 
                   {courseOpen ? (
                     <div className="rise-in border-t border-[var(--c-eef2f6)] px-5 pb-4">
+                      <SyllabusSummaryCard courseId={course.id} locale={locale} />
                       <FolderView
                         node={folderTree(course.files)}
                         isOpen={(folder) => open.has(group(folder.path.join("/")))}

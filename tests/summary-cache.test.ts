@@ -119,7 +119,7 @@ test("malformed, expired, future and unknown-provider remote entries are misses"
     "not JSON", "null", "{}", "[]",
     ...[
       { ...entry, summary: " " },
-      { ...entry, summary: "x".repeat(16001) },
+      { ...entry, summary: "x".repeat(64_001) },
       { ...entry, provider: "unknown" },
       { ...entry, at: -1 },
       { ...entry, at: 0.5 },

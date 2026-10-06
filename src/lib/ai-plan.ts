@@ -3,9 +3,9 @@ import type { Announcement } from "./announcements.ts";
 import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import type { CustomEventInput } from "./custom-events.ts";
 import { taskDate } from "./date-utils.ts";
-import { MAX_PLAN_TEXT, parsePlanAnswer, PLAN_ITEM_KINDS, type PlanAnnouncement, type PlanItem, type PlanRequest } from "./plan-models.ts";
+import { cleanSummary, MAX_PLAN_TEXT, parsePlanResult, PLAN_ITEM_KINDS, type PlanAnnouncement, type PlanItem, type PlanRequest } from "./plan-models.ts";
 import type { SummaryChoice } from "./summary-choice.ts";
-import type { ProviderId } from "./summary-models.ts";
+import type { ProviderId, SummaryLocale } from "./summary-models.ts";
 import type { UndatedTodo } from "./undated-todos.ts";
 
 /**
@@ -40,6 +40,16 @@ export type Suggestion = PlanItem & {
   foundAt: string;
 };
 
+/** A course's syllabus summed up, as the model wrote it; shown on the Materials page. */
+export type SyllabusSummary = {
+  text: string;
+  /** The files it was read from. */
+  files: string;
+  locale: SummaryLocale;
+  provider: ProviderId | null;
+  at: string;
+};
+
 export type PlanState = {
   enabled: boolean;
   enabledAt: string | null;
@@ -50,9 +60,41 @@ export type PlanState = {
   pending: Suggestion[];
   /** What the student did with each suggestion, so a later read does not offer it again. */
   decided: Record<string, "added" | "dismissed">;
+  /** Each course's syllabus summary, by HuskyCT course id. */
+  summaries: Record<string, SyllabusSummary>;
 };
 
-export const EMPTY_PLAN_STATE: PlanState = { enabled: false, enabledAt: null, read: {}, failed: {}, pending: [], decided: {} };
+export const EMPTY_PLAN_STATE: PlanState = {
+  enabled: false,
+  enabledAt: null,
+  read: {},
+  failed: {},
+  pending: [],
+  decided: {},
+  summaries: {},
+};
+
+const PROVIDER_IDS: readonly string[] = ["glm", "gemini", "groq"];
+
+function parseSummaries(value: unknown): Record<string, SyllabusSummary> {
+  if (!isRecord(value)) return {};
+  const summaries: Record<string, SyllabusSummary> = {};
+  for (const [courseId, entry] of Object.entries(value)) {
+    if (!isRecord(entry)) continue;
+    const locale = entry.locale === "zh-CN" ? "zh-CN" : entry.locale === "en" ? "en" : null;
+    // Checked as the model's answer is, so storage cannot hold what the page would not show.
+    const text = locale ? cleanSummary(entry.text, null) : null;
+    if (!text || !locale || typeof entry.files !== "string" || typeof entry.at !== "string") continue;
+    summaries[courseId] = {
+      text,
+      files: entry.files,
+      locale,
+      provider: PROVIDER_IDS.includes(entry.provider as string) ? (entry.provider as ProviderId) : null,
+      at: entry.at,
+    };
+  }
+  return summaries;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -114,6 +156,7 @@ export function parsePlanState(raw: string | null): PlanState {
         return suggestion ? [suggestion] : [];
       }),
       decided,
+      summaries: parseSummaries(parsed.summaries),
     };
   } catch {
     return EMPTY_PLAN_STATE;
@@ -214,9 +257,20 @@ export function syllabusKey(courseId: string): string {
   return `syllabus:${courseId}`;
 }
 
-/** A file read again only when a different file, or a newer copy of it, arrives. */
-export function syllabusSignature(files: Array<{ key: string; savedAt: string }>): string {
-  return files.map((file) => `${file.key}@${file.savedAt}`).join("|");
+/**
+ * A syllabus is read again only when a different file, or a newer copy of it,
+ * arrives — or when the page's language changes, since its summary is written
+ * in that language. The leading "2" is what was read: dates and a summary. One
+ * read before summaries existed carries no "2", so it is read once more, for
+ * its summary; the dates it already offered are not offered again.
+ */
+export function syllabusSignature(files: Array<{ key: string; savedAt: string }>, locale: SummaryLocale): string {
+  return `2|${locale}|${files.map((file) => `${file.key}@${file.savedAt}`).join("|")}`;
+}
+
+export function setSummary(state: PlanState, courseId: string, summary: SyllabusSummary | null): PlanState {
+  if (!summary) return state;
+  return { ...state, summaries: { ...state.summaries, [courseId]: summary } };
 }
 
 /** An announcement's id comes from its course, title and posting time, so having read it is all there is to record. */
@@ -399,10 +453,10 @@ export async function requestPlan(
   request: PlanRequest,
   fetchImpl: FetchLike = fetch,
   choice: SummaryChoice = "auto",
-): Promise<{ items: PlanItem[]; provider: ProviderId | null }> {
+): Promise<{ items: PlanItem[]; summary: string | null; provider: ProviderId | null }> {
   const sources = request.announcements.length;
   let response: Response;
-  let body: { items?: unknown; problem?: unknown; provider?: unknown };
+  let body: { items?: unknown; summary?: unknown; problem?: unknown; provider?: unknown };
   try {
     response = await fetchImpl(PLAN_ENDPOINT, {
       method: "POST",
@@ -414,8 +468,18 @@ export async function requestPlan(
     throw new SummaryError("unavailable");
   }
   // Checked again here: what the page keeps should not depend on the server having checked it.
-  const items = response.ok && Array.isArray(body.items) ? parsePlanAnswer(JSON.stringify({ items: body.items }), sources) : null;
-  if (items) return { items, provider: PROVIDERS.find((id) => id === body.provider) ?? null };
+  const locale = request.kind === "syllabus" ? (request.locale ?? "en") : null;
+  const result =
+    response.ok && Array.isArray(body.items)
+      ? parsePlanResult(JSON.stringify({ items: body.items, summary: body.summary }), sources, locale)
+      : null;
+  if (result) {
+    return {
+      items: result.items,
+      summary: request.kind === "syllabus" ? result.summary : null,
+      provider: PROVIDERS.find((id) => id === body.provider) ?? null,
+    };
+  }
   const problem = typeof body.problem === "string" ? KNOWN_PROBLEMS[body.problem] : undefined;
   throw new SummaryError(problem ?? "failed");
 }

@@ -19,18 +19,21 @@ import {
   requestPlan,
   restorePlanState,
   savePlanState,
+  setSummary,
   suggestionToEvent,
   suggestionToUndated,
   syllabusKey,
   syllabusSignature,
   type PlanState,
   type Suggestion,
+  type SyllabusSummary,
 } from "@/lib/ai-plan";
 import { SummaryError, type SummaryProblem } from "@/lib/announcement-summary";
 import type { MaterialsStore, StoredFile } from "@/lib/materials";
 import { openMaterialsStore } from "@/lib/materials-store";
 import type { PlanItem, PlanRequest } from "@/lib/plan-models";
 import { restoreSummaryChoice } from "@/lib/summary-choice";
+import type { ProviderId } from "@/lib/summary-models";
 import { pickSyllabusFiles, readFileText } from "@/lib/syllabus";
 import { restoreUndatedTodos, saveUndatedTodos, type UndatedTodo } from "@/lib/undated-todos";
 
@@ -45,6 +48,8 @@ export type AiPlanValue = {
   enabled: boolean;
   status: PlanStatus;
   pending: Suggestion[];
+  /** Each course's syllabus summary, by HuskyCT course id. */
+  summaries: Record<string, SyllabusSummary>;
   undated: UndatedTodo[];
   enable: () => void;
   disable: () => void;
@@ -70,7 +75,7 @@ const RETRY_MS = 60_000;
 /** Many announcements can land in one sync; one read after they settle. */
 const SETTLE_MS = 1_000;
 
-type Outcome = { items: PlanItem[] } | { failed: true } | { stop: SummaryProblem; retry: boolean };
+type Outcome = { items: PlanItem[]; summary: string | null; provider: ProviderId | null } | { failed: true } | { stop: SummaryProblem; retry: boolean };
 
 /** One function for every render: a new one each time would make every render start a new run. */
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -94,7 +99,7 @@ export function AiPlanProvider({
   fetchImpl?: (input: string, init: RequestInit) => Promise<Response>;
   wait?: (ms: number) => Promise<void>;
 }) {
-  const { announcements, addCustomEvents } = useCalendar();
+  const { announcements, addCustomEvents, locale } = useCalendar();
   const [state, setState] = useState<PlanState>(EMPTY_PLAN_STATE);
   const [undated, setUndated] = useState<UndatedTodo[]>([]);
   const [status, setStatus] = useState<PlanStatus>({ phase: "idle", problem: null });
@@ -107,9 +112,15 @@ export function AiPlanProvider({
   const mounted = useRef(true);
   const runRef = useRef<() => Promise<void>>(async () => undefined);
 
+  const localeRef = useRef(locale);
+
   useEffect(() => {
     announcementsRef.current = announcements;
   }, [announcements]);
+
+  useEffect(() => {
+    localeRef.current = locale;
+  }, [locale]);
 
   const commit = useCallback((change: (current: PlanState) => PlanState) => {
     const next = change(stateRef.current);
@@ -138,8 +149,7 @@ export function AiPlanProvider({
   const ask = useCallback(
     async (request: PlanRequest): Promise<Outcome> => {
       try {
-        const { items } = await requestPlan(request, fetchImpl, restoreSummaryChoice(window.localStorage));
-        return { items };
+        return await requestPlan(request, fetchImpl, restoreSummaryChoice(window.localStorage));
       } catch (error) {
         const problem = error instanceof SummaryError ? error.problem : "failed";
         if (problem === "busy" || problem === "rate-limited") return { stop: problem, retry: true };
@@ -176,7 +186,11 @@ export function AiPlanProvider({
         const picks = pickSyllabusFiles(course, byKey);
         if (picks.length === 0) continue;
         const key = syllabusKey(course.id);
-        const signature = syllabusSignature(picks.map((pick) => ({ key: pick.key, savedAt: byKey.get(pick.key)!.savedAt })));
+        const language = localeRef.current;
+        const signature = syllabusSignature(
+          picks.map((pick) => ({ key: pick.key, savedAt: byKey.get(pick.key)!.savedAt })),
+          language,
+        );
         if (!needsReading(stateRef.current, key, signature)) continue;
 
         const label = (course.code ?? course.id).slice(0, 80);
@@ -200,6 +214,7 @@ export function AiPlanProvider({
           today,
           text: joinSyllabusTexts(texts),
           announcements: [],
+          locale: language,
         });
         if ("stop" in outcome) return { problem: outcome.stop, retry: outcome.retry };
         if ("failed" in outcome) {
@@ -207,14 +222,14 @@ export function AiPlanProvider({
           continue;
         }
         const fromLabel = texts.map((entry) => entry.name).join(", ");
+        const at = new Date().toISOString();
         commit((current) =>
           markRead(
-            addFound(current, outcome.items, {
-              course: course.code,
-              from: "syllabus",
-              fromLabel: () => fromLabel,
-              foundAt: new Date().toISOString(),
-            }),
+            setSummary(
+              addFound(current, outcome.items, { course: course.code, from: "syllabus", fromLabel: () => fromLabel, foundAt: at }),
+              course.id,
+              outcome.summary ? { text: outcome.summary, files: fromLabel, locale: language, provider: outcome.provider, at } : null,
+            ),
             key,
             signature,
           ),
@@ -277,10 +292,10 @@ export function AiPlanProvider({
   }, [run]);
 
   // The triggers below go through the ref, so a new `run` alone never starts a read.
-  // On opening the app, and whenever it is turned on.
+  // On opening the app, whenever it is turned on, and when the language changes (a summary is written in it).
   useEffect(() => {
     if (state.enabled) void runRef.current();
-  }, [state.enabled]);
+  }, [state.enabled, locale]);
 
   // When the helper has finished bringing files.
   useEffect(() => {
@@ -312,6 +327,7 @@ export function AiPlanProvider({
     enabled: state.enabled,
     status,
     pending: state.pending,
+    summaries: state.summaries,
     undated,
     enable: () => commit((current) => ({ ...current, enabled: true, enabledAt: current.enabledAt ?? new Date().toISOString() })),
     disable: () => {
