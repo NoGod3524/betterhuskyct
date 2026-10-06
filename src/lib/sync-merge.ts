@@ -4,7 +4,6 @@ import {
   type Course,
   type CourseBook,
 } from "./courses.ts";
-import type { EffortMap } from "./effort.ts";
 import type { CalendarTask } from "./calendar-types.ts";
 import {
   MAX_ANNOUNCEMENTS,
@@ -20,7 +19,6 @@ import type { SyncFeed, SyncPayload } from "./sync.ts";
 
 export type LocalState = {
   courses: CourseBook;
-  efforts: EffortMap;
   completedIds: Set<string>;
   subscriptions: Subscription[];
   /**
@@ -36,7 +34,6 @@ export type LocalState = {
 
 export type MergedState = {
   courses: CourseBook;
-  efforts: EffortMap;
   completedIds: Set<string>;
   subscriptions: Subscription[];
   /** How many calendars the link actually added — new ones, not merged ones. */
@@ -59,7 +56,7 @@ export type MergedState = {
  * - **Ticks are unioned.** A tick is a decision someone made; losing one is
  *   worse than keeping a stale one. The other device having ticked something is
  *   never a reason to untick it here.
- * - **Courses and effort marks take the incoming value**, because importing a
+ * - **Courses take the incoming value**, because importing a
  *   link is an explicit act — the user is saying "this is the set-up I want".
  * - **A calendar already here is updated in place, never duplicated.** A feed
  *   that shares a source UID with one here is merged into it, so the device
@@ -79,8 +76,6 @@ export function mergeSyncPayload(
   payload: SyncPayload,
 ): MergedState {
   const { courses, idMap } = mergeCourses(local.courses, payload.courses);
-
-  const efforts: EffortMap = { ...local.efforts, ...payload.efforts };
 
   const completedIds = new Set(local.completedIds);
   for (const id of payload.completedIds) completedIds.add(id);
@@ -134,7 +129,6 @@ export function mergeSyncPayload(
 
   return {
     courses,
-    efforts,
     completedIds,
     subscriptions,
     addedFeeds,

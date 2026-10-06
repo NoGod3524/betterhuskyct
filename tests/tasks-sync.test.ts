@@ -38,7 +38,6 @@ function payload(): unknown {
       buildSyncPayload({
         feeds: [{ name: "HuskyCT to-do", courseId: null, importedAt: "2026-09-16T11:00:00.000Z", events: [task("a")] }],
         completedIds: [],
-        efforts: {},
         courses: EMPTY_COURSE_BOOK,
         now: new Date("2026-09-16T12:00:00.000Z"),
       }),

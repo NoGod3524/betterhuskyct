@@ -151,7 +151,6 @@ async function importOneTask(view: Awaited<ReturnType<typeof render>>) {
         },
       ],
       completedIds: [],
-      efforts: {},
       courses: EMPTY_COURSE_BOOK,
     }),
   );

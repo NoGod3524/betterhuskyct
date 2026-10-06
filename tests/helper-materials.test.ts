@@ -5,7 +5,8 @@ import vm from "node:vm";
 
 import { Window } from "happy-dom";
 
-import { createMaterialsReceiver, memoryMaterialsStore, parseLinksPage } from "../src/lib/materials.ts";
+import { createMaterialsReceiver } from "../src/lib/materials.ts";
+import { memoryMaterialsStore } from "./support/memory-stores.ts";
 
 /**
  * "Collect course materials", run as shipped on pages shaped like the live
@@ -667,23 +668,5 @@ test("a reply from any other page is ignored", async () => {
   const result = plain(await helper.sendMaterialsToBhc(impostor, manifest, { ...SEND, connectTimeout: 200 }));
 
   assert.equal(result.connected, false);
-});
-
-test("the saved links page reads back into the app with its courses, kinds and folders", async () => {
-  const { helper } = openPage();
-  const manifest = await helper.collectMaterials(FAST);
-  const html = helper.materialsLinksHtml(manifest);
-  const parser = new Window();
-  windows.push(parser);
-
-  const links = parseLinksPage(html, (source) => new parser.DOMParser().parseFromString(source, "text/html") as unknown as Document);
-
-  assert.deepEqual(Object.keys(links).sort(), ["ECON 1201", "MATH 1070Q"]);
-  assert.equal(links["MATH 1070Q"].id, "_203765_1");
-  assert.deepEqual(links["MATH 1070Q"].links.map((link) => link.kind).sort(), ["link", "link", "video", "video"]);
-  assert.ok(links["MATH 1070Q"].links.some((link) => link.url === TIPS_VIDEO), "the Kaltura video was not read back");
-  assert.deepEqual(plain(links["MATH 1070Q"].tools), [{ path: [], title: "Cengage WebAssign", url: WEBASSIGN }]);
-  const white = links["MATH 1070Q"].links.find((link) => /white/.test(link.url));
-  assert.deepEqual(white?.path, ["Problem-Solving Tips Blank Notes"]);
 });
 

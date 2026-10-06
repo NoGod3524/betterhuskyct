@@ -5,12 +5,13 @@ import { localDay, PLAN_STORAGE_KEY } from "../src/lib/ai-plan.ts";
 import type { Announcement } from "../src/lib/announcements.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { t } from "../src/lib/i18n.ts";
-import { memoryMaterialsStore, type MaterialsStore } from "../src/lib/materials.ts";
+import { type MaterialsStore } from "../src/lib/materials.ts";
 import type { PlanRequest } from "../src/lib/plan-models.ts";
 import { buildSyncPayload, encodeSyncPayload } from "../src/lib/sync.ts";
 import { UNDATED_TODOS_KEY } from "../src/lib/undated-todos.ts";
 import { installDom } from "./support/dom.ts";
 import { makePdf } from "./support/pdf.ts";
+import { memoryMaterialsStore } from "./support/memory-stores.ts";
 
 /**
  * The To-do page with the AI list on the real providers: a syllabus in the
@@ -110,7 +111,7 @@ async function mount(options: { store?: MaterialsStore; answer?: Answer; announc
 
   if (options.announcements) {
     const packed = await encodeSyncPayload(
-      buildSyncPayload({ feeds: [], completedIds: [], efforts: {}, courses: EMPTY_COURSE_BOOK, announcements: options.announcements }),
+      buildSyncPayload({ feeds: [], completedIds: [], courses: EMPTY_COURSE_BOOK, announcements: options.announcements }),
     );
     await act(async () => {
       window.location.hash = `#sync=${packed}`;

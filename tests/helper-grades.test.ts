@@ -5,8 +5,9 @@ import vm from "node:vm";
 
 import { Window } from "happy-dom";
 
-import { createGradesReceiver, memoryGradesStore, parseGradesSnapshot, type GradesStore } from "../src/lib/grades.ts";
+import { createGradesReceiver, parseGradesSnapshot, type GradesStore } from "../src/lib/grades.ts";
 import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
+import { memoryGradesStore } from "./support/memory-stores.ts";
 
 /**
  * "Collect grades", run as shipped on pages shaped like the live HuskyCT ones,

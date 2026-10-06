@@ -21,7 +21,6 @@ test("a link carries what HuskyCT says is done, and what was reopened, and reads
   const built = buildSyncPayload({
     feeds: [],
     completedIds: ["tick-1"],
-    efforts: {},
     courses: EMPTY_COURSES,
     doneByHuskyct: new Map([["hw-1", "submitted"], ["hw-2", "graded"]]),
     reopened: new Set(["hw-2"]),
@@ -40,7 +39,6 @@ test("a link made before these fields existed reads as saying nothing about them
     exportedAt: new Date().toISOString(),
     feeds: [],
     completedIds: [],
-    efforts: {},
     courses: EMPTY_COURSES,
   };
   const parsed = parseSyncPayloadValue(old);
@@ -56,7 +54,6 @@ test("a malformed reason in a link is dropped, not trusted", () => {
     exportedAt: new Date().toISOString(),
     feeds: [],
     completedIds: [],
-    efforts: {},
     courses: EMPTY_COURSES,
     doneByHuskyct: { "hw-1": "submitted", "hw-2": "definitely", "hw-3": 7 },
     reopened: ["hw-1", 42, ""],

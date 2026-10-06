@@ -254,19 +254,6 @@ export type GradesStore = {
   clear(): Promise<void>;
 };
 
-export function memoryGradesStore(): GradesStore {
-  let snapshot: GradesSnapshot | null = null;
-  return {
-    get: async () => snapshot,
-    put: async (next) => {
-      snapshot = next;
-    },
-    clear: async () => {
-      snapshot = null;
-    },
-  };
-}
-
 /**
  * Courses are told apart by HuskyCT's id, which the helper always sends. Not by
  * code: a term can hold two courses with one code (a lecture and its lab both

@@ -69,10 +69,6 @@ export function saveCustomEvents(storage: Storage, events: CustomEvent[]): void 
   storage.setItem(STORAGE_KEY, JSON.stringify(events.slice(0, MAX_CUSTOM_EVENTS)));
 }
 
-export function clearCustomEvents(storage: Storage): void {
-  storage.removeItem(STORAGE_KEY);
-}
-
 export function createCustomEventId(): string {
   return ID_PREFIX + (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 }

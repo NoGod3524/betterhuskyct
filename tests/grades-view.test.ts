@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import { GRADES_PROTOCOL, memoryGradesStore, type GradesStore } from "../src/lib/grades.ts";
+import { GRADES_PROTOCOL, type GradesStore } from "../src/lib/grades.ts";
 import { openGradesStore } from "../src/lib/grades-store.ts";
 import { t } from "../src/lib/i18n.ts";
-import { memoryMaterialsStore } from "../src/lib/materials.ts";
 import { installDom } from "./support/dom.ts";
+import { memoryGradesStore, memoryMaterialsStore } from "./support/memory-stores.ts";
 
 /**
  * The Grades page, rendered with the real provider around it and a store in

@@ -44,7 +44,6 @@ function link(options: { feeds?: CalendarTask[][]; ticks?: string[] } = {}) {
       events,
     })),
     completedIds: options.ticks ?? [],
-    efforts: {},
     courses: EMPTY_COURSE_BOOK,
   });
 }
@@ -52,7 +51,6 @@ function link(options: { feeds?: CalendarTask[][]; ticks?: string[] } = {}) {
 function device(patch: Partial<SyncApplyInput>): SyncApplyInput {
   return {
     courses: EMPTY_COURSE_BOOK,
-    efforts: {},
     subscriptions: [],
     announcements: [],
     showingImported: false,

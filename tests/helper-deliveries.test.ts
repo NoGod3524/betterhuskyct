@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import { GRADES_PROTOCOL, memoryGradesStore } from "../src/lib/grades.ts";
-import { memoryMaterialsStore } from "../src/lib/materials.ts";
+import { GRADES_PROTOCOL } from "../src/lib/grades.ts";
 import { installDom } from "./support/dom.ts";
+import { memoryGradesStore, memoryMaterialsStore } from "./support/memory-stores.ts";
 
 /**
  * The receivers live in the shell, so a delivery must land even when no Grades
