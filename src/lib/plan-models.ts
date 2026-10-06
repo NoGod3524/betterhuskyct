@@ -112,6 +112,7 @@ export function planMessages(request: PlanRequest): ChatMessage[] {
     'Write "title" in the text\'s own language, short, as the course names it (for example "Midterm 1" or "Lab report 3 due"). Never translate it.',
     'Give "evidence": the text\'s own words for the item, at most 150 characters, copied exactly.',
     KIND_RULE,
+    "A break over several days (Thanksgiving, spring break) is one item, dated its first day off. Leave out a day off whose date is not written.",
     "Never invent an item, a date or a time. When unsure of a date, set it to null.",
     ...(request.kind === "syllabus" ? summaryRules(request.locale ?? "en") : []),
     request.kind === "syllabus"
