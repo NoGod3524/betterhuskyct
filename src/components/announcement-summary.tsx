@@ -85,6 +85,10 @@ const CHOICE_NOTE_KEYS = {
  * The line saying where the announcements go is always visible next to the
  * button, not tucked behind a first-time dialog: sending them off the device is
  * the one thing about this feature a reader has a right to know before pressing.
+ *
+ * Once a summary is made, the button goes: the same announcements summed up
+ * again spend shared free quota for nothing new. It comes back when the
+ * announcements change, or as "Try again" when a summary could not be made.
  */
 export function AnnouncementSummary({
   locale,
@@ -133,14 +137,16 @@ export function AnnouncementSummary({
   return (
     <div className="mt-4 rounded-[20px] border border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5" aria-live="polite">
       <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={summarize}
-          disabled={working}
-          className="inline-flex h-9 items-center rounded-lg bg-[var(--navy)] px-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
-        >
-          {summary ? t(locale, "summary.again") : t(locale, "summary.button", { course: course.label })}
-        </button>
+        {summary ? null : (
+          <button
+            type="button"
+            onClick={summarize}
+            disabled={working}
+            className="inline-flex h-9 items-center rounded-lg bg-[var(--navy)] px-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+          >
+            {pending?.kind === "error" ? t(locale, "summary.retry") : t(locale, "summary.button", { course: course.label })}
+          </button>
+        )}
         {working ? <span className="text-sm text-[var(--c-31506f)]">{t(locale, "summary.working")}</span> : null}
         <label className="ml-auto flex items-center gap-2 text-xs font-semibold text-[var(--muted)]">
           {t(locale, "summary.modelLabel")}
