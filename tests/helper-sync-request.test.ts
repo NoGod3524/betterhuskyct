@@ -75,12 +75,12 @@ function setup(options: { refuse?: boolean } = {}) {
 }
 
 const message = (fields: Record<string, unknown>) => ({ protocol: HELPER_SYNC_PROTOCOL, ...fields });
-const DONE = { kind: "done", ok: true, courses: 2, announcements: 3, gradeItems: 4, skipped: ["ECON 1201"], sent: true };
+const DONE = { kind: "done", ok: true, courses: 2, announcements: 3, gradeItems: 4, skipped: ["ECON 1201"], sent: true, files: 1 };
 
 test("a message is read only if it is shaped as one the helper sends", () => {
   assert.deepEqual(parseSyncMessage(message({ kind: "ack", state: "started" })), { kind: "ack", state: "started" });
   assert.deepEqual(parseSyncMessage(message({ kind: "progress", course: "MATH 1070Q", index: 1, total: 6 })), { kind: "progress", course: "MATH 1070Q", index: 1, total: 6 });
-  assert.deepEqual(parseSyncMessage(message(DONE)), { kind: "done", ok: true, courses: 2, announcements: 3, gradeItems: 4, skipped: ["ECON 1201"], sent: true });
+  assert.deepEqual(parseSyncMessage(message(DONE)), { kind: "done", ok: true, courses: 2, announcements: 3, gradeItems: 4, skipped: ["ECON 1201"], sent: true, files: 1 });
 
   for (const bad of [
     null,
@@ -127,7 +127,7 @@ test("once the helper answers the asking stops, and its progress and result are 
   assert.deepEqual(sync.state, { phase: "syncing", course: "MATH 1070Q", index: 2, total: 6 });
 
   say(message(DONE));
-  assert.deepEqual(sync.state, { phase: "done", courses: 2, announcements: 3, gradeItems: 4, skipped: ["ECON 1201"], sent: true });
+  assert.deepEqual(sync.state, { phase: "done", courses: 2, announcements: 3, gradeItems: 4, skipped: ["ECON 1201"], sent: true, files: 1 });
   assert.equal(time.pending(), 0, "a timer was left running");
   assert.equal(states[states.length - 1].phase, "done");
 });

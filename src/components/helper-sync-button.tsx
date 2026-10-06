@@ -105,11 +105,14 @@ export function syncStatusText(locale: Locale, state: HelperSyncState): string {
     case "waiting":
       return t(locale, "helpersync.waiting");
     case "syncing":
+      if (state.files && state.course) return t(locale, "helpersync.syncingFile", { name: state.course, index: state.index, total: state.total });
       return state.index > 0 && state.course
         ? t(locale, "helpersync.syncingCourse", { course: state.course, index: state.index, total: state.total })
         : t(locale, "helpersync.syncing");
     case "done": {
-      const read = t(locale, "helpersync.done", { courses: state.courses, announcements: state.announcements, items: state.gradeItems });
+      const read =
+        t(locale, "helpersync.done", { courses: state.courses, announcements: state.announcements, items: state.gradeItems }) +
+        (state.files > 0 ? t(locale, "helpersync.files", { files: state.files }) : "");
       const skipped = state.skipped.length ? t(locale, "helpersync.skipped", { courses: state.skipped.join(", ") }) : "";
       return read + skipped + (state.sent ? "" : t(locale, "helpersync.partial"));
     }
