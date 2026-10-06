@@ -189,7 +189,7 @@ const pageEvent = (window: Window, type: string, detail: string) => new window.C
  * document, so the agent the helper puts in it never starts. This answers as the agent would,
  * from `serve`, the page's own fetch.
  */
-function pageAnswers(window: Window, serve: (path: string) => Promise<Response>, options: { copied?: number; names?: string; appAfter?: number } = {}) {
+function pageAnswers(window: Window, serve: (path: string) => Promise<Response>, options: { copied?: number; names?: string; appAfter?: number; report?: string } = {}) {
   const asked: string[] = [];
   const document = window.document;
   document.documentElement.setAttribute("data-betterhuskyct-api", "1");
@@ -198,7 +198,11 @@ function pageAnswers(window: Window, serve: (path: string) => Promise<Response>,
   if (options.appAfter === undefined) appStarts();
   else setTimeout(appStarts, options.appAfter);
   document.addEventListener("betterhuskyct:api-request", (event) => {
-    const ask = JSON.parse(String((event as unknown as { detail: string }).detail)) as { id: string; path: string };
+    const ask = JSON.parse(String((event as unknown as { detail: string }).detail)) as { id: string; path: string; kind?: string };
+    if (ask.kind === "report") {
+      document.dispatchEvent(pageEvent(window, "betterhuskyct:api-answer", JSON.stringify({ id: ask.id, report: options.report ?? "" })));
+      return;
+    }
     asked.push(ask.path);
     void serve(ask.path).then(async (response) => {
       const detail = JSON.stringify({ id: ask.id, status: response.status, text: await response.text(), copied: options.copied ?? 0, names: options.names ?? "" });
@@ -227,8 +231,17 @@ test("refused as coming from elsewhere, HuskyCT's data is asked for through the 
 
 test("what the page got is said too, and a 401 there is still a sign-in", async () => {
   const forbidden = openPage(async () => new Response("{}", { status: 403 }));
-  pageAnswers(forbidden.window, async () => new Response('{"status":403,"message":"Invalid CORS request."}', { status: 403 }), { copied: 2, names: "x-blackboard-xsrf x-<b>" });
-  assert.deepEqual(pick(await forbidden.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 403 then page HTTP 403 h2 x-blackboard-xsrf x-b Invalid CORS request." });
+  pageAnswers(forbidden.window, async () => new Response('{"status":403,"message":"Invalid CORS request."}', { status: 403 }), {
+    copied: 2,
+    names: "x-blackboard-xsrf x-<b>",
+    report: "app v1/users/_9_1/memberships 200 replay v1/users/_9_1/memberships 403",
+  });
+  assert.deepEqual(pick(await forbidden.helper.syncLight()), {
+    ok: false,
+    reason: "courses",
+    // With what HuskyCT's own code asked for, and what asking for its address again got.
+    detail: "HTTP 403 then page HTTP 403 h2 x-blackboard-xsrf x-b Invalid CORS request. / app v1/users/_9_1/memberships 200 replay v1/users/_9_1/memberships 403",
+  });
 
   // An S3-style refusal is told by its code.
   const s3 = openPage(async () => new Response("{}", { status: 403 }));
@@ -275,13 +288,19 @@ function fakeRequests(window: Window, respond: (path: string) => { status: numbe
     responseText: string;
     onload: (() => void) | null;
     onerror: (() => void) | null;
+    ends: Array<() => void>;
+    addEventListener: (type: string, run: () => void) => void;
   };
   function FakeRequest(this: Request) {
     this.status = 0;
     this.responseText = "";
     this.onload = null;
     this.onerror = null;
+    this.ends = [];
   }
+  FakeRequest.prototype.addEventListener = function (this: Request, type: string, run: () => void) {
+    if (type === "loadend") this.ends.push(run);
+  };
   FakeRequest.prototype.open = function (this: Request, _method: string, path: string) {
     this.path = path;
     this.headers = {};
@@ -299,6 +318,7 @@ function fakeRequests(window: Window, respond: (path: string) => { status: numbe
         this.responseText = answer.text;
         this.onload?.();
       }
+      for (const run of this.ends) run();
     }, 0);
   };
   (window as unknown as { XMLHttpRequest: unknown }).XMLHttpRequest = FakeRequest;
@@ -341,6 +361,39 @@ test("the agent puts the headers HuskyCT's own code uses for its data on its own
   assert.deepEqual(own.map((request) => request.headers), [{ accept: "application/json", "x-blackboard-xsrf": "token-1" }]);
   assert.deepEqual(answers.map((answer) => [answer.id, answer.status, answer.copied, answer.names]), [["one", 200, 1, "x-blackboard-xsrf"]]);
   assert.deepEqual(JSON.parse(answers[0].text ?? ""), LIST);
+});
+
+test("the agent says what HuskyCT's own code asked for, and what asking for its last address again gets", async () => {
+  const { window, helper } = openPage(data());
+  let replayed = 0;
+  const requests = fakeRequests(window, (path) => {
+    if (path.includes("memberships") && requests.sent.filter((request) => request.path === path).length > 1) replayed++;
+    if (path.includes("missing")) return { status: 404, text: "" };
+    return path.includes("memberships") && replayed > 0 ? { status: 403, text: "" } : { status: 200, text: "{}" };
+  });
+  const { answers, ask } = agentIn(window, helper);
+  const report = (id: string) => window.document.dispatchEvent(pageEvent(window, "betterhuskyct:api-request", JSON.stringify({ id, kind: "report" })));
+
+  report("before");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  requests.app("https://lms.uconn.edu/learn/api/v1/users/_9_1/memberships?expand=course", {});
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  // One the app was refused is said, but the address asked again is the last one answered.
+  requests.app("/learn/api/v1/missing", {});
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  report("after");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  ask("unused", "/learn/api/v1/never");
+
+  assert.deepEqual(
+    answers.filter((answer) => answer.id !== "unused").map((answer) => [answer.id, (answer as unknown as { report: string }).report]),
+    [
+      ["before", "app none replay none"],
+      ["after", "app v1/users/_9_1/memberships 200 v1/missing 404 replay v1/users/_9_1/memberships 403"],
+    ],
+  );
+  // The report's own request is not taken for the app's.
+  assert.equal(requests.sent.filter((request) => request.path.includes("memberships")).length, 2);
 });
 
 test("the agent asks for HuskyCT's data only, once however often it is put in, and says when nothing came back", async () => {
