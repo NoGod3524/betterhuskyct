@@ -362,3 +362,14 @@ test("a list saved with duplicates is merged when it is read back, and reading i
   const twice = parsePlanState(JSON.stringify(once));
   assert.equal(twice.offered.length, once.offered.length, "what was offered grew on every visit");
 });
+
+test("office hours saved in a list from before are cleared when it is read back", () => {
+  const saved = JSON.stringify({
+    ...EMPTY_PLAN_STATE,
+    pending: [
+      { ...suggestion({ title: "Office hours", date: null, kind: "task", evidence: "Tue 2-3" }) },
+      { ...suggestion({ title: "Midterm 1" }) },
+    ],
+  });
+  assert.deepEqual(parsePlanState(saved).pending.map((s) => s.title), ["Midterm 1"]);
+});
