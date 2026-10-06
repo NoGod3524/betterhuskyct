@@ -389,7 +389,7 @@ const KNOWN_PROBLEMS: Record<string, SummaryProblem> = {
   "choice-unavailable": "choice-unavailable",
 };
 
-const PROVIDERS: readonly ProviderId[] = ["glm", "gemini"];
+const PROVIDERS: readonly ProviderId[] = ["glm", "gemini", "groq"];
 
 /**
  * Asks the app's endpoint to read one source. Failures are `SummaryError`s with

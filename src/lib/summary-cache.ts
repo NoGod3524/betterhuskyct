@@ -9,7 +9,7 @@ const PREFIX = "betterhuskyct:summary:v1:";
 
 const entrySchema = z.object({
   summary: z.string().trim().min(1).max(16_000),
-  provider: z.enum(["glm", "gemini"]),
+  provider: z.enum(["glm", "gemini", "groq"]),
   at: z.number().int().nonnegative(),
 });
 type Entry = z.infer<typeof entrySchema>;

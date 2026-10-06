@@ -43,7 +43,7 @@ const requestSchema = z
         }),
       )
       .max(40),
-    provider: z.enum(["auto", "glm", "gemini"]).optional(),
+    provider: z.enum(["auto", "glm", "gemini", "groq"]).optional(),
   })
   .refine((request) =>
     request.kind === "syllabus"
