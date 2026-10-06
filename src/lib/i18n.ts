@@ -407,6 +407,7 @@ const en = {
   "calendar.emptyTitleError": "Give the event a title first.",
   "calendar.dayHeading": "View events for {date}",
   "calendar.noEvents": "Nothing on this day.",
+  "calendar.schoolSource": "UConn academic calendar, {term}",
 } as const;
 
 const zhCN: Record<TranslationKey, string> = {
@@ -813,6 +814,7 @@ const zhCN: Record<TranslationKey, string> = {
   "calendar.emptyTitleError": "先给事项起个标题。",
   "calendar.dayHeading": "查看 {date} 的事项",
   "calendar.noEvents": "这天没有安排。",
+  "calendar.schoolSource": "UConn 校历，{term}",
 };
 
 export type TranslationKey = keyof typeof en;

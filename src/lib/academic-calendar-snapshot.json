@@ -1,0 +1,240 @@
+{
+  "source": "https://registrar.uconn.edu/academic-calendar/",
+  "readOn": "2026-10-05",
+  "events": [
+    {
+      "id": "academic-2026-08-31-fall-semester-begins",
+      "title": "Fall semester begins",
+      "detail": "Fall semester begins",
+      "start": "2026-08-31",
+      "end": "2026-08-31",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2026-09-07-labor-day-no-classes",
+      "title": "Labor Day – No classes",
+      "detail": "Labor Day – No classes",
+      "start": "2026-09-07",
+      "end": "2026-09-07",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2026-09-14-last-day-to-add-or-drop-courses",
+      "title": "Last day to add or drop courses",
+      "detail": "Tenth day of classes. Courses dropped after this date will have a “W” for withdrawal recorded on the academic record. Last day to add or drop courses without additional signatures (see Adding and Dropping Courses ).",
+      "start": "2026-09-14",
+      "end": "2026-09-14",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2026-10-05-mid-semester-grading-period",
+      "title": "Mid-semester Grading Period",
+      "detail": "Mid-semester Grading Period",
+      "start": "2026-10-05",
+      "end": "2026-10-23",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2026-10-26-registration-for-the-winter-2027-and-spr",
+      "title": "Registration for the Winter 2027 and Spring 2027 semester begins",
+      "detail": "Registration for the Winter 2027 and Spring 2027 semester via Student Administration System begins",
+      "start": "2026-10-26",
+      "end": "2026-10-26",
+      "term": "Fall 2026",
+      "importance": "minor"
+    },
+    {
+      "id": "academic-2026-11-16-last-day-to-withdraw-from-a-course",
+      "title": "Last day to withdraw from a course",
+      "detail": "Last day to withdraw from a course",
+      "start": "2026-11-16",
+      "end": "2026-11-16",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2026-11-16-last-day-to-place-courses-on-or-remove-f",
+      "title": "Last day to place courses on or remove from Pass/Fail grading",
+      "detail": "Last day to place courses on or remove from Pass/Fail grading",
+      "start": "2026-11-16",
+      "end": "2026-11-16",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2026-11-22-thanksgiving-recess",
+      "title": "Thanksgiving Recess",
+      "detail": "Thanksgiving Recess",
+      "start": "2026-11-22",
+      "end": "2026-11-29",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2026-12-11-last-day-of-fall-semester-classes",
+      "title": "Last day of fall semester classes",
+      "detail": "Last day of fall semester classes",
+      "start": "2026-12-11",
+      "end": "2026-12-11",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2026-12-12-reading-days",
+      "title": "Reading Days",
+      "detail": "Reading Days",
+      "start": "2026-12-12",
+      "end": "2026-12-13",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2026-12-14-final-examinations-begin",
+      "title": "Final examinations begin",
+      "detail": "Final examinations begin",
+      "start": "2026-12-14",
+      "end": "2026-12-14",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2026-12-17-reading-day",
+      "title": "Reading Day",
+      "detail": "Reading Day",
+      "start": "2026-12-17",
+      "end": "2026-12-17",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2026-12-20-final-examinations-end",
+      "title": "Final examinations end",
+      "detail": "Final examinations end",
+      "start": "2026-12-20",
+      "end": "2026-12-20",
+      "term": "Fall 2026",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2027-01-19-spring-semester-begins",
+      "title": "Spring semester begins",
+      "detail": "Spring semester begins",
+      "start": "2027-01-19",
+      "end": "2027-01-19",
+      "term": "Spring 2027",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2027-02-01-last-day-to-add-or-drop-courses",
+      "title": "Last day to add or drop courses",
+      "detail": "Tenth day of classes. Courses dropped after this date will have a \"W\" for withdrawal recorded on the academic record. Last day to add or drop courses without additional signatures (see Adding and Dropping Courses ).",
+      "start": "2027-02-01",
+      "end": "2027-02-01",
+      "term": "Spring 2027",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2027-02-22-mid-semester-grading-period",
+      "title": "Mid-semester Grading Period",
+      "detail": "Mid-semester Grading Period",
+      "start": "2027-02-22",
+      "end": "2027-03-12",
+      "term": "Spring 2027",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2027-03-14-spring-recess",
+      "title": "Spring Recess",
+      "detail": "Spring Recess",
+      "start": "2027-03-14",
+      "end": "2027-03-21",
+      "term": "Spring 2027",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2027-03-22-registration-for-the-summer-2027-and-fal",
+      "title": "Registration for the Summer 2027 and Fall 2027 semester begins",
+      "detail": "Registration for the Summer 2027 and Fall 2027 semester via Student Administration System begins",
+      "start": "2027-03-22",
+      "end": "2027-03-22",
+      "term": "Spring 2027",
+      "importance": "minor"
+    },
+    {
+      "id": "academic-2027-03-27-emergency-closing-class-makeup-date",
+      "title": "Emergency closing class makeup date",
+      "detail": "Emergency closing class makeup date",
+      "start": "2027-03-27",
+      "end": "2027-03-27",
+      "term": "Spring 2027",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2027-04-01-deadline-to-apply-for-summer-2027-gradua",
+      "title": "Deadline to apply for Summer 2027 graduation to be included in the 2027 Commencement Book",
+      "detail": "Deadline to apply for Summer 2027 graduation to be included in the 2027 Commencement Book",
+      "start": "2027-04-01",
+      "end": "2027-04-01",
+      "term": "Spring 2027",
+      "importance": "minor"
+    },
+    {
+      "id": "academic-2027-04-12-last-day-to-withdraw-from-a-course",
+      "title": "Last day to withdraw from a course",
+      "detail": "Last day to withdraw from a course",
+      "start": "2027-04-12",
+      "end": "2027-04-12",
+      "term": "Spring 2027",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2027-04-12-last-day-to-place-courses-on-or-remove-f",
+      "title": "Last day to place courses on or remove from Pass/Fail grading",
+      "detail": "Last day to place courses on or remove from Pass/Fail grading",
+      "start": "2027-04-12",
+      "end": "2027-04-12",
+      "term": "Spring 2027",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2027-04-30-last-day-of-spring-semester-classes",
+      "title": "Last day of spring semester classes",
+      "detail": "Last day of spring semester classes",
+      "start": "2027-04-30",
+      "end": "2027-04-30",
+      "term": "Spring 2027",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2027-05-01-reading-days",
+      "title": "Reading Days",
+      "detail": "Reading Days",
+      "start": "2027-05-01",
+      "end": "2027-05-02",
+      "term": "Spring 2027",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2027-05-03-final-examinations",
+      "title": "Final examinations",
+      "detail": "Final examinations",
+      "start": "2027-05-03",
+      "end": "2027-05-08",
+      "term": "Spring 2027",
+      "importance": "major"
+    },
+    {
+      "id": "academic-2027-05-08-commencement-ceremonies",
+      "title": "Commencement ceremonies",
+      "detail": "Commencement ceremonies. For more information, please visit commencement.uconn.edu",
+      "start": "2027-05-08",
+      "end": "2027-05-09",
+      "term": "Spring 2027",
+      "importance": "major"
+    }
+  ]
+}

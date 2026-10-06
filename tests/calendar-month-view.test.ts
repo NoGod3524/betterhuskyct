@@ -46,7 +46,12 @@ afterEach(() => {
   globalThis.Date = RealDate;
 });
 
-async function render() {
+/** No network in tests: the academic calendar is refused unless a test hands one over. */
+const refuse = async (): Promise<Response> => {
+  throw new Error("offline");
+};
+
+async function render(fetchAcademic: (input: string) => Promise<Response> = refuse) {
   window.localStorage.clear();
   window.location.hash = "";
   // happy-dom has no native dialog; "Undo every change" asks before it acts,
@@ -65,7 +70,7 @@ async function render() {
     root.render(
       createElement(CalendarProvider, {
         initialNow: NOW.toISOString(),
-        children: [createElement(Probe, { key: "probe" }), createElement(CalendarMonthView, { key: "view" })],
+        children: [createElement(Probe, { key: "probe" }), createElement(CalendarMonthView, { key: "view", fetchAcademic })],
       }),
     ),
   );
@@ -92,6 +97,7 @@ async function render() {
   };
 
   return {
+    container,
     text: () => container.textContent ?? "",
     clickButton: async (label: string) => {
       const target = byLabel(label);
@@ -246,4 +252,27 @@ test("deleting an imported event hides it without touching HuskyCT's copy, and U
   await view.clickButton(t("en", "calendar.restoreAll"));
   assert.ok(view.text().includes("Section 4.1 Homework"));
   await view.unmount();
+});
+
+test("UConn's academic calendar colours the day of a break or a deadline, and is kept for offline", async () => {
+  const events = [
+    { id: "a1", title: "Labor Day – No classes", detail: "Labor Day – No classes", start: "2026-09-07", end: "2026-09-07", term: "Fall 2026", importance: "major" },
+    { id: "a2", title: "Registration begins", detail: "Registration for Spring begins", start: "2026-09-21", end: "2026-09-21", term: "Fall 2026", importance: "minor" },
+    { id: "a3", title: "Thanksgiving Recess", detail: "Thanksgiving Recess", start: "2026-09-28", end: "2026-09-30", term: "Fall 2026", importance: "major" },
+  ];
+  const view = await render(async () => Response.json({ source: "registrar", events }));
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 30));
+  });
+
+  const day = (key: string) => view.container.querySelector(`[data-day="${key}"]`) as unknown as HTMLElement;
+  assert.match(day("2026-09-07").className, /c-fff0d9/, "the holiday was not coloured");
+  assert.ok((day("2026-09-07").textContent ?? "").includes("Labor Day – No classes"));
+  assert.doesNotMatch(day("2026-09-21").className, /c-fff0d9/, "a minor date was coloured like a break");
+  assert.ok((day("2026-09-21").textContent ?? "").includes("Registration begins"));
+  for (const key of ["2026-09-28", "2026-09-29", "2026-09-30"]) assert.match(day(key).className, /c-fff0d9/, key);
+  assert.doesNotMatch(day("2026-10-01").className, /c-fff0d9/, "the break ran past its last day");
+
+  const stored = JSON.parse(window.localStorage.getItem("huskypilot.academicCalendar.v1") ?? "[]");
+  assert.equal(stored.length, 3, "the calendar was not kept for offline");
 });

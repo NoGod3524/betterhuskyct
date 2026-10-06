@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, RotateCcw, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, GraduationCap, Plus, RotateCcw, Trash2, X } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
+import { useAcademicCalendar } from "@/components/use-academic-calendar";
+import { academicByDay, type AcademicEvent } from "@/lib/academic-calendar";
 import { isCustomEventId } from "@/lib/custom-events";
 import { addDays, startOfLocalDay, taskDate } from "@/lib/date-utils";
 import { t, type Locale } from "@/lib/i18n";
@@ -80,7 +82,31 @@ function fieldClass() {
  * component only needs to know an id's namespace to decide which actions to
  * offer, through `isEventEdited` and the `custom-` prefix.
  */
-export function CalendarMonthView() {
+/** A school date's label in a day cell: loud for what a term is planned around, quiet for the rest. */
+function SchoolDateLabel({ event }: { event: AcademicEvent }) {
+  return event.importance === "major" ? (
+    <span
+      className="flex w-full items-center gap-1 truncate rounded-md bg-[var(--c-f0d9a8)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--c-8a5a12)]"
+      title={event.detail}
+      data-school-date="major"
+    >
+      <GraduationCap size={12} className="shrink-0" aria-hidden />
+      <span className="truncate">{event.title}</span>
+    </span>
+  ) : (
+    <span className="flex w-full items-center gap-1 truncate px-1.5 text-[10px] text-[var(--muted)]" title={event.detail} data-school-date="minor">
+      <GraduationCap size={11} className="shrink-0" aria-hidden />
+      <span className="truncate">{event.title}</span>
+    </span>
+  );
+}
+
+export function CalendarMonthView({
+  fetchAcademic,
+}: {
+  /** Where UConn's academic calendar comes from; tests pass their own. */
+  fetchAcademic?: (input: string, init?: RequestInit) => Promise<Response>;
+}) {
   const {
     locale,
     tasks,
@@ -98,6 +124,8 @@ export function CalendarMonthView() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dayDetail, setDayDetail] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const academic = useAcademicCalendar(fetchAcademic);
+  const schoolDays = useMemo(() => academicByDay(academic), [academic]);
 
   const monthLabel = new Intl.DateTimeFormat(locale === "zh-CN" ? "zh-CN" : "en-US", {
     month: "long",
@@ -245,11 +273,17 @@ export function CalendarMonthView() {
           const events = eventsByDay.get(key) ?? [];
           const visible = events.slice(0, MAX_VISIBLE_PER_DAY);
           const hidden = events.length - visible.length;
+          const school = schoolDays.get(key) ?? [];
+          // A break, finals or a deadline colours the whole day, so it shows even on a phone.
+          const schoolMajor = school.some((event) => event.importance === "major");
 
           return (
             <div
               key={key}
-              className={`min-h-[60px] border-b border-r border-[var(--line)] p-1 last:border-r-0 sm:min-h-[120px] sm:p-2 ${inMonth ? "" : "bg-[var(--c-f7fbff)]"}`}
+              data-day={key}
+              className={`min-h-[60px] border-b border-r border-[var(--line)] p-1 last:border-r-0 sm:min-h-[120px] sm:p-2 ${
+                schoolMajor ? "bg-[var(--c-fff0d9)]" : inMonth ? "" : "bg-[var(--c-f7fbff)]"
+              }`}
             >
               <div className="flex items-center justify-between">
                 {/* The number itself opens the full day, titles and all — the
@@ -297,6 +331,9 @@ export function CalendarMonthView() {
               )}
 
               <div className="mt-1 hidden space-y-1 sm:block">
+                {school.map((event) => (
+                  <SchoolDateLabel key={event.id} event={event} />
+                ))}
                 {visible.map((task) => {
                   const edited = !isCustomEventId(task.id) && isEventEdited(task.id);
                   return (
@@ -335,6 +372,7 @@ export function CalendarMonthView() {
           const date = days.find((entry) => dayKey(entry) === dayDetail);
           if (!date) return null;
           const events = eventsByDay.get(dayDetail) ?? [];
+          const school = schoolDays.get(dayDetail) ?? [];
           return (
             <div
               className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4"
@@ -355,8 +393,32 @@ export function CalendarMonthView() {
                   </button>
                 </div>
 
+                {school.length > 0 ? (
+                  <div className="mt-3 space-y-1.5">
+                    {school.map((event) => (
+                      <div
+                        key={event.id}
+                        className={`rounded-xl border px-3 py-2 text-sm ${
+                          event.importance === "major"
+                            ? "border-[var(--c-f0d9a8)] bg-[var(--c-fff0d9)] text-[var(--c-8a5a12)]"
+                            : "border-[var(--line)] bg-[var(--c-fbfcfe)] text-[var(--c-31506f)]"
+                        }`}
+                      >
+                        <p className="flex items-center gap-1.5 font-semibold">
+                          <GraduationCap size={14} className="shrink-0" aria-hidden />
+                          {event.title}
+                        </p>
+                        {event.detail !== event.title ? <p className="mt-1 text-xs">{event.detail}</p> : null}
+                        <p className="mt-1 text-[11px] opacity-80">{t(locale, "calendar.schoolSource", { term: event.term })}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
                 <div className="mt-3 space-y-1.5">
-                  {events.length === 0 && <p className="text-sm text-[var(--muted)]">{t(locale, "calendar.noEvents")}</p>}
+                  {events.length === 0 && school.length === 0 && (
+                    <p className="text-sm text-[var(--muted)]">{t(locale, "calendar.noEvents")}</p>
+                  )}
                   {events.map((task) => {
                     const edited = !isCustomEventId(task.id) && isEventEdited(task.id);
                     return (
