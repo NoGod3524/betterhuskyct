@@ -72,6 +72,7 @@ export function HelperSection() {
     t(locale, "helper.privacyCredentials"),
     t(locale, "helper.privacyRequests"),
     t(locale, "helper.privacyUpload"),
+    t(locale, "helper.privacyBridge"),
   ];
 
   return (

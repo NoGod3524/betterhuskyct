@@ -684,13 +684,13 @@ test("every panel button has a handler, and the labels match", () => {
   for (const gone of ["acquire", "export", "clear", "course", "copy", "merge"]) {
     assert.ok(!actions.includes(gone), `the single-page "${gone}" button is back`);
   }
-  // "sync" and "autosync" are the quick sync that reads HuskyCT's own data, and its switch.
-  // "recapi" is the diagnostic that records the page's data requests, so the helper can
-  // later read HuskyCT's answers directly; it is not a way to collect and goes when that is done.
+  // "autosync" switches the quick sync that runs as HuskyCT opens. The quick sync itself is
+  // BetterHuskyCT's Sync button now; the panel's own Sync button and the diagnostic went in 1.11.0.
   assert.deepEqual(
     [...new Set(actions)].sort(),
-    ["autosync", "collectall", "emptybasket", "grades", "materials", "recapi", "savefiles", "sendgrades", "sendmaterials", "sync", "todos"],
+    ["autosync", "collectall", "emptybasket", "grades", "materials", "savefiles", "sendgrades", "sendmaterials", "todos"],
   );
+  for (const gone of ["sync", "recapi"]) assert.ok(!actions.includes(gone), `the "${gone}" button is back`);
 });
 
 /**

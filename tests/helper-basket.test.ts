@@ -146,6 +146,8 @@ type PageExtras = {
   fetch?: (path: string) => Promise<unknown>;
   /** What the page's window.open returns, where the default is a tab that answers nothing. */
   open?: (link: string, target: string) => unknown;
+  /** The userscript manager's functions, where the default is none, as with an install from before 1.11.0. */
+  gm?: Record<string, unknown>;
 };
 
 function openPage(url: string, html: string, stored?: Basket, extras: PageExtras = {}) {
@@ -183,6 +185,7 @@ function openPage(url: string, html: string, stored?: Basket, extras: PageExtras
   };
   // The sync that starts on its own when HuskyCT opens is tested on its own; here it would run in the middle of the tests.
   window.localStorage.setItem("huskypilot.helper.sync.v1", JSON.stringify(extras.sync ?? { auto: false }));
+  Object.assign(sandbox, extras.gm ?? {});
   vm.createContext(sandbox);
   vm.runInContext(SOURCE, sandbox);
 
@@ -686,32 +689,6 @@ function appTab(getWindow: () => Window, messages: Array<{ protocol: string; kin
   };
 }
 
-test("pressing Sync reads HuskyCT's data, opens no page, and sends it to BetterHuskyCT", async () => {
-  const messages: Array<{ protocol: string; kind: string }> = [];
-  const page: ReturnType<typeof openPage> = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, {
-    fetch: syncData(),
-    open: () => appTab(() => page.window, messages),
-  });
-  let moved = 0;
-  page.window.addEventListener("popstate", () => moved++);
-
-  page.button("sync").click();
-  await until(() => /Sent to BetterHuskyCT/.test(page.text('[data-role="sync"]')), 8000);
-
-  assert.match(page.text('[data-role="sync"]'), /Synced 2 course\(s\): 1 announcement\(s\), 1 grade item\(s\)/);
-  assert.equal(page.opened.length, 1);
-  assert.equal(page.opened[0].target, "betterhuskyct");
-  // Deadlines and announcements, then the gradebooks.
-  assert.deepEqual(messages.filter((message) => message.kind !== "hello").map((message) => message.protocol), ["betterhuskyct/tasks@1", "betterhuskyct/grades@1"]);
-  assert.equal(moved, 0, "a page was opened");
-  assert.equal(page.window.location.pathname, "/ultra/stream");
-  assert.deepEqual(page.basket().courses.find((course) => course.id === "_203765_1")?.announcements.map((a) => a.title), ["Exam 1 is NEXT Tuesday!"]);
-  const state = plain(page.helper.readSyncState(page.window.localStorage));
-  assert.equal(state.pending, false);
-  assert.ok(state.at && state.grades, "the reading was not kept");
-  assert.equal(page.text('[data-act="sync"]'), "Sync", "the button did not come back");
-});
-
 // --- BetterHuskyCT's own Sync button asking the helper ----------------------------------
 
 const BHC = "https://betterhuskyct.vercel.app";
@@ -762,6 +739,27 @@ test("a request while a sync is running is answered busy, and does not start a s
   assert.equal(heard.filter((message) => message.kind === "done").length, 1, "two syncs ran");
 });
 
+test("a request reads HuskyCT's data, moves no page, says so in the panel, and keeps the reading", async () => {
+  const page: ReturnType<typeof openPage> = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, { fetch: syncData() });
+  const { tab, heard } = asker(() => page.window);
+  let moved = 0;
+  page.window.addEventListener("popstate", () => moved++);
+
+  request(page, tab);
+  await until(() => /Sent to BetterHuskyCT/.test(page.text('[data-role="sync"]')), 8000);
+
+  assert.match(page.text('[data-role="sync"]'), /Synced 2 course\(s\): 1 announcement\(s\), 1 grade item\(s\)/);
+  // Deadlines and announcements, then the gradebooks.
+  assert.deepEqual(heard.filter((message) => message.kind === "sync" || message.kind === "grades").map((message) => message.protocol), ["betterhuskyct/tasks@1", "betterhuskyct/grades@1"]);
+  assert.equal(moved, 0, "a page was opened");
+  assert.equal(page.window.location.pathname, "/ultra/stream");
+  assert.deepEqual(page.basket().courses.find((course) => course.id === "_203765_1")?.announcements.map((a) => a.title), ["Exam 1 is NEXT Tuesday!"]);
+  const state = plain(page.helper.readSyncState(page.window.localStorage));
+  assert.equal(state.pending, false);
+  assert.ok(state.at && state.grades, "the reading was not kept");
+  assert.equal(page.button("sync"), null, "the panel's own Sync button is back");
+});
+
 test("only BetterHuskyCT's origin is heard, and only a request in the right shape", async () => {
   const asked: string[] = [];
   const page = openPage("https://lms.uconn.edu/ultra/course", "<main></main>", undefined, { fetch: syncData(asked) });
@@ -790,27 +788,13 @@ test("a request on the sign-in page is answered, and then says nothing could be 
 
 test("a sync that arrives only in part is not called sent, and stays waiting", async () => {
   const messages: Array<{ protocol: string; kind: string }> = [];
-  const page: ReturnType<typeof openPage> = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, {
-    fetch: syncData(),
-    open: () => appTab(() => page.window, messages, true),
-  });
+  const page: ReturnType<typeof openPage> = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, { fetch: syncData() });
 
-  page.button("sync").click();
+  request(page, appTab(() => page.window, messages, true));
   await until(() => /Only part of it reached/.test(page.text('[data-role="sync"]')), 8000);
 
   assert.doesNotMatch(page.text('[data-role="sync"]'), /Sent to BetterHuskyCT/);
   assert.equal(plain(page.helper.readSyncState(page.window.localStorage)).pending, true, "a half-sent sync was marked as done");
-});
-
-test("when the browser refuses the tab, the reading is kept and the Send buttons carry it on", async () => {
-  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, { fetch: syncData(), open: () => null });
-
-  page.button("sync").click();
-  await until(() => /Not sent yet/.test(page.text('[data-role="sync"]')), 8000);
-
-  assert.equal(plain(page.helper.readSyncState(page.window.localStorage)).pending, true);
-  assert.equal(page.button("sendgrades").hidden, false, "the gradebooks cannot be sent from here");
-  assert.equal(page.button("todos").classList.contains("primary"), true, "the announcements cannot be sent from here");
 });
 
 test("when nothing can be read this way, Sync says so, moves nothing, and gives the screen back", async () => {
@@ -818,11 +802,10 @@ test("when nothing can be read this way, Sync says so, moves nothing, and gives 
   let moved = 0;
   page.window.addEventListener("popstate", () => moved++);
 
-  page.button("sync").click();
+  request(page, asker(() => page.window).tab);
   await until(() => /Nothing could be read this way/.test(page.text('[data-role="sync"]')), 8000);
 
   assert.equal(moved, 0, "it fell back to opening pages");
-  assert.equal(page.text('[data-act="sync"]'), "Sync");
   assert.equal(page.button("collectall").disabled, false);
 });
 
@@ -1002,19 +985,6 @@ test("Collect everything opens no tab on the press, so HuskyCT stays in front fo
   page.button("collectall").click();
   await until(() => page.text('[data-act="collectall"]') === "Collect everything", 10000);
   assert.equal(page.opened.length, 0, "a stopped walk is not sent, so it looks for no tab");
-});
-
-test("the diagnose button records, then stops and says when there was nothing to record", async () => {
-  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>");
-  const start = page.text('[data-act="recapi"]');
-
-  page.button("recapi").click();
-  await until(() => page.text('[data-act="recapi"]') !== start);
-  assert.match(page.text('[data-role="rec"]'), /Recording/);
-
-  page.button("recapi").click();
-  await until(() => page.text('[data-act="recapi"]') === start);
-  assert.match(page.text('[data-role="rec"]'), /Nothing was recorded/);
 });
 
 test("only this term's courses are read, and a later term's too", () => {
@@ -1198,4 +1168,139 @@ test("pressed on a course's page, the walk still reads every course, not the pag
 
   assert.equal(report.courses, 5, "the walk read the course page it started on as the course list");
   assert.deepEqual(report.problems, []);
+});
+
+// --- the bridge: BetterHuskyCT's Sync button and a HuskyCT tab it did not open ---------------
+
+const BRIDGE_CONTROL = "betterhuskyct/bridge@1";
+const BRIDGE_OUT = "betterhuskyct/bridge-out@1";
+const BRIDGE_IN = "betterhuskyct/bridge-in@1";
+
+/** The userscript manager: one storage every tab running the script shares, and background tabs. */
+function userscriptManager() {
+  const values = new Map<string, unknown>();
+  const listeners: Array<{ key: string; run: (...args: unknown[]) => void }> = [];
+  const tabs: Array<{ url: string; options: Record<string, unknown>; closed: boolean; close: () => void }> = [];
+  const clone = (value: unknown) => (value === undefined ? undefined : JSON.parse(JSON.stringify(value)));
+  return {
+    tabs,
+    values,
+    gm: {
+      GM_getValue: (key: string, fallback: unknown) => (values.has(key) ? clone(values.get(key)) : fallback),
+      GM_setValue: (key: string, value: unknown) => {
+        const old = values.get(key);
+        values.set(key, clone(value));
+        for (const listener of listeners) if (listener.key === key) setTimeout(() => listener.run(key, clone(old), clone(value), true), 0);
+      },
+      GM_addValueChangeListener: (key: string, run: (...args: unknown[]) => void) => {
+        listeners.push({ key, run });
+        return listeners.length;
+      },
+      GM_openInTab: (url: string, options: Record<string, unknown>) => {
+        const tab = { url, options, closed: false, close: () => (tab.closed = true) };
+        tabs.push(tab);
+        return tab;
+      },
+    },
+  };
+}
+
+/**
+ * A BetterHuskyCT page with the helper on it, and a stand-in for the app: it answers what comes
+ * through the bridge as the app's receivers do, and keeps what it heard.
+ */
+function openBhcPage(gm?: Record<string, unknown>) {
+  const window = new Window({ url: "https://betterhuskyct.vercel.app/" });
+  windows.push(window);
+  const sandbox = { window, document: window.document, navigator: window.navigator, localStorage: window.localStorage, URL, console, setTimeout, clearTimeout };
+  Object.assign(sandbox, gm ?? {});
+  vm.createContext(sandbox);
+  vm.runInContext(SOURCE, sandbox);
+
+  const heard: Array<Record<string, unknown>> = [];
+  const page = window as unknown as {
+    postMessage: (message: unknown, origin: string) => void;
+    addEventListener: (type: string, run: (event: { data: Record<string, unknown> }) => void) => void;
+  };
+  const send = (message: unknown) => page.postMessage(message, "https://betterhuskyct.vercel.app");
+  page.addEventListener("message", (event) => {
+    const data = event.data;
+    if (!data || typeof data !== "object") return;
+    if (data.protocol === BRIDGE_CONTROL && data.kind === "pong") heard.push(data);
+    if (data.protocol !== BRIDGE_IN) return;
+    const message = data.data as { protocol: string; kind: string };
+    heard.push(message as unknown as Record<string, unknown>);
+    const answer =
+      message.kind === "hello" ? { protocol: message.protocol, kind: "ready" } : ["sync", "grades"].includes(message.kind) ? { protocol: message.protocol, kind: "stored", ok: true } : null;
+    if (answer) send({ protocol: BRIDGE_OUT, data: answer });
+  });
+  return { window, heard, send, ask: () => send({ protocol: BRIDGE_OUT, data: { protocol: SYNC_PROTOCOL, kind: "request" } }) };
+}
+
+const doneHeard = (heard: Array<Record<string, unknown>>) => heard.some((message) => message.protocol === SYNC_PROTOCOL && message.kind === "done");
+
+test("BetterHuskyCT's Sync reaches a HuskyCT tab it did not open, through the userscript manager, and the reading comes back", async () => {
+  const manager = userscriptManager();
+  const huskyct = openPage("https://lms.uconn.edu/ultra/course", "<main></main>", undefined, { fetch: syncData(), gm: manager.gm });
+  const bhc = openBhcPage(manager.gm);
+
+  bhc.send({ protocol: BRIDGE_CONTROL, kind: "ping" });
+  await until(() => bhc.heard.some((message) => message.kind === "pong"));
+
+  // A HuskyCT tab is already open, so none is opened.
+  bhc.send({ protocol: BRIDGE_CONTROL, kind: "open" });
+  bhc.ask();
+  await until(() => doneHeard(bhc.heard), 8000);
+
+  assert.equal(manager.tabs.length, 0, "a second HuskyCT tab was opened");
+  const ofSync = plain(bhc.heard.filter((message) => message.protocol === SYNC_PROTOCOL));
+  assert.deepEqual(ofSync[0], { protocol: SYNC_PROTOCOL, kind: "ack", state: "started" });
+  assert.deepEqual(ofSync[ofSync.length - 1], { protocol: SYNC_PROTOCOL, kind: "done", ok: true, courses: 2, announcements: 1, gradeItems: 1, skipped: [], sent: true });
+  assert.deepEqual(
+    bhc.heard.filter((message) => message.kind === "sync" || message.kind === "grades").map((message) => message.protocol),
+    ["betterhuskyct/tasks@1", "betterhuskyct/grades@1"],
+  );
+  assert.equal(huskyct.opened.length, 0, "the HuskyCT tab opened a window of its own");
+});
+
+test("with no HuskyCT tab open, one is opened behind BetterHuskyCT, answers the request waiting for it, and is closed after", async () => {
+  const manager = userscriptManager();
+  const bhc = openBhcPage(manager.gm);
+
+  bhc.send({ protocol: BRIDGE_CONTROL, kind: "open" });
+  await until(() => manager.tabs.length === 1);
+  assert.equal(manager.tabs[0].url, "https://lms.uconn.edu/ultra/course");
+  assert.equal(manager.tabs[0].options.active, false, "HuskyCT was brought to the front");
+  bhc.ask();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  // The tab finishes loading after the request was written, and finds it.
+  openPage("https://lms.uconn.edu/ultra/course", "<main></main>", undefined, { fetch: syncData(), gm: manager.gm });
+  await until(() => doneHeard(bhc.heard), 8000);
+  await until(() => manager.tabs[0].closed, 5000);
+});
+
+test("of two HuskyCT tabs, one answers, so HuskyCT is read once", async () => {
+  const manager = userscriptManager();
+  const asked: string[] = [];
+  openPage("https://lms.uconn.edu/ultra/course", "<main></main>", undefined, { fetch: syncData(asked), gm: manager.gm });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  openPage("https://lms.uconn.edu/ultra/stream", "<main></main>", undefined, { fetch: syncData(asked), gm: manager.gm });
+  const bhc = openBhcPage(manager.gm);
+
+  bhc.ask();
+  await until(() => doneHeard(bhc.heard), 8000);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
+  const acks = bhc.heard.filter((message) => message.protocol === SYNC_PROTOCOL && message.kind === "ack");
+  assert.equal(acks.length, 1, "both tabs answered");
+  assert.equal(asked.filter((path) => /memberships/.test(path)).length, 1, "HuskyCT was read twice");
+});
+
+test("without the userscript manager's storage the helper offers nothing, and BetterHuskyCT opens HuskyCT as before", async () => {
+  const bhc = openBhcPage();
+  bhc.send({ protocol: BRIDGE_CONTROL, kind: "ping" });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.equal(bhc.heard.length, 0, "it answered without a way to reach HuskyCT");
+  assert.equal(bhc.window.document.querySelector("#huskypilot-helper"), null, "the HuskyCT panel was put on BetterHuskyCT");
 });

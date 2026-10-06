@@ -122,6 +122,7 @@ import {
   type ReminderState,
 } from "@/lib/reminders";
 import { CSV_BOM, exportFileName, tasksToCsv } from "@/lib/export";
+import { helperMessage } from "@/lib/helper-bridge";
 import {
   DEFAULT_LOCALE,
   intlLocale,
@@ -1045,8 +1046,11 @@ export function CalendarProvider({
         }
       },
     });
-    const listener = (event: MessageEvent) =>
-      receiver({ origin: event.origin, data: event.data, source: event.source as Window | null });
+    const listener = (event: MessageEvent) => {
+      // From HuskyCT directly, or through the helper's bridge from a tab behind this one.
+      const { origin, data, source } = helperMessage(event, window);
+      receiver({ origin, data, source: source as Window | null });
+    };
     window.addEventListener("message", listener);
     return () => window.removeEventListener("message", listener);
   }, []);
