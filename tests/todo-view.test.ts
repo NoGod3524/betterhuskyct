@@ -72,7 +72,7 @@ const GRADES: GradesSnapshot = {
   ],
 };
 
-async function mountTodo(options: { grades?: GradesSnapshot | null; extra?: Event[] } = {}) {
+async function mountTodo(options: { grades?: GradesSnapshot | null; extra?: Event[]; colors?: Record<string, string> } = {}) {
   if (options.grades) await (await openGradesStore()).put(options.grades);
 
   const packed = await encodeSyncPayload(
@@ -81,6 +81,7 @@ async function mountTodo(options: { grades?: GradesSnapshot | null; extra?: Even
       completedIds: [],
       efforts: {},
       courses: EMPTY_COURSE_BOOK,
+      courseColors: options.colors,
     }),
   );
 
@@ -110,6 +111,7 @@ async function mountTodo(options: { grades?: GradesSnapshot | null; extra?: Even
   await settle(80);
 
   return {
+    container,
     get calendar(): Calendar {
       return latest!;
     },
@@ -242,5 +244,16 @@ test("work already handed in is not a reminder, even when it is due in hours", a
   });
 
   assert.deepEqual(view.calendar.dueSoon.map((task) => task.title), ["Lab report"]);
+  await view.unmount();
+});
+
+test("a course's HuskyCT colour, brought with the deadlines, colours its chip and its filter; others keep this app's own", async () => {
+  const view = await mountTodo({ colors: { "MATH 1070Q": "#1e6ec8" } });
+
+  const chips = [...view.container.querySelectorAll("[data-course-color]")].map((node) => [node.textContent, node.getAttribute("data-course-color")]);
+  assert.ok(chips.length > 0, "no chip took its course's colour");
+  assert.ok(chips.every(([text, color]) => String(text).startsWith("MATH 1070Q") && color === "#1e6ec8"), JSON.stringify(chips));
+  assert.ok(view.text().includes("SOCI 1501"), "a course without a colour went missing");
+  assert.equal(JSON.parse(window.localStorage.getItem("huskypilot.courseColors.v1") ?? "{}").MATH1070Q, "#1e6ec8", "the colour was not kept");
   await view.unmount();
 });
