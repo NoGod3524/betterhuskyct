@@ -14,6 +14,28 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.21.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.21.0) — Syllabus at a glance, and Groq as a third free model
+
+*Minor: a new capability. HuskyCT Helper is unchanged at 1.10.0.*
+
+### Added
+
+- **Syllabus at a glance on the Materials page.** The read that finds a syllabus's
+  dates now also sums it up, in the page's language: how the grade is made up,
+  exams, late work and make-ups, attendance, the rules on AI tools, required
+  materials. Numbers are copied as written and what the syllabus does not say is
+  left out. It shows at the top of the course, with the files it came from; while
+  the reading is off, the page says where to turn it on. A syllabus read before
+  this is read once more for its summary, without offering its dates again, and
+  changing the page's language reads it again in that language. Answers are now
+  kept for 120 days, so a course's students share one read of its syllabus. ([#117])
+- **Groq as a third free model**, after Z.ai's GLM and Google Gemini, for both
+  summaries and dates found by AI, and as **Groq only** in the Model menu. Its free
+  tier takes at most about 8,000 tokens a request, so a request too big for it is
+  not sent to it and goes to the next model, and one that fits asks for no more
+  answer than fits; a long syllabus therefore never goes to Groq. It needs
+  `GROQ_API_KEY` on the server. ([#116])
+
 ## [1.20.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.20.0) — AI finds the dates in syllabi and announcements
 
 *Minor: a new capability. HuskyCT Helper is unchanged at 1.10.0.*
@@ -1557,6 +1579,8 @@ saying what to work on next.*
 [#111]: https://github.com/NoGod3524/betterhuskyct/pull/111
 [#113]: https://github.com/NoGod3524/betterhuskyct/pull/113
 [#114]: https://github.com/NoGod3524/betterhuskyct/pull/114
+[#116]: https://github.com/NoGod3524/betterhuskyct/pull/116
+[#117]: https://github.com/NoGod3524/betterhuskyct/pull/117
 
 
 
