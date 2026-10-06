@@ -784,6 +784,8 @@ test("a request on the sign-in page is answered, and then says nothing could be 
   await until(() => heard.some((message) => message.protocol === SYNC_PROTOCOL && message.kind === "done"), 3000);
 
   assert.deepEqual(heard.filter((message) => message.protocol === SYNC_PROTOCOL).map((message) => [message.kind, message.ok ?? message.state]), [["ack", "started"], ["done", false]]);
+  // Said as a sign-in, so BetterHuskyCT can offer one rather than call it unreadable.
+  assert.equal(heard.find((message) => message.kind === "done")?.reason, "signedout");
 });
 
 test("a sync that arrives only in part is not called sent, and stays waiting", async () => {

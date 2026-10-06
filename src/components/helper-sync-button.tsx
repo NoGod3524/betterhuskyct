@@ -108,8 +108,11 @@ export function syncStatusText(locale: Locale, state: HelperSyncState): string {
       const skipped = state.skipped.length ? t(locale, "helpersync.skipped", { courses: state.skipped.join(", ") }) : "";
       return read + skipped + (state.sent ? "" : t(locale, "helpersync.partial"));
     }
-    case "nodata":
-      return t(locale, "helpersync.nodata");
+    case "nodata": {
+      if (!state.why) return t(locale, "helpersync.nodata");
+      const step = t(locale, `helpersync.step.${state.why.step}`);
+      return t(locale, "helpersync.nodata") + t(locale, "helpersync.nodataWhy", { why: state.why.detail ? t(locale, "helpersync.whyDetail", { step, detail: state.why.detail }) : step });
+    }
     case "failed":
       return t(
         locale,
@@ -119,7 +122,9 @@ export function syncStatusText(locale: Locale, state: HelperSyncState): string {
             ? "helpersync.closed"
             : state.reason === "signin"
               ? "helpersync.signin"
-              : "helpersync.noanswer",
+              : state.reason === "signedout"
+                ? "helpersync.signedout"
+                : "helpersync.noanswer",
       );
   }
 }
@@ -166,7 +171,7 @@ export function HelperSyncButton({ variant }: { variant: "big" | "compact" }) {
       </button>
       <p role="status" className={`mt-2 text-sm ${failed ? "text-[var(--c-9f3527)]" : "text-[var(--muted)]"}`}>
         {text || t(locale, "helpersync.hint")}
-        {state.phase === "failed" && state.reason === "signin" ? (
+        {state.phase === "failed" && (state.reason === "signin" || state.reason === "signedout") ? (
           <>
             {" "}
             <button type="button" onClick={showHuskyct} className="font-semibold text-[var(--link)] hover:underline">

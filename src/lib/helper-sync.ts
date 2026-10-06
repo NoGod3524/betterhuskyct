@@ -46,14 +46,28 @@ export type HelperSyncState =
   | { phase: "waiting" }
   | { phase: "syncing"; course: string | null; index: number; total: number }
   | ({ phase: "done" } & SyncSummary)
-  /** The helper answered but could read nothing this way. */
-  | { phase: "nodata" }
-  | { phase: "failed"; reason: "noanswer" | "stalled" | "closed" | "signin" };
+  /** The helper answered but could read nothing this way; `why` is the step it stopped at and what HuskyCT said. */
+  | { phase: "nodata"; why?: NoDataWhy }
+  /** `signedout`: HuskyCT told the helper the student is signed out. `signin`: a tab behind this one never answered, most likely at sign-in. */
+  | { phase: "failed"; reason: "noanswer" | "stalled" | "closed" | "signin" | "signedout" };
+
+/** Where a sync that read nothing stopped: the course list, every course's data, no current course, or an error in the helper. */
+export type NoDataStep = "courses" | "read" | "nocourses" | "error";
+export type NoDataWhy = { step: NoDataStep; detail: string | null };
 
 export type SyncMessage =
   | { kind: "ack"; state: "started" | "busy" }
   | { kind: "progress"; course: string | null; index: number; total: number }
-  | ({ kind: "done"; ok: boolean } & SyncSummary);
+  | ({ kind: "done"; ok: boolean; reason?: NoDataStep | "signedout"; detail?: string | null } & SyncSummary);
+
+const NO_DATA_STEPS = new Set<string>(["courses", "read", "nocourses", "error", "signedout"]);
+
+/** What HuskyCT said, as the helper put it, cut to something short and plain enough to show. */
+function detailOf(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const plain = value.replace(/[^\w .:/-]/g, "").trim().slice(0, 60);
+  return plain || null;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -81,7 +95,12 @@ export function parseSyncMessage(data: unknown): SyncMessage | null {
     const gradeItems = count(data.gradeItems);
     if (typeof data.ok !== "boolean" || courses === null || announcements === null || gradeItems === null) return null;
     const skipped = Array.isArray(data.skipped) ? data.skipped.filter((code): code is string => typeof code === "string").slice(0, 20).map((code) => code.slice(0, 40)) : [];
-    return { kind: "done", ok: data.ok, courses, announcements, gradeItems, skipped, sent: data.sent === true };
+    const done: SyncMessage = { kind: "done", ok: data.ok, courses, announcements, gradeItems, skipped, sent: data.sent === true };
+    if (!data.ok && typeof data.reason === "string" && NO_DATA_STEPS.has(data.reason)) {
+      done.reason = data.reason as NoDataStep | "signedout";
+      done.detail = detailOf(data.detail);
+    }
+    return done;
   }
   return null;
 }
@@ -183,8 +202,10 @@ export function createHelperSync(deps: SyncDeps) {
         stopTimer();
         if (message.ok) {
           set({ phase: "done", courses: message.courses, announcements: message.announcements, gradeItems: message.gradeItems, skipped: message.skipped, sent: message.sent });
+        } else if (message.reason === "signedout") {
+          set({ phase: "failed", reason: "signedout" });
         } else {
-          set({ phase: "nodata" });
+          set(message.reason ? { phase: "nodata", why: { step: message.reason, detail: message.detail ?? null } } : { phase: "nodata" });
         }
       }
     },

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.12.1
+// @version      1.12.2
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -53,7 +53,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.12.1";
+  const VERSION = "1.12.2";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -116,6 +116,7 @@
       syncNotSent: " Not sent yet. Press the Send buttons below.",
       syncAutoReady: " Read on its own. Press Sync to send it to BetterHuskyCT.",
       syncNoData: "Nothing could be read this way. Press Collect everything instead.",
+      syncNoDataWhy: " (HuskyCT said: {detail}.)",
       guideTodo:
         "Press Collect everything: the panel reads this to-do list, every course's announcements, gradebooks and files by itself, then sends them to BetterHuskyCT.",
       guideCourse: "Press Collect everything to read every course's announcements, this one included.",
@@ -231,6 +232,7 @@
       syncNotSent: " 还没发送，按下面的发送按钮。",
       syncAutoReady: " 已自动读取，按「同步」发给 BetterHuskyCT。",
       syncNoData: "这种方式读不到任何东西，请改按「一键收集全部」。",
+      syncNoDataWhy: "（HuskyCT 的回应：{detail}）",
       guideTodo: "按「一键收集全部」：面板会自己读取待办、每门课的公告、成绩册和课件，然后发给 BetterHuskyCT。",
       guideCourse: "按「一键收集全部」，读取每门课的公告，包括这一门。",
       guideAnnouncements: "这门课的公告已经收进篮子。",
@@ -476,20 +478,41 @@
   const ANNOUNCEMENTS_PAGE = 50;
   const ANNOUNCEMENTS_PER_COURSE = 100;
 
+  /**
+   * Why the last read of HuskyCT's data came back empty: "HTTP 403", "timeout", "no answer",
+   * "not JSON" or "no fetch". A sync that reads nothing says it, so the cause can be told apart
+   * from afar.
+   */
+  let lastApiFailure = null;
+
   /** A GET of HuskyCT's own data as JSON, or null if it did not answer in time or well. */
   async function fetchJson(path, timeout) {
-    if (typeof window.fetch !== "function") return null;
+    if (typeof window.fetch !== "function") {
+      lastApiFailure = "no fetch";
+      return null;
+    }
     const controller = typeof window.AbortController === "function" ? new window.AbortController() : null;
     const timer = controller ? setTimeout(() => controller.abort(), timeout) : null;
+    let response;
     try {
-      const response = await window.fetch(path, {
+      response = await window.fetch(path, {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
         signal: controller ? controller.signal : undefined,
       });
-      if (!response.ok) return null;
+    } catch (error) {
+      lastApiFailure = error && error.name === "AbortError" ? "timeout" : "no answer";
+      if (timer) clearTimeout(timer);
+      return null;
+    }
+    try {
+      if (!response.ok) {
+        lastApiFailure = "HTTP " + response.status;
+        return null;
+      }
       return await response.json();
-    } catch {
+    } catch (error) {
+      lastApiFailure = error && error.name === "AbortError" ? "timeout" : "not JSON";
       return null;
     } finally {
       if (timer) clearTimeout(timer);
@@ -3354,10 +3377,22 @@
       options,
     );
     const storage = window.localStorage;
-    const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, skipped: [], stopped: false, grades: null };
+    const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, skipped: [], stopped: false, grades: null, reason: null, detail: null };
+    // When nothing is read, which step it stopped at and what HuskyCT said. A 401 is HuskyCT
+    // saying the student is signed out, whatever page the tab shows.
+    const fail = (step) => {
+      out.reason = lastApiFailure === "HTTP 401" ? "signedout" : step;
+      out.detail = lastApiFailure || "unexpected answer";
+      return out;
+    };
+    lastApiFailure = null;
 
     const found = await findCourses(Object.assign({}, opts, { apiOnly: true }));
-    if (!found || found.queue.length === 0) return out;
+    if (!found) return fail("courses");
+    if (found.queue.length === 0) {
+      out.reason = "nocourses";
+      return out;
+    }
     if (/^\/ultra\/course\/?$/.test(window.location.pathname)) {
       // Moving nothing: the cards of the page it is already on are read once they are drawn, while
       // the courses are read; by the time anything is sent they usually are.
@@ -3401,7 +3436,7 @@
 
     out.grades = manifest.courses.some((course) => !course.skipped) ? manifest : null;
     out.ok = readAny || out.grades !== null;
-    return out;
+    return out.ok || out.stopped ? out : fail("read");
   }
 
   /**
@@ -3954,9 +3989,9 @@
         });
         if (!out.ok) {
           syncLine.className = "note warn";
-          syncLine.textContent = automatic ? "" : t("syncNoData");
+          syncLine.textContent = automatic ? "" : t("syncNoData") + (out.detail ? t("syncNoDataWhy", { detail: out.detail }) : "");
           syncLine.hidden = Boolean(automatic);
-          say(Object.assign({ kind: "done", ok: false }, nothing));
+          say(Object.assign({ kind: "done", ok: false }, nothing, { reason: out.reason, detail: out.detail }));
           return;
         }
         if (out.grades) grades = out.grades;
@@ -3989,7 +4024,7 @@
         syncLine.hidden = false;
         syncLine.className = "note warn";
         syncLine.textContent = t("collectFailed", { message: error.message });
-        say(Object.assign({ kind: "done", ok: false }, nothing));
+        say(Object.assign({ kind: "done", ok: false }, nothing, { reason: "error", detail: String((error && error.message) || error) }));
       } finally {
         walk = null;
         basket = readBasket(window.localStorage);
@@ -4032,7 +4067,7 @@
       }
       reply({ kind: "ack", state: "started" });
       if (looksSignedOut()) {
-        reply({ kind: "done", ok: false, courses: 0, announcements: 0, gradeItems: 0, skipped: [], sent: false });
+        reply({ kind: "done", ok: false, courses: 0, announcements: 0, gradeItems: 0, skipped: [], sent: false, reason: "signedout", detail: null });
         return;
       }
       void runSync(target, false, reply);
