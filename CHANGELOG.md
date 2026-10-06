@@ -14,6 +14,64 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.22.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.22.0) — Sync without leaving BetterHuskyCT, UConn's academic calendar, and course colours
+
+*Minor: new capabilities. HuskyCT Helper goes from 1.10.0 to 1.12.8.*
+
+### Added
+
+- **Sync stays on BetterHuskyCT.** The helper now also runs on BetterHuskyCT, and
+  through the userscript manager it opens HuskyCT in a tab behind this one (or
+  uses one already open), has the sync run there and brings the reading back, so
+  the student never leaves the page. A tab behind that never answers is given up
+  on after 25 seconds with a button to open HuskyCT and sign in. The helper's
+  panel loses its own Sync and Diagnose buttons; the sync when HuskyCT is opened
+  stays. HuskyCT Helper 1.11.0. ([#123])
+- **UConn's academic calendar on the calendar.** The Registrar's calendar is read
+  about once a day on the server and laid over the month view: breaks, the first
+  and last day of classes, the add/drop, withdrawal and Pass/Fail deadlines,
+  reading days and finals colour the whole day with a bold label; the rest shows
+  quietly. When the Registrar's page cannot be read, a saved copy is used. ([#121])
+- **Each course in its HuskyCT colour.** The helper reads the colour HuskyCT draws
+  each course card in, and BetterHuskyCT uses it for that course's chips on the
+  to-do list and dashboard, the calendar's events and the to-do filters, mixed so
+  it reads in both themes. HuskyCT Helper 1.12.0. ([#124])
+
+### Changed
+
+- **Breaks every syllabus lists are offered once**, as one break across courses,
+  and a day off with no date is not offered at all. ([#119])
+- **Office hours, class times, weekly routines and contact details** in a syllabus
+  are no longer offered as to-dos. ([#122])
+- **A summary is made once.** Its button goes once the summary is there and comes
+  back when the announcements change; after a failure it reads "Try again". ([#120])
+- **A sync that reads nothing says where it stopped** (the course list, each
+  course's data, no current course) and what HuskyCT answered, and one HuskyCT
+  answers as signed out asks for a sign-in, with the button to open HuskyCT.
+  HuskyCT Helper 1.12.2. ([#126])
+
+### Fixed
+
+- **Sync reads HuskyCT's data.** HuskyCT's pages carry a `<base>` pointing at
+  Blackboard's file store, so the helper's requests for HuskyCT's data, made by
+  path, went there and were refused with an S3 "AccessDenied". They now go to
+  HuskyCT's own address, and so does a file download whose address is a path.
+  This was behind every refusal since the helper first read HuskyCT's data.
+  HuskyCT Helper 1.12.8. ([#132])
+- **The helper works under Tampermonkey's sandbox**, which the permissions added
+  in 1.11.0 put it in: it reads HuskyCT through the page's own window again, and
+  answers BetterHuskyCT's ping. HuskyCT Helper 1.12.1. ([#125])
+- **Sync finds a helper that starts late, and is not held up by a closed HuskyCT
+  tab.** The helper says it is there unasked, and if no HuskyCT tab that looks
+  alive answers within 6 seconds, one is opened behind. HuskyCT Helper 1.12.4. ([#128])
+
+### Notes
+
+- HuskyCT Helper 1.12.3 and 1.12.5 to 1.12.7 asked for HuskyCT's data through a
+  script put into HuskyCT's page, and reported on HuskyCT's own requests, while
+  the cause of the refusals was being looked for. Once it was found (the page's
+  `<base>`), all of that was taken out again in 1.12.8. ([#127], [#129], [#130], [#131], [#132])
+
 ## [1.21.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.21.0) — Syllabus at a glance, and Groq as a third free model
 
 *Minor: a new capability. HuskyCT Helper is unchanged at 1.10.0.*
@@ -1581,6 +1639,20 @@ saying what to work on next.*
 [#114]: https://github.com/NoGod3524/betterhuskyct/pull/114
 [#116]: https://github.com/NoGod3524/betterhuskyct/pull/116
 [#117]: https://github.com/NoGod3524/betterhuskyct/pull/117
+[#119]: https://github.com/NoGod3524/betterhuskyct/pull/119
+[#120]: https://github.com/NoGod3524/betterhuskyct/pull/120
+[#121]: https://github.com/NoGod3524/betterhuskyct/pull/121
+[#122]: https://github.com/NoGod3524/betterhuskyct/pull/122
+[#123]: https://github.com/NoGod3524/betterhuskyct/pull/123
+[#124]: https://github.com/NoGod3524/betterhuskyct/pull/124
+[#125]: https://github.com/NoGod3524/betterhuskyct/pull/125
+[#126]: https://github.com/NoGod3524/betterhuskyct/pull/126
+[#127]: https://github.com/NoGod3524/betterhuskyct/pull/127
+[#128]: https://github.com/NoGod3524/betterhuskyct/pull/128
+[#129]: https://github.com/NoGod3524/betterhuskyct/pull/129
+[#130]: https://github.com/NoGod3524/betterhuskyct/pull/130
+[#131]: https://github.com/NoGod3524/betterhuskyct/pull/131
+[#132]: https://github.com/NoGod3524/betterhuskyct/pull/132
 
 
 
