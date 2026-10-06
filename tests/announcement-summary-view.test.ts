@@ -126,7 +126,9 @@ test("pressing the button sends the course, newest first, and shows the summary 
   assert.ok(view.text().includes("Quiz 3 moves to Friday."), "the summary did not appear");
   assert.ok(view.text().includes(t("en", "summary.basis", { count: 2 })));
   assert.ok(view.text().includes(t("en", "summary.creditGlm")), "the summary was not credited to GLM");
-  assert.ok(view.button("Summarize again"));
+  // Made once: no button to spend free quota on the same announcements again.
+  assert.equal(view.button("Summarize"), undefined, "a summary could be asked for again");
+  assert.equal(view.button(t("en", "summary.retry")), undefined);
   await view.unmount();
 
   // Back to the same course: shown again, with no second request.
@@ -157,7 +159,7 @@ test("switching language asks for a summary in that language rather than reusing
   await view.unmount();
 });
 
-test("a busy free model is explained, and the button can be pressed again", async () => {
+test("a busy free model is explained, and the button comes back as Try again", async () => {
   unique += 1;
   stubEndpoint(() => Response.json({ problem: "busy" }, { status: 503 }));
   const view = await render(panel("en", MATH, [announcement("d")]));
@@ -166,7 +168,7 @@ test("a busy free model is explained, and the button can be pressed again", asyn
   await settle();
 
   assert.ok(view.text().includes(t("en", "summary.errorBusy")));
-  assert.equal(view.button("Summarize")?.disabled, false, "the button stayed disabled after the failure");
+  assert.equal(view.button(t("en", "summary.retry"))?.disabled, false, "no way to try again after the failure");
   await view.unmount();
 });
 
@@ -297,18 +299,22 @@ test("choosing Gemini only warns what Google may do with the text; automatic sen
   await settle();
   assert.equal("provider" in (sent[0].body as object), false, "automatic added a field to the request");
 
+  await view.unmount();
+
+  // New announcements bring the button back; this time with Gemini chosen.
+  const later = await render(panel("en", MATH, [announcement("a"), announcement("a2")]));
   await choose("gemini");
-  assert.ok(view.text().includes(t("en", "summary.choiceNoteGemini")));
+  assert.ok(later.text().includes(t("en", "summary.choiceNoteGemini")));
   assert.match(t("en", "summary.choiceNoteGemini"), /improve its models/);
 
-  await act(async () => view.button("Summarize again")!.click());
+  await act(async () => later.button("Summarize")!.click());
   await settle();
   assert.equal((sent[1].body as { provider?: string }).provider, "gemini");
 
   // Back to automatic: the saved choice is dropped.
   await choose("auto");
   assert.equal(window.localStorage.getItem("huskypilot.summaryModel.v1"), null);
-  await view.unmount();
+  await later.unmount();
 });
 
 test("the two refusals about a chosen model are explained in words", async () => {
