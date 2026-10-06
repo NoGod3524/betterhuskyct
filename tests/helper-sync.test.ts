@@ -63,6 +63,7 @@ function openPage(serve: (path: string) => Promise<Response>, open?: (link: stri
     Blob,
     CompressionStream,
     Response,
+    CustomEvent: window.CustomEvent,
     TextEncoder,
     btoa,
     URL,
@@ -156,8 +157,9 @@ test("with no course list, or nothing readable, a sync is not ok, and still open
 });
 
 test("a sync that reads nothing says which step stopped it and what HuskyCT answered", async () => {
+  // Refused, then asked through a page that would not run the agent (scripts do not run here).
   const refused = openPage(async (path) => (path.startsWith("/learn/api/v1/users/me/memberships") ? new Response("{}", { status: 403 }) : json({})));
-  assert.deepEqual(pick(await refused.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 403" });
+  assert.deepEqual(pick(await refused.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 403 then page blocked" });
 
   // A 401 is HuskyCT saying the student is signed out, whichever request heard it.
   const signedOut = openPage(async () => new Response("{}", { status: 401 }));
@@ -169,7 +171,7 @@ test("a sync that reads nothing says which step stopped it and what HuskyCT answ
   const unreachable = openPage(async () => {
     throw new TypeError("Failed to fetch");
   });
-  assert.deepEqual(pick(await unreachable.helper.syncLight()), { ok: false, reason: "courses", detail: "no answer" });
+  assert.deepEqual(pick(await unreachable.helper.syncLight()), { ok: false, reason: "courses", detail: "no answer then page blocked" });
 
   const garbled = openPage(async () => new Response("<html>", { status: 200 }));
   assert.deepEqual(pick(await garbled.helper.syncLight()), { ok: false, reason: "courses", detail: "not JSON" });
@@ -177,6 +179,92 @@ test("a sync that reads nothing says which step stopped it and what HuskyCT answ
   // One that read something carries no reason.
   const fine = openPage(data());
   assert.deepEqual(pick(await fine.helper.syncLight()), { ok: true, reason: null, detail: null });
+});
+
+/** An event that carries a string, as the helper and the page speak to each other. */
+const pageEvent = (window: Window, type: string, detail: string) => new window.CustomEvent(type, { detail: detail as unknown as object });
+
+/**
+ * The page's side of asking through the page, played by the test: scripts do not run in this
+ * document, so the agent the helper puts in it never starts. This answers as the agent would,
+ * from `serve`, the page's own fetch.
+ */
+function pageAnswers(window: Window, serve: (path: string) => Promise<Response>) {
+  const asked: string[] = [];
+  const document = window.document;
+  document.documentElement.setAttribute("data-betterhuskyct-api", "1");
+  document.addEventListener("betterhuskyct:api-request", (event) => {
+    const ask = JSON.parse(String((event as unknown as { detail: string }).detail)) as { id: string; path: string };
+    asked.push(ask.path);
+    void serve(ask.path).then(async (response) => {
+      const detail = JSON.stringify({ id: ask.id, status: response.status, text: await response.text() });
+      document.dispatchEvent(pageEvent(window, "betterhuskyct:api-answer", detail));
+    });
+  });
+  return asked;
+}
+
+test("refused as coming from elsewhere, HuskyCT's data is asked for through the page, and then only there", async () => {
+  let direct = 0;
+  const { window, helper } = openPage(async () => {
+    direct++;
+    return new Response('{"status":403,"message":"Invalid CORS request."}', { status: 403 });
+  });
+  const throughPage = pageAnswers(window, data());
+
+  const out = plain(await helper.syncLight());
+
+  assert.equal(out.ok, true);
+  assert.deepEqual([out.courses, out.announcements, out.gradeItems], [2, 1, 1]);
+  assert.equal(direct, 1, "it kept asking from the sandbox after the page had answered");
+  assert.ok(throughPage.some((path) => path.startsWith("/learn/api/v1/users/me/memberships")));
+  assert.ok(throughPage.some((path) => path.includes("/gradebook/grades")));
+});
+
+test("what the page got is said too, and a 401 there is still a sign-in", async () => {
+  const forbidden = openPage(async () => new Response("{}", { status: 403 }));
+  pageAnswers(forbidden.window, async () => new Response("{}", { status: 403 }));
+  assert.deepEqual(pick(await forbidden.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 403 then page HTTP 403" });
+
+  const signedOut = openPage(async () => new Response("{}", { status: 403 }));
+  pageAnswers(signedOut.window, async () => new Response("{}", { status: 401 }));
+  assert.deepEqual(pick(await signedOut.helper.syncLight()), { ok: false, reason: "signedout", detail: "HTTP 403 then page HTTP 401" });
+
+  // Other failures are not asked again: a 500 or a timeout would only fail twice.
+  let asked = 0;
+  const broken = openPage(async () => new Response("{}", { status: 500 }));
+  pageAnswers(broken.window, async () => {
+    asked++;
+    return json(LIST);
+  });
+  assert.deepEqual(pick(await broken.helper.syncLight()), { ok: false, reason: "courses", detail: "HTTP 500" });
+  assert.equal(asked, 0);
+});
+
+test("the agent in the page fetches HuskyCT's data with the page's fetch, once, and nothing else", async () => {
+  const fetched: string[] = [];
+  const { window, helper } = openPage(async (path) => {
+    fetched.push(path);
+    return json(LIST);
+  });
+  const agent = (helper as unknown as { pageApiAgent: () => void }).pageApiAgent;
+  agent();
+  agent();
+  const answers: Array<{ id: string; status: number; text: string }> = [];
+  window.document.addEventListener("betterhuskyct:api-answer", (event) => answers.push(JSON.parse(String((event as unknown as { detail: string }).detail))));
+  const ask = (id: string, path: string) =>
+    window.document.dispatchEvent(pageEvent(window, "betterhuskyct:api-request", JSON.stringify({ id, path })));
+
+  ask("one", "/learn/api/v1/users/me/memberships?limit=50");
+  ask("two", "/ultra/course");
+  ask("three", "https://evil.example/learn/api/v1/");
+  window.document.dispatchEvent(pageEvent(window, "betterhuskyct:api-request", "{not json"));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  assert.deepEqual(fetched, ["/learn/api/v1/users/me/memberships?limit=50"], "it fetched something other than HuskyCT's data, or twice");
+  assert.deepEqual(answers.map((answer) => [answer.id, answer.status]), [["one", 200]]);
+  assert.deepEqual(JSON.parse(answers[0].text), LIST);
+  assert.equal(window.document.documentElement.getAttribute("data-betterhuskyct-api"), "1");
 });
 
 test("without the student's id the announcements still come, and no gradebook is claimed", async () => {

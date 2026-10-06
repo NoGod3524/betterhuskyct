@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.12.2
+// @version      1.12.3
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -53,7 +53,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.12.2";
+  const VERSION = "1.12.3";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -480,17 +480,29 @@
 
   /**
    * Why the last read of HuskyCT's data came back empty: "HTTP 403", "timeout", "no answer",
-   * "not JSON" or "no fetch". A sync that reads nothing says it, so the cause can be told apart
+   * "not JSON" or "no fetch", and, if it was asked again through the page, what that got
+   * ("HTTP 403 then page HTTP 403", "… then page blocked"). A sync that reads nothing says it, so the cause can be told apart
    * from afar.
    */
   let lastApiFailure = null;
 
-  /** A GET of HuskyCT's own data as JSON, or null if it did not answer in time or well. */
-  async function fetchJson(path, timeout) {
-    if (typeof window.fetch !== "function") {
-      lastApiFailure = "no fetch";
-      return null;
-    }
+  /**
+   * Whether HuskyCT's data is asked for through the page itself. Measured on 2026-10-06: the
+   * helper's own request for the course list got 403 under Tampermonkey's sandbox, while the
+   * page's identical one is answered. HuskyCT answers 403 "Invalid CORS request" to any
+   * request whose Origin is not its own — an extension's, `null`, even huskyct.uconn.edu —
+   * before it looks at the session, and the sandbox's requests can carry one. A request made
+   * by the page's own code cannot. Once that has worked, the rest of the visit uses it.
+   */
+  let apiThroughPage = false;
+  const PAGE_API_REQUEST = "betterhuskyct:api-request";
+  const PAGE_API_ANSWER = "betterhuskyct:api-answer";
+  const PAGE_API_MARK = "data-betterhuskyct-api";
+  let pageAsks = 0;
+
+  /** A GET of HuskyCT's data from here, as { data } or { failure }. */
+  async function directFetchJson(path, timeout) {
+    if (typeof window.fetch !== "function") return { failure: "no fetch" };
     const controller = typeof window.AbortController === "function" ? new window.AbortController() : null;
     const timer = controller ? setTimeout(() => controller.abort(), timeout) : null;
     let response;
@@ -501,22 +513,131 @@
         signal: controller ? controller.signal : undefined,
       });
     } catch (error) {
-      lastApiFailure = error && error.name === "AbortError" ? "timeout" : "no answer";
       if (timer) clearTimeout(timer);
-      return null;
+      return { failure: error && error.name === "AbortError" ? "timeout" : "no answer" };
     }
     try {
-      if (!response.ok) {
-        lastApiFailure = "HTTP " + response.status;
-        return null;
-      }
-      return await response.json();
+      if (!response.ok) return { failure: "HTTP " + response.status };
+      return { data: await response.json() };
     } catch (error) {
-      lastApiFailure = error && error.name === "AbortError" ? "timeout" : "not JSON";
-      return null;
+      return { failure: error && error.name === "AbortError" ? "timeout" : "not JSON" };
     } finally {
       if (timer) clearTimeout(timer);
     }
+  }
+
+  /**
+   * What runs in the page itself, put there as a script of its own: it fetches the HuskyCT data
+   * path it is asked for, with the page's own fetch, and says what came back. It is turned into
+   * text, so it uses nothing from outside itself, and it asks for nothing but HuskyCT's data.
+   * The two sides speak in strings, which pass between the page and the sandbox as they are.
+   */
+  function pageApiAgent() {
+    const root = document.documentElement;
+    if (!root || root.hasAttribute("data-betterhuskyct-api")) return;
+    root.setAttribute("data-betterhuskyct-api", "1");
+    document.addEventListener("betterhuskyct:api-request", function (event) {
+      let ask;
+      try {
+        ask = JSON.parse(String(event.detail));
+      } catch {
+        return;
+      }
+      if (!ask || typeof ask.id !== "string" || typeof ask.path !== "string" || ask.path.indexOf("/learn/api/v1/") !== 0) return;
+      const answer = function (fields) {
+        fields.id = ask.id;
+        document.dispatchEvent(new CustomEvent("betterhuskyct:api-answer", { detail: JSON.stringify(fields) }));
+      };
+      window.fetch(ask.path, { credentials: "same-origin", headers: { Accept: "application/json" } }).then(
+        function (response) {
+          return response.text().then(function (text) {
+            answer({ status: response.status, text: text });
+          });
+        },
+        function () {
+          answer({ error: "no answer" });
+        },
+      );
+    });
+  }
+
+  /** Puts the agent in the page once. False if the page would not run it. */
+  function installPageAgent() {
+    const root = document.documentElement;
+    if (!root) return false;
+    if (root.hasAttribute(PAGE_API_MARK)) return true;
+    try {
+      const script = document.createElement("script");
+      script.textContent = "(" + pageApiAgent.toString() + ")();";
+      (document.head || root).appendChild(script);
+      script.remove();
+    } catch {
+      /* told by the mark below */
+    }
+    // The agent marks the page as it starts, so whether it ran is known at once.
+    return root.hasAttribute(PAGE_API_MARK);
+  }
+
+  /** A GET of HuskyCT's data made by the page itself, as { data } or { failure }. */
+  function pageFetchJson(path, timeout) {
+    if (!installPageAgent()) return Promise.resolve({ failure: "blocked" });
+    return new Promise((resolve) => {
+      const id = "ask-" + Date.now() + "-" + ++pageAsks;
+      let timer = null;
+      const finish = (result) => {
+        document.removeEventListener(PAGE_API_ANSWER, listen);
+        clearTimeout(timer);
+        resolve(result);
+      };
+      const listen = (event) => {
+        let answer;
+        try {
+          answer = JSON.parse(String(event.detail));
+        } catch {
+          return;
+        }
+        if (!answer || answer.id !== id) return;
+        if (answer.error) return finish({ failure: String(answer.error) });
+        if (!(answer.status >= 200 && answer.status < 300)) return finish({ failure: "HTTP " + answer.status });
+        try {
+          finish({ data: JSON.parse(String(answer.text)) });
+        } catch {
+          finish({ failure: "not JSON" });
+        }
+      };
+      timer = setTimeout(() => finish({ failure: "timeout" }), timeout);
+      document.addEventListener(PAGE_API_ANSWER, listen);
+      document.dispatchEvent(new window.CustomEvent(PAGE_API_REQUEST, { detail: JSON.stringify({ id, path }) }));
+    });
+  }
+
+  /**
+   * A GET of HuskyCT's own data as JSON, or null if it did not answer in time or well. Asked
+   * from here first; refused as coming from elsewhere, or not let out at all, it is asked again
+   * through the page.
+   */
+  async function fetchJson(path, timeout) {
+    if (!apiThroughPage) {
+      const direct = await directFetchJson(path, timeout);
+      if (!direct.failure) return direct.data;
+      if (direct.failure !== "HTTP 403" && direct.failure !== "no answer") {
+        lastApiFailure = direct.failure;
+        return null;
+      }
+      const page = await pageFetchJson(path, timeout);
+      if (page.failure) {
+        lastApiFailure = direct.failure + " then page " + page.failure;
+        return null;
+      }
+      apiThroughPage = true;
+      return page.data;
+    }
+    const page = await pageFetchJson(path, timeout);
+    if (page.failure) {
+      lastApiFailure = "page " + page.failure;
+      return null;
+    }
+    return page.data;
   }
 
   /** The text of an HTML fragment, read in a document of its own so nothing in it runs. */
@@ -3381,7 +3502,7 @@
     // When nothing is read, which step it stopped at and what HuskyCT said. A 401 is HuskyCT
     // saying the student is signed out, whatever page the tab shows.
     const fail = (step) => {
-      out.reason = lastApiFailure === "HTTP 401" ? "signedout" : step;
+      out.reason = /HTTP 401$/.test(lastApiFailure || "") ? "signedout" : step;
       out.detail = lastApiFailure || "unexpected answer";
       return out;
     };
@@ -4541,6 +4662,7 @@
       termCodeFor,
       readAnnouncementsOf,
       readAnnouncementsApi,
+      pageApiAgent,
       readUserId,
       readSyncState,
       writeSyncState,
