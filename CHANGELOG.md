@@ -14,6 +14,32 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.23.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.23.0) — Sync brings your course files, and the helper reads HuskyCT's data only
+
+*Minor: a new capability. HuskyCT Helper goes from 1.12.8 to 1.14.0.*
+
+### Added
+
+- **Sync brings the course files** BetterHuskyCT does not have yet, read from
+  HuskyCT's course contents folder by folder. Files pass between the two tabs in
+  512 KB pieces through the userscript manager's storage. HuskyCT Helper 1.13.0. ([#134])
+- **Each course keeps its HuskyCT colour**, worked out from the colour number on
+  the course list. HuskyCT Helper 1.13.0. ([#134])
+
+### Changed
+
+- **The helper reads HuskyCT's data only.** Its fallback that walked HuskyCT's
+  pages, its own Save files, the zip and links page, the four separate collect and
+  send buttons on its panel and the colour read from a page are gone; reading the
+  to-dos and due dates still uses the page. The removed code is kept in the tag
+  `backup/helper-page-walk`. HuskyCT Helper 1.14.0. ([#136], [#137])
+
+### Removed
+
+- **Effort marks** (and `efforts` in the synced data), the course files page's
+  "from a folder" import, the unread legacy calendar storage and unused exports.
+  ([#135])
+
 ## [1.22.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.22.0) — Sync without leaving BetterHuskyCT, UConn's academic calendar, and course colours
 
 *Minor: new capabilities. HuskyCT Helper goes from 1.10.0 to 1.12.8.*
@@ -1656,3 +1682,7 @@ saying what to work on next.*
 
 
 
+[#134]: https://github.com/NoGod3524/betterhuskyct/pull/134
+[#135]: https://github.com/NoGod3524/betterhuskyct/pull/135
+[#136]: https://github.com/NoGod3524/betterhuskyct/pull/136
+[#137]: https://github.com/NoGod3524/betterhuskyct/pull/137
