@@ -2097,7 +2097,6 @@
         },
       ],
       completedIds: [],
-      efforts: {},
       courses: { version: 1, courses: [], assignments: {} },
       announcements: announcements || [],
       courseColors: courseColors || {},

@@ -463,7 +463,8 @@ test("the payload says nothing about the parts it did not collect", () => {
   // Empty means "change nothing" to the merge, which only ever adds courses and
   // unions ticks. Filling these in would be inventing data about the user.
   assert.deepEqual(payload.completedIds, []);
-  assert.deepEqual(payload.efforts, {});
+  // Effort marks went in BetterHuskyCT 1.23.0; nothing set one, and nothing is sent.
+  assert.equal("efforts" in payload, false);
   assert.deepEqual(payload.courses, { version: 1, courses: [], assignments: {} });
   // Present and empty rather than absent: the shape this sends should not change
   // with which page the button was pressed on.
