@@ -149,7 +149,7 @@ export function HelperSyncButton({ variant }: { variant: "big" | "compact" }) {
   const text = syncStatusText(locale, state);
   const failed = state.phase === "failed" || state.phase === "blocked" || state.phase === "nodata";
 
-  const icon = working ? <LoaderCircle size={variant === "big" ? 20 : 15} className="animate-spin" aria-hidden /> : <RefreshCw size={variant === "big" ? 20 : 15} aria-hidden />;
+  const icon = working ? <LoaderCircle size={15} className="animate-spin" aria-hidden /> : <RefreshCw size={15} aria-hidden />;
 
   if (variant === "compact") {
     return (
@@ -158,7 +158,7 @@ export function HelperSyncButton({ variant }: { variant: "big" | "compact" }) {
         onClick={start}
         disabled={working}
         title={text || t(locale, "helpersync.hint")}
-        className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[var(--blue)] px-3.5 text-xs font-semibold text-white shadow-[0_6px_16px_rgba(35,104,200,0.22)] transition hover:bg-[var(--c-1857aa)] disabled:cursor-wait disabled:opacity-70"
+        className="btn btn-primary"
       >
         {icon}
         <span className="hidden sm:inline">{t(locale, working ? "helpersync.working" : "helpersync.button")}</span>
@@ -167,17 +167,17 @@ export function HelperSyncButton({ variant }: { variant: "big" | "compact" }) {
   }
 
   return (
-    <div className="mt-5 max-w-xl">
+    <div className="shrink-0 sm:max-w-xs sm:text-right">
       <button
         type="button"
         onClick={start}
         disabled={working}
-        className="inline-flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-[var(--blue)] px-6 text-base font-semibold text-white shadow-[0_12px_30px_rgba(35,104,200,0.28)] transition hover:bg-[var(--c-1857aa)] disabled:cursor-wait disabled:opacity-80 sm:w-auto"
+        className="btn btn-primary h-9 w-full px-4 text-sm sm:w-auto"
       >
         {icon}
         {t(locale, working ? "helpersync.working" : "helpersync.button")}
       </button>
-      <p role="status" className={`mt-2 text-sm ${failed ? "text-[var(--c-9f3527)]" : "text-[var(--muted)]"}`}>
+      <p role="status" className={`mt-2 text-xs leading-5 ${failed ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}>
         {text || t(locale, "helpersync.hint")}
         {state.phase === "failed" && (state.reason === "signin" || state.reason === "signedout") ? (
           <>

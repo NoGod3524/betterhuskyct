@@ -23,13 +23,13 @@ export function SyncBanner() {
 
   return (
     <div
-      className="mt-6 overflow-hidden rounded-2xl border border-[var(--c-bcd4f2)] bg-[var(--c-f4f8ff)]"
+      className="card mt-6 overflow-hidden border-[var(--accent-ink)]/30"
       role="status"
       aria-live="polite"
     >
       <div className="flex flex-wrap items-start gap-3 p-4">
         <div className="min-w-0 flex-1">
-          <p className="font-display text-base font-semibold text-[var(--c-172b41)]">
+          <p className="font-display text-sm font-semibold">
             {t(locale, "sync.incomingTitle")}
           </p>
           <p className="mt-1 text-sm text-[var(--c-31506f)]">
@@ -61,7 +61,7 @@ export function SyncBanner() {
           <button
             type="button"
             onClick={applyPendingSync}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--blue)] px-3 text-sm font-semibold text-white transition hover:bg-[var(--c-1857aa)]"
+            className="btn btn-primary"
           >
             <Check size={15} />
             {t(locale, "sync.apply")}
@@ -69,7 +69,7 @@ export function SyncBanner() {
           <button
             type="button"
             onClick={dismissPendingSync}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
+            className="btn btn-quiet"
           >
             <X size={15} />
             {t(locale, "sync.dismiss")}

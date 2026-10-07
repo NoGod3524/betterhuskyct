@@ -36,22 +36,22 @@ function StatusRows({
     <>
       {error && (
         <div
-          className="flex items-start gap-2 border-t border-[var(--c-f3cec8)] bg-[var(--c-fff6f4)] px-5 py-3 text-sm text-[var(--c-9f3527)] sm:px-7"
+          className="flex items-start gap-2 border-t border-[var(--line)] bg-[var(--danger-soft)] px-4 py-2.5 text-sm text-[var(--danger)] sm:px-5"
           role="alert"
           aria-live="polite"
         >
-          <TriangleAlert size={17} className="mt-0.5 shrink-0" />
+          <TriangleAlert size={16} className="mt-0.5 shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {notice && (
         <div
-          className="flex items-start gap-2 border-t border-[var(--c-cce5d7)] bg-[var(--c-f3fbf7)] px-5 py-3 text-sm text-[var(--c-276944)] sm:px-7"
+          className="flex items-start gap-2 border-t border-[var(--line)] px-4 py-2.5 text-xs text-[var(--muted)] sm:px-5"
           role="status"
           aria-live="polite"
         >
-          <Check size={17} className="mt-0.5 shrink-0" />
+          <Check size={14} className="mt-px shrink-0 text-[var(--success)]" />
           <span>{notice}</span>
         </div>
       )}
@@ -122,16 +122,16 @@ export function ConnectSection() {
   if (!showPanel) {
     return (
       <section
-        className="mt-7 overflow-hidden rounded-2xl border border-[var(--c-cdddf4)] bg-[var(--surface)]"
+        className="card mt-6 overflow-hidden"
         aria-label={t(locale, "connect.title")}
         id="connect"
       >
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
-          <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--c-e7f0ff)] text-[var(--c-2368c8)]">
-            <FileUp size={17} />
+          <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent-ink)]">
+            <FileUp size={15} />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-[var(--c-172b41)]">
+            <p className="truncate text-sm font-medium">
               {t(
                 locale,
                 subscriptions.length === 1
@@ -147,10 +147,10 @@ export function ConnectSection() {
           <button
             type="button"
             onClick={() => setIsExpanded(true)}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)]"
+            className="btn btn-quiet h-8 shrink-0"
           >
             {t(locale, "connect.manage")}
-            <ChevronRight size={15} />
+            <ChevronRight size={14} />
           </button>
           {/* Sync lives inside the panel, so the collapsed bar needs its own way
               in — nobody would look for it under a button about calendars. */}
@@ -160,9 +160,9 @@ export function ConnectSection() {
               setIsExpanded(true);
               setOpenSync(true);
             }}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
+            className="btn btn-quiet h-8 shrink-0"
           >
-            <Smartphone size={15} />
+            <Smartphone size={14} />
             {t(locale, "sync.button")}
           </button>
         </div>
@@ -173,16 +173,16 @@ export function ConnectSection() {
 
   return (
     <section
-      className="mt-7 overflow-hidden rounded-[24px] border border-[var(--c-cdddf4)] bg-[var(--surface)] shadow-[0_16px_50px_rgba(29,69,116,0.08)]"
+      className="card mt-6 overflow-hidden"
       aria-labelledby="connect-title"
       id="connect"
     >
       <div className="flex gap-4 p-5 pb-0 sm:p-6 sm:pb-0">
-        <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[var(--c-e7f0ff)] text-[var(--c-2368c8)]">
-          <FileUp size={18} />
+        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent-ink)]">
+          <FileUp size={17} />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 id="connect-title" className="font-display text-lg font-semibold">
+          <h2 id="connect-title" className="font-display text-base font-semibold">
             {t(locale, "connect.title")}
           </h2>
           <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
@@ -193,7 +193,7 @@ export function ConnectSection() {
           <button
             type="button"
             onClick={() => setIsExpanded(false)}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 self-start rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
+            className="btn btn-quiet h-8 shrink-0 self-start"
           >
             <ChevronUp size={15} />
             {t(locale, "connect.collapse")}
@@ -203,8 +203,8 @@ export function ConnectSection() {
 
       <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[1fr_1fr] lg:items-start">
         <div>
-          <div className="rounded-2xl border-2 border-dashed border-[var(--c-b9cfea)] bg-[var(--c-f7fbff)] px-5 py-6 text-center">
-            <FileUp size={28} className="mx-auto text-[var(--c-2a71d8)]" />
+          <div className="rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--canvas)] px-5 py-6 text-center">
+            <FileUp size={24} className="mx-auto text-[var(--blue)]" />
             <p className="font-display mt-2 text-base font-semibold text-[var(--c-172b41)]">
               {t(locale, "file.title")}
             </p>
@@ -213,7 +213,7 @@ export function ConnectSection() {
             </p>
             <label
               htmlFor="calendar-files"
-              className="mt-3 inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--blue)] px-5 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(35,104,200,0.24)] transition hover:bg-[var(--c-1857aa)]"
+              className="btn btn-primary mt-3 h-9 cursor-pointer px-4 text-sm"
             >
               <FileUp size={16} />
               {t(locale, "file.choose")}
@@ -304,7 +304,7 @@ export function ConnectSection() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[var(--c-dbe7f6)] bg-[var(--c-f7fbff)] p-4">
+        <div className="rounded-xl bg-[var(--subtle)] p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--c-6b7f95)]">
             {t(locale, "connect.stepsTitle")}
           </p>

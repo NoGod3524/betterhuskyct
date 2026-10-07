@@ -57,7 +57,7 @@ export function TaskCard({
   const checkboxId = `task-complete-${task.id}`;
 
   return (
-    <article className="group rounded-2xl border border-[var(--line)] bg-[var(--c-fcfdff)] p-4 transition hover:-translate-y-0.5 hover:border-[var(--c-bfd3f0)] hover:shadow-[0_8px_22px_rgba(37,74,119,0.08)]">
+    <article className={`card group p-3.5 transition hover:border-[var(--line-strong)] ${completed ? "bg-[var(--canvas)] shadow-none" : ""}`}>
       <div className="flex items-start gap-3">
         <label htmlFor={checkboxId} className="tap-check shrink-0">
           <input
@@ -68,66 +68,60 @@ export function TaskCard({
             aria-label={t(locale, completed ? "task.markIncomplete" : "task.markComplete", {
               title: task.title,
             })}
-            className="mt-1 size-4 shrink-0 cursor-pointer accent-[var(--c-2a71d8)]"
+            className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[var(--blue)]"
           />
         </label>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              {course && (
-                <span
-                  className={`max-w-full truncate rounded-md px-2 py-1 text-[10px] font-bold tracking-[0.06em] ${
-                    courseColorFor(course.code) ? "" : styleForCourse(course.code)
-                  }`}
-                  style={courseColorFor(course.code) ? chipStyle(courseColorFor(course.code)!) : undefined}
-                  title={course.code}
-                  data-course-color={courseColorFor(course.code) ?? undefined}
-                >
-                  {course.code}
-                  {course.component ? ` · ${course.component}` : ""}
-                </span>
-              )}
-              {task.kind && (
-                <span className="shrink-0 rounded-md bg-[var(--c-f0f3f7)] px-2 py-1 text-[10px] font-bold tracking-[0.06em] text-[var(--c-536476)]">
-                  {t(locale, task.kind === "class" ? "kind.class" : "kind.assignment")}
-                </span>
-              )}
-            </div>
+            <h4
+              className={`min-w-0 break-words text-sm font-medium leading-5 ${completed ? "text-[var(--muted)] line-through" : "text-[var(--ink)]"}`}
+            >
+              <label htmlFor={checkboxId} className="cursor-pointer">{task.title}</label>
+            </h4>
             {doneLabel === "submitted" || doneLabel === "graded" ? (
               <span
-                className="shrink-0 rounded-full bg-[var(--c-ecf8f1)] px-2 py-1 text-[10px] font-bold text-[var(--c-1d6b43)]"
+                className="shrink-0 rounded-md bg-[var(--success-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--success)]"
                 title={t(locale, "task.doneByHuskyctHint")}
               >
                 {t(locale, doneLabel === "graded" ? "badge.graded" : "badge.submitted")}
               </span>
             ) : overdue && !completed ? (
-              <span className="shrink-0 rounded-full bg-[var(--c-fff0ed)] px-2 py-1 text-[10px] font-bold text-[var(--c-c5402d)]">
+              <span className="shrink-0 rounded-md bg-[var(--danger-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--danger)]">
                 {t(locale, "badge.overdue")}
               </span>
             ) : !completed && isDueSoon(task, now) ? (
-              <span className="shrink-0 rounded-full bg-[var(--c-fff0ed)] px-2 py-1 text-[10px] font-bold text-[var(--c-c5402d)]">
+              <span className="shrink-0 rounded-md bg-[var(--danger-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--danger)]">
                 {t(locale, "badge.dueSoon")}
               </span>
             ) : null}
           </div>
-          <h4
-            className={`mt-3 min-h-10 break-words text-sm font-semibold leading-5 ${completed ? "text-[var(--muted)] line-through" : "text-[var(--c-172b41)]"}`}
-          >
-            <label htmlFor={checkboxId}>{task.title}</label>
-          </h4>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-[var(--muted)]">
-            <span className="flex items-center gap-1.5">
-              <Clock3 size={13} />
+          <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-xs text-[var(--muted)]">
+            {course && (
+              <span
+                className={`max-w-full truncate rounded px-1.5 py-0.5 text-[11px] font-semibold ${
+                  courseColorFor(course.code) ? "" : styleForCourse(course.code)
+                }`}
+                style={courseColorFor(course.code) ? chipStyle(courseColorFor(course.code)!) : undefined}
+                title={course.code}
+                data-course-color={courseColorFor(course.code) ?? undefined}
+              >
+                {course.code}
+                {course.component ? ` · ${course.component}` : ""}
+              </span>
+            )}
+            {task.kind && <span>{t(locale, task.kind === "class" ? "kind.class" : "kind.assignment")}</span>}
+            <span className="flex items-center gap-1 tabular-nums">
+              <Clock3 size={12} />
               {timeLabel ?? formatTaskTime(task, group, locale)}
             </span>
             {task.location && (
-              <span className="flex max-w-full items-center gap-1.5 truncate" title={task.location}>
-                <MapPin size={13} className="shrink-0" />
+              <span className="flex max-w-full items-center gap-1 truncate" title={task.location}>
+                <MapPin size={12} className="shrink-0" />
                 <span className="truncate">{task.location}</span>
               </span>
             )}
           </div>
-          <CoursePicker taskId={task.id} className="mt-3" />
+          <CoursePicker taskId={task.id} className="mt-2.5" />
         </div>
       </div>
     </article>
