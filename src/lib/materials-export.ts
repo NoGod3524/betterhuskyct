@@ -18,7 +18,7 @@
  *   not shrink), built as a Blob from the stored files' own Blobs, so the browser
  *   does not hold a term's files in memory twice.
  */
-import type { MaterialsCourse, MaterialsIndex, StoredFile } from "@/lib/materials";
+import type { MaterialFileRef, MaterialsCourse, MaterialsIndex, StoredFile } from "@/lib/materials";
 
 import { isToolLaunchUrl } from "@/lib/materials";
 
@@ -99,6 +99,26 @@ export function planExport(index: MaterialsIndex, stored: Map<string, StoredFile
     }
   }
   return { termFolder: termFolderName(index), entries, missing, totalBytes };
+}
+
+/**
+ * One course's stored files, or one of its folders' with everything under it, for a ZIP of its
+ * own: rooted at that course or folder, which also names it ("ECON 1201", "ECON 1201 - Week 1").
+ */
+export function planPart(index: MaterialsIndex, stored: Map<string, StoredFile>, courseId: string, path: string[] = []): ExportPlan {
+  const course = index.courses.find((entry) => entry.id === courseId);
+  const name = safeName([course?.code ?? courseId, ...path].join(" - "), "Files");
+  if (!course) return { termFolder: name, entries: [], missing: 0, totalBytes: 0 };
+  const inside = (ref: MaterialFileRef) => path.every((part, depth) => ref.path[depth] === part);
+  const plan = planExport({ ...index, courses: [{ ...course, files: course.files.filter(inside) }] }, stored);
+  // The course's folder and the folders down to this one are the ZIP itself.
+  const drop = 1 + path.length;
+  return {
+    termFolder: name,
+    entries: plan.entries.map((entry) => ({ ...entry, folders: entry.folders.slice(drop) })),
+    missing: plan.missing,
+    totalBytes: plan.totalBytes,
+  };
 }
 
 // --- the links page -------------------------------------------------------------------------------

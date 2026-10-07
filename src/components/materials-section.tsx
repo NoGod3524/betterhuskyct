@@ -43,6 +43,7 @@ import {
   ZipTooBigError,
   buildZip,
   linksPageHtml,
+  planPart,
   planExport,
   saveToDirectory,
   zipFileName,
@@ -255,6 +256,22 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
     if (exporting) return;
     const ready = exportPlan();
     if (!ready) return;
+    await downloadZip(ready.plan, ready.linksPage);
+  }
+
+  /** One course's files, or one of its folders', as a ZIP of its own. No links page: it holds the whole term's. */
+  async function exportPart(courseId: string, path: string[]) {
+    if (exporting || !index) return;
+    const plan = planPart(index, files, courseId, path);
+    if (plan.entries.length === 0) {
+      setNotice(t(locale, "materials.exportNothing"));
+      return;
+    }
+    await downloadZip(plan, undefined);
+  }
+
+  async function downloadZip(plan: ReturnType<typeof planExport>, linksPage: { name: string; html: string } | undefined) {
+    const ready = { plan, linksPage };
     setExporting(true);
     try {
       const blob = await buildZip(ready.plan, {
@@ -406,10 +423,11 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
               const group = (name: string) => groupKeyOf(course.id, name);
               return (
                 <article key={course.id} className="card overflow-hidden">
+                  <div className="flex items-center pr-3">
                   <Toggle
                     open={courseOpen}
                     onToggle={() => toggle(courseKey)}
-                    className="w-full px-5 py-3.5 hover:bg-[var(--subtle)]"
+                    className="flex-1 px-5 py-3.5 hover:bg-[var(--subtle)]"
                     icon={
                       <span
                         className="size-2.5 shrink-0 rounded-full bg-[var(--blue)]"
@@ -426,6 +444,14 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                       }) + (missing ? " · " + t(locale, "materials.courseMissing", { count: missing }) : "")
                     }
                   />
+                  {course.files.length > missing ? (
+                    <PartButton
+                      label={t(locale, "materials.downloadPart", { name: course.code ?? course.id })}
+                      disabled={exporting}
+                      onClick={() => void exportPart(course.id, [])}
+                    />
+                  ) : null}
+                  </div>
 
                   {courseOpen ? (
                     <div className="rise-in border-t border-[var(--line)] px-5 pb-4">
@@ -434,6 +460,9 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                         node={folderTree(course.files)}
                         isOpen={(folder) => open.has(group(folder.path.join("/")))}
                         onToggle={(folder) => toggle(group(folder.path.join("/")))}
+                        onDownload={(folder) => void exportPart(course.id, folder.path)}
+                        downloadLabel={(folder) => t(locale, "materials.downloadPart", { name: folder.name })}
+                        downloadDisabled={exporting}
                         renderFile={(ref) => {
                           const file = files.get(ref.key);
                           return (
@@ -506,6 +535,22 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
   );
 }
 
+/** The small download beside a course or a folder: its files as a ZIP of their own. */
+function PartButton({ label, disabled, onClick }: { label: string; disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="tap-icon grid size-7 shrink-0 place-items-center rounded-md text-[var(--muted)] transition hover:bg-[var(--subtle)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-50"
+    >
+      <Archive size={15} aria-hidden />
+    </button>
+  );
+}
+
 /** A file's icon by its kind, so a PDF, a slide deck and a spreadsheet are told apart at a glance. */
 function FileIcon({ name }: { name: string }) {
   const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase() ?? "";
@@ -548,11 +593,17 @@ function FolderView({
   node,
   isOpen,
   onToggle,
+  onDownload,
+  downloadLabel,
+  downloadDisabled,
   renderFile,
 }: {
   node: FolderNode<MaterialFileRef>;
   isOpen: (folder: FolderNode<MaterialFileRef>) => boolean;
   onToggle: (folder: FolderNode<MaterialFileRef>) => void;
+  onDownload: (folder: FolderNode<MaterialFileRef>) => void;
+  downloadLabel: (folder: FolderNode<MaterialFileRef>) => string;
+  downloadDisabled: boolean;
   renderFile: (file: MaterialFileRef) => React.ReactNode;
 }) {
   return (
@@ -562,16 +613,20 @@ function FolderView({
         const childOpen = isOpen(child);
         return (
           <div key={child.name} className="mt-2">
-            <Toggle
-              open={childOpen}
-              onToggle={() => onToggle(child)}
-              icon={<Folder size={15} className="shrink-0 fill-[var(--warning-soft)] text-[var(--warning)]" aria-hidden />}
-              title={<span className="text-sm font-medium">{child.name}</span>}
-              detail={String(child.total)}
-            />
+            <div className="flex items-center gap-1">
+              <Toggle
+                open={childOpen}
+                onToggle={() => onToggle(child)}
+                className="flex-1"
+                icon={<Folder size={15} className="shrink-0 fill-[var(--warning-soft)] text-[var(--warning)]" aria-hidden />}
+                title={<span className="text-sm font-medium">{child.name}</span>}
+                detail={String(child.total)}
+              />
+              <PartButton label={downloadLabel(child)} disabled={downloadDisabled} onClick={() => onDownload(child)} />
+            </div>
             {childOpen ? (
               <div className="rise-in ml-2 border-l border-[var(--line)] pl-4">
-                <FolderView node={child} isOpen={isOpen} onToggle={onToggle} renderFile={renderFile} />
+                <FolderView node={child} isOpen={isOpen} onToggle={onToggle} onDownload={onDownload} downloadLabel={downloadLabel} downloadDisabled={downloadDisabled} renderFile={renderFile} />
               </div>
             ) : null}
           </div>
