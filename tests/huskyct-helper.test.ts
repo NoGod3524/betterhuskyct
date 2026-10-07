@@ -691,7 +691,7 @@ test("every panel button has a handler, and the labels match", () => {
     [...new Set(actions)].sort(),
     ["autosync", "collectall", "emptybasket", "todos"],
   );
-  // The separate Collect and Send buttons for materials and grades, and Save files, went in 2.0.0:
+  // The separate Collect and Send buttons for materials and grades, and Save files, went in 1.14.0:
   // Collect everything and BetterHuskyCT's Sync carry both, and the Materials page saves the files.
   for (const gone of ["sync", "recapi", "materials", "sendmaterials", "savefiles", "grades", "sendgrades"]) assert.ok(!actions.includes(gone), `the "${gone}" button is back`);
 });
