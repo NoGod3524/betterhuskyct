@@ -1,22 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 
 import { AnnouncementSummary, type SummaryCourse } from "@/components/announcement-summary";
 import { useCalendar } from "@/components/calendar-provider";
+import { chipStyle } from "@/lib/course-colors";
 import type { Announcement } from "@/lib/announcements";
 import { normaliseCourseCode } from "@/lib/courses";
 import { intlLocale, t } from "@/lib/i18n";
 
 /**
- * How many bodies are expanded before the list asks first.
+ * A body is shown two lines deep, with a button for the rest once it is longer
+ * than this; and the list shows this many before it asks first.
  *
  * A term of announcements with full bodies is a long page, and the useful part
  * of most of them is the first line. Cutting each one short keeps a scan
  * possible; the reader who wants the rest asks for it.
  */
-const CLAMP_LENGTH = 240;
+const CLAMP_LENGTH = 160;
 const COLLAPSED_COUNT = 12;
 
 /** The filter key for announcements filed under no course. */
@@ -58,9 +60,19 @@ export function AnnouncementsSection({
   /** Whether this server can summarise: it has a model key. Off, the panel is not shown at all. */
   summariesEnabled?: boolean;
 }) {
-  const { locale, announcements, courses, clearAnnouncements } = useCalendar();
+  const { locale, announcements, courses, clearAnnouncements, courseColorFor } = useCalendar();
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+
+  function toggleOpen(id: string) {
+    setOpenIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const courseNameFor = useMemo(() => {
     const byId = new Map(courses.map((course) => [course.id, course.code]));
@@ -123,7 +135,7 @@ export function AnnouncementsSection({
           <p className="eyebrow">{t(locale, "announcements.eyebrow")}</p>
           <h2
             id="announcements-heading"
-            className="font-display mt-1 text-2xl font-semibold tracking-[-0.025em]"
+            className="font-display mt-1 text-2xl font-semibold"
           >
             {t(locale, "announcements.title")}
           </h2>
@@ -136,7 +148,7 @@ export function AnnouncementsSection({
           <button
             type="button"
             onClick={clearAnnouncements}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
+            className="btn btn-quiet"
           >
             {t(locale, "announcements.clear")}
           </button>
@@ -144,8 +156,8 @@ export function AnnouncementsSection({
       </div>
 
       {announcements.length === 0 ? (
-        <div className="mt-4 rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5">
-          <p className="text-sm font-semibold text-[var(--c-31506f)]">
+        <div className="mt-4 rounded-xl border border-dashed border-[var(--line-strong)] p-6">
+          <p className="text-sm font-semibold">
             {t(locale, "announcements.emptyTitle")}
           </p>
           <p className="mt-1 text-sm text-[var(--muted)]">
@@ -159,95 +171,129 @@ export function AnnouncementsSection({
           </Link>
         </div>
       ) : (
-        <>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setCourseFilter(null)}
-              className={`inline-flex h-8 items-center rounded-full px-3 text-xs font-semibold transition ${
-                courseFilter === null
-                  ? "bg-[var(--navy)] text-white"
-                  : "border border-[var(--c-cdd9e6)] bg-[var(--surface)] text-[var(--c-4e647b)] hover:border-[var(--c-9fb7d1)]"
-              }`}
-            >
+        <div className="mt-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start lg:gap-6">
+          {/* The courses: a row of chips on a phone, a list beside the announcements on a wide screen. */}
+          <div
+            role="group"
+            aria-label={t(locale, "announcements.allCourses")}
+            className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 lg:sticky lg:top-20 lg:flex-col lg:gap-0.5 lg:overflow-visible"
+          >
+            <CourseButton active={courseFilter === null} onClick={() => setCourseFilter(null)} count={announcements.length}>
               {t(locale, "announcements.allCourses")}
-            </button>
+            </CourseButton>
             {filterOptions.map(([key, count]) => (
-              <button
+              <CourseButton
                 key={key}
-                type="button"
+                active={courseFilter === key}
                 onClick={() => setCourseFilter(key)}
-                className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
-                  courseFilter === key
-                    ? "bg-[var(--navy)] text-white"
-                    : "border border-[var(--c-cdd9e6)] bg-[var(--surface)] text-[var(--c-4e647b)] hover:border-[var(--c-9fb7d1)]"
-                }`}
+                count={count}
+                color={key === NO_COURSE ? null : courseColorFor(key)}
               >
                 {key === NO_COURSE ? t(locale, "announcements.uncoursed") : key}
-                <span className="opacity-70">{count}</span>
-              </button>
+              </CourseButton>
             ))}
-            <span className="text-xs text-[var(--muted)]">
-              {t(locale, "announcements.count", { count: visible.length })}
-            </span>
           </div>
 
-          {summariesEnabled ? (
-            <AnnouncementSummary
-              key={courseFilter ?? "__all"}
-              locale={locale}
-              course={summaryCourseFor(courseFilter)}
-              announcements={visible}
-            />
-          ) : null}
+          <div className="mt-4 min-w-0 lg:mt-0">
+            {summariesEnabled ? (
+              <AnnouncementSummary
+                key={courseFilter ?? "__all"}
+                locale={locale}
+                course={summaryCourseFor(courseFilter)}
+                announcements={visible}
+              />
+            ) : null}
 
-          <ul className="mt-4 space-y-3">
-            {shown.map((entry) => (
-              <li
-                key={entry.id}
-                className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
-              >
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="inline-flex items-center rounded-full bg-[var(--c-eef4ff)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--c-244e7a)]">
-                    {labelFor(entry)}
-                  </span>
-                  <span className="text-xs text-[var(--muted)]">
-                    {entry.posted
-                      ? t(locale, "announcements.posted", { value: entry.posted })
-                      : t(locale, "announcements.collected", {
-                          value: dateFormat.format(new Date(entry.announced)),
-                        })}
-                  </span>
-                </div>
+            <p className="mt-4 text-xs text-[var(--muted)] first:mt-0">
+              {t(locale, "announcements.count", { count: visible.length })}
+            </p>
+            <ul className="card mt-2 divide-y divide-[var(--line)] overflow-hidden">
+              {shown.map((entry) => {
+                const open = openIds.has(entry.id);
+                const key = courseKeyOf(entry, courseNameFor);
+                const color = key === NO_COURSE ? null : courseColorFor(key);
+                return (
+                  <li key={entry.id} className="px-4 py-4 sm:px-5">
+                    <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                      <span
+                        className="truncate rounded bg-[var(--accent-soft)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--accent-ink)]"
+                        style={color ? chipStyle(color) : undefined}
+                      >
+                        {labelFor(entry)}
+                      </span>
+                      <span className="ml-auto shrink-0 tabular-nums">
+                        {entry.posted
+                          ? t(locale, "announcements.posted", { value: entry.posted })
+                          : t(locale, "announcements.collected", {
+                              value: dateFormat.format(new Date(entry.announced)),
+                            })}
+                      </span>
+                    </div>
 
-                <h3 className="font-display mt-2 text-base font-semibold text-[var(--c-172b41)]">
-                  {entry.title}
-                </h3>
+                    <h3 className="mt-2 text-[15px] font-semibold leading-6">{entry.title}</h3>
 
-                {entry.body ? (
-                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[var(--c-31506f)]">
-                    {entry.body.length > CLAMP_LENGTH && !expanded
-                      ? `${entry.body.slice(0, CLAMP_LENGTH)}…`
-                      : entry.body}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
+                    {entry.body ? (
+                      <p className={`mt-1 whitespace-pre-line text-sm leading-6 text-[var(--muted)] ${open ? "" : "line-clamp-2"}`}>
+                        {entry.body}
+                      </p>
+                    ) : null}
+                    {entry.body && entry.body.length > CLAMP_LENGTH ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleOpen(entry.id)}
+                        aria-expanded={open}
+                        className="tap-link mt-1 text-xs font-medium text-[var(--link)] hover:underline"
+                      >
+                        {t(locale, open ? "announcements.collapse" : "announcements.expand")}
+                      </button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
 
-          {visible.length > COLLAPSED_COUNT ? (
-            <button
-              type="button"
-              onClick={() => setExpanded((value) => !value)}
-              className="mt-4 inline-flex h-9 items-center rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
-            >
-              {expanded
-                ? t(locale, "announcements.showLess")
-                : t(locale, "announcements.showMore")}
-            </button>
-          ) : null}
-        </>
+            {visible.length > COLLAPSED_COUNT ? (
+              <button type="button" onClick={() => setExpanded((value) => !value)} className="btn btn-quiet mt-4">
+                {expanded
+                  ? t(locale, "announcements.showLess")
+                  : t(locale, "announcements.showMore")}
+              </button>
+            ) : null}
+          </div>
+        </div>
       )}
     </section>
+  );
+}
+
+/** One course in the list beside the announcements: its colour, its name and how many it has. */
+function CourseButton({
+  active,
+  onClick,
+  count,
+  color = null,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  count: number;
+  color?: string | null;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex h-8 shrink-0 items-center gap-2 rounded-lg px-2.5 text-left text-sm transition lg:w-full ${
+        active
+          ? "bg-[var(--nav-active-bg)] font-medium text-[var(--nav-active)]"
+          : "text-[var(--nav)] hover:bg-[var(--nav-hover)] hover:text-[var(--ink)]"
+      }`}
+    >
+      {color ? <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden /> : null}
+      <span className="truncate">{children}</span>
+      <span className="ml-auto pl-1 text-xs tabular-nums text-[var(--muted)]">{count}</span>
+    </button>
   );
 }

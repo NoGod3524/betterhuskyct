@@ -10,7 +10,7 @@ import { localDay, selectedByDefault, suggestionFlags, type Suggestion, type Sug
 import { intlLocale, t, type Locale, type TranslationKey } from "@/lib/i18n";
 
 const BUTTON =
-  "inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)] disabled:opacity-50";
+  "inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent-ink)] disabled:opacity-50";
 const PRIMARY =
   "inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--navy)] px-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50";
 
@@ -72,9 +72,9 @@ function Panel({ plan }: { plan: AiPlanValue }) {
 
   if (!enabled) {
     return (
-      <div className="mt-6 rounded-2xl border border-[var(--c-d7e1ec)] bg-[var(--surface)] p-5">
+      <div className="mt-6 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
         <div className="flex items-center gap-2">
-          <Sparkles size={17} className="text-[var(--c-2a71d8)]" aria-hidden />
+          <Sparkles size={17} className="text-[var(--blue)]" aria-hidden />
           <h3 className="font-display font-semibold">{t(locale, "aiPlan.offTitle")}</h3>
         </div>
         <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">{t(locale, "aiPlan.offBody")}</p>
@@ -93,15 +93,15 @@ function Panel({ plan }: { plan: AiPlanValue }) {
         : t(locale, "aiPlan.upToDate");
 
   return (
-    <div className="mt-6 rounded-2xl border border-[var(--c-d7e1ec)] bg-[var(--surface)] p-5" aria-labelledby="ai-plan-heading">
+    <div className="mt-6 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5" aria-labelledby="ai-plan-heading">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Sparkles size={17} className="text-[var(--c-2a71d8)]" aria-hidden />
+          <Sparkles size={17} className="text-[var(--blue)]" aria-hidden />
           <h3 id="ai-plan-heading" className="font-display font-semibold">
             {t(locale, "aiPlan.title")}
           </h3>
           {rows.length > 0 ? (
-            <span className="rounded-full bg-[var(--c-f0f3f7)] px-2 py-0.5 text-xs font-bold text-[var(--c-536476)]">
+            <span className="rounded-full bg-[var(--subtle)] px-2 py-0.5 text-xs font-bold text-[var(--muted)]">
               {t(locale, "aiPlan.toCheck", { count: rows.length })}
             </span>
           ) : null}
@@ -125,7 +125,7 @@ function Panel({ plan }: { plan: AiPlanValue }) {
           <div className="mt-3 space-y-4">
             {byCourse.map(([course, list]) => (
               <div key={course || "-"}>
-                {course ? <h4 className="mb-2 text-sm font-semibold text-[var(--c-31506f)]">{course}</h4> : null}
+                {course ? <h4 className="mb-2 text-sm font-semibold text-[var(--ink)]">{course}</h4> : null}
                 <ul className="space-y-2">
                   {list.map((row) => {
                     const { suggestion, flags } = row;
@@ -133,7 +133,7 @@ function Panel({ plan }: { plan: AiPlanValue }) {
                     return (
                       <li
                         key={suggestion.id}
-                        className="flex gap-3 rounded-xl border border-[var(--c-dbe3ec)] bg-[var(--c-fafcff)] p-3"
+                        className="flex gap-3 rounded-xl border border-[var(--line)] bg-[var(--subtle)] p-3"
                         data-suggestion={suggestion.id}
                       >
                         <input
@@ -146,7 +146,7 @@ function Panel({ plan }: { plan: AiPlanValue }) {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold">{suggestion.title}</span>
-                            <span className="rounded-full bg-[var(--c-eef2f7)] px-2 py-0.5 text-[11px] font-semibold text-[var(--c-4e647b)]">
+                            <span className="rounded-full bg-[var(--subtle)] px-2 py-0.5 text-[11px] font-semibold text-[var(--muted)]">
                               {t(locale, `aiPlan.kind.${suggestion.kind}` as TranslationKey)}
                             </span>
                           </div>
@@ -156,14 +156,14 @@ function Panel({ plan }: { plan: AiPlanValue }) {
                               value={day}
                               onChange={(event) => setDays((current) => ({ ...current, [suggestion.id]: event.target.value }))}
                               aria-label={t(locale, "aiPlan.dateFor", { title: suggestion.title })}
-                              className="h-8 rounded-md border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-2 text-sm"
+                              className="h-8 rounded-md border border-[var(--line)] bg-[var(--surface)] px-2 text-sm"
                             />
                             <span className="text-[var(--muted)]">
                               {day ? dayLabel(day, day === suggestion.date ? suggestion.time : null, locale) : t(locale, "aiPlan.noDate")}
                             </span>
                           </div>
                           {flags.inCalendar || flags.past || (flags.weekday && day === suggestion.date) ? (
-                            <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-[var(--c-b3412e)]">
+                            <p className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-[var(--danger)]">
                               <AlertTriangle size={13} aria-hidden />
                               {[
                                 flags.inCalendar ? t(locale, "aiPlan.inCalendar") : null,

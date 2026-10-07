@@ -6,11 +6,16 @@ import {
   ChevronRight,
   Download,
   ExternalLink,
+  File,
+  FileArchive,
+  FileImage,
+  FileSpreadsheet,
   FileText,
   Archive,
   FolderDown,
   Folder,
   PlayCircle,
+  Presentation,
   Trash2,
   Wrench,
 } from "lucide-react";
@@ -83,7 +88,7 @@ const groupKeyOf = (courseId: string, name: string) => `g:${courseId}:${name}`;
  * each file as it arrives.
  */
 export function MaterialsSection({ openStore = openMaterialsStore }: { openStore?: () => Promise<MaterialsStore> }) {
-  const { locale } = useCalendar();
+  const { locale, courseColorFor } = useCalendar();
   const [store, setStore] = useState<MaterialsStore | null>(null);
   const [index, setIndex] = useState<MaterialsIndex | null>(null);
   const [files, setFiles] = useState<Map<string, StoredFile>>(new Map());
@@ -288,7 +293,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">{t(locale, "materials.eyebrow")}</p>
-          <h2 id="materials-heading" className="font-display mt-1 text-2xl font-semibold tracking-[-0.025em]">
+          <h2 id="materials-heading" className="font-display mt-1 text-2xl font-semibold">
             {t(locale, "materials.title")}
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">{t(locale, "materials.description")}</p>
@@ -301,7 +306,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                   type="button"
                   onClick={exportToFolder}
                   disabled={exporting}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--navy)] px-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+                  className="btn btn-primary"
                 >
                   <FolderDown size={15} aria-hidden />
                   {t(locale, "materials.exportFolder")}
@@ -311,11 +316,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                 type="button"
                 onClick={exportZip}
                 disabled={exporting}
-                className={
-                  writePicker
-                    ? "inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)] disabled:cursor-wait disabled:opacity-60"
-                    : "inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--navy)] px-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
-                }
+                className={writePicker ? "btn btn-quiet" : "btn btn-primary"}
               >
                 <Archive size={15} aria-hidden />
                 {t(locale, "materials.exportZip")}
@@ -326,7 +327,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
             <button
               type="button"
               onClick={clearAll}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
+              className="btn btn-quiet"
             >
               <Trash2 size={15} aria-hidden />
               {t(locale, "materials.clear")}
@@ -336,27 +337,27 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
       </div>
 
       {receive.phase === "connected" || receive.phase === "receiving" ? (
-        <p className="mt-4 rounded-xl bg-[var(--c-eef4ff)] px-4 py-3 text-sm font-semibold text-[var(--c-244e7a)]" role="status">
+        <p className="mt-4 rounded-lg bg-[var(--accent-soft)] px-3.5 py-2.5 text-sm font-medium text-[var(--accent-ink)]" role="status">
           {t(locale, "materials.receiving", { stored: receive.stored, total: receive.expected })}
         </p>
       ) : receive.phase === "done" ? (
-        <p className="mt-4 rounded-xl bg-[var(--c-ecf8f1)] px-4 py-3 text-sm font-semibold text-[var(--c-1d6b43)]" role="status">
+        <p className="mt-4 rounded-lg bg-[var(--success-soft)] px-3.5 py-2.5 text-sm font-medium text-[var(--success)]" role="status">
           {t(locale, "materials.received", { stored: receive.stored })}
           {receive.failed ? t(locale, "materials.receivedFailed", { count: receive.failed }) : ""}
         </p>
       ) : null}
       {notice ? (
-        <p className="mt-4 rounded-xl bg-[var(--c-f4f7fb)] px-4 py-3 text-sm text-[var(--c-31506f)]" role="status">
+        <p className="mt-4 rounded-lg bg-[var(--subtle)] px-3.5 py-2.5 text-sm" role="status">
           {notice}
         </p>
       ) : null}
-      {unavailable ? <p className="mt-4 text-sm text-[var(--c-b3412e)]">{t(locale, "materials.unavailable")}</p> : null}
+      {unavailable ? <p className="mt-4 text-sm text-[var(--danger)]">{t(locale, "materials.unavailable")}</p> : null}
 
       {!ready ? (
         <ListSkeleton label={t(locale, "common.loading")} />
       ) : courses.length === 0 ? (
-        <div className="mt-4 rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5">
-          <p className="text-sm font-semibold text-[var(--c-31506f)]">{t(locale, "materials.emptyTitle")}</p>
+        <div className="mt-4 rounded-xl border border-dashed border-[var(--line-strong)] p-6">
+          <p className="text-sm font-semibold">{t(locale, "materials.emptyTitle")}</p>
           <p className="mt-1 text-sm text-[var(--muted)]">{t(locale, "materials.emptyBody")}</p>
           <Link href="/helper" className="tap-link mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline">
             {t(locale, "materials.emptyCta")}
@@ -370,6 +371,9 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
             </Chip>
             {courses.map((course) => (
               <Chip key={course.id} active={courseFilter === course.id} onClick={() => setCourseFilter(course.id)}>
+                {courseColorFor(course.code ?? undefined) ? (
+                  <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: courseColorFor(course.code ?? undefined)! }} aria-hidden />
+                ) : null}
                 {course.code ?? course.id}
                 <span className="opacity-70">{course.files.length}</span>
               </Chip>
@@ -378,7 +382,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
               {t(locale, "materials.summary", { received: counts.received, files: counts.fileCount })}
               {usage !== null ? " · " + t(locale, "materials.usage", { used: formatBytes(usage) }) : ""}
             </span>
-            <span className="ml-auto flex gap-3 text-xs font-semibold">
+            <span className="ml-auto flex gap-3 text-xs font-medium">
               <button type="button" onClick={() => setAll(true)} className="text-[var(--link)] hover:underline">
                 {t(locale, "materials.expandAll")}
               </button>
@@ -401,15 +405,19 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
               const missing = course.files.filter((file) => !files.has(file.key)).length;
               const group = (name: string) => groupKeyOf(course.id, name);
               return (
-                <article
-                  key={course.id}
-                  className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
-                >
+                <article key={course.id} className="card overflow-hidden">
                   <Toggle
                     open={courseOpen}
                     onToggle={() => toggle(courseKey)}
-                    className="w-full px-5 py-4"
-                    title={<span className="font-display text-lg font-semibold text-[var(--c-172b41)]">{course.code ?? course.id}</span>}
+                    className="w-full px-5 py-3.5 hover:bg-[var(--subtle)]"
+                    icon={
+                      <span
+                        className="size-2.5 shrink-0 rounded-full bg-[var(--blue)]"
+                        style={courseColorFor(course.code ?? undefined) ? { backgroundColor: courseColorFor(course.code ?? undefined)! } : undefined}
+                        aria-hidden
+                      />
+                    }
+                    title={<span className="font-display text-base font-semibold">{course.code ?? course.id}</span>}
                     detail={
                       t(locale, "materials.courseSummary", {
                         files: course.files.length,
@@ -420,7 +428,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                   />
 
                   {courseOpen ? (
-                    <div className="rise-in border-t border-[var(--c-eef2f6)] px-5 pb-4">
+                    <div className="rise-in border-t border-[var(--line)] px-5 pb-4">
                       <SyllabusSummaryCard courseId={course.id} locale={locale} />
                       <FolderView
                         node={folderTree(course.files)}
@@ -429,11 +437,11 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                         renderFile={(ref) => {
                           const file = files.get(ref.key);
                           return (
-                            <li key={ref.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                              <span className="flex min-w-0 items-center gap-2 text-sm text-[var(--c-172b41)]">
-                                <FileText size={15} className="shrink-0 text-[var(--c-6b7f94)]" aria-hidden />
+                            <li key={ref.key} className="-mx-2 flex flex-wrap items-center justify-between gap-2 rounded-md px-2 py-1.5 transition hover:bg-[var(--subtle)]">
+                              <span className="flex min-w-0 items-center gap-2.5 text-sm">
+                                <FileIcon name={file?.name ?? ref.title} />
                                 <span className="truncate">{file?.name ?? ref.title}</span>
-                                {file ? <span className="shrink-0 text-xs text-[var(--muted)]">{formatBytes(file.size)}</span> : null}
+                                {file ? <span className="shrink-0 text-xs tabular-nums text-[var(--muted)]">{formatBytes(file.size)}</span> : null}
                               </span>
                               {file ? (
                                 <span className="flex shrink-0 gap-1.5">
@@ -455,21 +463,21 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                         items={videos}
                         open={open.has(group("#videos"))}
                         onToggle={() => toggle(group("#videos"))}
-                        icon={<PlayCircle size={15} className="shrink-0 text-[var(--c-6b7f94)]" aria-hidden />}
+                        icon={<PlayCircle size={15} className="shrink-0 text-[var(--danger)]" aria-hidden />}
                       />
                       <LinkGroup
                         heading={t(locale, "materials.links")}
                         items={links}
                         open={open.has(group("#links"))}
                         onToggle={() => toggle(group("#links"))}
-                        icon={<ExternalLink size={15} className="shrink-0 text-[var(--c-6b7f94)]" aria-hidden />}
+                        icon={<ExternalLink size={15} className="shrink-0 text-[var(--blue)]" aria-hidden />}
                       />
                       <LinkGroup
                         heading={t(locale, "materials.tools")}
                         items={course.tools.map((tool) => ({ ...tool, url: tool.url ?? outline }))}
                         open={open.has(group("#tools"))}
                         onToggle={() => toggle(group("#tools"))}
-                        icon={<Wrench size={15} className="shrink-0 text-[var(--c-6b7f94)]" aria-hidden />}
+                        icon={<Wrench size={15} className="shrink-0 text-[var(--muted)]" aria-hidden />}
                       />
                     </div>
                   ) : null}
@@ -488,13 +496,34 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition ${
-        active ? "bg-[var(--navy)] text-white" : "border border-[var(--c-cdd9e6)] bg-[var(--surface)] text-[var(--c-4e647b)] hover:border-[var(--c-9fb7d1)]"
+      aria-pressed={active}
+      className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition ${
+        active ? "bg-[var(--ink)] text-[var(--surface)]" : "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] hover:bg-[var(--subtle)]"
       }`}
     >
       {children}
     </button>
   );
+}
+
+/** A file's icon by its kind, so a PDF, a slide deck and a spreadsheet are told apart at a glance. */
+function FileIcon({ name }: { name: string }) {
+  const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase() ?? "";
+  const [Icon, tone] =
+    ext === "pdf"
+      ? [FileText, "text-[var(--danger)]"]
+      : ["ppt", "pptx", "key"].includes(ext)
+        ? [Presentation, "text-[var(--warning)]"]
+        : ["xls", "xlsx", "csv", "numbers"].includes(ext)
+          ? [FileSpreadsheet, "text-[var(--success)]"]
+          : ["doc", "docx", "txt", "rtf", "pages", "md"].includes(ext)
+            ? [FileText, "text-[var(--blue)]"]
+            : ["png", "jpg", "jpeg", "gif", "webp", "svg", "heic"].includes(ext)
+              ? [FileImage, "text-[var(--accent-ink)]"]
+              : ["zip", "rar", "7z", "gz"].includes(ext)
+                ? [FileArchive, "text-[var(--muted)]"]
+                : [File, "text-[var(--muted)]"];
+  return <Icon size={16} className={`shrink-0 ${tone}`} aria-hidden />;
 }
 
 function SmallButton({ onClick, label, children }: { onClick: () => void; label?: string; children: React.ReactNode }) {
@@ -504,7 +533,7 @@ function SmallButton({ onClick, label, children }: { onClick: () => void; label?
       onClick={onClick}
       aria-label={label}
       title={label}
-      className="inline-flex h-7 items-center rounded-md border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-2 text-xs font-semibold text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)]"
+      className="btn btn-quiet h-7 px-2 text-xs"
     >
       {children}
     </button>
@@ -528,7 +557,7 @@ function FolderView({
 }) {
   return (
     <>
-      {node.items.length ? <ul className="mt-2 divide-y divide-[var(--c-eef2f6)]">{node.items.map(renderFile)}</ul> : null}
+      {node.items.length ? <ul className="mt-2 space-y-0.5">{node.items.map(renderFile)}</ul> : null}
       {node.children.map((child) => {
         const childOpen = isOpen(child);
         return (
@@ -536,12 +565,12 @@ function FolderView({
             <Toggle
               open={childOpen}
               onToggle={() => onToggle(child)}
-              icon={<Folder size={14} className="shrink-0 text-[var(--c-6b7f94)]" aria-hidden />}
-              title={<span className="text-sm font-semibold text-[var(--c-31506f)]">{child.name}</span>}
+              icon={<Folder size={15} className="shrink-0 fill-[var(--warning-soft)] text-[var(--warning)]" aria-hidden />}
+              title={<span className="text-sm font-medium">{child.name}</span>}
               detail={String(child.total)}
             />
             {childOpen ? (
-              <div className="rise-in ml-5 border-l border-[var(--c-eef2f6)] pl-3">
+              <div className="rise-in ml-2 border-l border-[var(--line)] pl-4">
                 <FolderView node={child} isOpen={isOpen} onToggle={onToggle} renderFile={renderFile} />
               </div>
             ) : null}
@@ -577,12 +606,12 @@ function Toggle({
     >
       <ChevronRight
         size={16}
-        className={`shrink-0 text-[var(--c-6b7f94)] transition-transform ${open ? "rotate-90" : ""}`}
+        className={`shrink-0 text-[var(--muted)] transition-transform ${open ? "rotate-90" : ""}`}
         aria-hidden
       />
       {icon}
       <span className="min-w-0 truncate">{title}</span>
-      {detail ? <span className="shrink-0 text-xs font-semibold text-[var(--muted)]">{detail}</span> : null}
+      {detail ? <span className="shrink-0 text-xs tabular-nums text-[var(--muted)]">{detail}</span> : null}
     </button>
   );
 }
@@ -606,13 +635,13 @@ function LinkGroup({
       <Toggle
         open={open}
         onToggle={onToggle}
-        title={<span className="text-sm font-semibold text-[var(--c-31506f)]">{heading}</span>}
+        title={<span className="text-sm font-medium">{heading}</span>}
         detail={String(items.length)}
       />
       {open ? (
         <ul className="rise-in ml-6 mt-1.5 space-y-1.5">
           {items.map((item, i) => (
-            <li key={i} className="flex min-w-0 items-center gap-2 text-sm text-[var(--c-172b41)]">
+            <li key={i} className="flex min-w-0 items-center gap-2.5 text-sm">
               {icon}
               {item.url ? (
                 <a href={item.url} target="_blank" rel="noreferrer" className="truncate text-[var(--link)] hover:underline">

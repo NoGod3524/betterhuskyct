@@ -253,7 +253,7 @@ test("deleting an imported event hides it without touching HuskyCT's copy, and U
   await view.unmount();
 });
 
-test("UConn's academic calendar colours the day of a break or a deadline, and is kept for offline", async () => {
+test("UConn's academic calendar marks the day of a break or a deadline, names a span once, and is kept for offline", async () => {
   const events = [
     { id: "a1", title: "Labor Day – No classes", detail: "Labor Day – No classes", start: "2026-09-07", end: "2026-09-07", term: "Fall 2026", importance: "major" },
     { id: "a2", title: "Registration begins", detail: "Registration for Spring begins", start: "2026-09-21", end: "2026-09-21", term: "Fall 2026", importance: "minor" },
@@ -265,12 +265,15 @@ test("UConn's academic calendar colours the day of a break or a deadline, and is
   });
 
   const day = (key: string) => view.container.querySelector(`[data-day="${key}"]`) as unknown as HTMLElement;
-  assert.match(day("2026-09-07").className, /c-fff0d9/, "the holiday was not coloured");
+  assert.equal(day("2026-09-07").dataset.school, "major", "the holiday was not marked");
   assert.ok((day("2026-09-07").textContent ?? "").includes("Labor Day – No classes"));
-  assert.doesNotMatch(day("2026-09-21").className, /c-fff0d9/, "a minor date was coloured like a break");
+  assert.equal(day("2026-09-21").dataset.school, undefined, "a minor date was marked like a break");
   assert.ok((day("2026-09-21").textContent ?? "").includes("Registration begins"));
-  for (const key of ["2026-09-28", "2026-09-29", "2026-09-30"]) assert.match(day(key).className, /c-fff0d9/, key);
-  assert.doesNotMatch(day("2026-10-01").className, /c-fff0d9/, "the break ran past its last day");
+  for (const key of ["2026-09-28", "2026-09-29", "2026-09-30"]) assert.equal(day(key).dataset.school, "major", key);
+  assert.equal(day("2026-10-01").dataset.school, undefined, "the break ran past its last day");
+  // Named on its first day; the days after carry only the bar.
+  assert.ok((day("2026-09-28").textContent ?? "").includes("Thanksgiving Recess"));
+  for (const key of ["2026-09-29", "2026-09-30"]) assert.ok(!(day(key).textContent ?? "").includes("Thanksgiving Recess"), `${key} repeated the name`);
 
   const stored = JSON.parse(window.localStorage.getItem("huskypilot.academicCalendar.v1") ?? "[]");
   assert.equal(stored.length, 3, "the calendar was not kept for offline");

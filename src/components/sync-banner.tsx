@@ -32,7 +32,7 @@ export function SyncBanner() {
           <p className="font-display text-sm font-semibold">
             {t(locale, "sync.incomingTitle")}
           </p>
-          <p className="mt-1 text-sm text-[var(--c-31506f)]">
+          <p className="mt-1 text-sm text-[var(--ink)]">
             {t(locale, "sync.incomingBody", {
               calendars: summary.feeds,
               deadlines: summary.deadlines,

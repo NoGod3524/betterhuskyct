@@ -61,6 +61,6 @@ export function courseColor(colors: CourseColors, code: string | null | undefine
 export function chipStyle(color: string): CSSProperties {
   return {
     backgroundColor: `color-mix(in srgb, ${color} 18%, transparent)`,
-    color: `color-mix(in srgb, ${color} 70%, var(--c-172b41))`,
+    color: `color-mix(in srgb, ${color} 70%, var(--ink))`,
   };
 }

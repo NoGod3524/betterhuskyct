@@ -70,7 +70,7 @@ function draftFrom(task: CalendarTask, note: string | null): Draft {
 }
 
 function fieldClass() {
-  return "h-10 w-full rounded-lg border border-[var(--line-strong)] bg-[var(--c-fbfcfe)] px-3 text-sm outline-none transition focus:border-[var(--c-2a71d8)] focus:ring-4 focus:ring-[var(--c-2a71d8)]/10";
+  return "h-9 w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm outline-none transition focus:border-[var(--blue)] focus:ring-4 focus:ring-[var(--blue)]/10";
 }
 
 /**
@@ -83,11 +83,25 @@ function fieldClass() {
  * component only needs to know an id's namespace to decide which actions to
  * offer, through `isEventEdited` and the `custom-` prefix.
  */
-/** A school date's label in a day cell: loud for what a term is planned around, quiet for the rest. */
-function SchoolDateLabel({ event }: { event: AcademicEvent }) {
+/**
+ * A school date's label in a day cell: loud for what a term is planned around, quiet for the rest.
+ * One that runs over several days is named on its first day and on each Sunday it runs through;
+ * on the days between it is a thin bar, so a three-week grading period does not fill three weeks
+ * of cells with the same words.
+ */
+function SchoolDateLabel({ event, continued }: { event: AcademicEvent; continued: boolean }) {
+  if (continued) {
+    return (
+      <span
+        className={`block h-1 rounded-full ${event.importance === "major" ? "bg-[var(--warning)]/50" : "bg-[var(--line-strong)]"}`}
+        title={event.detail}
+        data-school-date="continued"
+      />
+    );
+  }
   return event.importance === "major" ? (
     <span
-      className="flex w-full items-center gap-1 truncate rounded-md bg-[var(--c-f0d9a8)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--c-8a5a12)]"
+      className="flex w-full items-center gap-1 truncate rounded bg-[var(--warning-soft)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--warning)]"
       title={event.detail}
       data-school-date="major"
     >
@@ -222,13 +236,13 @@ export function CalendarMonthView({
   const editingIsEdited = editingTaskId ? isEventEdited(editingTaskId) : false;
 
   return (
-    <section className="mt-6 overflow-hidden rounded-[24px] border border-[var(--c-cdddf4)] bg-[var(--surface)] shadow-[0_16px_50px_rgba(29,69,116,0.08)]">
-      <div className="flex flex-wrap items-center gap-3 border-b border-[var(--line)] px-5 py-4 sm:px-6">
-        <h2 className="font-display min-w-0 flex-1 text-lg font-semibold text-[var(--c-172b41)]">{monthLabel}</h2>
+    <section className="card mt-6 overflow-hidden">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] px-4 py-3 sm:px-5">
+        <h2 className="font-display min-w-0 flex-1 text-lg font-semibold">{monthLabel}</h2>
         <button
           type="button"
           onClick={() => setCursor(startOfLocalDay(now))}
-          className="inline-flex h-9 items-center rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)]"
+          className="btn btn-quiet"
         >
           {t(locale, "calendar.today")}
         </button>
@@ -237,7 +251,7 @@ export function CalendarMonthView({
             type="button"
             aria-label={t(locale, "calendar.prevMonth")}
             onClick={() => setCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-            className="grid size-9 place-items-center rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)]"
+            className="btn btn-quiet w-8 px-0"
           >
             <ChevronLeft size={16} />
           </button>
@@ -245,7 +259,7 @@ export function CalendarMonthView({
             type="button"
             aria-label={t(locale, "calendar.nextMonth")}
             onClick={() => setCursor((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-            className="grid size-9 place-items-center rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)]"
+            className="btn btn-quiet w-8 px-0"
           >
             <ChevronRight size={16} />
           </button>
@@ -255,16 +269,16 @@ export function CalendarMonthView({
           onClick={() => {
             if (window.confirm(t(locale, "calendar.restoreAllConfirm"))) restoreAllEvents();
           }}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--muted)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
+          className="btn btn-quiet text-xs text-[var(--muted)]"
         >
           <RotateCcw size={13} />
           {t(locale, "calendar.restoreAll")}
         </button>
       </div>
 
-      <div className="grid grid-cols-7 border-b border-[var(--line)] text-center text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+      <div className="grid grid-cols-7 border-b border-[var(--line)] bg-[var(--canvas)] text-[11px] font-medium text-[var(--muted)]">
         {weekdayLabels.map((label) => (
-          <div key={label} className="py-2">
+          <div key={label} className="px-2 py-2 sm:px-3">
             {label}
           </div>
         ))}
@@ -285,9 +299,10 @@ export function CalendarMonthView({
             <div
               key={key}
               data-day={key}
-              className={`min-h-[60px] border-b border-r border-[var(--line)] p-1 last:border-r-0 sm:min-h-[120px] sm:p-2 ${
-                schoolMajor ? "bg-[var(--c-fff0d9)]" : inMonth ? "" : "bg-[var(--c-f7fbff)]"
-              }`}
+              data-school={schoolMajor ? "major" : undefined}
+              className={`group/day min-h-[60px] border-b border-r border-[var(--line)] p-1 [&:nth-child(7n)]:border-r-0 sm:min-h-[116px] sm:p-1.5 ${
+                inMonth ? "" : "bg-[var(--canvas)]"
+              } ${schoolMajor ? "shadow-[inset_0_2px_0_var(--warning)]" : ""}`}
             >
               <div className="flex items-center justify-between">
                 {/* The number itself opens the full day, titles and all — the
@@ -301,8 +316,8 @@ export function CalendarMonthView({
                     key === todayKey
                       ? "bg-[var(--blue)] text-white"
                       : inMonth
-                        ? "text-[var(--c-172b41)] hover:bg-[var(--c-eaf2ff)]"
-                        : "text-[var(--muted)] hover:bg-[var(--c-eaf2ff)]"
+                        ? "text-[var(--ink)] hover:bg-[var(--subtle)]"
+                        : "text-[var(--muted)] opacity-60 hover:bg-[var(--subtle)]"
                   }`}
                 >
                   {date.getDate()}
@@ -311,7 +326,7 @@ export function CalendarMonthView({
                   type="button"
                   aria-label={t(locale, "calendar.addEvent")}
                   onClick={() => openAdd(date)}
-                  className="grid size-5 shrink-0 place-items-center rounded text-[var(--muted)] transition hover:bg-[var(--c-eaf2ff)] hover:text-[var(--c-2368c8)]"
+                  className="grid size-5 shrink-0 place-items-center rounded text-[var(--muted)] transition [@media(hover:hover)]:opacity-0 group-hover/day:opacity-100 hover:bg-[var(--subtle)] hover:text-[var(--blue)] focus-visible:opacity-100"
                 >
                   <Plus size={13} />
                 </button>
@@ -331,7 +346,7 @@ export function CalendarMonthView({
                   {events.slice(0, MAX_DOTS).map((task) => (
                     <span
                       key={task.id}
-                      className="size-1.5 rounded-full bg-[var(--c-2a71d8)]"
+                      className="size-1.5 rounded-full bg-[var(--blue)]"
                       style={colorOf(task) ? { backgroundColor: colorOf(task)! } : undefined}
                     />
                   ))}
@@ -340,7 +355,7 @@ export function CalendarMonthView({
 
               <div className="mt-1 hidden space-y-1 sm:block">
                 {school.map((event) => (
-                  <SchoolDateLabel key={event.id} event={event} />
+                  <SchoolDateLabel key={event.id} event={event} continued={event.start < key && date.getDay() !== 0} />
                 ))}
                 {visible.map((task) => {
                   const edited = !isCustomEventId(task.id) && isEventEdited(task.id);
@@ -349,16 +364,16 @@ export function CalendarMonthView({
                       key={task.id}
                       type="button"
                       onClick={() => openEdit(task)}
-                      className="block w-full truncate rounded-md bg-[var(--c-eaf2ff)] px-1.5 py-0.5 text-left text-[11px] font-medium text-[var(--c-245ea9)] transition hover:bg-[var(--c-cdddf4)]"
+                      className="block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium bg-[var(--accent-soft)] text-[var(--accent-ink)] transition hover:brightness-95"
                       style={colorOf(task) ? chipStyle(colorOf(task)!) : undefined}
                       data-course-color={colorOf(task) ?? undefined}
                       title={task.title}
                     >
                       {!task.allDay && (
-                        <span className="text-[var(--c-6b7f95)]">{toTimeInput(new Date(task.start))} </span>
+                        <span className="tabular-nums opacity-70">{toTimeInput(new Date(task.start))} </span>
                       )}
                       {task.title}
-                      {edited && <span className="ml-1 text-[var(--c-8a5a12)]">•</span>}
+                      {edited && <span className="ml-1 text-[var(--warning)]">•</span>}
                     </button>
                   );
                 })}
@@ -366,7 +381,7 @@ export function CalendarMonthView({
                   <button
                     type="button"
                     onClick={() => setDayDetail(key)}
-                    className="block w-full truncate rounded-md px-1.5 py-0.5 text-left text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--c-244e7a)]"
+                    className="block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium text-[var(--muted)] hover:text-[var(--ink)]"
                   >
                     {t(locale, "calendar.moreEvents", { count: hidden })}
                   </button>
@@ -385,19 +400,19 @@ export function CalendarMonthView({
           const school = schoolDays.get(dayDetail) ?? [];
           return (
             <div
-              className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4"
+              className="scrim fixed inset-0 z-50 flex items-end justify-center p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
               role="dialog"
               aria-modal="true"
               aria-label={longDate(date, locale)}
             >
-              <div className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-t-2xl bg-[var(--surface)] p-5 shadow-2xl sm:rounded-2xl sm:p-6">
+              <div className="rise-in max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-t-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-2xl sm:rounded-xl">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-display text-base font-semibold text-[var(--c-172b41)]">{longDate(date, locale)}</h3>
+                  <h3 className="font-display text-base font-semibold">{longDate(date, locale)}</h3>
                   <button
                     type="button"
                     aria-label={t(locale, "calendar.cancel")}
                     onClick={() => setDayDetail(null)}
-                    className="grid size-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--c-eef2f6)]"
+                    className="grid size-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--subtle)]"
                   >
                     <X size={16} />
                   </button>
@@ -408,10 +423,10 @@ export function CalendarMonthView({
                     {school.map((event) => (
                       <div
                         key={event.id}
-                        className={`rounded-xl border px-3 py-2 text-sm ${
+                        className={`rounded-lg px-3 py-2 text-sm ${
                           event.importance === "major"
-                            ? "border-[var(--c-f0d9a8)] bg-[var(--c-fff0d9)] text-[var(--c-8a5a12)]"
-                            : "border-[var(--line)] bg-[var(--c-fbfcfe)] text-[var(--c-31506f)]"
+                            ? "bg-[var(--warning-soft)] text-[var(--warning)]"
+                            : "bg-[var(--subtle)] text-[var(--ink)]"
                         }`}
                       >
                         <p className="flex items-center gap-1.5 font-semibold">
@@ -439,17 +454,17 @@ export function CalendarMonthView({
                           setDayDetail(null);
                           openEdit(task);
                         }}
-                        className="flex w-full items-start gap-2 rounded-xl border border-[var(--line)] bg-[var(--c-fbfcfe)] px-3 py-2 text-left text-sm transition hover:border-[var(--c-9fb7d1)]"
+                        className="flex w-full items-start gap-2 rounded-lg border border-[var(--line)] px-3 py-2 text-left text-sm transition hover:bg-[var(--subtle)]"
                       >
                         <span className="min-w-0 flex-1">
-                          <span className="block font-medium text-[var(--c-172b41)]">
+                          <span className="block font-medium">
                             {task.title}
-                            {edited && <span className="ml-1 text-[var(--c-8a5a12)]">•</span>}
+                            {edited && <span className="ml-1 text-[var(--warning)]">•</span>}
                           </span>
                           {task.course && <span className="block text-xs text-[var(--muted)]">{task.course}</span>}
                         </span>
                         {!task.allDay && (
-                          <span className="shrink-0 text-xs text-[var(--c-6b7f95)]">{toTimeInput(new Date(task.start))}</span>
+                          <span className="shrink-0 text-xs tabular-nums text-[var(--muted)]">{toTimeInput(new Date(task.start))}</span>
                         )}
                       </button>
                     );
@@ -462,7 +477,7 @@ export function CalendarMonthView({
                     setDayDetail(null);
                     openAdd(date);
                   }}
-                  className="mt-4 inline-flex h-10 items-center gap-1.5 rounded-xl border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)]"
+                  className="btn btn-quiet mt-4"
                 >
                   <Plus size={15} />
                   {t(locale, "calendar.addEvent")}
@@ -474,34 +489,34 @@ export function CalendarMonthView({
 
       {draft && draftFor && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/30 p-0 sm:items-center sm:p-4"
+          className="scrim fixed inset-0 z-50 flex items-end justify-center p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-label={draftFor.mode === "add" ? t(locale, "calendar.newEvent") : t(locale, "calendar.editEvent")}
         >
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-[var(--surface)] p-5 shadow-2xl sm:rounded-2xl sm:p-6">
+          <div className="rise-in max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-2xl sm:rounded-xl">
             <div className="flex items-center justify-between">
-              <h3 className="font-display text-base font-semibold text-[var(--c-172b41)]">
+              <h3 className="font-display text-base font-semibold">
                 {draftFor.mode === "add" ? t(locale, "calendar.newEvent") : t(locale, "calendar.editEvent")}
               </h3>
               <button
                 type="button"
                 aria-label={t(locale, "calendar.cancel")}
                 onClick={closeDraft}
-                className="grid size-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--c-eef2f6)]"
+                className="grid size-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--subtle)]"
               >
                 <X size={16} />
               </button>
             </div>
 
             {editingIsEdited && !editingIsCustom && (
-              <p className="mt-2 rounded-lg bg-[var(--c-fff0d9)] px-3 py-2 text-xs text-[var(--c-8a5a12)]">
+              <p className="mt-2 rounded-lg bg-[var(--warning-soft)] px-3 py-2 text-xs text-[var(--warning)]">
                 {t(locale, "calendar.editedBadge")}
               </p>
             )}
 
             <div className="mt-4 grid gap-3">
-              <label className="grid gap-1 text-xs font-semibold text-[var(--c-31506f)]">
+              <label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
                 {t(locale, "calendar.fieldTitle")}
                 <input
                   className={fieldClass()}
@@ -511,7 +526,7 @@ export function CalendarMonthView({
                 />
               </label>
 
-              <label className="grid gap-1 text-xs font-semibold text-[var(--c-31506f)]">
+              <label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
                 {t(locale, "calendar.fieldCourse")}
                 <input
                   className={fieldClass()}
@@ -521,7 +536,7 @@ export function CalendarMonthView({
               </label>
 
               <div className="grid grid-cols-2 gap-3">
-                <label className="grid gap-1 text-xs font-semibold text-[var(--c-31506f)]">
+                <label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
                   {t(locale, "calendar.fieldDate")}
                   <input
                     type="date"
@@ -530,10 +545,10 @@ export function CalendarMonthView({
                     onChange={(event) => setDraft({ ...draft, date: event.target.value })}
                   />
                 </label>
-                <label className="flex items-end gap-2 pb-1.5 text-xs font-semibold text-[var(--c-31506f)]">
+                <label className="flex items-end gap-2 pb-2 text-xs font-medium text-[var(--muted)]">
                   <input
                     type="checkbox"
-                    className="size-4 accent-[var(--c-2a71d8)]"
+                    className="size-4 accent-[var(--blue)]"
                     checked={draft.allDay}
                     onChange={(event) => setDraft({ ...draft, allDay: event.target.checked })}
                   />
@@ -543,7 +558,7 @@ export function CalendarMonthView({
 
               {!draft.allDay && (
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="grid gap-1 text-xs font-semibold text-[var(--c-31506f)]">
+                  <label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
                     {t(locale, "calendar.fieldStartTime")}
                     <input
                       type="time"
@@ -552,7 +567,7 @@ export function CalendarMonthView({
                       onChange={(event) => setDraft({ ...draft, startTime: event.target.value })}
                     />
                   </label>
-                  <label className="grid gap-1 text-xs font-semibold text-[var(--c-31506f)]">
+                  <label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
                     {t(locale, "calendar.fieldEndTime")}
                     <input
                       type="time"
@@ -564,7 +579,7 @@ export function CalendarMonthView({
                 </div>
               )}
 
-              <label className="grid gap-1 text-xs font-semibold text-[var(--c-31506f)]">
+              <label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
                 {t(locale, "calendar.fieldLocation")}
                 <input
                   className={fieldClass()}
@@ -573,30 +588,30 @@ export function CalendarMonthView({
                 />
               </label>
 
-              <label className="grid gap-1 text-xs font-semibold text-[var(--c-31506f)]">
+              <label className="grid gap-1 text-xs font-medium text-[var(--muted)]">
                 {t(locale, "calendar.fieldNote")}
                 <textarea
-                  className="min-h-[70px] w-full rounded-lg border border-[var(--line-strong)] bg-[var(--c-fbfcfe)] px-3 py-2 text-sm outline-none transition focus:border-[var(--c-2a71d8)] focus:ring-4 focus:ring-[var(--c-2a71d8)]/10"
+                  className="min-h-[70px] w-full rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm outline-none transition focus:border-[var(--blue)] focus:ring-4 focus:ring-[var(--blue)]/10"
                   value={draft.note}
                   onChange={(event) => setDraft({ ...draft, note: event.target.value })}
                 />
               </label>
 
-              {formError && <p className="text-xs text-[var(--c-c5402d)]">{formError}</p>}
+              {formError && <p className="text-xs text-[var(--danger)]">{formError}</p>}
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={saveDraft}
-                className="inline-flex h-10 items-center justify-center rounded-xl bg-[var(--blue)] px-4 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(35,104,200,0.24)] transition hover:bg-[var(--c-1857aa)]"
+                className="btn btn-primary h-9 px-4"
               >
                 {t(locale, "calendar.save")}
               </button>
               <button
                 type="button"
                 onClick={closeDraft}
-                className="inline-flex h-10 items-center justify-center rounded-xl border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)]"
+                className="btn btn-quiet h-9 px-4"
               >
                 {t(locale, "calendar.cancel")}
               </button>
@@ -610,7 +625,7 @@ export function CalendarMonthView({
                         restoreEvent(editingTaskId);
                         closeDraft();
                       }}
-                      className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
+                      className="btn btn-quiet h-9 text-xs"
                     >
                       <RotateCcw size={13} />
                       {t(locale, "calendar.restoreOriginal")}
@@ -622,7 +637,7 @@ export function CalendarMonthView({
                       deleteEvent(editingTaskId);
                       closeDraft();
                     }}
-                    className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-[var(--c-f3cec8)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--c-9f3527)] transition hover:bg-[var(--c-fff6f4)]"
+                    className="btn btn-quiet h-9 text-xs text-[var(--danger)] hover:!bg-[var(--danger-soft)]"
                   >
                     <Trash2 size={13} />
                     {t(locale, "calendar.delete")}

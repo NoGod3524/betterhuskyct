@@ -18,18 +18,18 @@ export function SyllabusSummaryCard({ courseId, locale }: { courseId: string; lo
 
   return (
     <section
-      className="mt-4 rounded-2xl border border-[var(--c-cdddf4)] bg-[var(--c-eef4ff)] p-4"
+      className="mt-4 rounded-2xl border border-[var(--line)] bg-[var(--accent-soft)] p-4"
       aria-label={t(locale, "materials.syllabusSummary")}
       data-syllabus-summary={courseId}
     >
-      <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--c-31506f)]">
-        <Sparkles size={15} className="text-[var(--c-2a71d8)]" aria-hidden />
+      <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+        <Sparkles size={15} className="text-[var(--blue)]" aria-hidden />
         {t(locale, "materials.syllabusSummary")}
       </h4>
-      <ul className="mt-2 space-y-1.5 text-sm text-[var(--c-172b41)]">
+      <ul className="mt-2 space-y-1.5 text-sm text-[var(--ink)]">
         {summary.text.split("\n").map((line, index) => (
           <li key={index} className="flex gap-2">
-            <span aria-hidden className="text-[var(--c-6b7f94)]">
+            <span aria-hidden className="text-[var(--muted)]">
               •
             </span>
             <span>{line.replace(/^- /, "")}</span>
@@ -50,7 +50,7 @@ export function SyllabusSummaryHint({ locale }: { locale: Locale }) {
   if (!plan || plan.enabled) return null;
   return (
     <p className="mt-3 flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
-      <Sparkles size={13} className="text-[var(--c-2a71d8)]" aria-hidden />
+      <Sparkles size={13} className="text-[var(--blue)]" aria-hidden />
       {t(locale, "materials.syllabusHint")}{" "}
       <Link href="/tasks" className="font-semibold text-[var(--link)] hover:underline">
         {t(locale, "materials.syllabusHintCta")}
