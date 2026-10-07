@@ -1679,9 +1679,6 @@ saying what to work on next.*
 [#130]: https://github.com/NoGod3524/betterhuskyct/pull/130
 [#131]: https://github.com/NoGod3524/betterhuskyct/pull/131
 [#132]: https://github.com/NoGod3524/betterhuskyct/pull/132
-
-
-
 [#134]: https://github.com/NoGod3524/betterhuskyct/pull/134
 [#135]: https://github.com/NoGod3524/betterhuskyct/pull/135
 [#136]: https://github.com/NoGod3524/betterhuskyct/pull/136
