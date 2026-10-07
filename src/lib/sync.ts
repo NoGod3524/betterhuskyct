@@ -6,7 +6,6 @@ import {
 } from "./announcements.ts";
 import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import { isCalendarTask } from "./import-storage.ts";
-import { EFFORT_LEVELS, type EffortMap } from "./effort.ts";
 import { doneMapFrom, type DoneReason } from "./task-status.ts";
 import {
   parseCourseBook,
@@ -17,7 +16,7 @@ import {
 /**
  * Moving a set-up dashboard from one device to another without a server.
  *
- * The whole payload — the calendar, the ticks, the courses, the effort marks —
+ * The whole payload — the calendar, the ticks, the courses —
  * fits in about 1,800 characters once gzipped, so it can ride in the *fragment*
  * of a URL. Browsers never send a fragment to the server, which is what keeps
  * this honest: the data goes from one of the user's devices to another and
@@ -57,7 +56,6 @@ export type SyncPayload = {
   exportedAt: string;
   feeds: SyncFeed[];
   completedIds: string[];
-  efforts: EffortMap;
   courses: CourseBook;
   /**
    * Always present, empty when there is nothing to say.
@@ -103,20 +101,6 @@ function parseFeed(value: unknown): SyncFeed | null {
   };
 }
 
-function parseEfforts(value: unknown): EffortMap | null {
-  if (!isRecord(value)) return null;
-
-  const efforts: EffortMap = {};
-  for (const [taskId, level] of Object.entries(value)) {
-    if (!taskId) continue;
-    if (typeof level !== "string") continue;
-    if (!(EFFORT_LEVELS as readonly string[]).includes(level)) continue;
-    efforts[taskId] = level as EffortMap[string];
-  }
-
-  return efforts;
-}
-
 /**
  * Reads a payload already parsed out of JSON — a `postMessage` carries a
  * structured-cloned object, not text, so there is nothing here to `JSON.parse`.
@@ -136,8 +120,7 @@ export function parseSyncPayloadValue(parsed: unknown): SyncPayload | null {
   const courses = parseCourseBook(parsed.courses);
   if (!courses) return null;
 
-  const efforts = parseEfforts(parsed.efforts);
-  if (!efforts) return null;
+  // `efforts`, which links and helpers before 1.23 still carry, is let go: nothing sets one.
 
   const feeds: SyncFeed[] = [];
   for (const entry of parsed.feeds) {
@@ -167,7 +150,6 @@ export function parseSyncPayloadValue(parsed: unknown): SyncPayload | null {
     exportedAt: parsed.exportedAt,
     feeds,
     completedIds: parsed.completedIds as string[],
-    efforts,
     courses,
     announcements,
     doneByHuskyct,
@@ -190,7 +172,6 @@ export function parseSyncPayload(text: string): SyncPayload | null {
 export function buildSyncPayload(input: {
   feeds: Array<{ name: string | null; courseId: string | null; importedAt: string; events: CalendarTask[] }>;
   completedIds: Iterable<string>;
-  efforts: EffortMap;
   courses: CourseBook;
   announcements?: Announcement[];
   doneByHuskyct?: Iterable<[string, DoneReason]>;
@@ -203,7 +184,6 @@ export function buildSyncPayload(input: {
     exportedAt: (input.now ?? new Date()).toISOString(),
     feeds: input.feeds.map((feed) => ({ ...feed })),
     completedIds: [...input.completedIds],
-    efforts: { ...input.efforts },
     courses: {
       courses: input.courses.courses.map((course) => ({ ...course })),
       assignments: { ...input.courses.assignments },
@@ -222,7 +202,6 @@ export function serialiseSyncPayload(payload: SyncPayload): string {
     exportedAt: payload.exportedAt,
     feeds: payload.feeds,
     completedIds: payload.completedIds,
-    efforts: payload.efforts,
     courses: serialiseCourseBook(payload.courses),
     announcements: payload.announcements,
     doneByHuskyct: payload.doneByHuskyct,
@@ -341,7 +320,6 @@ export function describeSync(payload: SyncPayload): {
   deadlines: number;
   completed: number;
   courses: number;
-  efforts: number;
   announcements: number;
 } {
   const events = payload.feeds.flatMap((feed) => feed.events);
@@ -351,7 +329,6 @@ export function describeSync(payload: SyncPayload): {
     deadlines: events.filter(isDeadline).length,
     completed: payload.completedIds.length,
     courses: payload.courses.courses.length,
-    efforts: Object.keys(payload.efforts).length,
     announcements: payload.announcements.length,
   };
 }

@@ -80,7 +80,6 @@ import {
   type CompletionSource,
 } from "@/lib/completion-storage";
 import { createDemoTasks, groupTasks } from "@/lib/calendar-view";
-import { restoreEffortMap, saveEffortMap, type EffortMap } from "@/lib/effort";
 import { isCourseCatalogueLoaded, loadCourseCatalogue } from "@/lib/course-catalogue";
 import type { GradesSnapshot } from "@/lib/grades";
 import { GRADES_CHANGED, openGradesStore } from "@/lib/grades-store";
@@ -276,7 +275,6 @@ export function CalendarProvider({
   const [error, setError] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
   // Task id -> how much work the user says it is. Defaults to "medium".
-  const [efforts, setEfforts] = useState<EffortMap>({});
   // Every course the user has named, plus the per-task overrides. A Blackboard
   // feed never labels a graded item with its course, and one feed can hold
   // several courses, so this cannot be a single label.
@@ -611,7 +609,6 @@ export function CalendarProvider({
       setNotificationPermission(
         "Notification" in window ? Notification.permission : "unsupported",
       );
-      setEfforts(restoreEffortMap(window.localStorage));
       setCourseBook(restoreCourseBook(window.localStorage));
 
       const restoredAnnouncements = restoreAnnouncements(window.localStorage);
@@ -940,7 +937,6 @@ export function CalendarProvider({
           events: subscription.events,
         })),
         completedIds,
-        efforts,
         courses: courseBook,
         announcements: announcementsRef.current,
         doneByHuskyct: autoDone,
@@ -966,7 +962,6 @@ export function CalendarProvider({
     const plan = planSyncApply(
       {
         courses: courseBook,
-        efforts,
         subscriptions: subscriptionsRef.current,
         announcements: announcementsRef.current,
         showingImported: isImported,
@@ -982,8 +977,6 @@ export function CalendarProvider({
     // After `commitCourseBook`, so the resolution the merge just did against the
     // merged book is what gets stored rather than a resolution against the old one.
     commitAnnouncements(merged.announcements);
-    setEfforts(merged.efforts);
-    saveEffortMap(window.localStorage, merged.efforts);
     saveCompletedTaskIds(window.localStorage, "imported", plan.ticksToSave);
     // HuskyCT's word and the student's reopenings from the other device join what
     // this one has. Neither is ever taken away by a sync.
@@ -1149,7 +1142,6 @@ export function CalendarProvider({
   function clearSavedData() {
     clearSubscriptions(window.localStorage);
     clearCompletedTaskIds(window.localStorage, "imported");
-    saveEffortMap(window.localStorage, {});
     clearCourseBook(window.localStorage);
     clearAnnouncements(window.localStorage);
     subscriptionsRef.current = [];
@@ -1157,7 +1149,6 @@ export function CalendarProvider({
     setSubscriptions([]);
     setAnnouncements([]);
     setCourseBook(EMPTY_COURSE_BOOK);
-    setEfforts({});
     setDemoMode(true);
     setRestoredFromStorage(false);
     setCompletedIds(restoreCompletedTaskIds(window.localStorage, "demo"));

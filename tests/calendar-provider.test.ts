@@ -151,7 +151,6 @@ test("an imported class meeting with no course gets its code once the catalogue 
         },
       ],
       completedIds: [],
-      efforts: {},
       courses: EMPTY_COURSE_BOOK,
     }),
   );
@@ -235,7 +234,6 @@ test("accepting a sync link while the demo is showing saves no demo tick", async
         },
       ],
       completedIds: [],
-      efforts: {},
       courses: EMPTY_COURSE_BOOK,
     }),
   );
@@ -299,7 +297,6 @@ async function importOneTask(app: Awaited<ReturnType<typeof mount>>) {
         },
       ],
       completedIds: [],
-      efforts: {},
       courses: EMPTY_COURSE_BOOK,
     }),
   );
@@ -414,7 +411,6 @@ test("a sync payload the helper posts is applied straight away, with no banner t
           },
         ],
         completedIds: [],
-        efforts: {},
         courses: EMPTY_COURSE_BOOK,
       }),
     ),
@@ -450,7 +446,6 @@ test("a sync message from outside HuskyCT's own origins is ignored", async () =>
       buildSyncPayload({
         feeds: [{ name: "HuskyCT to-do", courseId: null, importedAt: "2026-09-16T11:00:00.000Z", events: [] }],
         completedIds: [],
-        efforts: {},
         courses: EMPTY_COURSE_BOOK,
       }),
     ),

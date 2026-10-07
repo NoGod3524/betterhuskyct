@@ -7,7 +7,6 @@ import {
   GRADES_PROTOCOL,
   huskyctGradesUrl,
   isCounted,
-  memoryGradesStore,
   markChangesSeen,
   mergeGrades,
   parseStoredGrades,
@@ -17,6 +16,7 @@ import {
   type GradesSnapshot,
   type GradesStore,
 } from "../src/lib/grades.ts";
+import { memoryGradesStore } from "./support/memory-stores.ts";
 
 const scored = (id: string, title: string, earned: number, possible: number, status: string | null = null): GradeItem => ({
   id,

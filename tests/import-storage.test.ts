@@ -2,41 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { CalendarImportResult } from "../src/lib/calendar-types.ts";
-import {
-  IMPORT_STORAGE_KEY,
-  parseStoredImportPayload,
-  restoreImportedCalendar,
-  saveImportedCalendar,
-} from "../src/lib/import-storage.ts";
+import { parseStoredImportPayload, serializeImportPayload } from "../src/lib/import-storage.ts";
 
-class MemoryStorage implements Storage {
-  private values = new Map<string, string>();
-
-  get length() {
-    return this.values.size;
-  }
-
-  clear() {
-    this.values.clear();
-  }
-
-  getItem(key: string) {
-    return this.values.get(key) ?? null;
-  }
-
-  key(index: number) {
-    return [...this.values.keys()][index] ?? null;
-  }
-
-  removeItem(key: string) {
-    this.values.delete(key);
-  }
-
-  setItem(key: string, value: string) {
-    this.values.set(key, value);
-  }
-}
-
+/**
+ * The calendar a version before subscriptions kept in one key. Nothing writes it now; it is
+ * read once, to move it into the subscriptions, so what matters is that it reads back whole,
+ * and that a damaged one reads as nothing.
+ */
 function sampleImport(): CalendarImportResult {
   return {
     calendarName: "HuskyCT",
@@ -56,37 +28,17 @@ function sampleImport(): CalendarImportResult {
   };
 }
 
-test("saveImportedCalendar stores import payload without URL data", () => {
-  const storage = new MemoryStorage();
-  saveImportedCalendar(storage, sampleImport());
-
-  const stored = storage.getItem(IMPORT_STORAGE_KEY);
-  assert.ok(stored);
-  const storedObject = JSON.parse(stored) as Record<string, unknown>;
-  assert.equal("url" in storedObject, false);
+test("a stored calendar reads back whole, and carries no feed URL", () => {
+  const stored = serializeImportPayload(sampleImport());
+  assert.equal("url" in (JSON.parse(stored) as Record<string, unknown>), false);
 
   const parsed = parseStoredImportPayload(stored);
   assert.ok(parsed);
   assert.equal(parsed.calendarName, "HuskyCT");
-  assert.equal(parsed.events.length, 1);
+  assert.equal(parsed.events[0].title, "Homework 1");
 });
 
-test("restoreImportedCalendar clears corrupt payload safely", () => {
-  const storage = new MemoryStorage();
-  storage.setItem(IMPORT_STORAGE_KEY, "{not-json");
-
-  const restored = restoreImportedCalendar(storage);
-  assert.equal(restored.calendar, null);
-  assert.equal(restored.recoveredFromCorruptData, true);
-  assert.equal(storage.getItem(IMPORT_STORAGE_KEY), null);
-});
-
-test("restoreImportedCalendar returns saved import when payload is valid", () => {
-  const storage = new MemoryStorage();
-  saveImportedCalendar(storage, sampleImport());
-
-  const restored = restoreImportedCalendar(storage);
-  assert.equal(restored.recoveredFromCorruptData, false);
-  assert.ok(restored.calendar);
-  assert.equal(restored.calendar?.events[0].title, "Homework 1");
+test("a damaged stored calendar reads as nothing", () => {
+  assert.equal(parseStoredImportPayload("{not-json"), null);
+  assert.equal(parseStoredImportPayload(JSON.stringify({ version: 99, events: [] })), null);
 });

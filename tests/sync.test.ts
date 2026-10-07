@@ -72,7 +72,6 @@ function payloadOf(overrides: Partial<Parameters<typeof buildSyncPayload>[0]> = 
       },
     ],
     completedIds: ["a"],
-    efforts: { a: "medium" },
     courses: bookWith("NRE 1000E"),
     now: NOW,
     ...overrides,
@@ -134,7 +133,6 @@ test("a malformed payload is refused rather than half-applied", () => {
   assert.equal(parseSyncPayload(JSON.stringify({ ...good, exportedAt: "nope" })), null);
   assert.equal(parseSyncPayload(JSON.stringify({ ...good, feeds: "no" })), null);
   assert.equal(parseSyncPayload(JSON.stringify({ ...good, completedIds: [1, 2] })), null);
-  assert.equal(parseSyncPayload(JSON.stringify({ ...good, efforts: null })), null);
   assert.equal(parseSyncPayload(JSON.stringify({ ...good, courses: null })), null);
   assert.equal(
     parseSyncPayload(JSON.stringify({ ...good, courses: { version: 1, courses: "no" } })),
@@ -155,14 +153,14 @@ test("a feed with no events is dropped", () => {
   assert.equal(parsed?.feeds[0].name, "NRE 1000E");
 });
 
-test("an unknown effort level in a payload is ignored, not copied", () => {
+test("an older link's effort marks are let go, and the link is still read", () => {
   const raw = JSON.parse(serialiseSyncPayload(payloadOf()));
-  raw.efforts = { a: "medium", b: "enormous", c: "quick" };
+  raw.efforts = { a: "medium", b: "enormous" };
 
-  assert.deepEqual(parseSyncPayload(JSON.stringify(raw))?.efforts, {
-    a: "medium",
-    c: "quick",
-  });
+  const parsed = parseSyncPayload(JSON.stringify(raw));
+  assert.ok(parsed, "an older link was refused for carrying effort marks");
+  assert.equal("efforts" in parsed, false);
+  assert.ok(parseSyncPayload(JSON.stringify({ ...raw, efforts: null })), "a link was refused over a field nothing reads");
 });
 
 test("a corrupt link decodes to null instead of throwing", async () => {
@@ -242,7 +240,6 @@ test("describeSync counts what the user is being offered", () => {
     deadlines: 1,
     completed: 3,
     courses: 1,
-    efforts: 1,
     announcements: 0,
   });
 });
@@ -250,7 +247,6 @@ test("describeSync counts what the user is being offered", () => {
 test("merging adds ticks and never removes one", () => {
   const local = {
     courses: EMPTY_COURSE_BOOK,
-    efforts: {},
     completedIds: new Set(["keep-me"]),
     subscriptions: [],
   };
@@ -262,7 +258,7 @@ test("merging adds ticks and never removes one", () => {
 
 test("merging brings the calendar across as a new subscription", () => {
   const merged = mergeSyncPayload(
-    { courses: EMPTY_COURSE_BOOK, efforts: {}, completedIds: new Set(), subscriptions: [] },
+    { courses: EMPTY_COURSE_BOOK, completedIds: new Set(), subscriptions: [] },
     payloadOf(),
   );
 
@@ -280,7 +276,6 @@ test("a calendar already on this device keeps its identity and is not duplicated
   const merged = mergeSyncPayload(
     {
       courses: EMPTY_COURSE_BOOK,
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [existing],
     },
@@ -290,24 +285,6 @@ test("a calendar already on this device keeps its identity and is not duplicated
   assert.equal(merged.addedFeeds, 0);
   assert.equal(merged.subscriptions.length, 1);
   assert.equal(merged.subscriptions[0].name, "Mine");
-});
-
-test("effort marks come from the link, because importing is a deliberate act", () => {
-  const merged = mergeSyncPayload(
-    {
-      courses: EMPTY_COURSE_BOOK,
-      efforts: { a: "long", untouched: "quick" },
-      completedIds: new Set(),
-      subscriptions: [],
-    },
-    payloadOf({ efforts: { a: "quick", b: "medium" } }),
-  );
-
-  assert.deepEqual(merged.efforts, {
-    a: "quick",
-    b: "medium",
-    untouched: "quick",
-  });
 });
 
 test("incoming courses are remapped onto the local course with the same code", () => {
@@ -320,7 +297,6 @@ test("incoming courses are remapped onto the local course with the same code", (
   const merged = mergeSyncPayload(
     {
       courses: localBook,
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [],
     },
@@ -350,7 +326,6 @@ test("a course that is new here is added, but does not steal the default", () =>
   const merged = mergeSyncPayload(
     {
       courses: localBook,
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [],
     },
@@ -370,7 +345,6 @@ test("the incoming default is adopted when this device has none", () => {
   const merged = mergeSyncPayload(
     {
       courses: { courses: [], assignments: {} },
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [],
     },
@@ -389,7 +363,6 @@ test("per-task course choices survive with the right course id", () => {
   const merged = mergeSyncPayload(
     {
       courses: localBook,
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [],
     },
@@ -459,7 +432,6 @@ test("a link from a helper written before announcements still reads", () => {
       },
     ],
     completedIds: [],
-    efforts: {},
     courses: { version: 1, courses: [], assignments: {} },
   };
 
@@ -499,7 +471,6 @@ test("merging unions announcements and never removes one already here", () => {
   const merged = mergeSyncPayload(
     {
       courses: EMPTY_COURSE_BOOK,
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [],
       announcements: [localAnnouncement],
@@ -519,7 +490,6 @@ test("re-syncing the same announcement converges instead of doubling it", () => 
   const merged = mergeSyncPayload(
     {
       courses: EMPTY_COURSE_BOOK,
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [],
       announcements: incoming,
@@ -540,7 +510,6 @@ test("a fuller second reading replaces the thin first one", () => {
   const merged = mergeSyncPayload(
     {
       courses: EMPTY_COURSE_BOOK,
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [],
       announcements: first,
@@ -559,7 +528,6 @@ test("an announcement finds its course by code, not by id", () => {
   const merged = mergeSyncPayload(
     {
       courses: localBook,
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [],
       announcements: [],
@@ -580,7 +548,6 @@ test("an ambiguous course code picks nothing rather than guessing", () => {
   const merged = mergeSyncPayload(
     {
       courses: localBook,
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [],
       announcements: [],
@@ -600,7 +567,6 @@ test("an announcement for a course this device has never heard of is still shown
   const merged = mergeSyncPayload(
     {
       courses: EMPTY_COURSE_BOOK,
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [],
       announcements: [],
@@ -659,7 +625,6 @@ test("the caps keep a worst-case link inside the fragment guard", async () => {
       },
     ],
     completedIds: [],
-    efforts: {},
     courses: bookWith("MATH 1070Q", "STAT 1000Q", "SOCI 1501", "NRE 1000E", "ECON 1201"),
     announcements: full,
     now: at,
@@ -689,7 +654,6 @@ test("a course code matches regardless of case or odd spacing", () => {
   const merged = mergeSyncPayload(
     {
       courses: localBook,
-      efforts: {},
       completedIds: new Set(),
       subscriptions: [],
       announcements: [],

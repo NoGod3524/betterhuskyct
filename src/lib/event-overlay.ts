@@ -101,10 +101,6 @@ export function saveEventOverlay(storage: Storage, overlay: EventOverlay): void 
   storage.setItem(STORAGE_KEY, JSON.stringify(overlay));
 }
 
-export function clearEventOverlay(storage: Storage): void {
-  storage.removeItem(STORAGE_KEY);
-}
-
 /** Merges a correction into whatever this task already had. */
 export function setEventEdit(overlay: EventOverlay, taskId: string, edit: EventEdit): EventOverlay {
   return { ...overlay, edits: { ...overlay.edits, [taskId]: { ...overlay.edits[taskId], ...edit } } };

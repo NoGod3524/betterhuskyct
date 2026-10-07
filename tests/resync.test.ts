@@ -42,7 +42,6 @@ function send(events: CalendarTask[], name = "HuskyCT to-do") {
   return buildSyncPayload({
     feeds: [{ name, courseId: null, importedAt: AT.toISOString(), events }],
     completedIds: [],
-    efforts: {},
     courses: EMPTY_COURSE_BOOK,
     announcements: [],
     now: AT,
@@ -52,7 +51,6 @@ function send(events: CalendarTask[], name = "HuskyCT to-do") {
 function localOf(merged: ReturnType<typeof mergeSyncPayload>): LocalState {
   return {
     courses: merged.courses,
-    efforts: merged.efforts,
     completedIds: merged.completedIds,
     subscriptions: merged.subscriptions,
     announcements: merged.announcements,
@@ -61,7 +59,6 @@ function localOf(merged: ReturnType<typeof mergeSyncPayload>): LocalState {
 
 const EMPTY: LocalState = {
   courses: EMPTY_COURSE_BOOK,
-  efforts: {},
   completedIds: new Set(),
   subscriptions: [],
   announcements: [],
