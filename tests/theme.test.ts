@@ -64,7 +64,7 @@ test("the two dark blocks are the same set, and cover everything light defines",
   for (const name of LIGHT.keys()) assert.ok(DARK_CHOSEN.has(name), `--${name} has no dark value`);
 });
 
-test("light mode is exactly what it was: each palette colour is its own name", () => {
+test("the few palette colours left keep their own name in light mode", () => {
   for (const [name, value] of LIGHT) {
     const hex = /^c-([0-9a-f]{6})$/.exec(name)?.[1];
     if (hex) assert.equal(value.toLowerCase(), `#${hex}`, `--${name} changed in light mode`);
@@ -90,13 +90,12 @@ test("dark text is readable on dark backgrounds", () => {
     ["ink", "canvas", "body text on the page"],
     ["muted", "surface", "secondary text on a card"],
     ["link", "surface", "a link on a card"],
-    ["c-172b41", "surface", "headings"],
-    ["c-31506f", "surface", "card text"],
-    ["c-4e647b", "surface", "button text"],
-    ["c-6b7f94", "surface", "labels"],
-    ["c-c5402d", "c-fff0ed", "an error on its tint"],
-    ["c-23724b", "c-ecf8f1", "a success on its tint"],
-    ["c-8a5a12", "c-fffaf0", "a warning on its tint"],
+    ["muted", "canvas", "secondary text on the page"],
+    ["c-1851a5", "c-dbe8ff", "a course chip (blue)"],
+    ["c-23724b", "c-e0f0e8", "a course chip (green)"],
+    ["c-7c3e9d", "c-f2e4fa", "a course chip (purple)"],
+    ["c-9b5a05", "c-fff0d9", "a course chip (amber)"],
+    ["c-a34235", "c-ffe4e1", "a course chip (red)"],
     ["danger", "danger-soft", "a danger badge"],
     ["success", "success-soft", "a success badge"],
     ["warning", "warning-soft", "a warning notice"],
@@ -107,7 +106,7 @@ test("dark text is readable on dark backgrounds", () => {
     assert.ok(ratio >= 4.5, `${what}: ${ratio.toFixed(2)}:1 is under 4.5:1`);
   }
   // White text on the filled buttons.
-  for (const fill of ["navy", "blue", "c-1857aa"]) {
+  for (const fill of ["navy", "blue"]) {
     const ratio = contrast("#ffffff", dark(fill));
     assert.ok(ratio >= 4.5, `white on --${fill}: ${ratio.toFixed(2)}:1`);
   }

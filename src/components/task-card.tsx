@@ -55,9 +55,13 @@ export function TaskCard({
   // show nothing when none of them applies.
   const course = courseLabelFor(task);
   const checkboxId = `task-complete-${task.id}`;
+  const color = course ? courseColorFor(course.code) : null;
 
   return (
-    <article className={`card group p-3.5 transition hover:border-[var(--line-strong)] ${completed ? "bg-[var(--canvas)] shadow-none" : ""}`}>
+    <article
+      className={`card group p-3.5 transition hover:border-[var(--line-strong)] ${completed ? "bg-[var(--canvas)] shadow-none" : ""}`}
+      style={color && !completed ? { borderLeftColor: color, borderLeftWidth: 3 } : undefined}
+    >
       <div className="flex items-start gap-3">
         <label htmlFor={checkboxId} className="tap-check shrink-0">
           <input

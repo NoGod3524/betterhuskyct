@@ -21,9 +21,9 @@ export function UndatedTodoList({ locale, course }: { locale: Locale; course: st
   return (
     <div>
       <div className="mb-3 flex items-center gap-2.5">
-        <span className="size-2.5 shrink-0 rounded-full bg-[var(--c-6b7f94)]" />
+        <span className="size-2.5 shrink-0 rounded-full bg-[var(--muted)]" />
         <h3 className="font-display font-semibold">{t(locale, "todo.undated")}</h3>
-        <span className="grid size-6 place-items-center rounded-full bg-[var(--c-f0f3f7)] text-xs font-bold text-[var(--c-536476)]">
+        <span className="grid size-6 place-items-center rounded-full bg-[var(--subtle)] text-xs font-bold text-[var(--muted)]">
           {open}
         </span>
       </div>
@@ -31,7 +31,7 @@ export function UndatedTodoList({ locale, course }: { locale: Locale; course: st
         {todos.map((todo) => (
           <li
             key={todo.id}
-            className="flex items-start gap-3 rounded-2xl border border-[var(--c-dbe3ec)] bg-[var(--surface)] p-4"
+            className="flex items-start gap-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"
             data-undated={todo.id}
           >
             <button
@@ -40,7 +40,7 @@ export function UndatedTodoList({ locale, course }: { locale: Locale; course: st
               aria-pressed={todo.done}
               aria-label={t(locale, todo.done ? "todo.undatedUnmark" : "todo.undatedMark", { title: todo.title })}
               className={`grid size-6 shrink-0 place-items-center rounded-md border transition ${
-                todo.done ? "border-[var(--c-2f8f5b)] bg-[var(--c-2f8f5b)] text-white" : "border-[var(--c-cdd9e6)] bg-[var(--surface)]"
+                todo.done ? "border-[var(--success)] bg-[var(--success)] text-white" : "border-[var(--line)] bg-[var(--surface)]"
               }`}
             >
               {todo.done ? <Check size={14} aria-hidden /> : null}
@@ -54,7 +54,7 @@ export function UndatedTodoList({ locale, course }: { locale: Locale; course: st
               type="button"
               onClick={() => plan.removeUndated(todo.id)}
               aria-label={t(locale, "todo.undatedRemove", { title: todo.title })}
-              className="grid size-7 shrink-0 place-items-center rounded-md text-[var(--c-6b7f94)] transition hover:bg-[var(--c-f0f3f7)]"
+              className="grid size-7 shrink-0 place-items-center rounded-md text-[var(--muted)] transition hover:bg-[var(--subtle)]"
             >
               <X size={15} aria-hidden />
             </button>

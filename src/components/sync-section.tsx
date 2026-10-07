@@ -56,7 +56,7 @@ export function SyncSection() {
           type="button"
           onClick={() => void createSyncLink()}
           disabled={isPackingSync}
-          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-244e7a)] transition hover:border-[var(--c-9fb7d1)] disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--accent-ink)] transition hover:border-[var(--line-strong)] disabled:cursor-wait disabled:opacity-60"
         >
           {isPackingSync ? (
             <>
@@ -72,7 +72,7 @@ export function SyncSection() {
           <button
             type="button"
             onClick={() => void handleCopy()}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--blue)] px-3 text-sm font-semibold text-white transition hover:bg-[var(--c-1857aa)]"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--blue)] px-3 text-sm font-semibold text-white transition hover:bg-[var(--navy)]"
           >
             {copied ? <Check size={15} /> : <Copy size={15} />}
             {t(locale, copied ? "sync.copied" : "sync.copy")}
@@ -91,7 +91,7 @@ export function SyncSection() {
             value={outgoingSyncLink}
             rows={3}
             onFocus={(event) => event.currentTarget.select()}
-            className="mt-2 w-full resize-none rounded-xl border border-[var(--line-strong)] bg-[var(--c-fbfcfe)] p-3 font-mono text-[11px] leading-5 text-[var(--c-31506f)] outline-none focus:border-[var(--c-2a71d8)]"
+            className="mt-2 w-full resize-none rounded-xl border border-[var(--line-strong)] bg-[var(--surface)] p-3 font-mono text-[11px] leading-5 text-[var(--ink)] outline-none focus:border-[var(--blue)]"
           />
           <p className="mt-1.5 text-xs text-[var(--muted)]">
             {t(locale, "sync.linkNote", {
@@ -111,7 +111,7 @@ export function SyncSection() {
                 className="size-[200px] shrink-0 rounded-xl border border-[var(--line)] p-2"
               />
             ) : qr === null ? (
-              <p className="text-xs text-[var(--c-9f3527)]">{t(locale, "sync.qrTooBig")}</p>
+              <p className="text-xs text-[var(--danger)]">{t(locale, "sync.qrTooBig")}</p>
             ) : null}
             {qr ? <p className="text-xs leading-5 text-[var(--muted)]">{t(locale, "sync.qrHint")}</p> : null}
           </div>
@@ -119,7 +119,7 @@ export function SyncSection() {
       )}
 
       {syncError && (
-        <p className="mt-2 flex items-start gap-2 text-xs text-[var(--c-9f3527)]">
+        <p className="mt-2 flex items-start gap-2 text-xs text-[var(--danger)]">
           <TriangleAlert size={14} className="mt-0.5 shrink-0" />
           {syncError}
         </p>

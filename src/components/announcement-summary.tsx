@@ -107,7 +107,7 @@ export function AnnouncementSummary({
   );
 
   if (!course) {
-    return <p className="mt-4 text-xs text-[var(--muted)]">{t(locale, "summary.pickCourse")}</p>;
+    return <p className="text-xs text-[var(--muted)]">{t(locale, "summary.pickCourse")}</p>;
   }
 
   const signature = `${course.modelLabel}\n${summarySignature(announcements, locale)}`;
@@ -135,20 +135,20 @@ export function AnnouncementSummary({
   }
 
   return (
-    <div className="mt-4 rounded-[20px] border border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5" aria-live="polite">
+    <div className="card p-4 sm:p-5" aria-live="polite">
       <div className="flex flex-wrap items-center gap-3">
         {summary ? null : (
           <button
             type="button"
             onClick={summarize}
             disabled={working}
-            className="inline-flex h-9 items-center rounded-lg bg-[var(--navy)] px-3 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+            className="btn btn-primary"
           >
             {pending?.kind === "error" ? t(locale, "summary.retry") : t(locale, "summary.button", { course: course.label })}
           </button>
         )}
-        {working ? <span className="text-sm text-[var(--c-31506f)]">{t(locale, "summary.working")}</span> : null}
-        <label className="ml-auto flex items-center gap-2 text-xs font-semibold text-[var(--muted)]">
+        {working ? <span className="text-sm text-[var(--muted)]">{t(locale, "summary.working")}</span> : null}
+        <label className="ml-auto flex items-center gap-2 text-xs font-medium text-[var(--muted)]">
           {t(locale, "summary.modelLabel")}
           <select
             value={choice}
@@ -157,7 +157,7 @@ export function AnnouncementSummary({
               setChoice(event.target.value);
               saveSummaryChoice(window.localStorage, event.target.value);
             }}
-            className="h-8 rounded-lg border border-[var(--line-strong)] bg-[var(--surface)] px-2 text-xs font-semibold text-[var(--c-31506f)] outline-none transition focus:border-[var(--c-2a71d8)] focus:ring-4 focus:ring-[var(--c-2a71d8)]/10"
+            className="h-8 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2 text-xs font-medium text-[var(--ink)] outline-none transition focus:border-[var(--blue)] focus:ring-4 focus:ring-[var(--blue)]/10"
           >
             {SUMMARY_CHOICES.map((option) => (
               <option key={option} value={option}>
@@ -169,20 +169,20 @@ export function AnnouncementSummary({
       </div>
       <p className="mt-2 text-xs text-[var(--muted)]">{t(locale, "summary.disclosure")}</p>
       {choice !== "auto" ? (
-        <p className="mt-1 text-xs font-semibold text-[var(--c-31506f)]">{t(locale, CHOICE_NOTE_KEYS[choice])}</p>
+        <p className="mt-1 text-xs font-medium text-[var(--ink)]">{t(locale, CHOICE_NOTE_KEYS[choice])}</p>
       ) : null}
 
       {pending?.kind === "error" ? (
-        <p className="mt-3 text-sm text-[var(--c-b3412e)]">{t(locale, PROBLEM_KEYS[pending.problem])}</p>
+        <p className="mt-3 text-sm text-[var(--danger)]">{t(locale, PROBLEM_KEYS[pending.problem])}</p>
       ) : null}
 
       {summary && !working ? (
-        <div className="mt-4">
-          <h3 className="font-display text-base font-semibold text-[var(--c-172b41)]">
+        <div className="mt-4 border-t border-[var(--line)] pt-4">
+          <h3 className="font-display text-base font-semibold">
             {t(locale, "summary.title", { course: course.label })}
           </h3>
           {/* The model's text, shown as text: never parsed as HTML. */}
-          <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[var(--c-31506f)]" data-summary>
+          <p className="mt-2 whitespace-pre-line text-sm leading-6" data-summary>
             {summary.text}
           </p>
           <p className="mt-3 text-xs text-[var(--muted)]">
