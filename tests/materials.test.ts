@@ -9,22 +9,17 @@ import {
   folderTree,
   foldersIn,
   formatBytes,
-  groupByFolder,
   huskyctCourseUrl,
-  importMaterialsFolder,
   isToolLaunchUrl,
-  memoryMaterialsStore,
   mergeMaterialsIndex,
-  parseLinksPage,
   parseMaterialsMessage,
-  type DirectoryHandle,
-  type FileHandle,
   type MaterialsIndex,
 } from "../src/lib/materials.ts";
+import { memoryMaterialsStore } from "./support/memory-stores.ts";
 
 /**
  * The app's side of course materials: what it accepts from the helper, how it
- * stores it, and how it reads a folder the helper saved.
+ * stores it, and how it shows it.
  */
 
 const windows: Window[] = [];
@@ -197,89 +192,12 @@ test("a newer delivery replaces its own courses and keeps the rest", () => {
   ]);
 });
 
-// --- a saved folder ------------------------------------------------------------------------
-
-function dir(name: string, children: Array<DirectoryHandle | FileHandle>): DirectoryHandle {
-  return {
-    kind: "directory",
-    name,
-    async *entries() {
-      for (const child of children) yield [child.name, child] as [string, DirectoryHandle | FileHandle];
-    },
-  };
-}
-function file(name: string, content: string, type = ""): FileHandle {
-  return { kind: "file", name, getFile: async () => new Blob([content], { type }) };
-}
-
-function parseHtml(html: string) {
-  const window = new Window();
-  windows.push(window);
-  return new window.DOMParser().parseFromString(html, "text/html") as unknown as Document;
-}
-
-const LINKS_PAGE =
-  `<ul><li data-course="MATH 1070Q" data-course-id="_203765_1" data-kind="video" data-path='["Week 1 - Section 4.1"]'>` +
-  `<a href="https://www.youtube.com/embed/mcpGpSSYq8E">Section 4.1 - Lecture</a></li>` +
-  `<li data-course="MATH 1070Q" data-course-id="_203765_1" data-kind="tool" data-path="[]"><a href="https://lms.uconn.edu/webapps/blackboard/execute/blti/launchLink?course_id=_203765_1&amp;content_id=_14380170_1&amp;from_ultra=true">Cengage WebAssign</a></li>` +
-  // Saved by a helper before 1.2.1: the tool links to its course page.
-  `<li data-course="MATH 1070Q" data-course-id="_203765_1" data-kind="tool" data-path="[]"><a href="https://lms.uconn.edu/ultra/courses/_203765_1/outline">Old tool</a></li>` +
-  `<li data-course="MATH 1070Q" data-course-id="_203765_1" data-kind="link" data-path="[]"><a href="javascript:alert(1)">Bad</a></li></ul>`;
-
-test("the folder the helper saved into is imported, picked at the level above the term too", async () => {
-  const store = memoryMaterialsStore();
-  const root = dir("HuskyCT", [
-    dir("HuskyCT Fall 2026", [
-      file("links and videos.html", LINKS_PAGE),
-      dir("MATH 1070Q", [
-        file("Syllabus.pdf", "%PDF syllabus", "application/pdf"),
-        dir("Week 1 - Section 4.1", [file("Section 4.1 PDF.pdf", "%PDF 4.1")]),
-      ]),
-      dir("ECON 1201", [file("Micro.Lect.No.1.pptx", "pptx")]),
-    ]),
-  ]);
-
-  const result = await importMaterialsFolder(root, store, { parseLinks: (html) => parseLinksPage(html, parseHtml) });
-
-  assert.deepEqual(result, { files: 3, courses: 2 });
-  const stored = await store.getIndex();
-  assert.equal(stored?.term, "Fall 2026");
-  const math = stored!.courses.find((course) => course.code === "MATH 1070Q")!;
-  assert.deepEqual(math.files.map((f) => [f.path.join("/"), f.title]).sort(), [
-    ["", "Syllabus.pdf"],
-    ["Week 1 - Section 4.1", "Section 4.1 PDF.pdf"],
-  ]);
-  // The links page brought the videos and tools, and the course's HuskyCT id.
-  assert.deepEqual(math.links.map((link) => link.kind), ["video"], "a javascript: link was imported");
-  assert.deepEqual(
-    math.tools.map((tool) => [tool.title, tool.url ?? null]),
-    [
-      ["Cengage WebAssign", LAUNCH_URL],
-      ["Old tool", null],
-    ],
-  );
-  assert.equal(huskyctCourseUrl(math), "https://lms.uconn.edu/ultra/courses/_203765_1/outline");
-
-  const pptx = (await store.files()).find((f) => f.name.endsWith(".pptx"))!;
-  assert.equal(pptx.type, "application/vnd.openxmlformats-officedocument.presentationml.presentation");
-
-  // A second import of the same folder updates in place.
-  await importMaterialsFolder(root, store, { parseLinks: (html) => parseLinksPage(html, parseHtml) });
-  assert.equal((await store.keys()).length, 3);
-});
-
 // --- showing ----------------------------------------------------------------------------------
 
-test("files are grouped by folder, in the course's own order", () => {
-  const groups = groupByFolder([
-    { path: ["Week 1"], title: "a" },
-    { path: [], title: "b" },
-    { path: ["Week 1"], title: "c" },
-  ]);
-  assert.deepEqual(groups.map((group) => [group.folder.join("/"), group.items.map((item) => item.title)]), [
-    ["Week 1", ["a", "c"]],
-    ["", ["b"]],
-  ]);
+test("a course's outline on HuskyCT is linked only for a real course id", () => {
+  const course = (id: string) => ({ id, code: "MATH 1070Q", files: [], links: [], tools: [] });
+  assert.equal(huskyctCourseUrl(course("_203765_1")), "https://lms.uconn.edu/ultra/courses/_203765_1/outline");
+  assert.equal(huskyctCourseUrl(course("MATH 1070Q")), null);
 });
 
 test("sizes read as people read them", () => {

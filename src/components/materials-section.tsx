@@ -9,7 +9,6 @@ import {
   FileText,
   Archive,
   FolderDown,
-  FolderInput,
   Folder,
   PlayCircle,
   Trash2,
@@ -26,9 +25,6 @@ import {
   foldersIn,
   formatBytes,
   huskyctCourseUrl,
-  importMaterialsFolder,
-  parseLinksPage,
-  type DirectoryHandle,
   type FolderNode,
   type MaterialFileRef,
   type MaterialsIndex,
@@ -48,7 +44,6 @@ import {
   type WritableDirectory,
 } from "@/lib/materials-export";
 
-type Picker = (options?: { id?: string; mode?: "read" | "readwrite" }) => Promise<DirectoryHandle>;
 type WritePicker = (options?: { id?: string; mode?: "read" | "readwrite" }) => Promise<WritableDirectory>;
 
 /**
@@ -169,8 +164,8 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
 
   const courses = useMemo(() => index?.courses ?? [], [index]);
   const shown = courseFilter ? courses.filter((course) => course.id === courseFilter) : courses;
-  const picker = typeof window !== "undefined" ? (window as unknown as { showDirectoryPicker?: Picker }).showDirectoryPicker : undefined;
-  const writePicker = picker as unknown as WritePicker | undefined;
+  const writePicker =
+    typeof window !== "undefined" ? (window as unknown as { showDirectoryPicker?: WritePicker }).showDirectoryPicker : undefined;
   const [exporting, setExporting] = useState(false);
 
   /** Every course and group on the page, for "Expand all". */
@@ -209,28 +204,6 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
       window.open(url, "_blank", "noopener");
     }
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  }
-
-  async function importFolder() {
-    if (!store || !picker) return;
-    let root: DirectoryHandle;
-    try {
-      root = await picker({ id: "huskyct-materials", mode: "read" });
-    } catch {
-      return;
-    }
-    setNotice(t(locale, "materials.importing", { count: 0 }));
-    try {
-      const result = await importMaterialsFolder(root, store, {
-        onProgress: (count) => setNotice(t(locale, "materials.importing", { count })),
-        parseLinks: (html) => parseLinksPage(html, (source) => new DOMParser().parseFromString(source, "text/html")),
-      });
-      navigator.storage?.persist?.().catch(() => undefined);
-      setNotice(t(locale, "materials.imported", result));
-    } catch {
-      setNotice(t(locale, "materials.importFailed"));
-    }
-    await reload(store);
   }
 
   /** Everything that has arrived, or null (with a word to the reader) if nothing has. */
@@ -348,16 +321,6 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                 {t(locale, "materials.exportZip")}
               </button>
             </>
-          ) : null}
-          {picker ? (
-            <button
-              type="button"
-              onClick={importFolder}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
-            >
-              <FolderInput size={15} aria-hidden />
-              {t(locale, "materials.import")}
-            </button>
           ) : null}
           {courses.length > 0 ? (
             <button

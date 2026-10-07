@@ -5,8 +5,9 @@ import vm from "node:vm";
 
 import { Window } from "happy-dom";
 
-import { createMaterialsReceiver, memoryMaterialsStore } from "../src/lib/materials.ts";
+import { createMaterialsReceiver } from "../src/lib/materials.ts";
 import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
+import { memoryMaterialsStore } from "./support/memory-stores.ts";
 
 /**
  * The materials walk, run as shipped against HuskyCT's own data, and the files' way into

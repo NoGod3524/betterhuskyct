@@ -53,20 +53,6 @@ export type Announcement = {
   announced: string;
 };
 
-/**
- * What the helper sends, before ids and course resolution exist.
- *
- * Same field names as `Announcement` on purpose: whoever adds the next producer
- * should be able to copy the shape rather than learn a second vocabulary.
- */
-export type AnnouncementCandidate = {
-  courseCode: string | null;
-  title: string;
-  body: string;
-  posted: string | null;
-  announced: string;
-};
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

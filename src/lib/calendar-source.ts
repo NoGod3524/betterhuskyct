@@ -15,8 +15,6 @@ export type RememberedSource = {
   savedAt: string;
 };
 
-type StoredSourcePayload = RememberedSource & { version: number };
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -52,39 +50,4 @@ export function parseStoredSource(rawValue: string): RememberedSource | null {
   } catch {
     return null;
   }
-}
-
-export function restoreRememberedSource(storage: Storage): RememberedSource | null {
-  const raw = storage.getItem(CALENDAR_SOURCE_STORAGE_KEY);
-  if (!raw) return null;
-
-  const parsed = parseStoredSource(raw);
-  if (!parsed) {
-    storage.removeItem(CALENDAR_SOURCE_STORAGE_KEY);
-    return null;
-  }
-
-  return parsed;
-}
-
-/** Stores the feed URL. Returns false (and stores nothing) for an unusable URL. */
-export function saveRememberedSource(
-  storage: Storage,
-  url: string,
-  now: Date = new Date(),
-): boolean {
-  if (!isUsableSourceUrl(url)) return false;
-
-  const payload: StoredSourcePayload = {
-    version: SOURCE_STORAGE_VERSION,
-    url: url.trim(),
-    savedAt: now.toISOString(),
-  };
-  storage.setItem(CALENDAR_SOURCE_STORAGE_KEY, JSON.stringify(payload));
-
-  return true;
-}
-
-export function clearRememberedSource(storage: Storage) {
-  storage.removeItem(CALENDAR_SOURCE_STORAGE_KEY);
 }

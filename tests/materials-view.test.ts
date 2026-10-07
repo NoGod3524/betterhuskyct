@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import { memoryGradesStore } from "../src/lib/grades.ts";
 import { t } from "../src/lib/i18n.ts";
-import { memoryMaterialsStore, type MaterialsStore } from "../src/lib/materials.ts";
+import { type MaterialsStore } from "../src/lib/materials.ts";
 import { installDom } from "./support/dom.ts";
+import { memoryGradesStore, memoryMaterialsStore } from "./support/memory-stores.ts";
 
 /**
  * The Materials page, rendered with the real provider around it and a store in

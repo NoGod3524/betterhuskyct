@@ -287,11 +287,6 @@ export function parsePlanResult(content: string, sources = 0, locale: SummaryLoc
   return { items, summary: isRecord(parsed) ? cleanSummary(parsed.summary, locale) : null };
 }
 
-/** The items alone, as {@link parsePlanResult} reads them. */
-export function parsePlanAnswer(content: string, sources = 0): PlanItem[] | null {
-  return parsePlanResult(content, sources)?.items ?? null;
-}
-
 /**
  * The dates and work in one source, and a syllabus's summary, from the first
  * provider that answers with usable JSON. The request is redacted once, before

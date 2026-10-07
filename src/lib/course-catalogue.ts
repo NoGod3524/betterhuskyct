@@ -78,16 +78,3 @@ export function courseCodeForTitle(title: string | null | undefined): string | n
   return codes && codes.length === 1 ? codes[0] : null;
 }
 
-/** Every code that maps to this title, for showing an ambiguous match. */
-export function courseCodesForTitle(title: string | null | undefined): string[] {
-  const key = (title ?? "").trim().toLowerCase();
-  if (!key) return [];
-  return index().get(key) ?? [];
-}
-
-/** The catalogue title for a code, for labelling a course the user typed. */
-export function catalogueTitleForCode(code: string | null | undefined): string | null {
-  const key = (code ?? "").replace(/\s+/g, " ").trim().toUpperCase();
-  if (!key) return null;
-  return courseCatalogue()[key] ?? null;
-}

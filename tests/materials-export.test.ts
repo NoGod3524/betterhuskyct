@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import type { MaterialsIndex, StoredFile } from "../src/lib/materials.ts";
-import { importMaterialsFolder, parseLinksPage } from "../src/lib/materials.ts";
+
 import {
   LINKS_PAGE_NAMES,
   ZipTooBigError,
@@ -196,47 +196,6 @@ test("stopping leaves the rest alone", async () => {
   const result = await saveToDirectory(root as unknown as WritableDirectory, planExport(index, stored), { shouldStop: () => calls++ >= 2 });
   assert.equal(result.stopped, true);
   assert.equal(result.saved, 2);
-});
-
-test("a saved folder is read back by the importer: files, folders, links and tools", async () => {
-  const root = new MemoryDirectory();
-  await saveToDirectory(root as unknown as WritableDirectory, planExport(index, stored), {
-    linksPage: { name: LINKS_PAGE_NAMES.en, html: linksPageHtml(index, "en") },
-  });
-
-  // The importer reads folders through entries(); adapt the in-memory one.
-  const asReadable = (dir: MemoryDirectory): unknown => ({
-    kind: "directory",
-    name: dir.name,
-    async *entries() {
-      for (const [n, d] of dir.dirs) yield [n, asReadable(d)];
-      for (const [n, text] of dir.files) yield [n, { kind: "file", name: n, getFile: async () => new Blob([text]) }];
-    },
-  });
-  const { memoryMaterialsStore } = await import("../src/lib/materials.ts");
-  const { Window } = await import("happy-dom");
-  const window = new Window();
-  const imported = memoryMaterialsStore();
-  const result = await importMaterialsFolder(asReadable(root) as never, imported, {
-    parseLinks: (html) => parseLinksPage(html, (source) => new window.DOMParser().parseFromString(source, "text/html") as unknown as Document),
-  });
-  await window.happyDOM.close();
-
-  assert.deepEqual(result, { files: 4, courses: 2 });
-  const back = await imported.getIndex();
-  assert.equal(back?.term, "Fall 2026");
-  const math = back!.courses.find((c) => c.code === "MATH 1070Q")!;
-  assert.deepEqual(math.files.map((f) => [f.path.join("/"), f.title]).sort(), [
-    ["", "Syllabus.pdf"],
-    ["Week 1 - Section 4.1", "Section 4.1 PDF (2).pdf"],
-    ["Week 1 - Section 4.1", "Section 4.1 PDF.pdf"],
-  ]);
-  assert.deepEqual(math.links.map((l) => [l.kind, l.title, l.url]).sort(), [
-    ["link", "Reading <b>", "https://example.com/a?x=1&y=2"],
-    ["video", "Section 4.1 - Lecture", "https://www.youtube.com/embed/abc"],
-  ]);
-  assert.equal(math.tools[0].title, "Cengage WebAssign");
-  assert.match(math.tools[0].url ?? "", /launchLink\?course_id=_203765_1&content_id=_14380170_1/);
 });
 
 test("the links page escapes what it prints, and is named for the language", () => {

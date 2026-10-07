@@ -80,7 +80,7 @@ test("on this side, colours are read leniently and keyed so one course is one co
 });
 
 test("a sync payload keeps the colours through a link, and one from before them reads as none", () => {
-  const payload = buildSyncPayload({ feeds: [], completedIds: [], efforts: {}, courses: EMPTY_COURSE_BOOK, courseColors: { MATH1070Q: "#1e6ec8" } });
+  const payload = buildSyncPayload({ feeds: [], completedIds: [], courses: EMPTY_COURSE_BOOK, courseColors: { MATH1070Q: "#1e6ec8" } });
   assert.deepEqual(parseSyncPayload(serialiseSyncPayload(payload))?.courseColors, { MATH1070Q: "#1e6ec8" });
 
   const older = JSON.parse(serialiseSyncPayload(payload));

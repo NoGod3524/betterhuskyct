@@ -65,39 +65,3 @@ export function serializeImportPayload(result: CalendarImportResult): string {
 
   return JSON.stringify(payload);
 }
-
-export function restoreImportedCalendar(storage: Storage): {
-  calendar: CalendarImportResult | null;
-  recoveredFromCorruptData: boolean;
-} {
-  const raw = storage.getItem(IMPORT_STORAGE_KEY);
-  if (!raw) {
-    return { calendar: null, recoveredFromCorruptData: false };
-  }
-
-  const parsed = parseStoredImportPayload(raw);
-  if (!parsed) {
-    storage.removeItem(IMPORT_STORAGE_KEY);
-    return { calendar: null, recoveredFromCorruptData: true };
-  }
-
-  return {
-    calendar: {
-      calendarName: parsed.calendarName,
-      importedAt: parsed.importedAt,
-      events: parsed.events,
-    },
-    recoveredFromCorruptData: false,
-  };
-}
-
-export function saveImportedCalendar(
-  storage: Storage,
-  result: CalendarImportResult,
-) {
-  storage.setItem(IMPORT_STORAGE_KEY, serializeImportPayload(result));
-}
-
-export function clearImportedCalendar(storage: Storage) {
-  storage.removeItem(IMPORT_STORAGE_KEY);
-}

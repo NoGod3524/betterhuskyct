@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { extractPlan, parsePlanAnswer, parsePlanResult, planMessages, type PlanRequest } from "../src/lib/plan-models.ts";
+import { extractPlan, parsePlanResult, planMessages, type PlanRequest } from "../src/lib/plan-models.ts";
 import { ModelError, providersFromEnv } from "../src/lib/summary-models.ts";
 
 const SYLLABUS: PlanRequest = {
@@ -68,7 +68,7 @@ test("an answer is read with or without a code fence, and anything unusable in i
   });
 
   for (const content of [answer, "```json\n" + answer + "\n```"]) {
-    const items = parsePlanAnswer(content, 1);
+    const items = parsePlanResult(content, 1)?.items;
     assert.ok(items, "a fenced answer was refused");
     assert.equal(items.length, 3, "an untitled or non-object item was kept");
     assert.deepEqual(items[0], { title: "Midterm 1", date: "2026-10-14", time: "18:30", kind: "exam", evidence: "Midterm 1: Wednesday, October 14", source: null });
@@ -80,9 +80,9 @@ test("an answer is read with or without a code fence, and anything unusable in i
 });
 
 test("an answer that is not the JSON asked for is no answer", () => {
-  assert.equal(parsePlanAnswer("Here are the dates: Midterm Oct 14"), null);
-  assert.equal(parsePlanAnswer('{"dates":[]}'), null);
-  assert.deepEqual(parsePlanAnswer('{"items":[]}'), []);
+  assert.equal(parsePlanResult("Here are the dates: Midterm Oct 14"), null);
+  assert.equal(parsePlanResult('{"dates":[]}'), null);
+  assert.deepEqual(parsePlanResult('{"items":[]}')?.items, []);
 });
 
 test("contact details are taken out before a provider sees the syllabus, and JSON is asked for", async () => {
@@ -176,7 +176,7 @@ test("office hours, class meeting times, weekly routines and contact details are
   });
 
   assert.deepEqual(
-    parsePlanAnswer(answer)?.map((item) => item.title),
+    parsePlanResult(answer)?.items.map((item) => item.title),
     ["Weekly reflection 3 due", "Exam review help session", "Buy the textbook", "Lab report 3 due"],
   );
   assert.match(planMessages(SYLLABUS)[0].content, /never office hours/);

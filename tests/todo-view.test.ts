@@ -79,7 +79,6 @@ async function mountTodo(options: { grades?: GradesSnapshot | null; extra?: Even
     buildSyncPayload({
       feeds: [{ name: "HuskyCT to-do", courseId: null, importedAt: new Date().toISOString(), events: [...EVENTS, ...(options.extra ?? [])].map(event) }],
       completedIds: [],
-      efforts: {},
       courses: EMPTY_COURSE_BOOK,
       courseColors: options.colors,
     }),
