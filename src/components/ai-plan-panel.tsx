@@ -216,12 +216,12 @@ export function AiPlanBanner() {
   const { locale } = useCalendar();
   if (!plan?.enabled || plan.pending.length === 0) return null;
   return (
-    <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--c-cdddf4)] bg-[var(--c-eef4ff)] px-4 py-3">
-      <p className="flex items-center gap-2 text-sm font-semibold text-[var(--c-31506f)]">
-        <Sparkles size={16} className="text-[var(--c-2a71d8)]" aria-hidden />
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[var(--accent-soft)] px-3.5 py-2.5">
+      <p className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
+        <Sparkles size={15} className="text-[var(--accent-ink)]" aria-hidden />
         {t(locale, "aiPlan.banner", { count: plan.pending.length })}
       </p>
-      <Link href="/tasks" className="text-sm font-semibold text-[var(--link)] hover:underline">
+      <Link href="/tasks" className="text-sm font-medium text-[var(--accent-ink)] hover:underline">
         {t(locale, "aiPlan.bannerCta")}
       </Link>
     </div>

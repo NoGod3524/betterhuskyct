@@ -80,7 +80,7 @@ export function MobileNav({
     <>
       <nav
         aria-label={t(locale, "nav.main")}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--surface)] pb-[env(safe-area-inset-bottom)] lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--surface)]/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
       >
         <ul className="mx-auto grid max-w-xl grid-cols-5">
           {primary.map(({ href, key, Icon }) => {
@@ -122,7 +122,7 @@ export function MobileNav({
             role="dialog"
             aria-modal="true"
             aria-label={t(locale, "nav.moreLabel")}
-            className="rise-in absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-[var(--line)] bg-[var(--surface)] px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_40px_rgba(8,31,58,0.18)]"
+            className="rise-in absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-[var(--line)] bg-[var(--surface)] px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_40px_rgba(8,31,58,0.18)]"
           >
             <ul className="mx-auto max-w-xl space-y-1">
               {more.map(({ href, key, Icon }) => {

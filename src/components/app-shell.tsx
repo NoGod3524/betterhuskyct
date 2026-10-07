@@ -84,8 +84,6 @@ export function AppShell({
     hasSavedImport,
     calendarName,
     formattedImportedAt,
-    restoredFromStorage,
-    isImported,
     subscriptions,
     importCalendarFiles,
   } = useCalendar();
@@ -145,11 +143,18 @@ export function AppShell({
     };
   }, []);
 
+  const iconButton =
+    "tap-icon grid size-8 shrink-0 place-items-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--subtle)] hover:text-[var(--ink)]";
+  const languageButton = (active: boolean) =>
+    `rounded-md px-2.5 py-1 transition ${
+      active ? "bg-[var(--surface)] text-[var(--ink)] shadow-sm" : "text-[var(--muted)] hover:text-[var(--ink)]"
+    }`;
+
   return (
     <main className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
       {isDroppingFile && (
         <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center bg-[var(--c-081f3a)]/45 backdrop-blur-sm">
-          <div className="rounded-3xl border-2 border-dashed border-white/70 px-12 py-9 text-center text-white">
+          <div className="rounded-2xl border-2 border-dashed border-white/70 px-12 py-9 text-center text-white">
             <FileUp size={30} className="mx-auto" />
             <p className="font-display mt-3 text-xl font-semibold">
               {t(locale, "file.dropActive")}
@@ -160,21 +165,19 @@ export function AppShell({
           </div>
         </div>
       )}
-      <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        <aside className="hidden w-64 shrink-0 flex-col border-r border-[var(--line)] bg-[var(--surface)] px-5 py-7 lg:flex">
-          <div className="flex items-center gap-3 px-2">
-            <div className="grid size-10 place-items-center rounded-xl bg-[var(--navy)] text-white shadow-[0_8px_24px_rgba(8,31,58,0.18)]">
-              <Sparkles size={19} strokeWidth={2.2} />
-            </div>
-            <div>
-              <p className="font-display text-lg font-semibold tracking-[-0.02em]">{t(locale, "app.name")}</p>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
-                {t(locale, "app.subtitle")}
-              </p>
-            </div>
-          </div>
+      <div className="flex min-h-screen">
+        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-[var(--line)] px-3 py-4 lg:flex">
+          <Link href="/" className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
+            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-[var(--navy)] text-white">
+              <Sparkles size={15} strokeWidth={2.2} />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold leading-4">{t(locale, "app.name")}</span>
+              <span className="block truncate text-[11px] leading-4 text-[var(--muted)]">{t(locale, "app.subtitle")}</span>
+            </span>
+          </Link>
 
-          <nav className="mt-12 space-y-2" aria-label={t(locale, "nav.main")}>
+          <nav className="mt-6 space-y-0.5" aria-label={t(locale, "nav.main")}>
             {NAV_ITEMS.map(({ href, key, Icon }) => {
               const active = pathname === href;
               return (
@@ -184,75 +187,61 @@ export function AppShell({
                   aria-current={active ? "page" : undefined}
                   className={`nav-item${active ? " nav-item-active" : ""}`}
                 >
-                  <Icon size={18} />{t(locale, key)}
+                  <Icon size={16} />{t(locale, key)}
                 </Link>
               );
             })}
           </nav>
 
-          <div className="mt-auto rounded-2xl bg-[var(--navy)] p-4 text-white">
-            <p className="text-sm font-semibold">
-              {hasSavedImport
-                ? calendarName ??
-                  (subscriptions.length === 1
-                    ? t(locale, "sidebar.calendarConnected")
-                    : t(locale, "sidebar.calendarCount", {
-                        count: subscriptions.length,
-                      }))
-                : t(locale, "sidebar.demoCalendar")}
+          <div className="card mt-auto p-3">
+            <p className="flex items-center gap-2 text-[13px] font-medium">
+              <span className={`size-1.5 shrink-0 rounded-full ${hasSavedImport ? "bg-[var(--success)]" : "bg-[var(--line-strong)]"}`} />
+              <span className="truncate">
+                {hasSavedImport
+                  ? calendarName ??
+                    (subscriptions.length === 1
+                      ? t(locale, "sidebar.calendarConnected")
+                      : t(locale, "sidebar.calendarCount", {
+                          count: subscriptions.length,
+                        }))
+                  : t(locale, "sidebar.demoCalendar")}
+              </span>
             </p>
-            <p className="mt-1 text-xs leading-5 text-blue-100/75">
+            <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
               {hasSavedImport
                 ? t(locale, "sidebar.importedDescription")
                 : t(locale, "sidebar.connectDescription")}
             </p>
             {formattedImportedAt && (
-              <p className="mt-2 text-[11px] text-blue-100/85">
+              <p className="mt-1 text-[11px] text-[var(--muted)]">
                 {t(locale, "sidebar.lastImported", { value: formattedImportedAt })}
               </p>
             )}
-            {restoredFromStorage && (
-              <p className="mt-1 text-[11px] text-blue-100/85">
-                {t(locale, "sidebar.restoredFromStorage")}
-              </p>
-            )}
-            <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-[var(--c-9ec5ff)]">
-              <span className="size-2 rounded-full bg-[var(--c-68d59b)]" />
-              {isImported
-                ? t(locale, "sidebar.statusImported")
-                : hasSavedImport
-                  ? t(locale, "sidebar.statusSavedAvailable")
-                  : t(locale, "sidebar.statusReady")}
-            </div>
           </div>
-
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col px-4 pt-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-7 lg:px-10 lg:py-8">
-          <header className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 lg:hidden">
-              <div className="grid size-10 place-items-center rounded-xl bg-[var(--navy)] text-white">
-                <Sparkles size={18} />
-              </div>
-              <span className="font-display hidden text-lg font-semibold sm:inline">{t(locale, "app.name")}</span>
-            </div>
-            <div className="ml-auto flex items-center gap-3">
-              <HelperSyncButton variant="compact" />
+        <section className="flex min-w-0 flex-1 flex-col px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-7 lg:px-10 lg:pb-8">
+          <header className="sticky top-0 z-30 -mx-4 flex h-14 items-center gap-2 border-b border-[var(--line)] bg-[var(--canvas)]/85 px-4 backdrop-blur-md sm:-mx-7 sm:px-7 lg:-mx-10 lg:px-10">
+            <Link href="/" className="flex items-center gap-2.5 lg:hidden">
+              <span className="grid size-7 place-items-center rounded-lg bg-[var(--navy)] text-white">
+                <Sparkles size={15} />
+              </span>
+              <span className="hidden text-sm font-semibold sm:inline">{t(locale, "app.name")}</span>
+            </Link>
+            <div className="ml-auto flex items-center gap-1.5">
+              {/* The overview has its own, bigger one. */}
+              {pathname !== "/" && <HelperSyncButton variant="compact" />}
               <div
                 role="group"
                 aria-label={t(locale, "language.label")}
-                className="hidden items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--surface)] p-1 text-xs font-semibold sm:flex"
+                className="ml-1 hidden items-center rounded-lg bg-[var(--subtle)] p-0.5 text-xs font-medium sm:flex"
               >
                 <button
                   type="button"
                   onClick={() => changeLocale("en")}
                   aria-pressed={locale === "en"}
                   aria-label={t(locale, "language.switchToEnglish")}
-                  className={`rounded-full px-3 py-1.5 transition ${
-                    locale === "en"
-                      ? "bg-[var(--navy)] text-white"
-                      : "text-[var(--muted)] hover:text-[var(--c-172b41)]"
-                  }`}
+                  className={languageButton(locale === "en")}
                 >
                   {t(locale, "language.english")}
                 </button>
@@ -261,11 +250,7 @@ export function AppShell({
                   onClick={() => changeLocale("zh-CN")}
                   aria-pressed={locale === "zh-CN"}
                   aria-label={t(locale, "language.switchToChinese")}
-                  className={`rounded-full px-3 py-1.5 transition ${
-                    locale === "zh-CN"
-                      ? "bg-[var(--navy)] text-white"
-                      : "text-[var(--muted)] hover:text-[var(--c-172b41)]"
-                  }`}
+                  className={languageButton(locale === "zh-CN")}
                 >
                   {t(locale, "language.chinese")}
                 </button>
@@ -274,7 +259,7 @@ export function AppShell({
                 type="button"
                 onClick={() => changeLocale(locale === "en" ? "zh-CN" : "en")}
                 aria-label={t(locale, locale === "en" ? "language.switchToChinese" : "language.switchToEnglish")}
-                className="whitespace-nowrap rounded-full border border-[var(--line)] bg-[var(--surface)] px-3.5 text-xs font-semibold text-[var(--ink)] sm:hidden"
+                className="whitespace-nowrap rounded-lg px-2.5 text-xs font-medium text-[var(--muted)] hover:bg-[var(--subtle)] hover:text-[var(--ink)] sm:hidden"
               >
                 {t(locale, locale === "en" ? "language.chinese" : "language.english")}
               </button>
@@ -283,7 +268,7 @@ export function AppShell({
                 onClick={() => chooseTheme(nextTheme(theme))}
                 aria-label={t(locale, "theme.toggle", { mode: t(locale, `theme.${theme}`) })}
                 title={t(locale, "theme.toggle", { mode: t(locale, `theme.${theme}`) })}
-                className="tap-icon grid size-9 shrink-0 place-items-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] transition hover:text-[var(--ink)]"
+                className={iconButton}
               >
                 <ThemeIcon size={16} />
               </button>
@@ -299,30 +284,25 @@ export function AppShell({
                     ? t(locale, "reminders.on")
                     : t(locale, "reminders.off")
                 }
-                className={`tap-icon grid size-9 shrink-0 place-items-center rounded-full border transition ${
+                className={
                   remindersEnabled
-                    ? "border-[var(--navy)] bg-[var(--navy)] text-white"
-                    : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--c-172b41)]"
-                }`}
+                    ? `${iconButton} bg-[var(--accent-soft)] text-[var(--accent-ink)]`
+                    : iconButton
+                }
               >
                 {remindersEnabled ? <BellRing size={16} /> : <BellOff size={16} />}
               </button>
-              <div className="hidden text-right sm:block">
-                <p className="text-sm font-semibold">{t(locale, "header.studentName")}</p>
-                <p className="text-xs text-[var(--muted)]">{t(locale, "header.privateDashboard")}</p>
-              </div>
-              <div className="hidden size-10 place-items-center rounded-full bg-[var(--c-dbe8ff)] text-sm font-bold text-[var(--c-1851a5)] sm:grid">
-                HS
-              </div>
             </div>
           </header>
 
-          <SyncBanner />
-          {/* Keyed by the route, so each page arrives with its own fade. */}
-          <div key={pathname} className="page-enter flex-1">
-            {children}
+          <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col">
+            <SyncBanner />
+            {/* Keyed by the route, so each page arrives with its own fade. */}
+            <div key={pathname} className="page-enter flex-1">
+              {children}
+            </div>
+            <AppFooter version={version} />
           </div>
-          <AppFooter version={version} />
         </section>
       </div>
       <MobileNav pathname={pathname} locale={locale} />

@@ -53,7 +53,7 @@ test("the bottom bar and its More sheet between them hold every page exactly onc
 test("the sidebar is not the phone's only navigation: the bar is mounted by the shell and shown below it", () => {
   const shell = readFileSync(new URL("../src/components/app-shell.tsx", import.meta.url), "utf8");
   assert.match(shell, /<MobileNav\b/, "the shell does not mount the bottom bar");
-  assert.match(shell, /<aside className="hidden[^"]*lg:flex/, "the sidebar changed; check the bar still covers what it hides");
+  assert.match(shell, /<aside className="[^"]*\bhidden\b[^"]*lg:flex/, "the sidebar changed; check the bar still covers what it hides");
   const bar = readFileSync(new URL("../src/components/mobile-nav.tsx", import.meta.url), "utf8");
   assert.match(bar, /fixed inset-x-0 bottom-0[^"]*lg:hidden/, "the bar is not hidden on wide screens, where the sidebar is");
 });

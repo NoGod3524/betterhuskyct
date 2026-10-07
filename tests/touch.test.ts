@@ -74,7 +74,8 @@ test("the components carry the classes the touch rules hang on", () => {
   assert.equal((read("components/helper-section.tsx").match(/tap-link inline-flex h-9/g) ?? []).length, 2, "an install button is under a finger's height");
 
   const shell = read("components/app-shell.tsx");
-  assert.equal((shell.match(/tap-icon/g) ?? []).length, 2, "the theme and reminder buttons are not both finger-sized");
+  assert.match(shell, /const iconButton =\s*"tap-icon /, "the header's icon buttons are not finger-sized");
+  assert.equal((shell.match(/\{iconButton\}|\$\{iconButton\}/g) ?? []).length, 2, "the theme and reminder buttons do not both use it");
 
   for (const file of ["materials-section", "grades-section", "announcements-section", "helper-section"]) {
     assert.match(read(`components/${file}.tsx`), /tap-link/, `${file} has a text link a finger could miss`);
@@ -84,13 +85,12 @@ test("the components carry the classes the touch rules hang on", () => {
 test("the header fits a phone: one language button below the pill's breakpoint, and no wrapping", () => {
   const shell = read("components/app-shell.tsx");
   // The pill of two is for wider screens only; a phone gets one button.
-  assert.match(shell, /className="hidden items-center gap-1 rounded-full[^"]*sm:flex"/);
+  assert.match(shell, /className="ml-1 hidden items-center[^"]*sm:flex"/);
   assert.match(shell, /whitespace-nowrap[^"]*sm:hidden/);
-  // The name and the avatar give way to the controls.
-  assert.match(shell, /hidden text-lg font-semibold sm:inline/);
-  assert.match(shell, /hidden size-10[^"]*sm:grid/);
+  // The name gives way to the controls.
+  assert.match(shell, /hidden text-sm font-semibold sm:inline/);
 });
 
 test("the page leaves room under it for the bottom bar", () => {
-  assert.match(read("components/app-shell.tsx"), /pb-\[calc\(5\.5rem\+env\(safe-area-inset-bottom\)\)\][^"]*lg:py-8/);
+  assert.match(read("components/app-shell.tsx"), /pb-\[calc\(5\.5rem\+env\(safe-area-inset-bottom\)\)\][^"]*lg:pb-8/);
 });

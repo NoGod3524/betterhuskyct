@@ -97,6 +97,10 @@ test("dark text is readable on dark backgrounds", () => {
     ["c-c5402d", "c-fff0ed", "an error on its tint"],
     ["c-23724b", "c-ecf8f1", "a success on its tint"],
     ["c-8a5a12", "c-fffaf0", "a warning on its tint"],
+    ["danger", "danger-soft", "a danger badge"],
+    ["success", "success-soft", "a success badge"],
+    ["warning", "warning-soft", "a warning notice"],
+    ["accent-ink", "accent-soft", "an accent notice"],
   ];
   for (const [text, background, what] of pairs) {
     const ratio = contrast(dark(text), dark(background));
@@ -105,6 +109,29 @@ test("dark text is readable on dark backgrounds", () => {
   // White text on the filled buttons.
   for (const fill of ["navy", "blue", "c-1857aa"]) {
     const ratio = contrast("#ffffff", dark(fill));
+    assert.ok(ratio >= 4.5, `white on --${fill}: ${ratio.toFixed(2)}:1`);
+  }
+});
+
+test("light text is readable too", () => {
+  const light = (name: string) => LIGHT.get(name)!;
+  const pairs: Array<[string, string]> = [
+    ["ink", "surface"],
+    ["ink", "canvas"],
+    ["muted", "surface"],
+    ["muted", "canvas"],
+    ["link", "surface"],
+    ["danger", "danger-soft"],
+    ["success", "success-soft"],
+    ["warning", "warning-soft"],
+    ["accent-ink", "accent-soft"],
+  ];
+  for (const [text, background] of pairs) {
+    const ratio = contrast(light(text), light(background));
+    assert.ok(ratio >= 4.5, `--${text} on --${background}: ${ratio.toFixed(2)}:1 is under 4.5:1`);
+  }
+  for (const fill of ["navy", "blue"]) {
+    const ratio = contrast("#ffffff", light(fill));
     assert.ok(ratio >= 4.5, `white on --${fill}: ${ratio.toFixed(2)}:1`);
   }
 });

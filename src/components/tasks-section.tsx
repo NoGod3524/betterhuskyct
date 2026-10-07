@@ -29,18 +29,18 @@ export function TasksSection() {
     <>
       {dueSoon.length > 0 && (
         <div
-          className="mt-6 flex items-start gap-2.5 rounded-2xl border border-[var(--c-f0d9a8)] bg-[var(--c-fffaf0)] px-4 py-3 text-sm text-[var(--c-8a5a12)]"
+          className="mt-6 flex items-start gap-2.5 rounded-lg bg-[var(--warning-soft)] px-3.5 py-2.5 text-sm text-[var(--warning)]"
           role="status"
         >
-          <Bell size={17} className="mt-0.5 shrink-0" />
+          <Bell size={16} className="mt-0.5 shrink-0" />
           <span>{t(locale, "reminders.banner", { count: dueSoon.length })}</span>
         </div>
       )}
 
-      <div className="mt-8 flex items-end justify-between gap-4" id="tasks">
+      <div className="mt-10 flex flex-wrap items-end justify-between gap-3" id="tasks">
         <div>
           <p className="eyebrow">{t(locale, "deadlineRadar.eyebrow")}</p>
-          <h2 className="font-display mt-1 text-2xl font-semibold tracking-[-0.025em]">
+          <h2 className="font-display mt-0.5 text-lg font-semibold">
             {t(locale, "deadlineRadar.heading")}
           </h2>
         </div>
@@ -49,7 +49,7 @@ export function TasksSection() {
             <button
               type="button"
               onClick={exportTasks}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
+              className="btn btn-quiet h-7 px-2.5 text-xs"
             >
               <Download size={13} />{t(locale, "actions.exportCsv")}
             </button>
@@ -58,7 +58,7 @@ export function TasksSection() {
             <button
               type="button"
               onClick={restoreDemo}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
+              className="btn btn-quiet h-7 px-2.5 text-xs"
             >
               <RefreshCw size={13} />{t(locale, "actions.useDemo")}
             </button>
@@ -67,7 +67,7 @@ export function TasksSection() {
             <button
               type="button"
               onClick={restoreSavedImport}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
+              className="btn btn-quiet h-7 px-2.5 text-xs"
             >
               {t(locale, "actions.restoreSavedImport")}
             </button>
@@ -76,36 +76,33 @@ export function TasksSection() {
             <button
               type="button"
               onClick={clearSavedData}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--c-cdd9e6)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--c-4e647b)] transition hover:border-[var(--c-9fb7d1)] hover:text-[var(--c-244e7a)]"
+              className="btn btn-quiet h-7 px-2.5 text-xs"
             >
               {t(locale, "actions.clearSavedData")}
             </button>
           )}
           {!hasSavedImport && (
-            <span className="rounded-full bg-[var(--c-eaf2ff)] px-3 py-1.5 text-xs font-semibold text-[var(--c-245ea9)]">
+            <span className="rounded-md bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent-ink)]">
               {t(locale, "actions.demoPreview")}
             </span>
           )}
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+      <div className="mt-4 grid gap-6 lg:grid-cols-3 lg:gap-4">
         {groups.map((group) => (
-          <section
-            key={group.key}
-            className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
-          >
-            <div className="flex items-center justify-between px-1 pb-3">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <span className={`size-2.5 shrink-0 rounded-full ${group.accentClass}`} />
-                <h3 className="font-display font-semibold">{group.title}</h3>
+          <section key={group.key} className="min-w-0">
+            <div className="flex items-center justify-between px-1 pb-2.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className={`size-2 shrink-0 rounded-full ${group.accentClass}`} />
+                <h3 className="text-sm font-semibold">{group.title}</h3>
                 <span className="truncate text-xs text-[var(--muted)]">{group.dateLabel}</span>
               </div>
-              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[var(--c-f0f3f7)] text-xs font-bold text-[var(--c-536476)]">
+              <span className="shrink-0 rounded-md bg-[var(--subtle)] px-1.5 py-0.5 text-xs font-medium tabular-nums text-[var(--muted)]">
                 {group.tasks.length}
               </span>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {group.tasks.map((task) => (
                 <TaskCard
                   key={task.id}
@@ -119,9 +116,9 @@ export function TasksSection() {
                 />
               ))}
               {group.tasks.length === 0 && (
-                <div className="grid min-h-[132px] place-items-center rounded-2xl border border-dashed border-[var(--c-d7e1ec)] bg-[var(--c-fafcff)] p-5 text-center">
+                <div className="grid min-h-[96px] place-items-center rounded-xl border border-dashed border-[var(--line-strong)] p-5 text-center">
                   <div>
-                    <Check size={18} className="mx-auto text-[var(--c-5ba97d)]" />
+                    <Check size={16} className="mx-auto text-[var(--success)]" />
                     <p className="mt-2 text-xs text-[var(--muted)]">
                       {t(locale, "empty.nothingDue")}
                     </p>

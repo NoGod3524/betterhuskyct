@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
 import { AppShell } from "@/components/app-shell";
@@ -10,6 +11,9 @@ import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 // Single source of truth for the version shown in the footer.
 import packageJson from "../../package.json";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme";
+
+// Latin only, served from this site at build time; Chinese falls through to the system's own face.
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -47,8 +51,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#0b2745" },
-    { media: "(prefers-color-scheme: dark)", color: "#0c1622" },
+    { media: "(prefers-color-scheme: light)", color: "#f8f9fb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0e14" },
   ],
   // Let the app draw under the notch/home indicator when installed,
   // paired with the safe-area padding on <main>.
@@ -59,7 +63,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // The boot script may set data-theme before React hydrates; that attribute
     // is the only difference, and it is expected.
-    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         {/* Before anything is drawn, so a dark choice never flashes light. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
