@@ -445,15 +445,15 @@ test("Clear basket empties it", () => {
  * A small stand-in for HuskyCT's single-page app, shaped like what was measured
  * on 2026-09-27:
  *
- * - On a wide screen the Courses page lists every course as a card straight
- *   away. On a narrow one it shows only the recently opened courses, a to-do
- *   list and a "View All" button. "View All" puts up one `article` per course with an empty
- *   `data-course-id`, and fills them in a moment later — on the live page, as
- *   they scroll into view. Past terms and inaccessible courses are listed too.
+ * - The Courses page shows the recently opened courses, a to-do list and a
+ *   "View All" button; on a wide screen every course as a card.
  * - A course's Announcements page renders after a delay, and moving from one
  *   course to another leaves the previous course's rows on screen for a while
- *   under the new address — the case that must not be misfiled.
- * - One course's page never renders at all.
+ *   under the new address.
+ *
+ * And HuskyCT's own data, which a walk reads its course list and announcements
+ * from: the same courses (past terms and an inaccessible one among them) and the
+ * same announcements, with one course whose announcements never come.
  */
 function card(id: string, idText: string, name: string, extraClass = "") {
   return (
@@ -518,6 +518,45 @@ const CALENDAR = `<button id="bb-calendar1-deadline" analytics-id="components.di
  * `broken` stands for a HuskyCT release that changed the Courses page past
  * recognition; `nocalendar` for one that moved the Calendar's Due dates view.
  */
+const membershipOf = (id: string, readableId: string, displayName: string, available = true) => ({
+  courseId: id,
+  isAvailable: available,
+  userHasHidden: false,
+  course: { id, courseId: readableId, displayName, isOrganization: false, isAvailable: available, effectiveAvailability: available },
+});
+
+/** HuskyCT's own data for the stand-in's courses, as a walk asks for it. */
+function huskyctData() {
+  const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const announcement = (title: string, at: string) => ({ title, body: { displayText: "<p>" + title + "</p>" }, startDateRestriction: at, isDraft: false });
+  const announcements: Record<string, unknown[]> = {
+    _203765_1: [announcement("Exam 1 is NEXT Tuesday!", "2026-09-22T13:00:00.000Z"), announcement("Office Hours", "2026-09-20T13:00:00.000Z")],
+    _198430_1: [announcement("Quiz 2 moved", "2026-09-21T13:00:00.000Z")],
+    _200541_1: [announcement("Field trip Friday", "2026-09-23T14:00:00.000Z")],
+    _201693_1: [],
+    // _201463_1 (SOCI): its announcements never come.
+  };
+  return async (path: string) => {
+    if (path.startsWith("/learn/api/v1/users/me/memberships")) {
+      return reply({
+        paging: { count: 7, nextPage: "" },
+        results: [
+          membershipOf("_203765_1", "1268-UCONN-MATH-1070Q-SEC100-1191", "MATH-1070Q-Mathematics for Business and Economics-SEC100-1268"),
+          membershipOf("_198430_1", "1268-UCONN-ECON-1201-SEC010-5757", "ECON-1201-Principles of Microeconomics-SEC010-1268"),
+          membershipOf("_200541_1", "1268-UCONN-NRE-1000E-SEC002-3874", "NRE-1000E-Environmental Science-SEC002-1268"),
+          membershipOf("_201693_1", "1268-UCONN-STAT-1000Q-SEC015D-3618", "STAT-1000Q-Introduction to Statistics I-SEC015D-1268"),
+          membershipOf("_201463_1", "1268-UCONN-SOCI-1501-SEC005-1068", "SOCI-1501-Race, Class, and Gender-SEC005-1268"),
+          membershipOf("_100001_1", "1263-UCONN-CHEM-1127Q-SEC001-1000", "CHEM-1127Q-General Chemistry-SEC001-1263"),
+          membershipOf("_200999_1", "1268-UCONN-HIST-1300-SEC001-2000", "HIST-1300-United States History-SEC001-1268", false),
+        ],
+      });
+    }
+    const id = /courses\/([^/]+)\/announcements/.exec(path)?.[1];
+    if (id && id in announcements) return reply({ paging: { nextPage: "" }, results: announcements[id] });
+    return reply({}, id ? 500 : 404);
+  };
+}
+
 function fakeHuskyct(
   window: Window,
   layout: "narrow" | "wide" | "broken" | "nocalendar" = "narrow",
@@ -526,6 +565,7 @@ function fakeHuskyct(
   const main = window.document.querySelector("main")!;
   const visited: string[] = [];
   let generation = 0;
+  (window as unknown as { fetch: unknown }).fetch = huskyctData();
 
   const announcementPages: Record<string, string> = {
     _203765_1: MATH_ANNOUNCEMENTS,
@@ -616,21 +656,6 @@ test("one press also reads every course's gradebook and files, not only its anno
   assert.ok(report.materials, "the course files were walked");
   assert.ok(Array.isArray(report.grades.courses));
   assert.ok(Array.isArray(report.materials.courses));
-});
-
-test("a walk that falls short in a tab in the background says why", async () => {
-  const keys = async (hidden: boolean) => {
-    const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
-    fakeHuskyct(page.window);
-    Object.defineProperty(page.window.document, "hidden", { value: hidden, configurable: true });
-    const report = plain(await page.helper.collectEverything(FAST));
-    return { keys: report.problems.map((problem) => problem.key), short: [report.grades, report.materials].some((walked) => walked && (walked.courses as Array<{ skipped?: boolean }>).some((course) => course.skipped)) };
-  };
-
-  const back = await keys(true);
-  assert.ok(back.short, "the stand-in HuskyCT does not serve every gradebook, so something fell short");
-  assert.ok(back.keys.includes("problemBackground"), "a walk that fell short in the background is told why");
-  assert.ok(!(await keys(false)).keys.includes("problemBackground"), "in the front it is not blamed on the background");
 });
 
 // --- the quick sync ---------------------------------------------------------------------
@@ -882,58 +907,38 @@ test("the course list comes from HuskyCT's data, while the to-do list is still r
 
   // Two courses from the data, where the pages would have found five.
   assert.equal(report.courses, 2);
-  assert.equal(report.collected, 2);
   assert.ok(huskyct.visited.includes("/ultra/course"), "the to-do list was not read from the Courses page");
   assert.equal(page.basket().todos.length, 1);
   assert.deepEqual(plain(page.basket().courses.map((course) => course.id)).sort(), ["_198430_1", "_203765_1"]);
 });
 
-test("announcements come from HuskyCT's own data when it answers, and from the page for a course whose answer fails", async () => {
+test("a course whose announcements HuskyCT will not give is named, and its page is not opened instead", async () => {
   const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
   const huskyct = fakeHuskyct(page.window);
-  const answers: Record<string, unknown> = {
-    _203765_1: { paging: { nextPage: "" }, results: [{ title: "From the data", body: { displayText: "<p>Straight <b>from</b> HuskyCT</p>" }, startDateRestriction: "2026-09-25T20:00:00.000Z", isDraft: false }] },
-    _198430_1: { paging: { nextPage: "" }, results: [] },
-  };
-  (page.window as unknown as { fetch: unknown }).fetch = async (path: string) => {
-    const id = /courses\/([^/]+)\/announcements/.exec(path)?.[1] ?? "";
-    return id in answers
-      ? new Response(JSON.stringify(answers[id]), { status: 200, headers: { "content-type": "application/json" } })
-      : new Response("{}", { status: 500 });
-  };
 
   const report = plain(await page.helper.collectEverything(FAST));
 
-  const basket = page.basket();
-  const course = (id: string) => basket.courses.find((entry) => entry.id === id);
-  assert.deepEqual(course("_203765_1")?.announcements.map((a) => [a.title, a.body]), [["From the data", "Straight from HuskyCT"]]);
-  assert.ok(course("_198430_1")?.announcementsAt, "a course with no announcements was not ticked off");
-  // Those two never had their Announcements page opened; the course whose answer failed did.
-  assert.ok(!huskyct.visited.some((path) => /_203765_1\/announcements|_198430_1\/announcements/.test(path)), "opened a page it had the data for");
-  assert.ok(huskyct.visited.some((path) => /_200541_1\/announcements/.test(path)), "did not fall back to the page");
-  assert.deepEqual(course("_200541_1")?.announcements.map((a) => a.title), ["Field trip Friday"]);
-  assert.equal(report.collected, 4);
+  assert.deepEqual(report.skipped, ["SOCI 1501"]);
+  assert.equal(page.basket().courses.find((course) => course.id === "_201463_1")?.announcementsAt, null);
+  assert.ok(!huskyct.visited.some((path) => /\/announcements/.test(path)), "an Announcements page was opened: " + huskyct.visited.join(", "));
 });
 
-test("one press reads the to-do list and every current course, then goes back where it started (narrow screen)", async () => {
+test("one press reads the to-do list, the due dates and every current course, then goes back where it started", async () => {
   const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
   const huskyct = fakeHuskyct(page.window);
 
   const report = plain(await page.helper.collectEverything(FAST));
 
-  // Five current courses: the two recent ones and three found only under View All.
-  // The past-term CHEM course and the inaccessible HIST one are not visited.
+  // Five current courses. The past-term CHEM course and the inaccessible HIST one are left out.
   assert.equal(report.courses, 5);
   assert.equal(report.collected, 4);
-  assert.deepEqual(report.skipped, ["SOCI 1501"], "the course whose page never loads was not reported");
+  assert.deepEqual(report.skipped, ["SOCI 1501"], "the course whose announcements never come was not reported");
   assert.ok(!huskyct.visited.some((path) => /_100001_1|_200999_1/.test(path)), "walked into a course it should skip");
 
   const basket = page.basket();
   const titles = (id: string) => basket.courses.find((course) => course.id === id)?.announcements.map((a) => a.title);
   assert.deepEqual(titles("_203765_1"), ["Exam 1 is NEXT Tuesday!", "Office Hours"]);
   assert.deepEqual(titles("_198430_1"), ["Quiz 2 moved"]);
-  // Reached straight from ECON's page, whose rows linger for a while: they must
-  // not be filed under NRE.
   assert.deepEqual(titles("_200541_1"), ["Field trip Friday"]);
   assert.ok(basket.courses.find((course) => course.id === "_201693_1")?.announcementsAt, "an empty course was not ticked off");
   assert.equal(basket.courses.find((course) => course.id === "_201463_1")?.announcementsAt, null);
@@ -1035,19 +1040,6 @@ test("UConn term codes follow the calendar", () => {
   assert.equal(helper.termCodeFor(new Date("2027-02-01T12:00:00")), 1273);
   assert.equal(helper.termCodeFor(new Date("2027-06-15T12:00:00")), 1275);
   assert.equal(helper.termCodeFor(new Date("2026-12-10T12:00:00")), 1268);
-});
-
-test("on a wide screen, where the Courses page lists every course as a card, one press still reads them all", async () => {
-  const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
-  const huskyct = fakeHuskyct(page.window, "wide");
-
-  const report = plain(await page.helper.collectEverything(FAST));
-
-  assert.equal(report.courses, 5, "the wide layout's course cards were not read");
-  assert.equal(report.collected, 4);
-  assert.ok(!huskyct.visited.some((path) => /_100001_1|_200999_1/.test(path)), "walked into a course it should skip");
-  assert.equal(page.basket().todos.length, 1);
-  assert.equal(page.window.location.pathname, "/ultra/stream");
 });
 
 test("opening the wide Courses page puts its course cards in the basket, this term's only", () => {

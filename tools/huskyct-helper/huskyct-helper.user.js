@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.13.0
+// @version      2.0.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -53,7 +53,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.13.0";
+  const VERSION = "2.0.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -113,7 +113,7 @@
       syncingCourse: "Syncing {course} ({index} of {total})…",
       syncDone: "Synced {courses} course(s): {announcements} announcement(s), {items} grade item(s).",
       syncSkipped: " Could not read: {courses}.",
-      syncNotSent: " Not sent yet. Press the Send buttons below.",
+      syncNotSent: " Not sent yet. Press Sync on BetterHuskyCT to bring it over.",
       syncAutoReady: " Read on its own. Press Sync to send it to BetterHuskyCT.",
       syncNoData: "Nothing could be read this way. Press Collect everything instead.",
       syncNoDataWhy: " (HuskyCT said: {detail}.)",
@@ -139,65 +139,31 @@
       sentPartFiles: "{files} file(s)",
       sentPartsJoin: "; ",
       sentAll: " Sent to BetterHuskyCT: {parts}.",
-      sentPartial: " Only part of it reached BetterHuskyCT ({parts}). Press the Send buttons below for the rest.",
+      sentPartial: " Only part of it reached BetterHuskyCT ({parts}). Press Sync on BetterHuskyCT for the rest.",
       collectingDueDates: "Reading the term's due dates from the Calendar…",
-      collectMaterials: "Collect course materials",
-      materialsReused: " {count} document(s) came from last time's reading.",
-      pickFolderHint:
-        "Pick a folder for the files. Browsers do not allow the Desktop itself, so make a folder on it first (“New folder”, e.g. HuskyCT) and pick that.",
       selfCheck: "Self-check: {problems}",
       problemCoursesPage: "the Courses page did not show its course list — HuskyCT may have changed.",
-      problemNoCourses: "no current-term course was found on the Courses page.",
+      problemNoCourses: "HuskyCT's course list gave no current-term course.",
       problemDueDatesView:
         "the Calendar's Due dates view did not open — HuskyCT may have changed, so only this week's to-do list was read.",
-      problemOutlines: "these courses' content did not open: {courses}.",
-      problemDocuments: "{count} document(s) did not open.",
+      problemOutlines: "these courses' content could not be read: {courses}.",
       problemFileAddress: "{count} file(s) had no download address — HuskyCT may have changed.",
       problemNoContent: "no course showed any content — HuskyCT may have changed.",
-      materialsCourses: "Finding your courses…",
-      materialsOutline: "Reading {course}'s content ({index} of {total})…",
-      materialsDocument: "Opening {course}'s documents: {document} of {documents}…",
       materialsFound:
         "Found {files} file(s), {videos} video(s), {links} link(s) and {tools} tool(s) in {courses} course(s).",
       materialsStopped: "Stopped. What was found so far is below.",
-      materialsFailed: "Collecting materials stopped with an error: {message}",
-      collectGrades: "Collect grades",
-      gradesCourse: "Reading {course}'s grades ({index} of {total})…",
       gradesFound: "Found {items} gradebook item(s), {scored} with a score, in {courses} course(s).",
       gradesStopped: "Stopped. What was found so far is below.",
-      gradesFailed: "Collecting grades stopped with an error: {message}",
-      problemGrades: "these courses' grades did not open completely: {courses}.",
-      problemBackground: "This tab was in the background while it read, and a tab in the background does not load its pages. Keep this tab in front until it is done.",
-      problemSignedOut: "HuskyCT asked you to sign in again part-way through. Sign in, then press Collect grades once more.",
-      sendGrades: "Send grades to BetterHuskyCT ({count} item(s))",
-      gradesSent: "In BetterHuskyCT: grades for {courses} course(s), {items} item(s).",
-      gradesNotStored: "BetterHuskyCT received the grades but could not store them.",
-      gradesNoAnswer: "BetterHuskyCT did not answer. Leave its tab open and press this again.",
-      saveFiles: "Save {count} file(s) to a folder…",
-      saveFilesZip: "Download {count} file(s) as a ZIP",
-      saveLinks: "Save the links and videos",
-      sendMaterials: "Send to BetterHuskyCT ({count} file(s))",
-      connectingBhc: "Opening BetterHuskyCT…",
+      problemGrades: "these courses' grades could not be read completely: {courses}.",
+      problemSignedOut: "HuskyCT asked you to sign in again part-way through. Sign in, then press Collect everything once more.",
       sendingMaterial: "Sending {index} of {total}: {name}",
-      materialsSent: "In BetterHuskyCT: {sent} new file(s) sent, {skipped} already there, {failed} failed.",
-      bhcNoAnswer:
-        "BetterHuskyCT did not answer. Leave its tab open and press this again — or save the files to a folder and import them on its Materials page.",
-      savingFile: "Saving {index} of {total}: {name}",
-      filesSaved: "Saved {saved} file(s) in “{folder}”. {skipped} were already there; {failed} failed.",
-      zipSaved: "Downloaded {name} with {saved} file(s). {failed} failed.",
-      linksTitle: "Links and videos",
-      linksVideos: "Videos",
-      linksLinks: "Links",
-      linksTools: "Tools",
-      linksFileName: "links and videos.html",
       collectingCourse: "Reading {course} ({index} of {total})…",
       collectedAll: "Done: {courses} course(s) read.",
       collectSkipped: " Could not open: {courses}.",
       collectStopped: "Stopped. What was read so far is in the basket.",
       collectFailed: "Collecting stopped with an error: {message}",
       sendingToBhc: " Sending it to BetterHuskyCT…",
-      sentToBhc: " Sent to BetterHuskyCT: {deadlines} deadline(s), {announcements} announcement(s).",
-      sendToBhcFailed: " Could not reach BetterHuskyCT on its own. Press the Send buttons below once.",
+      sendToBhcFailed: " Could not reach BetterHuskyCT on its own. Open it and press Sync there.",
       clearBasket: "Clear basket",
       basketCleared: "Basket cleared.",
       basketNothing: "Nothing collected yet.",
@@ -229,7 +195,7 @@
       syncingCourse: "正在同步 {course}（第 {index} / {total} 门）……",
       syncDone: "已同步 {courses} 门课：{announcements} 条公告、{items} 项成绩。",
       syncSkipped: " 没能读取：{courses}。",
-      syncNotSent: " 还没发送，按下面的发送按钮。",
+      syncNotSent: " 还没发送，在 BetterHuskyCT 上按「同步」就会送过去。",
       syncAutoReady: " 已自动读取，按「同步」发给 BetterHuskyCT。",
       syncNoData: "这种方式读不到任何东西，请改按「一键收集全部」。",
       syncNoDataWhy: "（HuskyCT 的回应：{detail}）",
@@ -252,61 +218,29 @@
       sentPartFiles: "{files} 个课件",
       sentPartsJoin: "；",
       sentAll: " 已发给 BetterHuskyCT：{parts}。",
-      sentPartial: " 只有一部分发到了 BetterHuskyCT（{parts}）。剩下的按下面的发送按钮再发。",
+      sentPartial: " 只有一部分发到了 BetterHuskyCT（{parts}）。剩下的在 BetterHuskyCT 上按「同步」。",
       collectingDueDates: "正在从日历读取整个学期的截止日期……",
-      collectMaterials: "收集课件",
-      materialsReused: "其中 {count} 个文档用的是上次读取的结果。",
-      pickFolderHint: "选一个保存文件的文件夹。浏览器不允许直接选桌面本身，请先在桌面上点「新建文件夹」（比如 HuskyCT），再选它。",
       selfCheck: "自检：{problems}",
       problemCoursesPage: "Courses 页没有显示课程列表——HuskyCT 可能改版了。",
-      problemNoCourses: "Courses 页上没有找到本学期的课程。",
+      problemNoCourses: "HuskyCT 的课程列表里没有本学期的课程。",
       problemDueDatesView: "打不开日历的 Due dates 视图——HuskyCT 可能改版了，所以只读到了本周的待办。",
-      problemOutlines: "这些课的内容页打不开：{courses}。",
-      problemDocuments: "有 {count} 个文档打不开。",
+      problemOutlines: "这些课的课件读取不到：{courses}。",
       problemFileAddress: "有 {count} 个文件找不到下载地址——HuskyCT 可能改版了。",
       problemNoContent: "所有课程的内容页都是空的——HuskyCT 可能改版了。",
-      materialsCourses: "正在查找课程……",
-      materialsOutline: "正在读取 {course} 的课程内容（{index}/{total}）……",
-      materialsDocument: "正在打开 {course} 的文档（{document}/{documents}）……",
       materialsFound: "在 {courses} 门课里找到 {files} 个文件、{videos} 个视频、{links} 个链接、{tools} 个工具。",
       materialsStopped: "已停止。下面是目前找到的内容。",
-      materialsFailed: "收集课件时出错停止了：{message}",
-      collectGrades: "收集成绩",
-      gradesCourse: "正在读取 {course} 的成绩（{index}/{total}）……",
       gradesFound: "在 {courses} 门课里找到 {items} 项成绩册条目，其中 {scored} 项有分数。",
       gradesStopped: "已停止。下面是目前读到的。",
-      gradesFailed: "收集成绩时出错停止了：{message}",
       problemGrades: "这些课的成绩没能完整读取：{courses}。",
-      problemBackground: "读取时这个标签页在后台，后台的标签页不会加载页面。读取完成前请一直把它留在前台。",
-      problemSignedOut: "读取到一半时 HuskyCT 让你重新登录了。请登录后再按一次「收集成绩」。",
-      sendGrades: "把成绩发送到 BetterHuskyCT（{count} 项）",
-      gradesSent: "BetterHuskyCT 里：{courses} 门课、{items} 项成绩。",
-      gradesNotStored: "BetterHuskyCT 收到了成绩，但没能保存。",
-      gradesNoAnswer: "BetterHuskyCT 没有响应。让它的标签页开着，再按一次。",
-      saveFiles: "把 {count} 个文件保存到文件夹……",
-      saveFilesZip: "把 {count} 个文件打包成 ZIP 下载",
-      saveLinks: "保存链接与视频清单",
-      sendMaterials: "发送到 BetterHuskyCT（{count} 个文件）",
-      connectingBhc: "正在打开 BetterHuskyCT……",
+      problemSignedOut: "读取到一半时 HuskyCT 让你重新登录了。请登录后再按一次「一键收集全部」。",
       sendingMaterial: "正在发送 {index}/{total}：{name}",
-      materialsSent: "BetterHuskyCT 里：新发送 {sent} 个文件，{skipped} 个已存在，{failed} 个失败。",
-      bhcNoAnswer: "BetterHuskyCT 没有响应。让它的标签页开着，再按一次；或者先保存到文件夹，再到它的「课件」页导入。",
-      savingFile: "正在保存 {index}/{total}：{name}",
-      filesSaved: "已保存 {saved} 个文件到「{folder}」，{skipped} 个已存在跳过，{failed} 个失败。",
-      zipSaved: "已下载 {name}，包含 {saved} 个文件，{failed} 个失败。",
-      linksTitle: "链接与视频",
-      linksVideos: "视频",
-      linksLinks: "链接",
-      linksTools: "工具",
-      linksFileName: "链接与视频.html",
       collectingCourse: "正在读取 {course}（{index}/{total}）……",
       collectedAll: "完成：读取了 {courses} 门课。",
       collectSkipped: "打不开的课程：{courses}。",
       collectStopped: "已停止。已经读到的内容都在篮子里。",
       collectFailed: "收集时出错停止了：{message}",
       sendingToBhc: "正在发给 BetterHuskyCT……",
-      sentToBhc: "已发给 BetterHuskyCT：{deadlines} 条 deadline、{announcements} 条公告。",
-      sendToBhcFailed: "没能自动连上 BetterHuskyCT，按一下下面的发送按钮。",
+      sendToBhcFailed: "没能自动连上 BetterHuskyCT，打开它按一下「同步」。",
       clearBasket: "清空篮子",
       basketCleared: "篮子已清空。",
       basketNothing: "还没有收集到任何内容。",
@@ -336,28 +270,6 @@
   function otherLocale() {
     return locale === "zh-CN" ? "en" : "zh-CN";
   }
-
-  // ---------------------------------------------------------------- utilities
-
-  function download(filename, text, type) {
-    const isBlob = typeof Blob !== "undefined" && text instanceof Blob;
-    const blob = isBlob ? text : new Blob([text], { type: type || "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    // A large file may still be streaming out of the blob when the click
-    // returns, so a blob handed in whole is released a little later.
-    if (isBlob) setTimeout(() => URL.revokeObjectURL(url), 30000);
-    else URL.revokeObjectURL(url);
-  }
-
-
-
-
 
   // ------------------------------------------------- reading the course page
 
@@ -1021,24 +933,15 @@
     };
   }
 
-  function announcementsPathFor(courseId) {
-    return "/ultra/courses/" + courseId + "/announcements";
-  }
-
   // --- collecting everything in one press -------------------------------------
 
   /**
    * The basket used to fill only as the student opened each course's
    * Announcements tab by hand, which is the chore it was meant to remove.
-   * "Collect everything" walks HuskyCT itself instead: the Courses page for the
-   * to-do list and the full course list, then each course's Announcements page,
-   * then back to where the student was.
-   *
-   * It still reads only rendered pages. Two shortcuts were measured and ruled
-   * out on 2026-09-27: HuskyCT's API refuses scripts (403 `AccessDenied`), and
-   * its pages refuse to load in a frame, so a hidden iframe gets nothing. What
-   * remains is moving the tab through HuskyCT the way its own links do, one page
-   * at a time.
+   * "Collect everything" gathers it all in one press: the to-do list from the
+   * Courses page and the due dates from the Calendar (the two things still read
+   * off pages), and each course's announcements, gradebook and files from
+   * HuskyCT's own data, then back to where the student was.
    */
 
   const VIEW_ALL_COURSES = '[data-analytics-id="base.courses.recentCoursesView.viewAllButton"]';
@@ -1103,143 +1006,11 @@
   // --- each course's colour, as the Courses page draws it ----------------------------------
 
   /**
-   * HuskyCT gives every course a colour on its card, and BetterHuskyCT uses the same one, so a
-   * course looks the same in both. Where on the card the colour is drawn — a background, a
-   * gradient, the card's picture — is HuskyCT's to change, so nothing here names an element: of
-   * everything on a card, the most vivid colour covering the most room is the course's. A card
-   * whose colour cannot be read gives none, and BetterHuskyCT keeps its own for that course.
-   *
-   * Kept by course id across visits, and sent with the deadlines.
+   * HuskyCT gives every course a colour, and BetterHuskyCT uses the same one, so a course looks the
+   * same in both. The colour comes with the course list (see cardColorFromIndex), is kept by course
+   * id across visits, and is sent with the deadlines.
    */
   const COLORS_KEY = "huskypilot.helper.colors.v1";
-
-  function parseCssColor(text) {
-    const value = String(text || "").trim();
-    const rgb = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+%?))?\s*\)$/i.exec(value);
-    if (rgb) {
-      const alpha = rgb[4] === undefined ? 1 : rgb[4].endsWith("%") ? parseFloat(rgb[4]) / 100 : parseFloat(rgb[4]);
-      return { r: +rgb[1], g: +rgb[2], b: +rgb[3], a: alpha };
-    }
-    const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value);
-    if (hex) {
-      const full = hex[1].length === 3 ? hex[1].replace(/./g, (c) => c + c) : hex[1];
-      return { r: parseInt(full.slice(0, 2), 16), g: parseInt(full.slice(2, 4), 16), b: parseInt(full.slice(4, 6), 16), a: 1 };
-    }
-    return null;
-  }
-
-  /** Saturation and lightness, 0 to 1, as HSL has them. */
-  function vividness(color) {
-    const r = color.r / 255;
-    const g = color.g / 255;
-    const b = color.b / 255;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    const lightness = (max + min) / 2;
-    const saturation = max === min ? 0 : (max - min) / (1 - Math.abs(2 * lightness - 1));
-    return { saturation, lightness };
-  }
-
-  /** A colour worth calling a course's: clearly coloured, neither near white nor near black, and not see-through. */
-  function isCourseLike(color) {
-    if (!color || color.a < 0.5) return false;
-    const { saturation, lightness } = vividness(color);
-    return saturation >= 0.25 && lightness >= 0.2 && lightness <= 0.8;
-  }
-
-  function toHex(color) {
-    const part = (value) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0");
-    return "#" + part(color.r) + part(color.g) + part(color.b);
-  }
-
-  /** The colours a gradient is made of. */
-  function colorsIn(css) {
-    return (String(css || "").match(/rgba?\([^)]*\)|#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/gi) || []).map(parseCssColor).filter(Boolean);
-  }
-
-  /** A picture's average colour over its coloured pixels, when the browser lets it be read. */
-  function averageImageColor(image) {
-    try {
-      if (!image.complete || !image.naturalWidth || typeof document.createElement("canvas").getContext !== "function") return null;
-      const canvas = document.createElement("canvas");
-      canvas.width = 24;
-      canvas.height = 24;
-      const context = canvas.getContext("2d");
-      if (!context) return null;
-      context.drawImage(image, 0, 0, 24, 24);
-      // Throws for a picture from another site: the browser keeps its pixels to itself.
-      const pixels = context.getImageData(0, 0, 24, 24).data;
-      let r = 0;
-      let g = 0;
-      let b = 0;
-      let count = 0;
-      for (let index = 0; index < pixels.length; index += 4) {
-        const pixel = { r: pixels[index], g: pixels[index + 1], b: pixels[index + 2], a: pixels[index + 3] / 255 };
-        if (!isCourseLike(pixel)) continue;
-        r += pixel.r;
-        g += pixel.g;
-        b += pixel.b;
-        count += 1;
-      }
-      return count >= 24 ? { r: r / count, g: g / count, b: b / count, a: 1 } : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function areaOf(node) {
-    try {
-      const box = node.getBoundingClientRect();
-      // A page not laid out (a test page, a hidden one) gives no sizes: every candidate counts the same.
-      return Math.max(1, Math.min(200000, box.width * box.height));
-    } catch {
-      return 1;
-    }
-  }
-
-  /** The course's colour on one card, as `#rrggbb`, or null. */
-  function cardColor(card) {
-    // In the list view the colour is a bar HuskyCT draws before the card's content (measured on 2026-10-06).
-    try {
-      const bar = parseCssColor(window.getComputedStyle(card, "::before").backgroundColor);
-      if (isCourseLike(bar)) return toHex(bar);
-    } catch {
-      /* the rest of the card, below */
-    }
-    let best = null;
-    const consider = (color, area) => {
-      if (!isCourseLike(color)) return;
-      const score = vividness(color).saturation * area;
-      if (!best || score > best.score) best = { color, score };
-    };
-    const nodes = [card, ...card.querySelectorAll("*")].slice(0, 400);
-    for (const node of nodes) {
-      let style;
-      try {
-        style = window.getComputedStyle(node);
-      } catch {
-        continue;
-      }
-      const area = areaOf(node);
-      consider(parseCssColor(style.backgroundColor), area);
-      for (const color of colorsIn(style.backgroundImage)) consider(color, area);
-      if (node.namespaceURI === "http://www.w3.org/2000/svg") consider(parseCssColor(style.fill), area);
-      if (node.tagName === "IMG") consider(averageImageColor(node), area);
-    }
-    return best ? toHex(best.color) : null;
-  }
-
-  /** Every course card's colour on the page, by course id. */
-  function readCourseColors(root) {
-    const found = {};
-    for (const card of (root || document).querySelectorAll("article[data-course-id]")) {
-      const id = card.getAttribute("data-course-id");
-      if (!/^_\d+_\d+$/.test(String(id))) continue;
-      const color = cardColor(card);
-      if (color) found[id] = color;
-    }
-    return found;
-  }
 
   function readColors(storage) {
     try {
@@ -1256,15 +1027,10 @@
     }
   }
 
-  /**
-   * Keeps colours by course id. `fillOnly` is for colours read off the page: they fill in a course
-   * with none, and never replace one HuskyCT's course list gave.
-   */
-  function rememberColors(storage, found, fillOnly) {
+  function rememberColors(storage, found) {
     if (!found || Object.keys(found).length === 0) return;
     try {
-      const known = readColors(storage);
-      storage.setItem(COLORS_KEY, JSON.stringify(fillOnly ? Object.assign({}, found, known) : Object.assign(known, found)));
+      storage.setItem(COLORS_KEY, JSON.stringify(Object.assign(readColors(storage), found)));
     } catch {
       /* read again next time */
     }
@@ -1414,102 +1180,6 @@
   }
 
   /**
-   * Scrolls the "View All" list until every card has rendered.
-   *
-   * Measured on the live page: every card is there from the start as an
-   * `article` with an empty `data-course-id`, filled in once it has been
-   * scrolled into view, and never emptied again. So the list is done when no
-   * card is still empty — not when the count has held still, which stopped at
-   * four or five of six. The list scrolls inside its own panel, one screen at a
-   * time. A card only renders on a scroll, so the first one can be passed over;
-   * reaching the bottom with a card still empty goes back to the top for another
-   * pass, twice at most, in case a card never fills in at all.
-   */
-  async function loadEveryCourseCard(opts) {
-    const seen = new Map();
-    const started = Date.now();
-    let passes = 0;
-    let seenAtLastPass = -1;
-    while (Date.now() - started < opts.pageTimeout) {
-      for (const card of courseCardsOnPage(document)) seen.set(card.id, card);
-      const slots = [...document.querySelectorAll("article[data-course-id]")];
-      const pending = slots.filter((slot) => !slot.getAttribute("data-course-id")).length;
-      if (slots.length > 0 && pending === 0) break;
-
-      // Only real scrolling panels, and only real movement: the live page has
-      // small inner boxes that creep a pixel per scroll and never "finish".
-      const scrollers = [...document.querySelectorAll("main, main *, .panel-wrap, .hide-in-background")].filter(
-        (element) => element.clientHeight >= 150 && element.scrollHeight > element.clientHeight + 50,
-      );
-      let moved = false;
-      for (const element of scrollers) {
-        const before = element.scrollTop;
-        element.scrollTop = Math.min(before + element.clientHeight * 0.8, element.scrollHeight);
-        moved = moved || Math.abs(element.scrollTop - before) >= 10;
-      }
-      if (!moved && slots.length > 0) {
-        // On a screen tall enough that nothing scrolls, there are no passes to
-        // count: give the cards a few seconds to render on their own before
-        // settling for what is there.
-        const waited = Date.now() - started >= opts.every * 20;
-        const stalled = seen.size === seenAtLastPass;
-        seenAtLastPass = seen.size;
-        if (scrollers.length === 0) {
-          if (waited && stalled) break;
-        } else {
-          if (passes >= 2 || (waited && stalled)) break;
-          passes++;
-          for (const element of scrollers) element.scrollTop = 0;
-        }
-      }
-      await pause(opts.every * 2);
-    }
-    return [...seen.values()];
-  }
-
-  /**
-   * Opens one course's Announcements page and reads it once it is really that
-   * course's.
-   *
-   * Moving between two courses can leave the previous course's page on screen
-   * for a moment under the new address, and reading it would file one course's
-   * announcements under another. So the page counts only once its heading names
-   * this course, none of its rows was there before the move, and the row count
-   * has held still. An empty list counts only after it has stayed empty for
-   * `emptySettle`. Returns null if the page never settles — no access, or
-   * HuskyCT sent the student somewhere else.
-   */
-  async function readAnnouncementsOf(courseId, code, opts) {
-    const staleRows = new Set(document.querySelectorAll(".announcement-item-row"));
-    const staleList = document.querySelector(".announcement-list");
-    const path = announcementsPathFor(courseId);
-    routeTo(path);
-
-    const started = Date.now();
-    let lastCount = -1;
-    let steady = 0;
-    while (Date.now() - started < opts.pageTimeout) {
-      await pause(opts.every);
-      if (window.location.pathname.indexOf(path) !== 0) continue;
-      const list = document.querySelector(".announcement-list");
-      if (!list) continue;
-      const heading = collectCourse(document).code;
-      if (code && heading && heading !== code) continue;
-      const rows = [...document.querySelectorAll(".announcement-item-row")];
-      if (rows.some((row) => staleRows.has(row))) continue;
-
-      steady = rows.length === lastCount ? steady + 1 : 0;
-      lastCount = rows.length;
-      if (rows.length > 0 && steady >= 2) return collectAnnouncements(document);
-      // The same empty list element as the last course's gets twice as long,
-      // since it may not have been re-rendered yet.
-      const settle = list === staleList ? opts.emptySettle * 2 : opts.emptySettle;
-      if (rows.length === 0 && Date.now() - started >= settle) return [];
-    }
-    return null;
-  }
-
-  /**
    * Opens the Calendar's "Due dates" view and scrolls it to the end of the term.
    *
    * It shows about three weeks at first and loads the rest as it scrolls —
@@ -1546,21 +1216,16 @@
   }
 
   /**
-   * The Courses page, read for the courses to visit.
-   *
-   * It has two layouts. On a wide screen it lists every course as a card
-   * straight away; on a narrow one it shows the few opened recently, as links,
-   * with a "View All" button for the rest. Measured on 2026-09-27 at 1440 and
-   * 398 pixels wide. `onCoursesPage` runs while the page is up, before "View
-   * All" replaces it, for whatever else the caller wants from it.
+   * The courses to visit, from HuskyCT's own list. A walk that reads the Courses page itself (its
+   * to-do list) has `onCoursesPage` run there, and the page's recent strip says which term is
+   * current. A list HuskyCT would not give is no courses, which the walk reports.
    */
   async function findCourses(opts, onCoursesPage) {
-    // HuskyCT's own list first. A walk that wants only the list needs no page at all;
-    // one that reads the Courses page itself (its to-do list) still goes there below.
-    const listed = opts.useApi === false ? null : await readCoursesApi(opts);
+    const listed = await readCoursesApi(opts);
     // A sync that must not touch the page the student is on stops here, list or no list.
     if (opts.apiOnly) return listed;
-    if (listed && !onCoursesPage) return listed;
+    const cards = listed ? listed.cards : [];
+    if (!onCoursesPage) return listed || { recent: [], cards, queue: [], pageFound: true };
 
     // A course's own page is full of links into `/ultra/courses/`, and it stays
     // on screen for a moment after the move. Taking it for the Courses page read
@@ -1580,20 +1245,7 @@
       opts.pageTimeout,
     );
     const recent = courseLinksOnPage(document);
-    if (onCoursesPage) await onCoursesPage(recent);
-    // The page's recent strip still says which term is current, as it always did; the
-    // list itself is HuskyCT's, so there is no "View All" to open and scroll.
-    if (listed) {
-      return { recent, cards: listed.cards, queue: coursesToCollect(listed.cards, recent, new Date()), pageFound: Boolean(pageFound) };
-    }
-
-    const viewAll = document.querySelector(VIEW_ALL_COURSES);
-    if (viewAll) viewAll.click();
-    let cards = [];
-    if (viewAll || document.querySelector("article[data-course-id]")) {
-      cards = await loadEveryCourseCard(opts);
-      rememberColors(window.localStorage, readCourseColors(document), true);
-    }
+    await onCoursesPage(recent);
     return { recent, cards, queue: coursesToCollect(cards, recent, new Date()), pageFound: Boolean(pageFound) };
   }
 
@@ -1625,18 +1277,6 @@
    * The whole walk. Writes to the basket as it goes, so stopping halfway keeps
    * what was read.
    */
-  /**
-   * The timing a walk is given from Collect everything's own: only the keys
-   * that were set, so each walk keeps its own defaults for everything else.
-   */
-  function timingOf(opts, keys) {
-    const timing = {};
-    for (const key of keys) {
-      if (opts[key] !== undefined) timing[key] = opts[key];
-    }
-    return timing;
-  }
-
   async function collectEverything(options) {
     const opts = Object.assign(
       {
@@ -1659,8 +1299,7 @@
     };
 
     try {
-      // 1 and 2. The Courses page: the to-do list while it is up, then every
-      // course, from the cards on screen or behind "View All".
+      // 1 and 2. The Courses page for its to-do list, and HuskyCT's own list of the courses.
       opts.onProgress({ step: "courses" });
       let basket = readBasket(storage);
       const found = await findCourses(opts, async (recent) => {
@@ -1668,7 +1307,6 @@
         await waitFor(() => document.querySelector("[aria-label*=', due ']"), opts.every, opts.todoSettle);
         basket = save(rememberTodos(basket, todosToRecords(collectTodos(document)), new Date()));
         basket = save(rememberCourses(basket, recent));
-        rememberColors(storage, readCourseColors(document), true);
       });
       const queue = found.queue;
       report.problems.push(...coursesProblems(found));
@@ -1694,9 +1332,7 @@
         const course = queue[index];
         opts.onProgress({ step: "course", course, index: index + 1, total: queue.length });
 
-        // HuskyCT's own data first: no page to open. The page is read only if that failed.
-        const direct = opts.useApi === false ? null : await readAnnouncementsApi(course.id, opts);
-        const rows = direct !== null ? direct : await readAnnouncementsOf(course.id, course.code, opts);
+        const rows = await readAnnouncementsApi(course.id, opts);
         if (rows === null) {
           report.skipped.push(course.code || course.id);
           continue;
@@ -1708,32 +1344,24 @@
         await pause(opts.gap);
       }
 
-      // 5 and 6. Each course's gradebook, then its files: the same walks the
-      // Grades and Materials buttons make, so one press brings in everything.
+      // 5 and 6. Each course's gradebook, then its files, so one press brings in everything.
       // A walk that breaks is reported, and the other still runs.
       if (!opts.shouldStop()) {
         try {
-          report.grades = await collectGrades(
-            Object.assign(timingOf(opts, ["every", "pageTimeout", "gap", "retryPause", "settle"]), {
-              shouldStop: opts.shouldStop,
-              onProgress: (progress) => opts.onProgress(Object.assign({ walk: "grades" }, progress)),
-            }),
-          );
+          report.grades = await collectGrades({
+            shouldStop: opts.shouldStop,
+            onProgress: (progress) => opts.onProgress(Object.assign({ walk: "grades" }, progress)),
+          });
         } catch {
           report.problems.push({ key: "problemGradesWalk" });
         }
       }
       if (!opts.shouldStop()) {
         try {
-          report.materials = await collectMaterials(
-            Object.assign(
-              timingOf(opts, ["every", "pageTimeout", "outlineTimeout", "documentTimeout", "expandPause", "documentSettle"]),
-              {
-                shouldStop: opts.shouldStop,
-                onProgress: (progress) => opts.onProgress(Object.assign({ walk: "materials" }, progress)),
-              },
-            ),
-          );
+          report.materials = await collectMaterials({
+            shouldStop: opts.shouldStop,
+            onProgress: (progress) => opts.onProgress(Object.assign({ walk: "materials" }, progress)),
+          });
         } catch {
           report.problems.push({ key: "problemMaterialsWalk" });
         }
@@ -1741,10 +1369,6 @@
       if ((report.grades && report.grades.stopped) || (report.materials && report.materials.stopped)) {
         report.stopped = true;
       }
-      // A tab in the back does not draw its pages, so the walks read nothing. Say so,
-      // rather than only listing the courses that failed.
-      const fellShort = [report.grades, report.materials].some((walked) => walked && walked.courses.some((course) => course.skipped));
-      if (fellShort && document.hidden) report.problems.push({ key: "problemBackground" });
     } finally {
       // 5. Back to the page the student pressed the button on.
       routeTo(returnTo);
@@ -1755,46 +1379,14 @@
   // --- course materials ---------------------------------------------------------
 
   /**
-   * Every file, document, video, link and tool in each course's content, and
-   * the files saved into a folder the student picks.
-   *
-   * Measured on 2026-09-27 across six courses:
-   *
-   * - A course's content page lists items as links whose accessibility label is
-   *   "Type, Title" — "PDF, Section 5.1 Problem Solving Tips.pdf". The type is
-   *   the file's kind, not the item's: a CSV reads "Text Document". What an item
-   *   is comes from where it links. `/file/` is a file, `/document/` a page that
-   *   holds attachments and embedded videos, `/assessment/` and `/discussion/`
-   *   are work to do rather than material, `#` is a tool launched from HuskyCT
-   *   (LTI links, Cengage homework), and anything else is a link out.
-   * - A file's row carries its real address, `/bbcswebdav/...`, on an anchor
-   *   keyed by the item's id; it redirects to Blackboard's file store, which
-   *   answers any origin. So the file can be read with an ordinary request that
-   *   sends HuskyCT's cookie to HuskyCT only. With the cookie sent on to the
-   *   store as well, the store refuses — that is the one way to get it wrong.
-   * - Folders and learning modules load their contents when opened, and each
-   *   list ends in a "Load more" button that is disabled once nothing is left.
-   * - A document's attachments carry an id that starts with the document's own,
-   *   so a page still showing the previous document cannot be mistaken for it.
+   * Every file, document, video, link and tool in each course's content. A file's address,
+   * `/bbcswebdav/...`, redirects to Blackboard's file store, which answers any origin: so the
+   * file can be read with an ordinary request that sends HuskyCT's cookie to HuskyCT only. With
+   * the cookie sent on to the store as well, the store refuses — that is the one way to get it wrong.
    */
 
-  const OUTLINE_ITEMS = 'a[aria-label][data-analytics-id^="content.item"], a[aria-label][data-analytics-id^="course.link.item"]';
-  const OUTLINE_TOGGLES =
-    'button[aria-expanded="false"][id^="folder-title-"], button[aria-expanded="false"][id^="learning-module-title-"]';
-  const LOAD_MORE =
-    'button[data-analytics-id="components.directives.content.content-outline.infiniteScroll.content.loadMoreButton.label.plural"]';
-  const ACTIVITY_TYPES = /^(assignment|quiz|test|practice test|homework|discussion|journal|survey|assessment|exam)$/i;
   const VIDEO_HOSTS = /(youtube\.com|youtu\.be|vimeo\.com|vidyard\.com|panopto|kaltura|mediaspace|zoom\.us\/rec)/i;
   const TERM_SEASONS = { 3: "Spring", 5: "Summer", 8: "Fall" };
-
-  /** "PDF, Section 5.1 Problem Solving Tips.pdf" -> { type: "PDF", title: "Section 5.1 …" } */
-  function splitItemLabel(label) {
-    const text = String(label || "").trim();
-    const comma = text.indexOf(", ");
-    return comma === -1
-      ? { type: "", title: text }
-      : { type: text.slice(0, comma).trim(), title: text.slice(comma + 2).trim() };
-  }
 
   /**
    * A link without Outlook's safe-links wrapper. Links pasted in from a UConn
@@ -1815,199 +1407,6 @@
 
   function isVideoLink(url) {
     return VIDEO_HOSTS.test(String(url || ""));
-  }
-
-  /** The folders an outline item sits in, outermost first. */
-  function outlinePathOf(element) {
-    const owner = element.ownerDocument || document;
-    const path = [];
-    for (let node = element.parentElement; node; node = node.parentElement) {
-      const match = /^(folder|learning-module)-contents-(.+)$/.exec(node.id || "");
-      if (!match) continue;
-      const title = owner.getElementById(match[1] + "-title-" + match[2]);
-      if (title) path.unshift(textOf(title));
-    }
-    return path;
-  }
-
-  /**
-   * The address that opens an LTI tool straight away, or null for anything else.
-   *
-   * Measured on 2026-09-28: an LTI link's anchor is `href="#"`, but the row
-   * around it carries the item's id as `data-content-id`, and pressing it makes
-   * HuskyCT open Blackboard's own launch address for that id in a new window —
-   * `/webapps/blackboard/execute/blti/launchLink?course_id=…&content_id=…&from_ultra=true`.
-   * The same address opened later, in any tab where the student is signed in,
-   * launches the tool without going through the course page.
-   */
-  function toolLaunchUrl(anchor, type, courseId) {
-    if (!/\bLTI\b/i.test(type) || !/^_\d+_\d+$/.test(courseId)) return null;
-    const row = anchor.closest("[data-content-id]");
-    const id = row && row.getAttribute("data-content-id");
-    if (!id || !/^_\d+_\d+$/.test(id)) return null;
-    return (
-      window.location.origin +
-      "/webapps/blackboard/execute/blti/launchLink?course_id=" +
-      courseId +
-      "&content_id=" +
-      id +
-      "&from_ultra=true"
-    );
-  }
-
-  /**
-   * An LTI link that plays a Kaltura video. Measured on 2026-09-28: the anchor
-   * names the tool it launches in `data-launch-handle` — "KalturaBSE" for a
-   * video embedded from Kaltura (MATH 1070Q's "Problem Solving Tips"), whose
-   * launch opens the player — so it is listed with the videos, not the tools.
-   */
-  function isKalturaLaunch(anchor) {
-    return /^kaltura/i.test(anchor.getAttribute("data-launch-handle") || "");
-  }
-
-  /**
-   * Sorts a course's opened content page into files, documents to open, links,
-   * tools and work. Only items linking into this course count as its files and
-   * documents, so a page still showing another course adds nothing of it.
-   */
-  function classifyOutline(root, courseId) {
-    const scope = root || document;
-    const found = { files: [], documents: [], links: [], tools: [], activities: 0, unaddressed: 0 };
-    const addresses = new Map();
-    for (const anchor of scope.querySelectorAll("[data-ally-content-id][data-ally-file-preview-url]")) {
-      addresses.set(anchor.getAttribute("data-ally-content-id"), anchor.getAttribute("data-ally-file-preview-url"));
-    }
-
-    const own = "/ultra/courses/" + courseId + "/";
-    const seen = new Set();
-    for (const anchor of scope.querySelectorAll(OUTLINE_ITEMS)) {
-      const href = anchor.getAttribute("href") || "";
-      const { type, title } = splitItemLabel(anchor.getAttribute("aria-label"));
-      if (!title) continue;
-      const path = outlinePathOf(anchor);
-      const key = href + "|" + title + "|" + path.join("/");
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const file = /\/file\/(_\d+_\d+)/.exec(href);
-      const doc = /\/document\/(_\d+_\d+)/.exec(href);
-      if (file) {
-        if (href.indexOf(own) === -1) continue;
-        const url = addresses.get(file[1]);
-        // A file whose row carries no address is how a change to that hidden
-        // anchor would show up: counted, so the panel can say so.
-        if (url) found.files.push({ path, title, url });
-        else found.unaddressed += 1;
-        continue;
-      }
-      if (doc) {
-        if (href.indexOf(own) === -1) continue;
-        const address = new URL(href, window.location.origin);
-        found.documents.push({ path, title, id: doc[1], route: address.pathname + address.search });
-        continue;
-      }
-      if (ACTIVITY_TYPES.test(type) || /\/(assessment|discussion)\//.test(href)) {
-        found.activities += 1;
-        continue;
-      }
-      if (/^https?:/i.test(href) && !/lms\.uconn\.edu\/ultra\//i.test(href)) {
-        const url = unwrapLink(href);
-        found.links.push({ path, title, url, kind: isVideoLink(url) ? "video" : "link" });
-        continue;
-      }
-      const tool = { path, title, type };
-      const url = toolLaunchUrl(anchor, type, courseId);
-      if (url && isKalturaLaunch(anchor)) {
-        found.links.push({ path, title, url, kind: "video" });
-        continue;
-      }
-      if (url) tool.url = url;
-      found.tools.push(tool);
-    }
-    return found;
-  }
-
-  /** Opens every folder and learning module, and presses every live "Load more". */
-  async function expandOutline(opts) {
-    const started = Date.now();
-    while (Date.now() - started < opts.outlineTimeout) {
-      const closed = [...document.querySelectorAll(OUTLINE_TOGGLES)];
-      const more = [...document.querySelectorAll(LOAD_MORE)].filter((button) => !button.disabled);
-      if (closed.length === 0 && more.length === 0) return true;
-      for (const button of closed) button.click();
-      for (const button of more) button.click();
-      await pause(opts.expandPause);
-    }
-    return false;
-  }
-
-  /** A course's content page, opened fully and sorted. Null if it never loaded. */
-  async function readOutlineOf(courseId, code, opts) {
-    const stale = new Set(document.querySelectorAll(OUTLINE_ITEMS + ", " + LOAD_MORE));
-    const path = "/ultra/courses/" + courseId + "/outline";
-    routeTo(path);
-    const ready = await waitFor(
-      () => {
-        if (window.location.pathname.indexOf(path) !== 0) return false;
-        const heading = collectCourse(document).code;
-        if (code && heading && heading !== code) return false;
-        return [...document.querySelectorAll(OUTLINE_ITEMS + ", " + LOAD_MORE)].some((node) => !stale.has(node));
-      },
-      opts.every,
-      opts.pageTimeout,
-    );
-    if (!ready) return null;
-    await expandOutline(opts);
-    return classifyOutline(document, courseId);
-  }
-
-  /**
-   * One document's attachments, embedded videos and links. Null if the page
-   * never showed.
-   */
-  async function readDocument(documentItem, opts) {
-    const staleRoots = new Set(document.querySelectorAll(".bbml-editor-parent"));
-    routeTo(documentItem.route);
-    const root = await waitFor(
-      () => {
-        if (window.location.pathname.indexOf("/document/" + documentItem.id) === -1) return null;
-        return [...document.querySelectorAll(".bbml-editor-parent")].find((node) => !staleRoots.has(node)) || null;
-      },
-      opts.every,
-      opts.documentTimeout,
-    );
-    if (!root) return null;
-    // Measured on 2026-09-27 across six documents: attachments, videos and
-    // links were all there the moment the page appeared. So rather than a fixed
-    // second's wait, the page is read once it has held still for one short
-    // look — which a slower page simply takes longer to pass.
-    const signature = () =>
-      [
-        root.querySelectorAll("[data-ally-file-preview-url]").length,
-        root.querySelectorAll('[data-bbtype="video"], iframe[src]').length,
-        root.querySelectorAll("a[href]").length,
-        root.textContent.length,
-      ].join(",");
-    const settleBy = Date.now() + opts.documentTimeout;
-    for (let last = signature(); Date.now() < settleBy; ) {
-      await pause(opts.documentSettle);
-      const now = signature();
-      if (now === last) break;
-      last = now;
-    }
-
-    const files = [];
-    for (const anchor of root.querySelectorAll("[data-ally-file-preview-url]")) {
-      if (String(anchor.getAttribute("data-ally-content-id") || "").indexOf(documentItem.id) !== 0) continue;
-      const region = (anchor.closest && anchor.closest('[role="region"]')) || anchor.parentElement;
-      const name =
-        textOf(region && region.querySelector('[role="button"] span')) ||
-        textOf(region && region.querySelector("span")) ||
-        documentItem.title;
-      files.push({ title: name, url: anchor.getAttribute("data-ally-file-preview-url") });
-    }
-
-    return { files, links: linksIn(root, documentItem.title) };
   }
 
   /** The videos and links out of HuskyCT in a document's content, each once. */
@@ -2045,7 +1444,7 @@
    *
    * - `resource/x-bb-lesson` and `resource/x-bb-folder` hold more items. A folder whose detail has
    *   `isBbPage` is one of Ultra's documents, shown in the outline as a page, not a folder: its
-   *   items are taken as sitting where it sits, as the outline walk takes a document's attachments.
+   *   items are taken as sitting where it sits.
    * - `resource/x-bb-file` carries `contentDetail["resource/x-bb-file"].file.permanentUrl`,
    *   `/bbcswebdav/…`: the same address the outline's file row carries, so a file read either way
    *   is the same file to BetterHuskyCT, and one already there is not sent again.
@@ -2054,8 +1453,8 @@
    * - `resource/x-bb-externallink` carries its address in its detail; `resource/x-bb-blti-link`
    *   is a tool launched from HuskyCT.
    *
-   * The same { files, links, tools, activities, unaddressed, documents } as the outline walk, with
-   * no documents left to open, or null if it could not be read this way.
+   * { files, links, tools, activities, unaddressed, documents: [] }, or null if it could not be
+   * read this way.
    */
   const CONTENT_ITEMS_MAX = 5000;
   const CONTENT_DEPTH_MAX = 12;
@@ -2151,137 +1550,43 @@
   }
 
   /**
-   * What each document held, kept for a week.
-   *
-   * Opening documents is most of a materials walk — MATH 1070Q alone has 40 —
-   * and a document rarely changes once posted. So a document opened in the
-   * last week is not opened again: its attachments and links come from here.
-   * Anything new is opened as usual, and after a week every document is read
-   * afresh, so a late-added attachment is picked up within days.
-   */
-  const DOCUMENTS_KEY = "huskypilot.helper.documents.v1";
-  const DOCUMENTS_FRESH_DAYS = 7;
-  const DOCUMENTS_KEEP_DAYS = 60;
-
-  function readDocumentCache(storage) {
-    try {
-      const parsed = JSON.parse((storage && storage.getItem(DOCUMENTS_KEY)) || "null");
-      return parsed && parsed.version === 1 && parsed.documents && typeof parsed.documents === "object"
-        ? parsed
-        : { version: 1, documents: {} };
-    } catch {
-      return { version: 1, documents: {} };
-    }
-  }
-
-  function writeDocumentCache(storage, cache, now) {
-    const oldest = now.getTime() - DOCUMENTS_KEEP_DAYS * 86400000;
-    for (const [key, entry] of Object.entries(cache.documents)) {
-      if (!entry || Date.parse(entry.at) < oldest) delete cache.documents[key];
-    }
-    try {
-      storage.setItem(DOCUMENTS_KEY, JSON.stringify(cache));
-    } catch {
-      /* a full or blocked storage only means the next walk opens everything */
-    }
-  }
-
-  function freshDocument(cache, key, now) {
-    const entry = cache.documents[key];
-    if (!entry || !Array.isArray(entry.files) || !Array.isArray(entry.links)) return null;
-    return now.getTime() - Date.parse(entry.at) < DOCUMENTS_FRESH_DAYS * 86400000 ? entry : null;
-  }
-
-  /**
    * The walk for materials: every course's content, opened fully, and every
    * document in it. Nothing is downloaded here; this only lists.
    */
   async function collectMaterials(options) {
-    const opts = Object.assign(
-      {
-        every: 300,
-        pageTimeout: 15000,
-        outlineTimeout: 30000,
-        expandPause: 1200,
-        documentTimeout: 8000,
-        documentSettle: 150,
-        gap: 150,
-        useCache: true,
-        onProgress() {},
-        shouldStop: () => false,
-      },
-      options,
-    );
-    const returnTo = window.location.pathname + window.location.search;
-    const storage = window.localStorage;
-    const cache = opts.useCache ? readDocumentCache(storage) : { version: 1, documents: {} };
-    const manifest = { term: null, courses: [], stopped: false, reused: 0, problems: [] };
-    let documentsFailed = 0;
+    const opts = Object.assign({ gap: 150, onProgress() {}, shouldStop: () => false }, options);
+    const manifest = { term: null, courses: [], stopped: false, problems: [] };
     let unaddressed = 0;
 
-    try {
-      opts.onProgress({ step: "courses" });
-      const found = await findCourses(opts);
-      const { queue } = found;
-      manifest.problems.push(...coursesProblems(found));
-      manifest.term = walkTerm(found);
+    opts.onProgress({ step: "courses" });
+    const found = await findCourses(opts);
+    const { queue } = found;
+    manifest.problems.push(...coursesProblems(found));
+    manifest.term = walkTerm(found);
 
-      for (let index = 0; index < queue.length; index++) {
-        if (opts.shouldStop()) {
-          manifest.stopped = true;
-          break;
-        }
-        const course = queue[index];
-        const where = { course, index: index + 1, total: queue.length };
-        opts.onProgress({ step: "outline", ...where });
-
-        // HuskyCT's own data first: no page to open, and every document's attachments come with
-        // it. The outline is read from its page only if that failed.
-        const direct = opts.useApi === false ? null : await readMaterialsApi(course.id, opts);
-        const outline = direct || (await readOutlineOf(course.id, course.code, opts));
-        const entry = { id: course.id, code: course.code, files: [], links: [], tools: [], activities: 0, skipped: !outline };
-        manifest.courses.push(entry);
-        if (!outline) continue;
-        entry.files = outline.files;
-        entry.links = outline.links;
-        entry.tools = outline.tools;
-        entry.activities = outline.activities;
-        unaddressed += outline.unaddressed;
-
-        for (let d = 0; d < outline.documents.length; d++) {
-          if (opts.shouldStop()) {
-            manifest.stopped = true;
-            break;
-          }
-          const documentItem = outline.documents[d];
-          const cacheKey = course.id + "/" + documentItem.id;
-          let found = opts.useCache ? freshDocument(cache, cacheKey, new Date()) : null;
-          if (found) {
-            manifest.reused += 1;
-          } else {
-            opts.onProgress({ step: "document", ...where, document: d + 1, documents: outline.documents.length });
-            found = await readDocument(documentItem, opts);
-            if (!found) {
-              documentsFailed += 1;
-              continue;
-            }
-            cache.documents[cacheKey] = { at: new Date().toISOString(), files: found.files, links: found.links };
-            await pause(opts.gap);
-          }
-          // A document's attachments go in the folder the document sits in.
-          for (const file of found.files) entry.files.push({ path: documentItem.path, title: file.title, url: file.url });
-          for (const link of found.links) entry.links.push({ path: documentItem.path, ...link });
-        }
-        if (opts.useCache) writeDocumentCache(storage, cache, new Date());
-        if (manifest.stopped) break;
+    for (let index = 0; index < queue.length; index++) {
+      if (opts.shouldStop()) {
+        manifest.stopped = true;
+        break;
       }
-    } finally {
-      routeTo(returnTo);
+      const course = queue[index];
+      opts.onProgress({ step: "outline", course, index: index + 1, total: queue.length });
+      const outline = await readMaterialsApi(course.id, opts);
+      manifest.courses.push({
+        id: course.id,
+        code: course.code,
+        files: outline ? outline.files : [],
+        links: outline ? outline.links : [],
+        tools: outline ? outline.tools : [],
+        activities: outline ? outline.activities : 0,
+        skipped: !outline,
+      });
+      if (outline) unaddressed += outline.unaddressed;
+      await pause(opts.gap);
     }
 
     const skipped = manifest.courses.filter((course) => course.skipped).map((course) => course.code || course.id);
     if (skipped.length) manifest.problems.push({ key: "problemOutlines", params: { courses: skipped.join(", ") } });
-    if (documentsFailed) manifest.problems.push({ key: "problemDocuments", params: { count: documentsFailed } });
     if (unaddressed) manifest.problems.push({ key: "problemFileAddress", params: { count: unaddressed } });
     const read = manifest.courses.filter((course) => !course.skipped);
     const empty = read.every((course) => !course.files.length && !course.links.length && !course.tools.length && !course.activities);
@@ -2309,247 +1614,12 @@
 
   // --- grades ---------------------------------------------------------------------
 
-  /**
-   * Each course's gradebook rows, and nothing else on the page.
-   *
-   * Measured on 2026-09-28 across four courses:
-   *
-   * - A course's gradebook is `/ultra/courses/<id>/grades`. Each row is a
-   *   `[data-grade-id]` holding the item's link, an optional line under it
-   *   (`[data-testid="item-description"]`), and either a score — `105/100`, in
-   *   three spans, beside a spoken "Final Grade: …" — or the words "Not graded".
-   * - Twenty-five rows to a page, with Previous and Next buttons. A fresh route
-   *   always lands on page 1, where Previous is disabled; on the last page Next is.
-   * - A course with no work shows a picture (`StudentNoGrades`) instead of rows,
-   *   inside a wrapper that exists only once the grades have loaded — so an empty
-   *   course can be told from a page still loading without reading its English.
-   * - Some courses show no overall grade at all, so none is read.
-   *
-   * Measured again on 2026-10-04, when HuskyCT changed the page: the rows are
-   * now a table (`course-student-grades-sortable-table`), one
-   * `tr[data-testid="course-student-grades-table-row-<title>"]` each, with no
-   * `data-grade-id`. The item's id is on its name, `course-student-grades-item-name-_N_N`,
-   * the same id the old marker carried. The cells are named by `aria-describedby`
-   * (`…-header-status`, `…-header-grade`): the status is "Submitted" or "Graded", and
-   * the grade cell holds the score in three spans or the words "Not graded". Both
-   * layouts are read, so a page that has not changed over yet still works.
-   */
-  const GRADE_ROWS = '[data-grade-id], tr[data-testid^="course-student-grades-table-row-"]';
-  const GRADE_NAME = '[id^="course-student-grades-item-name-"]';
-  const GRADE_NEXT = '[data-analytics-id="course.student.grade.components.common.pagination.pageUpButton"]';
-  const GRADES_EMPTY = 'img[src*="StudentNoGrades"]';
-  const MAX_GRADE_PAGES = 40;
   const MAX_GRADE_POINTS = 1000000;
-  const GRADE_SCORE = /^\s*(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*$/;
-
-  /** A row's id: the old marker, or the id on its name (…-item-name-_3876639_1). Null if it has neither. */
-  function gradeRowId(row) {
-    const marked = row.getAttribute("data-grade-id");
-    if (marked) return marked;
-    const name = row.querySelector(GRADE_NAME);
-    return name ? String(name.id).slice("course-student-grades-item-name-".length) : null;
-  }
-
-  /** The table cell for one column of a row, or null on the old layout, which has no cells. */
-  function gradeCell(row, column) {
-    return row.querySelector('[aria-describedby$="-header-' + column + '"]');
-  }
-
-  /** One gradebook row as { id, title, status, earned, possible, label }, or null if it is not one. */
-  function readGradeRow(row) {
-    const id = gradeRowId(row);
-    if (!/^_\d+_\d+$/.test(String(id))) return null;
-    const link = row.querySelector(GRADE_NAME);
-    const title = textOf(link);
-    if (!title) return null;
-    // The old layout has a line under the title; the table has a status column.
-    const described = row.querySelector('[data-testid="item-description"]') || gradeCell(row, "status");
-    const status = textOf(described);
-    // Where the score or the words that stand in for it are: the grade cell, so a
-    // status like "Submitted" is never taken for one. The old layout has no cells.
-    const result = gradeCell(row, "grade") || row;
-    const item = {
-      id,
-      title: title.slice(0, 400),
-      status: status ? status.slice(0, 400) : null,
-      earned: null,
-      possible: null,
-      label: null,
-    };
-
-    for (const span of result.querySelectorAll('span[aria-hidden="true"]')) {
-      const score = GRADE_SCORE.exec(textOf(span));
-      if (!score) continue;
-      const earned = Number(score[1]);
-      const possible = Number(score[2]);
-      if (earned <= MAX_GRADE_POINTS && possible <= MAX_GRADE_POINTS) {
-        item.earned = earned;
-        item.possible = possible;
-        return item;
-      }
-    }
-    // No score: what the row shows instead ("Not graded", a letter, "Exempt").
-    for (const span of result.querySelectorAll("span")) {
-      if (span.children.length || (link && link.contains(span)) || (described && described.contains(span))) continue;
-      const words = textOf(span);
-      if (words) {
-        item.label = words.slice(0, 100);
-        break;
-      }
-    }
-    return item;
-  }
-
-  /** Does the page's title name this course? `MATH-1070Q-…` names `MATH 1070Q`. */
-  function titleNames(code) {
-    if (!code) return true;
-    const squash = (value) => String(value || "").replace(/[-\s]+/g, "").toLowerCase();
-    return squash(document.title).indexOf(squash(code)) !== -1;
-  }
-
-  /** Waits until the number of rows has stopped changing for `settle` ms. */
-  async function rowsSettled(opts) {
-    let count = document.querySelectorAll(GRADE_ROWS).length;
-    let since = Date.now();
-    while (Date.now() - since < opts.settle) {
-      await pause(opts.every);
-      const now = document.querySelectorAll(GRADE_ROWS).length;
-      if (now !== count) {
-        count = now;
-        since = Date.now();
-      }
-    }
-  }
-
-  const PAGE_SELECT = '[data-analytics-id$="pagination.pageSelectDropdown.button"]';
-
-  /**
-   * Which page the gradebook is on, and how many there are: { page, pages }, or
-   * null while the pager has not drawn. Read from the page-select button's label
-   * ("Page 1 of 2"), taking its first and last number, so it does not depend on
-   * the language.
-   *
-   * Reading "is Next disabled?" alone was wrong: the button is disabled while the
-   * pager is still loading as well as on the last page, so a slow pager looked
-   * like a one-page gradebook and a course lost its other pages without a word.
-   */
-  function pagerState() {
-    const button = document.querySelector(PAGE_SELECT);
-    const numbers = button ? (button.getAttribute("aria-label") || "").match(/\d+/g) : null;
-    if (!numbers || numbers.length < 2) return null;
-    return { page: Number(numbers[0]), pages: Number(numbers[numbers.length - 1]) };
-  }
-
-  /**
-   * What the page looks like right now, in one line, for a self-check that has
-   * to say why a gradebook did not open: where the tab is, whether any gradebook
-   * rows, the empty picture or the pager are on it, and whether the tab is in the back.
-   */
-  function pageSnapshot() {
-    const count = (selector) => document.querySelectorAll(selector).length;
-    const title = String(document.title || "").replace(/\s+/g, " ").trim().slice(0, 50);
-    return [
-      "path=" + window.location.pathname.slice(0, 60),
-      "rows=" + count(GRADE_ROWS),
-      "empty=" + count(GRADES_EMPTY),
-      "pager=" + (pagerState() ? "yes" : "no"),
-      "hidden=" + (document.hidden ? "yes" : "no"),
-      "signin=" + (looksSignedOut() ? "yes" : "no"),
-      'title="' + title + '"',
-    ].join(" ");
-  }
 
   /** True when HuskyCT has sent the tab back to its sign-in page. */
   function looksSignedOut() {
     if (window.location.pathname === "/" && /[?&]new_loc=/.test(window.location.search)) return true;
     return Boolean(document.querySelector('#loginFormDiv, form[name="login"], input[name="user_id"]'));
-  }
-
-  /**
-   * One attempt at one course's gradebook, every page of it:
-   * { items, complete, reason, at }. `reason` is "never" if the page did not show
-   * and "page" if it stopped partway ("at" says where, like "2/3"). Only rows the
-   * previous page did not have count, so a page still on screen under the new
-   * address is not read as this course; an empty course is told by its picture,
-   * which must also be new.
-   */
-  async function readGradesOnce(courseId, code, opts) {
-    const path = "/ultra/courses/" + courseId + "/grades";
-    const before = new Set([...document.querySelectorAll(GRADE_ROWS)].map(gradeRowId));
-    const emptyBefore = new Set(document.querySelectorAll(GRADES_EMPTY));
-    routeTo(path);
-    const shown = await waitFor(
-      () => {
-        if (window.location.pathname.indexOf(path) !== 0) return false;
-        const rows = [...document.querySelectorAll(GRADE_ROWS)];
-        if (rows.some((row) => !before.has(gradeRowId(row)))) return "rows";
-        const empty = document.querySelector(GRADES_EMPTY);
-        return empty && !emptyBefore.has(empty) && titleNames(code) ? "empty" : false;
-      },
-      opts.every,
-      opts.pageTimeout,
-    );
-    if (!shown) return { items: [], complete: false, reason: "never", at: null, seen: pageSnapshot() };
-    if (shown === "empty") return { items: [], complete: true, reason: null, at: null };
-
-    const items = [];
-    const seen = new Set();
-    let total = null;
-    for (let pages = 1; ; pages++) {
-      await rowsSettled(opts);
-      // The pager says whether this is the last page; wait for it to say anything.
-      const state = await waitFor(pagerState, opts.every, opts.pageTimeout);
-      if (!state) return { items, complete: false, reason: "page", at: pages + "/" + (total || "?") };
-      total = state.pages;
-
-      const rows = [...document.querySelectorAll(GRADE_ROWS)];
-      for (const row of rows) {
-        const item = readGradeRow(row);
-        if (item && !seen.has(item.id)) {
-          seen.add(item.id);
-          items.push(item);
-        }
-      }
-      if (state.page >= state.pages) return { items, complete: true, reason: null, at: null };
-      if (pages >= MAX_GRADE_PAGES) return { items, complete: false, reason: "page", at: state.page + "/" + state.pages };
-
-      // More pages: Next may still be switching on, so wait for it, then press it.
-      const onThisPage = new Set(rows.map(gradeRowId));
-      const turned = () => {
-        const now = pagerState();
-        return Boolean(now && now.page > state.page) && [...document.querySelectorAll(GRADE_ROWS)].some((row) => !onThisPage.has(gradeRowId(row)));
-      };
-      let moved = false;
-      // A press that lands while the page is still drawing is lost, so it is made twice.
-      for (let press = 0; press < 2 && !moved; press++) {
-        const next = await waitFor(
-          () => {
-            const button = document.querySelector(GRADE_NEXT);
-            return button && !button.disabled ? button : null;
-          },
-          opts.every,
-          opts.pageTimeout,
-        );
-        if (!next) break;
-        next.click();
-        moved = Boolean(await waitFor(turned, opts.every, press === 0 ? Math.ceil(opts.pageTimeout / 2) : opts.pageTimeout));
-      }
-      if (!moved) return { items, complete: false, reason: "page", at: state.page + "/" + state.pages };
-    }
-  }
-
-  /**
-   * One course's gradebook, with a second, slower try if the first did not get
-   * all of it. A slow HuskyCT, or a page redrawn under the walk, is the usual
-   * reason, and one more go after a pause nearly always gets through.
-   */
-  async function readGradesOf(courseId, code, opts) {
-    const first = await readGradesOnce(courseId, code, opts);
-    if (first.complete || looksSignedOut()) return first;
-    await pause(opts.retryPause);
-    const second = await readGradesOnce(courseId, code, Object.assign({}, opts, { pageTimeout: opts.pageTimeout * 2 }));
-    // Keep whichever got further.
-    return second.complete || second.items.length >= first.items.length ? second : first;
   }
 
   // --- grades, read from HuskyCT's own data --------------------------------------------
@@ -2637,80 +1707,42 @@
   }
 
   /**
-   * The walk for grades: each current course's gradebook, all its pages.
-   * A course whose gradebook did not open, or not to the last page, is marked
-   * skipped, so what BetterHuskyCT already holds for it is left as it is. If
-   * HuskyCT sends the tab to its sign-in page the walk stops there and says so,
-   * instead of timing out on every course that is left.
+   * The walk for grades: each current course's gradebook from HuskyCT's own data, every page of
+   * it. A course whose gradebook did not come whole is marked skipped, so what BetterHuskyCT
+   * already holds for it is left as it is. A sign-out stops the walk and says so, instead of
+   * failing on every course that is left.
    */
   async function collectGrades(options) {
-    const opts = Object.assign(
-      {
-        every: 300,
-        pageTimeout: 15000,
-        retryPause: 1500,
-        settle: 600,
-        gap: 250,
-        onProgress() {},
-        shouldStop: () => false,
-      },
-      options,
-    );
-    const returnTo = window.location.pathname + window.location.search;
+    const opts = Object.assign({ gap: 250, onProgress() {}, shouldStop: () => false }, options);
     const manifest = { term: null, courses: [], stopped: false, signedOut: false, problems: [] };
+    opts.onProgress({ step: "courses" });
+    lastApiFailure = null;
+    const found = await findCourses(opts);
+    const { queue } = found;
+    manifest.problems.push(...coursesProblems(found));
+    manifest.term = walkTerm(found);
+    // Who is signed in, which HuskyCT's gradebook data is asked for by.
+    const userId = queue.length ? await readUserId(opts) : null;
 
-    try {
-      opts.onProgress({ step: "courses" });
-      const found = await findCourses(opts);
-      const { queue } = found;
-      manifest.problems.push(...coursesProblems(found));
-      manifest.term = walkTerm(found);
-      // Who is signed in, which HuskyCT's gradebook data is asked for by. Without it every course is read from its page.
-      const userId = opts.useApi === false ? null : await readUserId(opts);
-
-      for (let index = 0; index < queue.length; index++) {
-        if (opts.shouldStop()) {
-          manifest.stopped = true;
-          break;
-        }
-        const course = queue[index];
-        opts.onProgress({ step: "grades", course, index: index + 1, total: queue.length });
-        // HuskyCT's own data first: no page to open. The page is read only if that failed.
-        const direct = userId ? await readGradesApi(course.id, userId, opts) : null;
-        const read = direct ? { items: direct, complete: true, reason: null, at: null } : await readGradesOf(course.id, course.code, opts);
-        manifest.courses.push({
-          id: course.id,
-          code: course.code,
-          items: read.items,
-          skipped: !read.complete,
-          reason: read.reason,
-          at: read.at,
-          seen: read.seen || null,
-        });
-        if (!read.complete && looksSignedOut()) {
-          manifest.signedOut = true;
-          break;
-        }
-        await pause(opts.gap);
+    for (let index = 0; index < queue.length; index++) {
+      if (opts.shouldStop()) {
+        manifest.stopped = true;
+        break;
       }
-    } finally {
-      // After a sign-out there is no page of ours to go back to.
-      if (!looksSignedOut()) routeTo(returnTo);
+      const course = queue[index];
+      opts.onProgress({ step: "grades", course, index: index + 1, total: queue.length });
+      const items = userId ? await readGradesApi(course.id, userId, opts) : null;
+      manifest.courses.push({ id: course.id, code: course.code, items: items || [], skipped: !items, reason: items ? null : "never", at: null });
+      if (!items && lastApiFailure === "HTTP 401") {
+        manifest.signedOut = true;
+        break;
+      }
+      await pause(opts.gap);
     }
 
-    // Each course that fell short, with where: "MATH 1070Q (page 2/3)".
-    const skipped = manifest.courses
-      .filter((course) => course.skipped)
-      .map((course) => (course.code || course.id) + (course.reason === "page" && course.at ? " (page " + course.at + ")" : ""));
-    // What the page showed when the first one failed to open, so a failure can be told apart.
-    const firstSeen = manifest.courses.find((course) => course.skipped && course.seen);
+    const skipped = manifest.courses.filter((course) => course.skipped).map((course) => course.code || course.id);
     if (manifest.signedOut) manifest.problems.push({ key: "problemSignedOut" });
-    else if (skipped.length) {
-      manifest.problems.push({
-        key: "problemGrades",
-        params: { courses: skipped.join(", ") + (firstSeen ? " [" + (firstSeen.code || firstSeen.id) + ": " + firstSeen.seen + "]" : "") },
-      });
-    }
+    else if (skipped.length) manifest.problems.push({ key: "problemGrades", params: { courses: skipped.join(", ") } });
     return manifest;
   }
 
@@ -2750,46 +1782,6 @@
   }
 
   /**
-   * Every file to save, with the folders it goes in: term, course, then the
-   * course's own folders. The same file reached twice in one folder is saved
-   * once.
-   */
-  function plannedFiles(manifest) {
-    const top = safeName("HuskyCT " + (manifest.term || ""), "HuskyCT");
-    const planned = [];
-    for (const course of manifest.courses) {
-      const seen = new Set();
-      for (const file of course.files) {
-        const folders = [top, safeName(course.code || course.id, "Course")].concat(
-          file.path.map((part) => safeName(part, "Folder")),
-        );
-        const key = folders.join("/") + "|" + file.url;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        planned.push({ folders, title: file.title, url: file.url });
-      }
-    }
-    return planned;
-  }
-
-  /**
-   * Picks a file's name, keeping names unique within a folder: a second
-   * "Notes.pdf" becomes "Notes (2).pdf". The order is the walk's, so the same
-   * file gets the same name on every run and a rerun recognises it.
-   */
-  function uniqueName(used, folderKey, name) {
-    const taken = used.get(folderKey) || new Set();
-    used.set(folderKey, taken);
-    let candidate = name;
-    for (let n = 2; taken.has(candidate.toLowerCase()); n++) {
-      const dot = name.lastIndexOf(".");
-      candidate = dot > 0 ? name.slice(0, dot) + " (" + n + ")" + name.slice(dot) : name + " (" + n + ")";
-    }
-    taken.add(candidate.toLowerCase());
-    return candidate;
-  }
-
-  /**
    * One file's bytes. The default request sends HuskyCT's cookie to HuskyCT and
    * nothing to the file store it redirects to — the store's signed address is
    * the permission, and it refuses a request that carries credentials.
@@ -2800,210 +1792,6 @@
     if (!response.ok) throw new Error("HTTP " + response.status);
     const blob = await response.blob();
     return { blob, name: nameFromStoreUrl(response.url) };
-  }
-
-  /**
-   * Saves the files into a folder the student picked, one at a time, skipping
-   * any already there — so a second run next week fetches only what is new.
-   */
-  async function saveMaterialsToFolder(root, manifest, opts) {
-    const options = Object.assign({ gap: 250, onProgress() {}, shouldStop: () => false }, opts);
-    const planned = plannedFiles(manifest);
-    const used = new Map();
-    const result = { saved: 0, skipped: 0, failed: 0, folder: planned.length ? planned[0].folders[0] : null };
-
-    for (let index = 0; index < planned.length; index++) {
-      if (options.shouldStop()) break;
-      const file = planned[index];
-      const folderKey = file.folders.join("/");
-      options.onProgress({ index: index + 1, total: planned.length, name: file.title });
-      try {
-        let dir = root;
-        for (const name of file.folders) dir = await dir.getDirectoryHandle(name, { create: true });
-
-        // A title with an extension is the name, so a file already saved is
-        // recognised without fetching it again.
-        let name = hasExtension(file.title) ? uniqueName(used, folderKey, safeName(file.title, "file")) : null;
-        if (name && (await folderHas(dir, name))) {
-          result.skipped++;
-          continue;
-        }
-        const fetched = await fetchMaterial(file.url);
-        if (!name) name = uniqueName(used, folderKey, safeName(fetched.name || file.title, "file"));
-        if (await folderHas(dir, name)) {
-          result.skipped++;
-          continue;
-        }
-        const handle = await dir.getFileHandle(name, { create: true });
-        const writable = await handle.createWritable();
-        await writable.write(fetched.blob);
-        await writable.close();
-        result.saved++;
-      } catch {
-        result.failed++;
-      }
-      await pause(options.gap);
-    }
-    return result;
-  }
-
-  async function folderHas(dir, name) {
-    try {
-      await dir.getFileHandle(name);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  const CRC_TABLE = (() => {
-    const table = new Uint32Array(256);
-    for (let n = 0; n < 256; n++) {
-      let c = n;
-      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-      table[n] = c >>> 0;
-    }
-    return table;
-  })();
-
-  function crc32(bytes) {
-    let c = 0xffffffff;
-    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
-    return (c ^ 0xffffffff) >>> 0;
-  }
-
-  /**
-   * A ZIP of stored entries, for browsers that cannot write into a folder
-   * (Firefox, Safari). Stored rather than compressed: course files are PDFs,
-   * slides and archives, which are compressed already.
-   */
-  function zipStored(entries) {
-    const encoder = new TextEncoder();
-    const parts = [];
-    const central = [];
-    let offset = 0;
-    for (const entry of entries) {
-      const name = encoder.encode(entry.name);
-      const crc = crc32(entry.bytes);
-      const size = entry.bytes.length;
-
-      const local = new DataView(new ArrayBuffer(30));
-      local.setUint32(0, 0x04034b50, true);
-      local.setUint16(4, 20, true);
-      local.setUint16(6, 0x0800, true); // names are UTF-8
-      local.setUint16(12, 0x21, true); // 1980-01-01
-      local.setUint32(14, crc, true);
-      local.setUint32(18, size, true);
-      local.setUint32(22, size, true);
-      local.setUint16(26, name.length, true);
-      parts.push(new Uint8Array(local.buffer), name, entry.bytes);
-
-      const record = new DataView(new ArrayBuffer(46));
-      record.setUint32(0, 0x02014b50, true);
-      record.setUint16(4, 20, true);
-      record.setUint16(6, 20, true);
-      record.setUint16(8, 0x0800, true);
-      record.setUint16(14, 0x21, true);
-      record.setUint32(16, crc, true);
-      record.setUint32(20, size, true);
-      record.setUint32(24, size, true);
-      record.setUint16(28, name.length, true);
-      record.setUint32(42, offset, true);
-      central.push(new Uint8Array(record.buffer), name);
-
-      offset += 30 + name.length + size;
-    }
-    const centralSize = central.reduce((total, part) => total + part.length, 0);
-    const end = new DataView(new ArrayBuffer(22));
-    end.setUint32(0, 0x06054b50, true);
-    end.setUint16(8, entries.length, true);
-    end.setUint16(10, entries.length, true);
-    end.setUint32(12, centralSize, true);
-    end.setUint32(16, offset, true);
-    return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: "application/zip" });
-  }
-
-  /** Every file fetched into one ZIP, with the same folders a picked folder would get. */
-  async function materialsZip(manifest, opts) {
-    const options = Object.assign({ gap: 250, onProgress() {}, shouldStop: () => false }, opts);
-    const planned = plannedFiles(manifest);
-    const used = new Map();
-    const entries = [];
-    let failed = 0;
-    for (let index = 0; index < planned.length; index++) {
-      if (options.shouldStop()) break;
-      const file = planned[index];
-      options.onProgress({ index: index + 1, total: planned.length, name: file.title });
-      try {
-        const fetched = await fetchMaterial(file.url);
-        const base = hasExtension(file.title) ? file.title : fetched.name || file.title;
-        const name = uniqueName(used, file.folders.join("/"), safeName(base, "file"));
-        entries.push({ name: file.folders.concat(name).join("/"), bytes: new Uint8Array(await fetched.blob.arrayBuffer()) });
-      } catch {
-        failed++;
-      }
-      await pause(options.gap);
-    }
-    return { blob: zipStored(entries), saved: entries.length, failed, name: (planned[0] ? planned[0].folders[0] : "HuskyCT") + ".zip" };
-  }
-
-  function escapeHtml(value) {
-    return String(value === null || value === undefined ? "" : value).replace(/[&<>"']/g, (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
-    );
-  }
-
-  /**
-   * The links and videos, grouped by course and folder, as a page to keep.
-   * An LTI tool links to its launch address; any other tool, to its course's
-   * content page, where it opens.
-   */
-  function materialsLinksHtml(manifest) {
-    const sections = [];
-    for (const course of manifest.courses) {
-      const rows = [];
-      // Each item carries its course, kind and folder as data, so importing the
-      // saved folder into BetterHuskyCT reads them back without parsing the
-      // headings, which change with the language.
-      const group = (items, heading, render, kind) => {
-        if (items.length === 0) return;
-        rows.push("<h3>" + escapeHtml(heading) + "</h3><ul>");
-        for (const item of items) {
-          const itemKind = kind || item.kind;
-          rows.push(
-            '<li data-course="' + escapeHtml(course.code || course.id) + '" data-course-id="' + escapeHtml(course.id) +
-              '" data-kind="' + escapeHtml(itemKind) + '" data-path="' + escapeHtml(JSON.stringify(item.path)) + '">' +
-              render(item) +
-              "</li>",
-          );
-        }
-        rows.push("</ul>");
-      };
-      const where = (item) => (item.path.length ? '<span class="path">' + escapeHtml(item.path.join(" / ")) + "</span> " : "");
-      const outlink = (item) => where(item) + '<a href="' + escapeHtml(item.url) + '">' + escapeHtml(item.title) + "</a>";
-      group(course.links.filter((link) => link.kind === "video"), t("linksVideos"), outlink);
-      group(course.links.filter((link) => link.kind !== "video"), t("linksLinks"), outlink);
-      const outline = window.location.origin + "/ultra/courses/" + course.id + "/outline";
-      group(
-        course.tools,
-        t("linksTools"),
-        (tool) => where(tool) + '<a href="' + escapeHtml(tool.url || outline) + '">' + escapeHtml(tool.title) + "</a>",
-        "tool",
-      );
-      if (rows.length) sections.push("<h2>" + escapeHtml(course.code || course.id) + "</h2>" + rows.join(""));
-    }
-    const title = "HuskyCT " + (manifest.term || "") + " — " + t("linksTitle");
-    return (
-      '<!doctype html><html><head><meta charset="utf-8"><title>' +
-      escapeHtml(title) +
-      "</title><style>body{font:15px/1.5 system-ui,sans-serif;max-width:860px;margin:32px auto;padding:0 16px;color:#1f2a37}" +
-      "h2{margin-top:32px;border-top:1px solid #dde3ea;padding-top:16px}h3{font-size:15px;color:#51606f}" +
-      ".path{color:#7a8794;font-size:13px}a{color:#0b5cad}</style></head><body><h1>" +
-      escapeHtml(title) +
-      "</h1>" +
-      (sections.join("") || "<p>—</p>") +
-      "</body></html>"
-    );
   }
 
   // --- sending materials to BetterHuskyCT ---------------------------------------
@@ -3309,7 +2097,6 @@
         },
       ],
       completedIds: [],
-      efforts: {},
       courses: { version: 1, courses: [], assignments: {} },
       announcements: announcements || [],
       courseColors: courseColors || {},
@@ -3376,7 +2163,7 @@
    * and its pages not drawn, so every course fails to open (1.5.0 did this).
    * After the walk a browser no longer lets a script open a new tab, but a
    * tab this script opened earlier is found by its name and is not a popup.
-   * When there is none, nothing opens and the Send buttons do it on a press.
+   * When there is none, nothing opens, and BetterHuskyCT's Sync brings it over later.
    * A tab already on BetterHuskyCT is left as it is, so nothing reloads.
    */
   function openBhcTab() {
@@ -3451,7 +2238,7 @@
   /**
    * What to do on the page the panel happens to be sitting on.
    *
-   * The panel offers six actions and nothing on screen says which one this page
+   * The panel offers several actions and nothing on screen says which one this page
    * wants. Working that out is the script's job, not the reader's.
    */
   function guidanceFor(scope, courseId, pathname) {
@@ -3477,13 +2264,12 @@
    * The quick sync: courses, announcements and grades, all from HuskyCT's own data.
    *
    * It opens no page and moves nothing on the screen, so it can run while the student reads
-   * HuskyCT, and on its own when HuskyCT is opened. That is also its limit: a course whose data
-   * cannot be read this way is skipped, never read from its page, because reading a page would
-   * take the screen away. The to-do list and the course files still need pages, and stay with
-   * Collect everything; the due dates come to BetterHuskyCT through the calendar link.
+   * HuskyCT, and on its own when HuskyCT is opened. A course whose data cannot be read is skipped.
+   * The to-do list still needs the Courses page, and stays with Collect everything; the due dates
+   * come to BetterHuskyCT through the calendar link.
    *
    * What it reads goes into the basket (announcements) and, as one reading, into the sync state
-   * (grades), so the Send buttons have it.
+   * (grades), so a later send has it.
    */
   const SYNC_KEY = "huskypilot.helper.sync.v1";
   const AUTO_SYNC_AFTER_MS = 6 * 60 * 60 * 1000;
@@ -3550,13 +2336,6 @@
     if (found.queue.length === 0) {
       out.reason = "nocourses";
       return out;
-    }
-    if (/^\/ultra\/course\/?$/.test(window.location.pathname)) {
-      // Moving nothing: the cards of the page it is already on are read once they are drawn, while
-      // the courses are read; by the time anything is sent they usually are.
-      void waitFor(() => document.querySelector("article[data-course-id^='_']"), opts.every, 15000).then((card) => {
-        if (card) rememberColors(storage, readCourseColors(document), true);
-      });
     }
     const queue = found.queue;
     out.courses = queue.length;
@@ -3726,7 +2505,7 @@
    */
   const BRIDGE_BLOBS = "bridge.blobs";
   const BRIDGE_BLOB_PIECE = 512 * 1024;
-  /** Files above this stay off the bridge: storage is no place for them, and Save files or Collect everything carries them. */
+  /** Files above this stay off the bridge: storage is no place for them, and Collect everything carries them. */
   const BRIDGE_BLOB_MAX = 100 * 1024 * 1024;
   const BRIDGE_BLOB_KEEP_MS = 5 * 60 * 1000;
 
@@ -4033,14 +2812,8 @@
         <button class="act" data-act="todos">${t("sendDeadlines")}</button>
         <button class="act" data-act="emptybasket">${t("clearBasket")}</button>
         <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
-        <button class="act" data-act="materials">${t("collectMaterials")}</button>
         <div class="note" data-role="materials" hidden></div>
-        <button class="act primary" data-act="sendmaterials" hidden></button>
-        <button class="act" data-act="savefiles" hidden></button>
-        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
-        <button class="act" data-act="grades">${t("collectGrades")}</button>
         <div class="note" data-role="grades" hidden></div>
-        <button class="act primary" data-act="sendgrades" hidden></button>
         <div class="note" data-role="status">${t("privacy")}</div>
       </div>
     `;
@@ -4102,13 +2875,8 @@
     const collectButton = wrap.querySelector('[data-act="collectall"]');
     const sendButton = wrap.querySelector('[data-act="todos"]');
     const emptyBasketButton = wrap.querySelector('[data-act="emptybasket"]');
-    const materialsButton = wrap.querySelector('[data-act="materials"]');
     const materialsLine = wrap.querySelector('[data-role="materials"]');
-    const saveFilesButton = wrap.querySelector('[data-act="savefiles"]');
-    const sendMaterialsButton = wrap.querySelector('[data-act="sendmaterials"]');
-    const gradesButton = wrap.querySelector('[data-act="grades"]');
     const gradesLine = wrap.querySelector('[data-role="grades"]');
-    const sendGradesButton = wrap.querySelector('[data-act="sendgrades"]');
     const syncLine = wrap.querySelector('[data-role="sync"]');
     const autoSyncButton = wrap.querySelector('[data-act="autosync"]');
     // The walk in progress, if any — `kind` says which button started it, and
@@ -4116,9 +2884,7 @@
     // it runs: the walk reads each page itself, and knows when a page is really
     // the course it asked for.
     let walk = null;
-    // The last materials walk, kept for the save buttons.
-    let materials = null;
-    // The last grades reading, kept for the send button. The sync keeps its own across visits.
+    // The last grades reading. The sync keeps its own across visits.
     let syncState = readSyncState(window.localStorage);
     let grades = syncState.grades;
     // The basket in memory, re-read from storage on every tick so two HuskyCT
@@ -4163,37 +2929,15 @@
 
       const ready = !walk && (summary.deadlines > 0 || summary.announcements > 0);
       const basketWalk = Boolean(walk && walk.kind === "basket");
-      const materialsWalk = Boolean(walk && walk.kind === "materials");
-      const gradesWalk = Boolean(walk && walk.kind === "grades");
       const syncWalk = Boolean(walk && walk.kind === "sync");
       collectButton.textContent = basketWalk ? t("stopCollecting") : t("collectAll");
-      collectButton.disabled = materialsWalk || gradesWalk || syncWalk;
+      collectButton.disabled = syncWalk;
       autoSyncButton.textContent = syncState.auto ? t("autoOn") : t("autoOff");
       autoSyncButton.disabled = Boolean(walk);
       collectButton.classList.toggle("primary", !ready);
       sendButton.classList.toggle("primary", ready);
       sendButton.disabled = Boolean(walk);
       emptyBasketButton.disabled = Boolean(walk);
-
-      materialsButton.textContent = materialsWalk ? t("stopCollecting") : t("collectMaterials");
-      materialsButton.disabled = basketWalk || gradesWalk || syncWalk;
-      const found = materials ? materialsSummary(materials) : null;
-      const canSaveFolder = typeof window.showDirectoryPicker === "function";
-      saveFilesButton.hidden = !found || found.files === 0;
-      saveFilesButton.disabled = Boolean(walk);
-      saveFilesButton.textContent = found
-        ? t(canSaveFolder ? "saveFiles" : "saveFilesZip", { count: found.files })
-        : "";
-      sendMaterialsButton.hidden = !found || found.files + found.videos + found.links + found.tools === 0;
-      sendMaterialsButton.disabled = Boolean(walk);
-      sendMaterialsButton.textContent = found ? t("sendMaterials", { count: found.files }) : "";
-
-      gradesButton.textContent = gradesWalk ? t("stopCollecting") : t("collectGrades");
-      gradesButton.disabled = basketWalk || materialsWalk || syncWalk;
-      const gradesFound = grades ? gradesSummary(grades) : null;
-      sendGradesButton.hidden = !gradesFound || gradesFound.items === 0;
-      sendGradesButton.disabled = Boolean(walk);
-      sendGradesButton.textContent = gradesFound ? t("sendGrades", { count: gradesFound.items }) : "";
     }
 
     /**
@@ -4263,7 +3007,7 @@
 
     /**
      * One sync, from a press or on its own. `tab` is where to send what it reads, or null; with
-     * none, the reading is kept and the Send buttons carry it on a press.
+     * none, the reading is kept for BetterHuskyCT's next Sync.
      */
     async function runSync(tab, automatic, report) {
       // What a requesting BetterHuskyCT tab hears; a press or an automatic sync has no one to tell.
@@ -4424,14 +3168,12 @@
               (gradesCheck ? " " + gradesCheck : "");
           }
           if (report.materials) {
-            materials = report.materials;
             materialsLine.hidden = false;
             const materialsCheck = problemsText(report.materials.problems);
             materialsLine.className = materialsCheck ? "note warn" : "note ok";
             materialsLine.textContent =
               (report.materials.stopped ? t("materialsStopped") + " " : "") +
               t("materialsFound", materialsSummary(report.materials)) +
-              (report.materials.reused ? t("materialsReused", { count: report.materials.reused }) : "") +
               (materialsCheck ? " " + materialsCheck : "");
           }
 
@@ -4505,206 +3247,6 @@
           basket = readBasket(window.localStorage);
           refreshBasket();
           refreshGuidance();
-        }
-        return;
-      }
-
-      if (act === "materials") {
-        if (walk) {
-          walk.stop = true;
-          button.disabled = true;
-          return;
-        }
-        walk = { stop: false, kind: "materials" };
-        refreshBasket();
-        materialsLine.hidden = false;
-        materialsLine.className = "note";
-        try {
-          const manifest = await collectMaterials({
-            shouldStop: () => walk.stop,
-            onProgress(progress) {
-              const course = progress.course ? progress.course.code || progress.course.id : "";
-              materialsLine.textContent =
-                progress.step === "courses"
-                  ? t("materialsCourses")
-                  : progress.step === "outline"
-                    ? t("materialsOutline", { course, index: progress.index, total: progress.total })
-                    : t("materialsDocument", { course, document: progress.document, documents: progress.documents });
-            },
-          });
-          materials = manifest;
-          const selfCheck = problemsText(manifest.problems);
-          materialsLine.className = selfCheck ? "note warn" : "note ok";
-          materialsLine.textContent =
-            (manifest.stopped ? t("materialsStopped") + " " : "") +
-            t("materialsFound", materialsSummary(manifest)) +
-            (manifest.reused ? t("materialsReused", { count: manifest.reused }) : "") +
-            (selfCheck ? " " + selfCheck : "");
-        } catch (error) {
-          materialsLine.className = "note warn";
-          materialsLine.textContent = t("materialsFailed", { message: error.message });
-        } finally {
-          walk = null;
-          button.disabled = false;
-          refreshBasket();
-          refreshGuidance();
-        }
-        return;
-      }
-
-      if (act === "sendmaterials") {
-        if (!materials || walk) return;
-        // Opened here, on the click, before anything is awaited: a tab opened
-        // later is a popup the browser blocks.
-        const target = window.open(HUSKYPILOT_URL + "materials", "betterhuskyct");
-        if (!target) {
-          materialsLine.className = "note warn";
-          materialsLine.textContent = t("popupBlocked");
-          return;
-        }
-        walk = { stop: false, kind: "send" };
-        refreshBasket();
-        materialsLine.className = "note";
-        materialsLine.textContent = t("connectingBhc");
-        try {
-          const result = await sendMaterialsToBhc(target, materials, {
-            onProgress: (step) => {
-              materialsLine.textContent = t("sendingMaterial", step);
-            },
-          });
-          materialsLine.className = !result.connected || result.failed ? "note warn" : "note ok";
-          materialsLine.textContent = result.connected ? t("materialsSent", result) : t("bhcNoAnswer");
-        } finally {
-          walk = null;
-          refreshBasket();
-        }
-        return;
-      }
-
-      if (act === "savefiles") {
-        if (!materials) return;
-        const progress = (step) => {
-          materialsLine.className = "note";
-          materialsLine.textContent = t("savingFile", step);
-        };
-
-        if (typeof window.showDirectoryPicker !== "function") {
-          walk = { stop: false, kind: "save" };
-          refreshBasket();
-          try {
-            const zip = await materialsZip(materials, { onProgress: progress });
-            download(zip.name, zip.blob);
-            materialsLine.className = "note ok";
-            materialsLine.textContent = t("zipSaved", zip);
-          } finally {
-            walk = null;
-            refreshBasket();
-          }
-          return;
-        }
-
-        // Said before the picker opens, because the browser's own refusal —
-        // "this folder contains system files" — does not say what to do instead.
-        materialsLine.className = "note";
-        materialsLine.textContent = t("pickFolderHint");
-        let root;
-        try {
-          // The one prompt: the student picks where the term's folder goes.
-          root = await window.showDirectoryPicker({ id: "huskyct-materials", mode: "readwrite", startIn: "desktop" });
-        } catch {
-          return; // closed without picking; the hint stays up
-        }
-        walk = { stop: false, kind: "save" };
-        refreshBasket();
-        try {
-          const result = await saveMaterialsToFolder(root, materials, { onProgress: progress });
-          // The links travel with the files, in the term's folder.
-          try {
-            const top = await root.getDirectoryHandle(result.folder || "HuskyCT", { create: true });
-            const handle = await top.getFileHandle(t("linksFileName"), { create: true });
-            const writable = await handle.createWritable();
-            await writable.write(materialsLinksHtml(materials));
-            await writable.close();
-          } catch {
-            /* the files are what matter; the list can be saved on its own */
-          }
-          materialsLine.className = result.failed ? "note warn" : "note ok";
-          materialsLine.textContent = t("filesSaved", result);
-        } finally {
-          walk = null;
-          refreshBasket();
-        }
-        return;
-      }
-
-      if (act === "grades") {
-        if (walk) {
-          walk.stop = true;
-          button.disabled = true;
-          return;
-        }
-        walk = { stop: false, kind: "grades" };
-        refreshBasket();
-        gradesLine.hidden = false;
-        gradesLine.className = "note";
-        try {
-          const manifest = await collectGrades({
-            shouldStop: () => walk.stop,
-            onProgress(progress) {
-              gradesLine.textContent =
-                progress.step === "courses"
-                  ? t("materialsCourses")
-                  : t("gradesCourse", {
-                      course: progress.course.code || progress.course.id,
-                      index: progress.index,
-                      total: progress.total,
-                    });
-            },
-          });
-          grades = manifest;
-          const selfCheck = problemsText(manifest.problems);
-          gradesLine.className = selfCheck ? "note warn" : "note ok";
-          gradesLine.textContent =
-            (manifest.stopped ? t("gradesStopped") + " " : "") +
-            t("gradesFound", gradesSummary(manifest)) +
-            (selfCheck ? " " + selfCheck : "");
-        } catch (error) {
-          gradesLine.className = "note warn";
-          gradesLine.textContent = t("gradesFailed", { message: error.message });
-        } finally {
-          walk = null;
-          button.disabled = false;
-          refreshBasket();
-          refreshGuidance();
-        }
-        return;
-      }
-
-      if (act === "sendgrades") {
-        if (!grades || walk) return;
-        // Opened here, on the click, before anything is awaited: a tab opened
-        // later is a popup the browser blocks.
-        const target = window.open(HUSKYPILOT_URL + "grades", "betterhuskyct");
-        if (!target) {
-          gradesLine.className = "note warn";
-          gradesLine.textContent = t("popupBlocked");
-          return;
-        }
-        walk = { stop: false, kind: "send" };
-        refreshBasket();
-        gradesLine.className = "note";
-        gradesLine.textContent = t("connectingBhc");
-        try {
-          const result = await sendGradesToBhc(target, grades);
-          gradesLine.className = result.connected && result.stored ? "note ok" : "note warn";
-          gradesLine.textContent = !result.connected
-            ? t("gradesNoAnswer")
-            : result.stored
-              ? t("gradesSent", result)
-              : t("gradesNotStored");
-        } finally {
-          walk = null;
-          refreshBasket();
         }
         return;
       }
@@ -4826,9 +3368,7 @@
       readBasket,
       writeBasket,
       courseLinksOnPage,
-      readCourseColors,
       readColors,
-      rememberColors,
       cardColorFromIndex,
       colorsByCode,
       COLORS_KEY,
@@ -4840,12 +3380,10 @@
       collectDueDates,
       captureIntoBasket,
       basketSummary,
-      announcementsPathFor,
       routeTo,
       courseCardsOnPage,
       coursesToCollect,
       termCodeFor,
-      readAnnouncementsOf,
       readAnnouncementsApi,
       readUserId,
       readSyncState,
@@ -4863,16 +3401,10 @@
       htmlToText,
       collectEverything,
       findCourses,
-      splitItemLabel,
       unwrapLink,
-      classifyOutline,
-      readOutlineOf,
       readMaterialsApi,
-      readDocument,
       collectMaterials,
       materialsSummary,
-      readGradeRow,
-      pagerState,
       collectGrades,
       gradesSummary,
       gradesSnapshotFrom,
@@ -4880,16 +3412,9 @@
       sendGradesToBhc,
       openBhcTab,
       problemsText,
-      DOCUMENTS_KEY,
       termLabel,
       safeName,
       nameFromStoreUrl,
-      plannedFiles,
-      saveMaterialsToFolder,
-      crc32,
-      zipStored,
-      materialsZip,
-      materialsLinksHtml,
       MATERIALS_PROTOCOL,
       materialsIndexFrom,
       sendMaterialsToBhc,

@@ -25,7 +25,6 @@ type Helper = {
   readMaterialsApi: (courseId: string) => Promise<Outline | null>;
   readCoursesApi: () => Promise<unknown>;
   readColors: (storage: Storage) => Record<string, string>;
-  rememberColors: (storage: Storage, found: Record<string, string>, fillOnly?: boolean) => void;
   cardColorFromIndex: (index: unknown) => string | null;
   collectMaterials: (options?: Record<string, unknown>) => Promise<{ courses: Array<{ id: string; files: unknown[]; skipped: boolean }> }>;
   COLORS_KEY: string;
@@ -157,7 +156,7 @@ test("Collect everything reads materials from HuskyCT's data when it answers, an
   assert.ok(!visited.some((path) => path.includes("/outline")), "opened an outline: " + visited.join(", "));
 });
 
-test("each course's colour comes with the course list, and one read off the page only fills a gap", async () => {
+test("each course's colour comes with the course list, and replaces one read off the page before", async () => {
   const membership = (id: string, index: number) => ({
     courseId: id,
     isAvailable: true,
@@ -175,9 +174,6 @@ test("each course's colour comes with the course list, and one read off the page
 
   // course-color-1, -8 and -9, as HuskyCT draws them.
   assert.deepEqual(plain(helper.readColors(window.localStorage)), { _1_1: "#c473d4", _2_1: "#22c7cc", _3_1: "#ca22ad" });
-
-  helper.rememberColors(window.localStorage, { _1_1: "#123456", _4_1: "#2fd9fc" }, true);
-  assert.deepEqual(plain(helper.readColors(window.localStorage)), { _1_1: "#c473d4", _2_1: "#22c7cc", _3_1: "#ca22ad", _4_1: "#2fd9fc" });
 
   assert.equal(helper.cardColorFromIndex(2491), "#2fd9fc", "2491 is course-color-2");
   assert.equal(helper.cardColorFromIndex(undefined), null);
