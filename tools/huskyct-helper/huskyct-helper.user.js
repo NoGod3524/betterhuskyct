@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.14.0
+// @version      1.14.1
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -53,7 +53,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.14.0";
+  const VERSION = "1.14.1";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -2721,28 +2721,46 @@
 
   // -------------------------------------------------------------------- panel
 
+  // BetterHuskyCT's palette, light and dark, so the panel looks like the app it sends to.
   const style = `
-    :host { all: initial; }
+    :host {
+      all: initial;
+      --surface: #ffffff; --subtle: #f2f4f7; --ink: #0f172a; --muted: #5d6b7f;
+      --line: #e6e8ec; --line-strong: #d5d9e0; --blue: #2563eb; --blue-hover: #1d4ed8;
+      --accent-soft: #eef3fd; --accent-ink: #1d4ed8; --ok: #15803d; --warn: #c2312a;
+      --shadow: 0 1px 2px rgb(15 23 42 / .06), 0 12px 32px rgb(15 23 42 / .16);
+    }
+    @media (prefers-color-scheme: dark) {
+      :host {
+        --surface: #12161f; --subtle: #181d27; --ink: #e5e9f0; --muted: #8b95a7;
+        --line: #222936; --line-strong: #2e3646; --blue: #2f63d8; --blue-hover: #3a6fe4;
+        --accent-soft: #172238; --accent-ink: #8fb4f8; --ok: #6fd39a; --warn: #ff8f7e;
+        --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 12px 32px rgb(0 0 0 / .45);
+      }
+    }
     .wrap {
       position: fixed; right: 16px; bottom: 16px; z-index: 2147483000;
       width: ${PANEL_WIDTH}px; max-height: 70vh; overflow: auto;
-      font: 13px/1.5 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
-      color: #172b41; background: #fff; border: 1px solid #cdddf4;
-      border-radius: 14px; box-shadow: 0 14px 40px rgba(23,43,65,.22);
+      font: 13px/1.5 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+      color: var(--ink); background: var(--surface); border: 1px solid var(--line);
+      border-radius: 12px; box-shadow: var(--shadow);
     }
     header {
       display: flex; align-items: center; gap: 8px;
-      padding: 10px 12px; border-bottom: 1px solid #e6eef8;
-      background: #f7fbff; border-radius: 14px 14px 0 0; cursor: default;
+      padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: default;
     }
-    header b { font-size: 13px; }
-    header span { font-size: 11px; color: #7387a0; }
-    button.close { border: 0; background: none; cursor: pointer; font-size: 15px; color: #7387a0; }
+    header b { font-size: 13px; font-weight: 600; }
+    header span { font-size: 11px; color: var(--muted); }
+    button.close {
+      border: 0; background: none; cursor: pointer; font-size: 16px; line-height: 1; color: var(--muted);
+      width: 24px; height: 24px; border-radius: 6px;
+    }
+    button.close:hover { background: var(--subtle); color: var(--ink); }
     button.lang {
-      margin-left: auto; border: 1px solid #cdd9e6; background: #fff; cursor: pointer;
-      font: inherit; font-size: 11px; color: #244e7a; padding: 2px 7px; border-radius: 999px;
+      margin-left: auto; border: 1px solid var(--line); background: var(--surface); cursor: pointer;
+      font: inherit; font-size: 11px; color: var(--ink); padding: 2px 8px; border-radius: 6px;
     }
-    button.lang:hover { border-color: #9fb7d1; }
+    button.lang:hover { background: var(--subtle); }
     /* The way back. The panel used to be removed outright on close, which left
        anyone who dismissed it with no way to find it again — the buttons were
        still in the page, but nothing said so. The chip is always mounted; only
@@ -2750,12 +2768,11 @@
     .chip {
       position: fixed; right: 16px; bottom: 16px; z-index: 2147483000;
       display: none; align-items: center; gap: 7px;
-      font: 13px/1 ui-sans-serif, system-ui, "Segoe UI", sans-serif;
-      color: #fff; background: #2a71d8; border: 0; cursor: pointer;
-      padding: 9px 13px; border-radius: 999px;
-      box-shadow: 0 8px 22px rgba(23,43,65,.28);
+      font: 500 13px/1 Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei UI", sans-serif;
+      color: #fff; background: var(--blue); border: 0; cursor: pointer;
+      padding: 9px 13px; border-radius: 10px; box-shadow: var(--shadow);
     }
-    .chip:hover { background: #1f61c0; }
+    .chip:hover { background: var(--blue-hover); }
     .chip[data-dot="1"]::after {
       content: ""; width: 7px; height: 7px; border-radius: 999px;
       background: #ffd166; box-shadow: 0 0 0 2px rgba(255,255,255,.35);
@@ -2764,24 +2781,28 @@
     :host([data-collapsed="1"]) .chip { display: inline-flex; }
     .body { padding: 12px; display: grid; gap: 8px; }
     button.act {
-      width: 100%; text-align: left; padding: 8px 10px; cursor: pointer;
-      border: 1px solid #cdd9e6; border-radius: 9px; background: #fff;
-      font: inherit; color: #244e7a;
+      width: 100%; text-align: left; padding: 7px 10px; cursor: pointer;
+      border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+      font: inherit; font-weight: 500; color: var(--ink);
+      box-shadow: 0 1px 2px rgb(15 23 42 / .04);
+      transition: background .12s, border-color .12s;
     }
-    button.act:hover { border-color: #9fb7d1; }
-    button.act.primary { background: #2a71d8; border-color: #2a71d8; color: #fff; }
+    button.act:hover { background: var(--subtle); border-color: var(--line-strong); }
+    button.act.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+    button.act.primary:hover { background: var(--blue-hover); }
     button.act:disabled { opacity: .55; cursor: wait; }
+    hr.sep { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
     textarea {
       width: 100%; box-sizing: border-box; min-height: 150px; resize: vertical;
-      font: 11px/1.45 ui-monospace, Consolas, monospace;
-      border: 1px solid #dbe3ec; border-radius: 9px; padding: 8px; color: #31506f;
+      font: 11px/1.45 ui-monospace, Consolas, monospace; background: var(--surface);
+      border: 1px solid var(--line); border-radius: 8px; padding: 8px; color: var(--ink);
     }
-    .note { font-size: 11px; color: #7387a0; }
-    .ok { color: #276944; }
-    .warn { color: #9f3527; }
+    .note { font-size: 11px; color: var(--muted); }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
     .pill {
-      display: inline-block; padding: 1px 7px; border-radius: 999px;
-      background: #eaf2ff; color: #245ea9; font-size: 11px; font-weight: 700;
+      display: inline-block; padding: 1px 6px; border-radius: 6px;
+      background: var(--accent-soft); color: var(--accent-ink); font-size: 11px; font-weight: 600;
     }
   `;
 
@@ -2807,11 +2828,11 @@
         <div class="note" data-role="basket">${t("basketEmpty")}</div>
         <div class="note" data-role="sync" hidden></div>
         <button class="act" data-act="autosync">${t("autoOn")}</button>
-        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
+        <hr class="sep" />
         <button class="act primary" data-act="collectall">${t("collectAll")}</button>
         <button class="act" data-act="todos">${t("sendDeadlines")}</button>
         <button class="act" data-act="emptybasket">${t("clearBasket")}</button>
-        <hr style="border:0;border-top:1px solid #e6eef8;margin:4px 0" />
+        <hr class="sep" />
         <div class="note" data-role="materials" hidden></div>
         <div class="note" data-role="grades" hidden></div>
         <div class="note" data-role="status">${t("privacy")}</div>
