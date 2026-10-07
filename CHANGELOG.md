@@ -14,6 +14,25 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.24.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.24.0) — A cleaner look, page by page
+
+*Minor: the look of the whole app, and of the helper's panel, is new. HuskyCT Helper goes from 1.14.0 to 1.14.1.*
+
+### Changed
+
+- **A new palette and type.** A cool neutral page, white cards with thin borders, UConn navy, and one blue for actions; the dark theme redone to match. Inter for Latin letters, the system face for Chinese. Two button styles and one card are shared by every page. ([#139])
+- **A quieter shell.** A narrower sidebar, a sticky translucent header with a segmented language switch, and content held to 1200 px. The made-up student name and avatar are gone, and the header's Sync button hides on the overview, which has its own. ([#139])
+- **The overview** has a smaller title, the 7-day count under it and Sync at the right; task cards put the title first, then course, kind and time. ([#139])
+- **The calendar** no longer tints a whole day for a school date: a major one draws a line along the top of the day, and one that runs over several days is named on its first day and on each Sunday, with a thin bar between. ([#140])
+- **Grades** open with a tile per course (its colour, the percent large, a progress bar); rows with a new or changed score are tinted. ([#140])
+- **Announcements** list the courses beside them on a wide screen (a row of chips on a phone), each announcement shows two lines with a Read more. ([#140])
+- **Course files** get an icon by kind (PDF, slides, sheet, document, image, archive) and each course shows its colour. A to-do card carries its course's colour down its left edge. ([#140])
+- **The helper's panel** takes the same palette, light and dark following the device. HuskyCT Helper 1.14.1. ([#141])
+
+### Removed
+
+- 54 of the 67 colour-named CSS variables, once every component moved to the semantic ones. ([#140])
+
 ## [1.23.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.23.0) — Sync brings your course files, and the helper reads HuskyCT's data only
 
 *Minor: a new capability. HuskyCT Helper goes from 1.12.8 to 1.14.0.*
@@ -1683,3 +1702,7 @@ saying what to work on next.*
 [#135]: https://github.com/NoGod3524/betterhuskyct/pull/135
 [#136]: https://github.com/NoGod3524/betterhuskyct/pull/136
 [#137]: https://github.com/NoGod3524/betterhuskyct/pull/137
+[#138]: https://github.com/NoGod3524/betterhuskyct/pull/138
+[#139]: https://github.com/NoGod3524/betterhuskyct/pull/139
+[#140]: https://github.com/NoGod3524/betterhuskyct/pull/140
+[#141]: https://github.com/NoGod3524/betterhuskyct/pull/141
