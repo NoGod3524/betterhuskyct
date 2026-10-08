@@ -11,6 +11,7 @@ import {
   crc32Blob,
   linksPageHtml,
   planExport,
+  planPart,
   safeName,
   saveToDirectory,
   type WritableDirectory,
@@ -74,6 +75,38 @@ test("each file goes in its course's folder and its own folders, and a repeated 
   );
   assert.equal(plan.missing, 1, "a file that never arrived was not counted as missing");
   assert.equal(plan.totalBytes, "first".length + "second!".length + "syllabus".length + "slides".length);
+});
+
+test("one course is a ZIP of its own, rooted at the course and named for it", () => {
+  const plan = planPart(index, stored, "_203765_1");
+
+  assert.equal(plan.termFolder, "MATH 1070Q");
+  assert.deepEqual(
+    plan.entries.map((e) => [...e.folders, e.name].join("/")),
+    ["Week 1 - Section 4.1/Section 4.1 PDF.pdf", "Week 1 - Section 4.1/Section 4.1 PDF (2).pdf", "Syllabus.pdf"],
+  );
+  assert.equal(plan.missing, 1);
+  assert.equal(plan.totalBytes, "first".length + "second!".length + "syllabus".length);
+});
+
+test("one folder is a ZIP of its own, with its path in the name and nothing outside it", async () => {
+  const plan = planPart(index, stored, "_203765_1", ["Week 1 - Section 4.1"]);
+
+  assert.equal(plan.termFolder, "MATH 1070Q - Week 1 - Section 4.1");
+  assert.deepEqual(plan.entries.map((e) => [...e.folders, e.name].join("/")), ["Section 4.1 PDF.pdf", "Section 4.1 PDF (2).pdf"]);
+  assert.equal(plan.missing, 0, "a file outside the folder was counted as missing");
+
+  const zip = await buildZip(plan);
+  const bytes = new Uint8Array(await zip.arrayBuffer());
+  const text = new TextDecoder().decode(bytes);
+  assert.ok(text.includes("MATH 1070Q - Week 1 - Section 4.1/Section 4.1 PDF.pdf"));
+  assert.ok(!text.includes("Syllabus.pdf"));
+});
+
+test("a course that is not in the index gives an empty plan rather than a crash", () => {
+  const plan = planPart(index, stored, "_nope_1");
+  assert.deepEqual(plan.entries, []);
+  assert.equal(plan.missing, 0);
 });
 
 test("names are made safe for every desktop, and a missing term is just 'HuskyCT'", () => {

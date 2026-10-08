@@ -84,6 +84,12 @@ async function render(store: MaterialsStore | null) {
       assert.ok(target, `no button "${label}"`);
       await act(async () => (target as unknown as HTMLButtonElement).click());
     },
+    /** A button with no text, found by its label. */
+    clickLabel: async (label: string) => {
+      const target = container.querySelector(`button[aria-label="${label}"]`);
+      assert.ok(target, `no button labelled "${label}"`);
+      await act(async () => (target as unknown as HTMLButtonElement).click());
+    },
     unmount: () => act(async () => root.unmount()),
   };
 }
@@ -216,6 +222,34 @@ test("a browser that cannot write to a folder is offered the ZIP, and pressing i
   // The one file that arrived is in it; the page says one listed file did not.
   assert.ok(view.text().includes(t("en", "materials.zipped", { name: "HuskyCT Fall 2026.zip", count: 1 })));
   assert.ok(view.text().includes(t("en", "materials.exportMissing", { count: 1 })));
+  await view.unmount();
+});
+
+test("a course, and a folder in it, each have a download of their own", async () => {
+  window.localStorage.clear();
+  delete browser.showDirectoryPicker;
+  const realCreate = URL.createObjectURL;
+  const realRevoke = URL.revokeObjectURL;
+  URL.createObjectURL = () => "blob:test";
+  URL.revokeObjectURL = () => undefined;
+  const clicked: string[] = [];
+  const realClick = window.HTMLAnchorElement.prototype.click;
+  window.HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+    clicked.push(this.download);
+  };
+  const view = await render(await seeded());
+  const settle = () => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 50))));
+
+  await view.clickLabel(t("en", "materials.downloadPart", { name: "MATH 1070Q" }));
+  await settle();
+  await view.click("MATH 1070Q" + t("en", "materials.courseSummary", { files: 2, videos: 1, links: 1 }).slice(0, 5));
+  await view.clickLabel(t("en", "materials.downloadPart", { name: "Week 1 - Section 4.1" }));
+  await settle();
+
+  window.HTMLAnchorElement.prototype.click = realClick;
+  URL.createObjectURL = realCreate;
+  URL.revokeObjectURL = realRevoke;
+  assert.deepEqual(clicked, ["MATH 1070Q.zip", "MATH 1070Q - Week 1 - Section 4.1.zip"]);
   await view.unmount();
 });
 
