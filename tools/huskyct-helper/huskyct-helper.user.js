@@ -3,7 +3,10 @@
 // @namespace    https://github.com/NoGod3524/betterhuskyct
 // @version      1.15.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
-// @author       NoGod3524
+// @author       Yinuo (NoGod3524)
+// @homepageURL  https://github.com/NoGod3524/betterhuskyct
+// @supportURL   https://github.com/NoGod3524/betterhuskyct/issues
+// @license      MIT
 // @match        https://lms.uconn.edu/*
 // @match        https://huskyct.uconn.edu/*
 // @match        https://betterhuskyct.vercel.app/*

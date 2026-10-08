@@ -326,6 +326,8 @@ BetterHuskyCT is an independent student project. It is **not affiliated with, en
 
 You paste your own private calendar link, and you are responsible for keeping it private — it works like a password. The app stores no calendar or account data in a server-side database. An optional Upstash database holds summary cache entries for up to 6 hours; a link you tick **Remember** is saved in that browser.
 
-## License
+## Author and license
 
-[MIT](./LICENSE) © 2026 Yinuo
+BetterHuskyCT and HuskyCT Helper are made by **Yinuo** ([@NoGod3524](https://github.com/NoGod3524)). The source is open under the [MIT](./LICENSE) licence, © 2026 Yinuo: use it, change it, share it, and keep that notice with it.
+
+If this helped you or you build on it, a star or a link back to [the repository](https://github.com/NoGod3524/betterhuskyct) is how people find it.
