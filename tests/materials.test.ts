@@ -82,6 +82,37 @@ test("anything else from another page is dropped whole", () => {
   for (const data of bad) assert.equal(parseMaterialsMessage(data), null, JSON.stringify(data).slice(0, 80));
 });
 
+test("a file whose address ends in a plain query is read, in the index and as a file; a hostile query is not", () => {
+  const WITH_QUERY = FILE_URL + "?xythos-download=true";
+  const read = parseMaterialsMessage(message({ kind: "index", index: index([WITH_QUERY, OTHER_URL]), sending: 2 }));
+  assert.equal(read?.kind === "index" ? read.index.courses[0].files.length : 0, 2, "the file with a query was dropped from the index");
+  assert.equal(parseMaterialsMessage(message({ kind: "file", key: WITH_QUERY, name: "a.zip", type: "application/zip", blob: new Blob(["x"]) }))?.kind, "file");
+
+  for (const key of [FILE_URL + "?", FILE_URL + "?a=<script>", FILE_URL + "?" + "a".repeat(200), FILE_URL + "?a=1#x", "https://evil.example/bbcswebdav/x?a=1"]) {
+    assert.equal(parseMaterialsMessage(message({ kind: "file", key, name: "a.zip", type: "", blob: new Blob(["x"]) })), null, key.slice(0, 60));
+  }
+});
+
+test("a file the app will not take is refused out loud, so the helper does not wait for it", async () => {
+  const store = memoryMaterialsStore();
+  const states: string[] = [];
+  const receive = createMaterialsReceiver({ store, onChange: (state) => states.push(`${state.phase}:${state.stored}/${state.failed}`) });
+  const helper = helperWindow();
+  const from = (data: unknown) => receive({ origin: "https://lms.uconn.edu", data, source: helper.source });
+
+  // A name too long to be one.
+  await from(message({ kind: "file", key: FILE_URL, name: "x".repeat(400), type: "", blob: new Blob(["x"]) }));
+  assert.deepEqual(helper.replies.at(-1)!.message, message({ kind: "stored", key: FILE_URL, ok: false }));
+  assert.equal(await store.getFile(FILE_URL), null);
+  assert.ok(states.at(-1)!.endsWith("/1"), "the refusal was not counted");
+
+  // Not the app's protocol at all: still silence, and not a reply to just anyone.
+  const before = helper.replies.length;
+  await from({ kind: "file", key: FILE_URL });
+  await receive({ origin: "https://evil.example", data: message({ kind: "file", key: FILE_URL, name: "a" }), source: helper.source });
+  assert.equal(helper.replies.length, before);
+});
+
 test("a tool keeps only HuskyCT's launch address; any other address is dropped", () => {
   const withTools = (tools: unknown[]) =>
     parseMaterialsMessage(message({ kind: "index", sending: 0, index: { ...index([]), courses: [{ ...index([]).courses[0], tools }] } }));

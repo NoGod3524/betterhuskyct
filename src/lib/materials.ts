@@ -92,12 +92,19 @@ function path(value: unknown): string[] | null {
   return parts.every((part): part is string => part !== null) ? parts : null;
 }
 
-/** A file's key: HuskyCT's own file address, or one made up for a folder import. */
+/**
+ * A file's key: HuskyCT's own file address, or one made up for a folder import.
+ *
+ * Some files' addresses end in a short query (`?xythos-download=true`, measured on 2026-10-08 on
+ * a course's zip), which this used to refuse: the file was dropped from the index, and a message
+ * carrying it was ignored without a word, so the helper waited out its timeout for an answer
+ * that never came. A query of plain name=value pairs is part of the address.
+ */
 export function isMaterialKey(value: unknown): value is string {
   return (
     typeof value === "string" &&
     value.length <= 1000 &&
-    (/^https:\/\/(lms|huskyct)\.uconn\.edu\/bbcswebdav\/[\w\-./%]+$/.test(value) || /^folder:[^\u0000]{1,900}$/.test(value))
+    (/^https:\/\/(lms|huskyct)\.uconn\.edu\/bbcswebdav\/[\w\-./%]+(\?[\w\-.=&%]{1,120})?$/.test(value) || /^folder:[^\u0000]{1,900}$/.test(value))
   );
 }
 
@@ -302,10 +309,19 @@ export function createMaterialsReceiver(options: {
   return async function receive(event: MaterialsEvent): Promise<void> {
     if (!HUSKYCT_ORIGINS.has(event.origin) || !event.source) return;
     const message = parseMaterialsMessage(event.data);
-    if (!message) return;
     const source = event.source;
     const reply = (payload: Record<string, unknown>) =>
       source.postMessage({ protocol: MATERIALS_PROTOCOL, ...payload }, event.origin);
+    if (!message) {
+      // A file the app will not take is refused out loud: the helper waits for each file's answer,
+      // and silence made it wait out its whole timeout.
+      const data = event.data as { protocol?: unknown; kind?: unknown; key?: unknown } | null;
+      if (data && data.protocol === MATERIALS_PROTOCOL && data.kind === "file" && typeof data.key === "string" && data.key.length <= 1000) {
+        reply({ kind: "stored", key: data.key, ok: false });
+        update({ failed: state.failed + 1 });
+      }
+      return;
+    }
 
     switch (message.kind) {
       case "hello":
