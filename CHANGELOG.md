@@ -14,6 +14,23 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.25.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.25.0) — Course ZIPs, and the due dates from HuskyCT's calendar data
+
+*Minor: new capabilities. HuskyCT Helper goes from 1.14.1 to 1.15.0.*
+
+### Added
+
+- **A ZIP for each course and each folder.** On the Materials page a small download beside a course's title, and beside each folder's name, saves its files (a folder's with everything under it) as a ZIP of its own, named for it: `MATH 1070Q.zip`, `MATH 1070Q - Week 1 - Section 4.1.zip`. ([#143])
+
+### Changed
+
+- **The due dates come from HuskyCT's calendar data.** The helper asks `/learn/api/v1/calendars/calendarItems` for the term's graded items (each with its course and an exact time; class meetings and your own entries are left out), instead of opening the Calendar page and scrolling it. The quick sync, the Sync button on BetterHuskyCT, now brings the deadlines too, with no page opened; until now only Collect everything did. A deadline BetterHuskyCT already holds is updated in place. HuskyCT Helper 1.15.0. ([#144])
+- **The helper page tells the truth about requests.** It said the helper "makes no request of its own"; its only requests go to HuskyCT, for the data HuskyCT's pages use, and what it reads goes only to BetterHuskyCT. ([#144])
+
+### Fixed
+
+- **A course file whose address ends in a query was dropped.** A zip on a course's page, `Minitab Data Files SEC015.zip`, has such an address; BetterHuskyCT refused it, left it out of the index and ignored the message that carried it, so the helper waited out its two-minute timeout, called it failed and reported that only part of a sync arrived, while BetterHuskyCT said the sync did not answer. A key may now end in a plain `name=value` query, and a file the app will not take is refused at once instead of in silence. ([#145])
+
 ## [1.24.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.24.0) — A cleaner look, page by page
 
 *Minor: the look of the whole app, and of the helper's panel, is new. HuskyCT Helper goes from 1.14.0 to 1.14.1.*
@@ -1706,3 +1723,7 @@ saying what to work on next.*
 [#139]: https://github.com/NoGod3524/betterhuskyct/pull/139
 [#140]: https://github.com/NoGod3524/betterhuskyct/pull/140
 [#141]: https://github.com/NoGod3524/betterhuskyct/pull/141
+[#142]: https://github.com/NoGod3524/betterhuskyct/pull/142
+[#143]: https://github.com/NoGod3524/betterhuskyct/pull/143
+[#144]: https://github.com/NoGod3524/betterhuskyct/pull/144
+[#145]: https://github.com/NoGod3524/betterhuskyct/pull/145
