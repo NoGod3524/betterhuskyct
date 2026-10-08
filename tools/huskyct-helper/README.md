@@ -77,12 +77,14 @@ Press **Collect everything** and the panel walks HuskyCT in the tab you are in:
    (four of six on the account this was measured with) and the rest are behind
    **View All**, which the panel opens. Past terms are skipped — the current term
    comes from the recent courses, or from today's date when there are none.
-3. **The Calendar's "Due dates" view**, for every deadline from today to the
-   end of the term. In a quiet week the to-do list is empty while the term is
-   full of work — on 2026-09-27 it showed nothing, beside 29 due dates running
-   to December 11. The view loads more as it scrolls, so the panel scrolls it to
-   the end. Its times carry their zone, `10/2/26, 11:59 PM (EDT)`, so they are
-   exact wherever you are. A deadline on both lists is sent once.
+3. **The calendar's data**, for every deadline from today on. In a quiet week
+   the to-do list is empty while the term is full of work — on 2026-09-27 it
+   showed nothing, beside 29 due dates running to December 11. The panel asks
+   `/learn/api/v1/calendars/calendarItems`, the data the Calendar page itself
+   draws from, and keeps the graded items (`GradableItem`); class meetings and
+   your own entries are left out. Each carries its course and an exact time, so
+   it is right wherever you are. No page is opened for it, and the quick sync
+   reads the same data. A deadline on both lists is sent once.
 4. **Each course's Announcements page**, one after another: all the
    announcements it lists, up to 25 per course, with the date each was posted.
 5. **Back to the page you started on.**
@@ -317,7 +319,7 @@ named on the panel, in a line starting **Self-check:** —
 
 - the Courses page did not show its course list;
 - no current-term course was found;
-- the Calendar's Due dates view did not open (only this week's to-do list was
+- HuskyCT's calendar data gave no due dates (only this week's to-do list was
   read);
 - a course's content, or some of its documents, did not open;
 - files were listed with no download address;

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.14.1
+// @version      1.15.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       NoGod3524
 // @match        https://lms.uconn.edu/*
@@ -53,7 +53,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.14.1";
+  const VERSION = "1.15.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -140,12 +140,12 @@
       sentPartsJoin: "; ",
       sentAll: " Sent to BetterHuskyCT: {parts}.",
       sentPartial: " Only part of it reached BetterHuskyCT ({parts}). Press Sync on BetterHuskyCT for the rest.",
-      collectingDueDates: "Reading the term's due dates from the Calendar…",
+      collectingDueDates: "Reading the term's due dates…",
       selfCheck: "Self-check: {problems}",
       problemCoursesPage: "the Courses page did not show its course list — HuskyCT may have changed.",
       problemNoCourses: "HuskyCT's course list gave no current-term course.",
       problemDueDatesView:
-        "the Calendar's Due dates view did not open — HuskyCT may have changed, so only this week's to-do list was read.",
+        "HuskyCT's calendar data gave no due dates — it may have changed, so only this week's to-do list was read.",
       problemOutlines: "these courses' content could not be read: {courses}.",
       problemFileAddress: "{count} file(s) had no download address — HuskyCT may have changed.",
       problemNoContent: "no course showed any content — HuskyCT may have changed.",
@@ -219,11 +219,11 @@
       sentPartsJoin: "；",
       sentAll: " 已发给 BetterHuskyCT：{parts}。",
       sentPartial: " 只有一部分发到了 BetterHuskyCT（{parts}）。剩下的在 BetterHuskyCT 上按「同步」。",
-      collectingDueDates: "正在从日历读取整个学期的截止日期……",
+      collectingDueDates: "正在读取整个学期的截止日期……",
       selfCheck: "自检：{problems}",
       problemCoursesPage: "Courses 页没有显示课程列表——HuskyCT 可能改版了。",
       problemNoCourses: "HuskyCT 的课程列表里没有本学期的课程。",
-      problemDueDatesView: "打不开日历的 Due dates 视图——HuskyCT 可能改版了，所以只读到了本周的待办。",
+      problemDueDatesView: "读不到 HuskyCT 日历里的截止日期——它可能改版了，所以只读到了本周的待办。",
       problemOutlines: "这些课的课件读取不到：{courses}。",
       problemFileAddress: "有 {count} 个文件找不到下载地址——HuskyCT 可能改版了。",
       problemNoContent: "所有课程的内容页都是空的——HuskyCT 可能改版了。",
@@ -486,6 +486,55 @@
       next = /^\/learn\/api\/v1\/courses\//.test(following) && answer.results.length > 0 ? following : null;
     }
     return rows.slice(0, ANNOUNCEMENTS_PER_COURSE);
+  }
+
+  const CALENDAR_PAGE = 200;
+  const CALENDAR_PAGES = 10;
+  /** How far ahead the due dates are read: a term, with room to spare. */
+  const CALENDAR_AHEAD_DAYS = 240;
+
+  /**
+   * Every due date from today on, from HuskyCT's own calendar data, as the records the basket
+   * keeps ({ uid, title, course, courseId, dueText, due }), or null if it could not be read this
+   * way. Measured on 2026-10-08: `/learn/api/v1/calendars/calendarItems` answers with the term's
+   * graded items (`GradableItem`, each with its course in `calendarId`, a title and an exact
+   * `endDate`) beside the class meetings and the student's own entries, which are left out here,
+   * since only what is due is a deadline.
+   *
+   * The uid is the one the Calendar's Due dates view used to give (the course and the title), so
+   * a deadline BetterHuskyCT already holds from that view is updated in place, not added twice.
+   */
+  async function readDueDatesApi(opts) {
+    const timeout = (opts && opts.apiTimeout) || 8000;
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    const until = new Date(since.getTime() + CALENDAR_AHEAD_DAYS * 86400000);
+    let next =
+      "/learn/api/v1/calendars/calendarItems?since=" + encodeURIComponent(since.toISOString()) +
+      "&until=" + encodeURIComponent(until.toISOString()) + "&limit=" + CALENDAR_PAGE;
+    const records = [];
+    const seen = new Set();
+
+    for (let page = 0; next && page < CALENDAR_PAGES; page++) {
+      const answer = await fetchJson(next, timeout);
+      if (!answer || !Array.isArray(answer.results)) return null;
+      for (const item of answer.results) {
+        if (!item || String(item.itemSourceType || "").indexOf("GradableItem") === -1) continue;
+        const title = textOf({ textContent: item.title });
+        const due = new Date(item.endDate || item.startDate || "");
+        if (!title || Number.isNaN(due.valueOf())) continue;
+        const courseId = typeof item.calendarId === "string" ? item.calendarId : null;
+        const name = item.calendarNameLocalizable && item.calendarNameLocalizable.rawValue;
+        const uid = "huskyct-due-" + ((courseId || "course") + "-" + title).replace(/[^\w.-]+/g, "-");
+        if (seen.has(uid)) continue;
+        seen.add(uid);
+        records.push({ uid, title, course: courseCodeFromDisplay(name), courseId, dueText: "", due });
+      }
+      // Only HuskyCT's own calendar address is followed, never one the answer names elsewhere.
+      const following = answer.paging && answer.paging.nextPage ? String(answer.paging.nextPage) : "";
+      next = /^\/learn\/api\/v1\/calendars\//.test(following) && answer.results.length > 0 ? following : null;
+    }
+    return records;
   }
 
   /** The course id out of a course URL, e.g. `/ultra/courses/_203765_1/outline`. */
@@ -939,13 +988,12 @@
    * The basket used to fill only as the student opened each course's
    * Announcements tab by hand, which is the chore it was meant to remove.
    * "Collect everything" gathers it all in one press: the to-do list from the
-   * Courses page and the due dates from the Calendar (the two things still read
-   * off pages), and each course's announcements, gradebook and files from
-   * HuskyCT's own data, then back to where the student was.
+   * Courses page (the one thing still read off a page), and the due dates, each
+   * course's announcements, gradebook and files from HuskyCT's own data, then
+   * back to where the student was.
    */
 
   const VIEW_ALL_COURSES = '[data-analytics-id="base.courses.recentCoursesView.viewAllButton"]';
-  const DUE_DATES_VIEW = '#bb-calendar1-deadline, [analytics-id="components.directives.calendar.viewSwitch.deadline"]';
 
   function pause(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -1180,42 +1228,6 @@
   }
 
   /**
-   * Opens the Calendar's "Due dates" view and scrolls it to the end of the term.
-   *
-   * It shows about three weeks at first and loads the rest as it scrolls —
-   * 20 items, then 29, on 2026-09-27 — so it is scrolled until the count holds.
-   * A term with nothing due shows no cards at all, which simply reads as none.
-   */
-  async function readDueDates(opts) {
-    routeTo("/ultra/calendar");
-    const button = await waitFor(() => document.querySelector(DUE_DATES_VIEW), opts.every, opts.pageTimeout);
-    // Null, not an empty list: a term with nothing due is fine, a view that is
-    // not there is HuskyCT having changed.
-    if (!button) return null;
-    button.click();
-    await waitFor(() => document.querySelector(".element-card.due-item"), opts.every, opts.emptySettle);
-
-    let lastCount = -1;
-    let steady = 0;
-    const started = Date.now();
-    while (Date.now() - started < opts.pageTimeout) {
-      const items = document.querySelectorAll(".element-card.due-item");
-      steady = items.length === lastCount ? steady + 1 : 0;
-      lastCount = items.length;
-      if (steady >= 3) break;
-      const last = items[items.length - 1];
-      if (last && typeof last.scrollIntoView === "function") last.scrollIntoView({ block: "end" });
-      for (const element of document.querySelectorAll("main, main *")) {
-        if (element.clientHeight >= 150 && element.scrollHeight > element.clientHeight + 50) {
-          element.scrollTop = element.scrollHeight;
-        }
-      }
-      await pause(opts.every * 2);
-    }
-    return collectDueDates(document);
-  }
-
-  /**
    * The courses to visit, from HuskyCT's own list. A walk that reads the Courses page itself (its
    * to-do list) has `onCoursesPage` run there, and the page's recent strip says which term is
    * current. A list HuskyCT would not give is no courses, which the walk reports.
@@ -1313,11 +1325,11 @@
       save(rememberCourses(basket, queue));
       report.courses = queue.length;
 
-      // 3. The Calendar's due dates: the whole term, not just the week the
+      // 3. The due dates, from HuskyCT's calendar data: the whole term, not just the week the
       // to-do list covers.
       if (!opts.shouldStop()) {
         opts.onProgress({ step: "duedates" });
-        const dueDates = await readDueDates(opts);
+        const dueDates = await readDueDatesApi(opts);
         if (dueDates === null) report.problems.push({ key: "problemDueDatesView" });
         report.dueDates = dueDates ? dueDates.length : 0;
         save(rememberDueDates(readBasket(storage), todosToRecords(dueDates || []), new Date()));
@@ -2321,7 +2333,7 @@
       options,
     );
     const storage = window.localStorage;
-    const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, skipped: [], stopped: false, grades: null, materials: null, reason: null, detail: null };
+    const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, dueDates: 0, skipped: [], stopped: false, grades: null, materials: null, reason: null, detail: null };
     // When nothing is read, which step it stopped at and what HuskyCT said. A 401 is HuskyCT
     // saying the student is signed out, whatever page the tab shows.
     const fail = (step) => {
@@ -2343,6 +2355,16 @@
       if (result.changed) writeBasket(storage, result.basket);
     };
     save(rememberCourses(readBasket(storage), queue));
+
+    // The deadlines are extra to what a sync is for, like the files: a calendar that will not
+    // answer leaves them out and does not fail the sync, and what it hit is not what a failure reports.
+    const failedBefore = lastApiFailure;
+    const dueDates = await readDueDatesApi(opts);
+    lastApiFailure = failedBefore;
+    if (dueDates) {
+      out.dueDates = dueDates.length;
+      save(rememberDueDates(readBasket(storage), todosToRecords(dueDates), new Date()));
+    }
 
     const userId = await readUserId(opts);
     const manifest = { term: walkTerm(found), courses: [], stopped: false, signedOut: false, problems: [] };
@@ -3399,6 +3421,7 @@
       rememberDueDates,
       deadlineRecords,
       collectDueDates,
+      readDueDatesApi,
       captureIntoBasket,
       basketSummary,
       routeTo,
