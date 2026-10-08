@@ -11,6 +11,7 @@ import {
   restoreAnnouncements,
   saveAnnouncements,
   serializeAnnouncements,
+  postedTime,
   sortAnnouncements,
   type Announcement,
 } from "../src/lib/announcements.ts";
@@ -248,6 +249,36 @@ test("newest first", () => {
     sorted.map((entry) => entry.id),
     ["new", "old"],
   );
+});
+
+test("one sync stamps every row alike, so the order is by when each was posted", () => {
+  const same = "2026-10-08T20:00:00.000Z";
+  const sorted = sortAnnouncements([
+    taken({ id: "a", title: "Alpha office hours", posted: "9/29/26, 1:14 PM", announced: same }),
+    taken({ id: "z", title: "Zeta - the newest", posted: "10/8/26, 4:50 PM", announced: same }),
+    taken({ id: "m", title: "Middle", posted: "10/8/26, 9:45 AM", announced: same }),
+    taken({ id: "n", title: "A different year", posted: "12/31/25, 11:59 PM", announced: same }),
+  ]);
+
+  assert.deepEqual(sorted.map((entry) => entry.id), ["z", "m", "a", "n"]);
+});
+
+test("a posted line that is relative or missing is ordered by when it was seen", () => {
+  const sorted = sortAnnouncements([
+    taken({ id: "old", title: "Old", posted: "9/1/26, 8:00 AM", announced: "2026-10-08T20:00:00.000Z" }),
+    taken({ id: "rel", title: "Relative", posted: "an hour ago, at 5:07 PM", announced: "2026-10-08T22:00:00.000Z" }),
+    taken({ id: "none", title: "None", posted: null, announced: "2026-10-01T22:00:00.000Z" }),
+  ]);
+
+  assert.deepEqual(sorted.map((entry) => entry.id), ["rel", "none", "old"]);
+});
+
+test("a posted time is read as the helper writes it, in the reader's zone, and nothing else is", () => {
+  assert.equal(postedTime("10/8/26, 4:50 PM"), new Date(2026, 9, 8, 16, 50).valueOf());
+  assert.equal(postedTime("10/8/26, 12:05 AM"), new Date(2026, 9, 8, 0, 5).valueOf());
+  assert.equal(postedTime("10/8/26, 12:05 PM"), new Date(2026, 9, 8, 12, 5).valueOf());
+  assert.equal(postedTime("10/8/2026, 4:50\u202fPM"), new Date(2026, 9, 8, 16, 50).valueOf());
+  for (const bad of [null, "", "7 hours ago, at 5:31 PM", "yesterday", "13/40/26, 4:50 PM x"]) assert.equal(postedTime(bad), null, String(bad));
 });
 
 test("rows collected in the same millisecond still have one fixed order", () => {
