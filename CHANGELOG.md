@@ -14,6 +14,14 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.25.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.25.1) — The newest announcements come first
+
+*Patch: a fix. HuskyCT Helper is unchanged at 1.15.0.*
+
+### Fixed
+
+- **After a sync the newest announcements looked missing.** They were there, but the list was ordered by when a sync saw each one, and one sync stamps every row alike, so it fell to title order and the newest could be anywhere below the dozen the page shows first. Announcements are now ordered by when they were posted; one whose posted line is only relative ("7 hours ago") is placed by when it was seen. ([#147])
+
 ## [1.25.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.25.0) — Course ZIPs, and the due dates from HuskyCT's calendar data
 
 *Minor: new capabilities. HuskyCT Helper goes from 1.14.1 to 1.15.0.*
@@ -1727,3 +1735,5 @@ saying what to work on next.*
 [#143]: https://github.com/NoGod3524/betterhuskyct/pull/143
 [#144]: https://github.com/NoGod3524/betterhuskyct/pull/144
 [#145]: https://github.com/NoGod3524/betterhuskyct/pull/145
+[#146]: https://github.com/NoGod3524/betterhuskyct/pull/146
+[#147]: https://github.com/NoGod3524/betterhuskyct/pull/147
