@@ -494,6 +494,17 @@ const STAT_EMPTY = announcementsPage(
 
 const WIDE_COURSES = ALL_COURSES + `<h2>To Do</h2>${TODO}`;
 
+/** An item of HuskyCT's calendar data, as `/learn/api/v1/calendars/calendarItems` gives it. */
+const calendarItem = (title: string, endDate: string, courseId: string, courseName: string, type = "blackboard.platform.gradebook2.GradableItem") => ({
+  itemSourceId: "_" + title.length + "_1",
+  itemSourceType: type,
+  calendarId: courseId,
+  calendarNameLocalizable: { rawValue: courseName },
+  title,
+  startDate: endDate,
+  endDate,
+});
+
 /** A card from the Calendar's "Due dates" view, as the live page renders it. */
 function dueItem(title: string, due: string, courseId: string, courseText: string) {
   return (
@@ -512,7 +523,14 @@ const DUE_SOON = [
 ].join("");
 // What the view adds once scrolled: the rest of the term, past the switch to EST.
 const DUE_LATER = dueItem("Assignment 9", "12/11/26, 11:59 PM (EST)", "_201693_1", STAT_TEXT);
-const CALENDAR = `<button id="bb-calendar1-deadline" analytics-id="components.directives.calendar.viewSwitch.deadline">Due Dates</button>`;
+// The same three deadlines as HuskyCT's calendar data gives them, with a class meeting among them
+// that is not one, and a past-the-end page.
+const CALENDAR_ITEMS = [
+  calendarItem("Section 5.1 Homework", "2026-10-03T03:59:00.000Z", "_203765_1", MATH_TEXT),
+  calendarItem("Lecture", "2026-10-03T14:00:00.000Z", "_203765_1", MATH_TEXT, "blackboard.data.calendar.CalendarEntry"),
+  calendarItem("Assignment 2", "2026-10-10T03:59:00.000Z", "_201693_1", STAT_TEXT),
+  calendarItem("Assignment 9", "2026-12-12T04:59:00.000Z", "_201693_1", STAT_TEXT),
+];
 
 /**
  * `broken` stands for a HuskyCT release that changed the Courses page past
@@ -526,7 +544,7 @@ const membershipOf = (id: string, readableId: string, displayName: string, avail
 });
 
 /** HuskyCT's own data for the stand-in's courses, as a walk asks for it. */
-function huskyctData() {
+function huskyctData(calendar: "items" | "paged" | "refused" = "items") {
   const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   const announcement = (title: string, at: string) => ({ title, body: { displayText: "<p>" + title + "</p>" }, startDateRestriction: at, isDraft: false });
   const announcements: Record<string, unknown[]> = {
@@ -551,6 +569,16 @@ function huskyctData() {
         ],
       });
     }
+    if (path.startsWith("/learn/api/v1/calendars/calendarItems")) {
+      if (calendar === "refused") return reply({}, 500);
+      if (calendar === "paged" && !path.includes("offset=")) {
+        return reply({
+          paging: { nextPage: "/learn/api/v1/calendars/calendarItems?limit=1&offset=1" },
+          results: CALENDAR_ITEMS.slice(0, 2),
+        });
+      }
+      return reply({ paging: { nextPage: "" }, results: calendar === "paged" ? CALENDAR_ITEMS.slice(2) : CALENDAR_ITEMS });
+    }
     const id = /courses\/([^/]+)\/announcements/.exec(path)?.[1];
     if (id && id in announcements) return reply({ paging: { nextPage: "" }, results: announcements[id] });
     return reply({}, id ? 500 : 404);
@@ -565,7 +593,7 @@ function fakeHuskyct(
   const main = window.document.querySelector("main")!;
   const visited: string[] = [];
   let generation = 0;
-  (window as unknown as { fetch: unknown }).fetch = huskyctData();
+  (window as unknown as { fetch: unknown }).fetch = huskyctData(layout === "nocalendar" ? "refused" : "items");
 
   const announcementPages: Record<string, string> = {
     _203765_1: MATH_ANNOUNCEMENTS,
@@ -591,10 +619,6 @@ function fakeHuskyct(
       );
       return;
     }
-    if (path === "/ultra/calendar" && layout !== "nocalendar") {
-      render(CALENDAR, delays.render);
-      return;
-    }
     const match = path.match(/^\/ultra\/courses\/([^/]+)\/announcements/);
     if (match) {
       const html = announcementPages[match[1]];
@@ -607,15 +631,6 @@ function fakeHuskyct(
 
   window.document.addEventListener("click", (event) => {
     const target = event.target as unknown as { getAttribute?: (name: string) => string | null };
-    if (target.getAttribute?.("id") === "bb-calendar1-deadline") {
-      // A few weeks first; the rest of the term arrives as the list scrolls.
-      setTimeout(() => {
-        main.innerHTML = CALENDAR + DUE_SOON;
-      }, delays.render);
-      setTimeout(() => {
-        main.innerHTML = CALENDAR + DUE_SOON + DUE_LATER;
-      }, delays.render + 120);
-    }
     if (target.getAttribute?.("data-analytics-id") === "base.courses.recentCoursesView.viewAllButton") {
       setTimeout(() => {
         main.innerHTML = `<article class="element-card inactive-link" data-course-id=""></article>`.repeat(7);
@@ -908,6 +923,7 @@ test("the course list comes from HuskyCT's data, while the to-do list is still r
   // Two courses from the data, where the pages would have found five.
   assert.equal(report.courses, 2);
   assert.ok(huskyct.visited.includes("/ultra/course"), "the to-do list was not read from the Courses page");
+  assert.ok(!huskyct.visited.includes("/ultra/calendar"), "the Calendar's page was opened for the due dates");
   assert.equal(page.basket().todos.length, 1);
   assert.deepEqual(plain(page.basket().courses.map((course) => course.id)).sort(), ["_198430_1", "_203765_1"]);
 });
@@ -943,8 +959,9 @@ test("one press reads the to-do list, the due dates and every current course, th
   assert.ok(basket.courses.find((course) => course.id === "_201693_1")?.announcementsAt, "an empty course was not ticked off");
   assert.equal(basket.courses.find((course) => course.id === "_201463_1")?.announcementsAt, null);
   assert.equal(basket.todos.length, 1);
-  // The whole term's due dates, including the ones that only load on scrolling.
+  // The whole term's due dates, from the data: the class meeting among them is not one.
   assert.equal(report.dueDates, 3);
+  assert.ok(!huskyct.visited.includes("/ultra/calendar"), "the Calendar's page was opened for the due dates");
   assert.deepEqual(basket.dueDates?.map((item) => item.title), ["Section 5.1 Homework", "Assignment 2", "Assignment 9"]);
   assert.equal(page.helper.basketSummary(basket).deadlines, 4);
 
@@ -1132,7 +1149,7 @@ test("a walk that finds nothing where it should says which step, instead of repo
   assert.match(page.helper.problemsText(report.problems), /^Self-check: the Courses page did not show its course list/);
 });
 
-test("a missing Due dates view is reported, and the rest of the walk still runs", async () => {
+test("calendar data HuskyCT will not give is reported, and the rest of the walk still runs", async () => {
   const page = openPage("https://lms.uconn.edu/ultra/stream", "<main></main>");
   fakeHuskyct(page.window, "nocalendar");
 

@@ -33,7 +33,11 @@ type Helper = {
   autoSyncDue: (state: State, now: Date) => boolean;
   deliverSync: (tab: Tab, basket: unknown, grades: unknown, timing?: Record<string, unknown>) => Promise<{ parts: string[]; failed: boolean }>;
   findBhcTab: () => Tab | null;
-  readBasket: (storage: unknown) => { courses: Array<{ id: string; announcements: Array<{ title: string }>; announcementsAt: string | null }> };
+  readBasket: (storage: unknown) => {
+    courses: Array<{ id: string; announcements: Array<{ title: string }>; announcementsAt: string | null }>;
+    dueDates?: Array<{ uid: string; title: string; course: string | null; start: string }>;
+  };
+  readDueDatesApi: (options?: Record<string, unknown>) => Promise<Array<{ uid: string; title: string; course: string | null; courseId: string | null; due: Date }> | null>;
 };
 
 const windows: Window[] = [];
@@ -105,9 +109,34 @@ const GRADE = {
   displayGrade: { score: 90 },
 };
 
+const gradable = (title: string, endDate: string, calendarId: string, name: string) => ({
+  itemSourceType: "blackboard.platform.gradebook2.GradableItem",
+  itemSourceId: "_" + title.length + "_1",
+  calendarId,
+  calendarNameLocalizable: { rawValue: name },
+  title,
+  startDate: endDate,
+  endDate,
+});
+const MATH_NAME = "1268-UCONN-MATH-1070Q-SEC100-1191: MATH-1070Q-Mathematics for Business and Economics-SEC100-1268";
+const DUE = [
+  gradable("Section 5.1 Homework", "2026-10-30T03:59:00.000Z", MATH, MATH_NAME),
+  { ...gradable("Lecture", "2026-10-30T14:00:00.000Z", MATH, MATH_NAME), itemSourceType: "blackboard.data.calendar.CalendarEntry" },
+  gradable("Final Project", "2026-12-12T04:59:00.000Z", MATH, MATH_NAME),
+];
+
 /** HuskyCT's data, with the parts a test wants to go wrong able to be switched off. */
-function data(fail: { announcements?: string[]; grades?: string[]; list?: boolean; me?: boolean } = {}) {
+function data(fail: { announcements?: string[]; grades?: string[]; list?: boolean; me?: boolean; calendar?: boolean; paged?: boolean } = {}) {
   return async (path: string) => {
+    if (path.startsWith("/learn/api/v1/calendars/calendarItems")) {
+      if (fail.calendar) return new Response("{}", { status: 500 });
+      if (fail.paged) {
+        return path.includes("offset=")
+          ? json({ paging: { nextPage: "" }, results: DUE.slice(2) })
+          : json({ paging: { nextPage: "/learn/api/v1/calendars/calendarItems?limit=2&offset=2" }, results: DUE.slice(0, 2) });
+      }
+      return json({ paging: { nextPage: "" }, results: DUE });
+    }
     if (path.startsWith("/learn/api/v1/users/me/memberships")) return fail.list ? new Response("{}", { status: 500 }) : json(LIST);
     if (path === "/learn/api/v1/users/me") return fail.me ? new Response("{}", { status: 500 }) : json({ id: "_1003488_1" });
     const course = /courses\/([^/]+)\//.exec(path)?.[1] ?? "";
@@ -133,6 +162,44 @@ test("a sync reads the courses, their announcements and their grades, and opens 
   assert.equal(moved(), 0, "a page was opened");
   assert.equal(opened.length, 0);
   assert.equal(window.location.pathname, "/ultra/stream");
+});
+
+test("a sync reads the term's due dates from the calendar's data: only what is due, under the uid the view gave", async () => {
+  const { window, helper, moved } = openPage(data());
+
+  const out = plain(await helper.syncLight()) as unknown as { ok: boolean; dueDates: number };
+
+  assert.equal(out.ok, true);
+  assert.equal(out.dueDates, 2, "the class meeting was counted as a deadline");
+  const held = plain(helper.readBasket(window.localStorage)).dueDates ?? [];
+  assert.deepEqual(held.map((item) => [item.uid, item.title, item.course, item.start]), [
+    ["huskyct-due-_203765_1-Section-5.1-Homework", "Section 5.1 Homework", "MATH 1070Q", "2026-10-30T03:59:00.000Z"],
+    ["huskyct-due-_203765_1-Final-Project", "Final Project", "MATH 1070Q", "2026-12-12T04:59:00.000Z"],
+  ]);
+  assert.equal(moved(), 0, "a page was opened for them");
+});
+
+test("the due dates are read across pages of the answer, and only HuskyCT's own next address is followed", async () => {
+  const paged = openPage(data({ paged: true }));
+  assert.deepEqual(plain(await paged.helper.readDueDatesApi())?.map((item) => item.title), ["Section 5.1 Homework", "Final Project"]);
+
+  const elsewhere = openPage(async (path: string) =>
+    path.startsWith("/learn/api/v1/calendars/calendarItems")
+      ? json({ paging: { nextPage: "https://evil.example/steal" }, results: DUE.slice(0, 1) })
+      : new Response("{}", { status: 404 }),
+  );
+  assert.deepEqual(plain(await elsewhere.helper.readDueDatesApi())?.map((item) => item.title), ["Section 5.1 Homework"]);
+});
+
+test("a calendar that will not answer leaves the deadlines out, and does not fail the sync", async () => {
+  const { window, helper } = openPage(data({ calendar: true }));
+
+  assert.equal(await helper.readDueDatesApi(), null);
+  const out = plain(await helper.syncLight());
+
+  assert.equal(out.ok, true, "the sync failed for want of the calendar");
+  assert.equal(out.reason, null);
+  assert.deepEqual(plain(helper.readBasket(window.localStorage)).dueDates ?? [], []);
 });
 
 test("a course whose data cannot be read is skipped and named, never read from its page", async () => {
