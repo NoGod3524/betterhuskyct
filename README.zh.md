@@ -286,6 +286,8 @@ BetterHuskyCT 是独立的个人学生项目，**与康涅狄格大学、HuskyCT
 
 你粘贴的是你自己的私人日历链接，请当作密码保管。本应用不在服务端数据库存储日历或账号数据；可选的 Upstash 数据库只保存最多 6 小时的总结缓存。如果你勾选了「记住这条链接」，它会保存在那台浏览器里。
 
-## 许可证
+## 作者与许可证
 
-[MIT](./LICENSE) © 2026 Yinuo
+BetterHuskyCT 和 HuskyCT 助手由 **Yinuo**（[@NoGod3524](https://github.com/NoGod3524)）制作。源码以 [MIT](./LICENSE) 许可证开放，© 2026 Yinuo：可以使用、修改、分享，但请保留这份版权声明。
+
+如果它帮到了你，或者你在它的基础上做了东西，点个 star 或者放一个[仓库](https://github.com/NoGod3524/betterhuskyct)的链接，别人才找得到它。

@@ -21,7 +21,19 @@ export function AppFooter({ version }: { version: string }) {
         {" · "}
         {t(locale, "footer.disclaimer")}
       </span>
-      <span>{t(locale, "footer.builtWith")}</span>
+      <span>
+        {t(locale, "footer.madeBy")}{" "}
+        <a
+          href="https://github.com/NoGod3524/betterhuskyct"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-[var(--ink)] underline-offset-2 hover:underline"
+        >
+          Yinuo
+        </a>
+        {" · "}
+        {t(locale, "footer.builtWith")}
+      </span>
     </footer>
   );
 }
