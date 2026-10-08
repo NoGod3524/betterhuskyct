@@ -224,15 +224,40 @@ export function clearAnnouncements(storage: Storage) {
 }
 
 /**
+ * When a posted line says an announcement was posted, as a time, or null when it only says it
+ * relatively ("7 hours ago, at 5:31 PM") or not at all. The helper writes an absolute time as
+ * `9/25/26, 4:00 PM` in the reader's own zone, which is the zone this reads it in.
+ */
+export function postedTime(posted: string | null): number | null {
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s+(\d{1,2}):(\d{2})\s*([AP])M$/i.exec((posted ?? "").trim());
+  if (!match) return null;
+  const year = match[3].length === 2 ? 2000 + Number(match[3]) : Number(match[3]);
+  const hour = (Number(match[4]) % 12) + (/p/i.test(match[6]) ? 12 : 0);
+  const at = new Date(year, Number(match[1]) - 1, Number(match[2]), hour, Number(match[5])).valueOf();
+  return Number.isNaN(at) ? null : at;
+}
+
+/** What an announcement is ordered by: when it was posted if that is known, else when it was seen. */
+function effectiveTime(announcement: Announcement): number {
+  return postedTime(announcement.posted) ?? Date.parse(announcement.announced);
+}
+
+/**
  * Newest first, with the sort made total.
  *
- * Two announcements collected in the same millisecond are common — one page
- * read stamps them all — so `announced` alone leaves the order up to the sort
- * implementation, and a list that reshuffles between loads reads as a bug. The
- * title and id are the tie-breakers that make it stable.
+ * By when it was posted, where the posted line says so. A sync reads every course at once and
+ * stamps every row with one `announced` time, so ordering by that alone left a term's
+ * announcements in title order, with the newest anywhere in the list and, since the page shows a
+ * dozen first, often out of sight. A row that only says "7 hours ago" falls back to `announced`.
+ *
+ * Two announcements with the same time are common, so the title and id are the tie-breakers that
+ * keep the order stable: a list that reshuffles between loads reads as a bug.
  */
 export function sortAnnouncements(announcements: Announcement[]): Announcement[] {
   return [...announcements].sort((left, right) => {
+    const leftAt = effectiveTime(left);
+    const rightAt = effectiveTime(right);
+    if (leftAt !== rightAt) return leftAt < rightAt ? 1 : -1;
     if (left.announced !== right.announced) {
       return left.announced < right.announced ? 1 : -1;
     }
