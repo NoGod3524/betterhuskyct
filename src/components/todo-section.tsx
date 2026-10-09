@@ -6,6 +6,7 @@ import { Check, ChevronRight } from "lucide-react";
 
 import { AiPlanPanel } from "@/components/ai-plan-panel";
 import { useCalendar } from "@/components/calendar-provider";
+import { ExamList } from "@/components/exam-list";
 import { TaskCard } from "@/components/task-card";
 import { UndatedTodoList } from "@/components/undated-todo-list";
 import { isDeadline, type CalendarTask } from "@/lib/calendar-types";
@@ -100,6 +101,8 @@ export function TodoSection() {
           </p>
         </div>
       </div>
+
+      <ExamList />
 
       {completion.overall.total > 0 ? (
         <div className="mt-4 max-w-md">
