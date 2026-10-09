@@ -125,6 +125,19 @@ export type SyncDeps = {
   onChange: (state: HelperSyncState) => void;
 };
 
+/**
+ * Whether the tab is one behind this page that the helper's bridge reaches. A tab that is a real
+ * window of another site (the page that opened this one, by the bookmark) refuses to have any
+ * property of its own read from here, and says so by throwing: it is not a background tab.
+ */
+function isBackground(tab: HuskyctTab): boolean {
+  try {
+    return tab.background === true;
+  } catch {
+    return false;
+  }
+}
+
 export function createHelperSync(deps: SyncDeps) {
   let state: HelperSyncState = { phase: "idle" };
   let tab: HuskyctTab | null = null;
@@ -157,8 +170,9 @@ export function createHelperSync(deps: SyncDeps) {
       set({ phase: "failed", reason: "closed" });
       return;
     }
-    if (deps.now() - startedAt > (tab.background ? BACKGROUND_GIVE_UP_MS : GIVE_UP_AFTER_MS)) {
-      set({ phase: "failed", reason: tab.background ? "signin" : "noanswer" });
+    const background = isBackground(tab);
+    if (deps.now() - startedAt > (background ? BACKGROUND_GIVE_UP_MS : GIVE_UP_AFTER_MS)) {
+      set({ phase: "failed", reason: background ? "signin" : "noanswer" });
       return;
     }
     try {

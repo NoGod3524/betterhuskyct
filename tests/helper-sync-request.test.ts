@@ -113,6 +113,47 @@ test("a press opens the tab, and asks the helper again every second until it ans
   assert.ok(origins.every((origin) => origin === HUSKYCT_TARGET_ORIGIN), "a request went to an origin other than HuskyCT's");
 });
 
+/**
+ * A real window of another site, as the page that opened this one by the bookmark is: only
+ * `postMessage` and `closed` may be read from here, and any other property throws a SecurityError.
+ * A plain object in a test hides exactly that, and it was what crashed the page the first time.
+ */
+function foreignWindow() {
+  const sent: unknown[] = [];
+  const target = {
+    closed: false,
+    postMessage: (message: unknown) => void sent.push(message),
+  };
+  const window = new Proxy(target, {
+    get(object, property) {
+      if (property === "postMessage" || property === "closed") return Reflect.get(object, property);
+      throw new Error(`SecurityError: Blocked a frame from reading '${String(property)}' of a cross-origin window`);
+    },
+  }) as unknown as HuskyctTab;
+  return { window, sent };
+}
+
+test("the HuskyCT page that opened this one is asked, and followed, though it is another site's window", () => {
+  const time = clock();
+  const { window, sent } = foreignWindow();
+  const sync = createHelperSync({ open: () => null, schedule: time.schedule, now: time.now, onChange: () => undefined });
+
+  assert.doesNotThrow(() => sync.start(window));
+  assert.deepEqual(sent, [{ protocol: HELPER_SYNC_PROTOCOL, kind: "request" }]);
+  time.advance(RETRY_EVERY_MS * 2);
+  assert.equal(sent.length, 3, "it did not keep asking");
+
+  sync.receive({ origin: "https://lms.uconn.edu", data: message({ kind: "ack", state: "started" }), source: window });
+  assert.equal(sync.state.phase, "syncing");
+
+  // And with no answer, it gives up as an ordinary tab does, not as one behind this page.
+  const quiet = foreignWindow();
+  const other = createHelperSync({ open: () => null, schedule: time.schedule, now: time.now, onChange: () => undefined });
+  other.start(quiet.window);
+  time.advance(GIVE_UP_AFTER_MS + RETRY_EVERY_MS);
+  assert.deepEqual(other.state, { phase: "failed", reason: "noanswer" });
+});
+
 test("once the helper answers the asking stops, and its progress and result are followed", () => {
   const { sync, time, sent, say, states } = setup();
   sync.start();
