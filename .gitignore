@@ -49,3 +49,4 @@ CLAUDE.md
 
 # The helper, copied from tools/huskyct-helper before dev and build (scripts/copy-helper.mjs).
 /public/huskyct-helper.js
+/public/betterhuskyct-extension.zip
