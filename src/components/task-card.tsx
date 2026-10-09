@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { Clock3, MapPin } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
@@ -26,6 +27,11 @@ function styleForCourse(course: string) {
   return courseStyles[hash % courseStyles.length];
 }
 
+/** False while the server renders and true in the browser; there is nothing to subscribe to. */
+const NEVER_CHANGES = () => () => {};
+const IN_BROWSER = () => true;
+const ON_SERVER = () => false;
+
 export function TaskCard({
   task,
   group,
@@ -50,6 +56,9 @@ export function TaskCard({
   locale: Locale;
 }) {
   const { courseLabelFor, courseColorFor } = useCalendar();
+  // A time is in the reader's zone, which the server does not know: it leaves the time out, so the
+  // text the browser puts in is not a mismatch.
+  const inBrowser = useSyncExternalStore(NEVER_CHANGES, IN_BROWSER, ON_SERVER);
   // Blackboard exports no course name on graded items. Rather than invent one,
   // fall back to the user's pick, then the feed, then the default course — and
   // show nothing when none of them applies.
@@ -116,7 +125,7 @@ export function TaskCard({
             {task.kind && <span>{t(locale, task.kind === "class" ? "kind.class" : "kind.assignment")}</span>}
             <span className="flex items-center gap-1 tabular-nums">
               <Clock3 size={12} />
-              {timeLabel ?? formatTaskTime(task, group, locale)}
+              {inBrowser ? (timeLabel ?? formatTaskTime(task, group, locale)) : null}
             </span>
             {task.location && (
               <span className="flex max-w-full items-center gap-1 truncate" title={task.location}>
