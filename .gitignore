@@ -46,3 +46,6 @@ CLAUDE.md
 
 # Local scratch for driving a browser by hand; may contain real page content.
 .probe/
+
+# The helper, copied from tools/huskyct-helper before dev and build (scripts/copy-helper.mjs).
+/public/huskyct-helper.js

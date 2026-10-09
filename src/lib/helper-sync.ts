@@ -173,11 +173,14 @@ export function createHelperSync(deps: SyncDeps) {
     get state() {
       return state;
     },
-    /** From a press. A sync already going is left alone. */
-    start() {
+    /**
+     * From a press. A sync already going is left alone. `opened` is a HuskyCT tab that is already
+     * there to ask (the one that opened this page by the bookmark); with none, one is opened.
+     */
+    start(opened?: HuskyctTab) {
       if (busy()) return;
       stopTimer();
-      tab = deps.open();
+      tab = opened ?? deps.open();
       if (!tab) {
         set({ phase: "blocked" });
         return;

@@ -5,6 +5,7 @@ import {
   HELPER_SCRIPT_URL,
   HELPER_SOURCE_URL,
   MANAGER_FALLBACK,
+  bookmarkHref,
   managerFor,
 } from "../src/lib/helper.ts";
 
@@ -65,4 +66,30 @@ test("the script and source links point at main", () => {
     "https://github.com/NoGod3524/betterhuskyct/tree/main/tools/huskyct-helper",
   );
   assert.ok(HELPER_SCRIPT_URL.endsWith(".user.js"), "a manager only intercepts .user.js");
+});
+
+// --- the bookmark ------------------------------------------------------------------------------
+
+test("the bookmark is one line of script a browser will run, and it names the site it loads from", () => {
+  const href = bookmarkHref();
+
+  assert.ok(href.startsWith("javascript:"));
+  assert.ok(!/[\r\n]/.test(href), "a bookmark's address cannot hold a line break");
+  const code = href.slice("javascript:".length);
+  assert.doesNotThrow(() => new Function(code), "the bookmark does not parse");
+  // Opens BetterHuskyCT first (while the press still counts) with the mark that makes it ask for a sync.
+  assert.match(code, /window\.open\('https:\/\/betterhuskyct\.vercel\.app\/\?sync=bookmark','betterhuskyct'\)/);
+  assert.match(code, /s\.src='https:\/\/betterhuskyct\.vercel\.app\/huskyct-helper\.js\?t='/);
+  assert.ok(code.indexOf("window.open") < code.indexOf("createElement"), "the tab must open before anything slow, or the browser blocks it");
+  // Only HuskyCT's own site; anywhere else it says so and does nothing.
+  assert.match(code, /uconn\\\.edu\$/);
+  // A helper already there (the userscript, or an earlier press) is not loaded twice.
+  assert.match(code, /if\(window\.__huskyctHelper\)return;/);
+});
+
+test("the bookmark follows the script's address, so a copy served elsewhere points at itself", () => {
+  const code = bookmarkHref("https://preview.example.vercel.app/huskyct-helper.js").slice("javascript:".length);
+  assert.match(code, /https:\/\/preview\.example\.vercel\.app\/\?sync=bookmark/);
+  assert.match(code, /https:\/\/preview\.example\.vercel\.app\/huskyct-helper\.js\?t=/);
+  assert.ok(!code.includes("betterhuskyct.vercel.app"));
 });
