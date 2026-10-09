@@ -3133,8 +3133,6 @@
      * this tab opened before and that is still there; otherwise the reading waits for a press.
      */
     function autoSyncOnOpen() {
-      // Loaded by the bookmark: BetterHuskyCT opened a moment ago is about to ask for this very sync.
-      if (window.__bhcBookmarklet) return;
       const state = readSyncState(window.localStorage);
       if (walk || !autoSyncDue(state, new Date()) || looksSignedOut()) return;
       if (!/^\/ultra(\/|$)/.test(window.location.pathname)) return;

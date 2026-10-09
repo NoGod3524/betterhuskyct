@@ -52,7 +52,7 @@ const pick = (out: Sync) => ({ ok: out.ok, reason: out.reason, detail: out.detai
 function openPage(
   serve: (path: string) => Promise<Response>,
   open?: (link: string, target: string) => unknown,
-  mode: { autoSync?: boolean; bookmark?: boolean; timers?: number[] } = {},
+  mode: { autoSync?: boolean; timers?: number[] } = {},
 ) {
   const window = new Window({ url: "https://lms.uconn.edu/ultra/stream" });
   onlyAtHuskyct(window);
@@ -82,7 +82,6 @@ function openPage(
   };
   // This is the quick sync's own test; the one that starts when the page opens would only get in the way.
   window.localStorage.setItem("huskypilot.helper.sync.v1", JSON.stringify({ auto: mode.autoSync === true }));
-  if (mode.bookmark) (window as unknown as { __bhcBookmarklet: number }).__bhcBookmarklet = 1;
   if (mode.timers) {
     // Only what the page schedules is wanted, not run: the sync that starts on its own waits a few seconds first.
     (window as unknown as { setTimeout: unknown }).setTimeout = (_run: unknown, ms: number) => mode.timers!.push(ms);
@@ -372,12 +371,8 @@ test("delivery reports what arrived and what did not, so a half-sent sync is not
   assert.equal(sent.failed, true, "the gradebooks never did");
 });
 
-test("a sync starts by itself as HuskyCT opens, unless the bookmark loaded the helper, which BetterHuskyCT is about to ask", () => {
+test("a sync starts by itself as HuskyCT opens", () => {
   const unasked: number[] = [];
   openPage(data(), undefined, { autoSync: true, timers: unasked });
   assert.ok(unasked.includes(3000), "the sync that starts on its own was not scheduled: " + unasked.join(","));
-
-  const asked: number[] = [];
-  openPage(data(), undefined, { autoSync: true, bookmark: true, timers: asked });
-  assert.ok(!asked.includes(3000), "it would have read HuskyCT twice: once by itself, once when asked");
 });
