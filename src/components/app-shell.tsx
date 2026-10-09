@@ -17,6 +17,7 @@ import {
 import { AppFooter } from "@/components/app-footer";
 import { MobileNav } from "@/components/mobile-nav";
 import { NAV_ITEMS } from "@/components/nav-items";
+import { SearchPalette } from "@/components/search-palette";
 import { SyncBanner } from "@/components/sync-banner";
 import { useCalendar } from "@/components/calendar-provider";
 import { t } from "@/lib/i18n";
@@ -231,6 +232,7 @@ export function AppShell({
             <div className="ml-auto flex items-center gap-1.5">
               {/* The overview has its own, bigger one. */}
               {pathname !== "/" && <HelperSyncButton variant="compact" />}
+              <SearchPalette iconButton={iconButton} />
               <div
                 role="group"
                 aria-label={t(locale, "language.label")}
