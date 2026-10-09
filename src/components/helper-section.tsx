@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
-import { Bookmark, Download, ShieldCheck, Sparkles } from "lucide-react";
+import { useSyncExternalStore } from "react";
+import { Download, ShieldCheck, Sparkles } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import {
   HELPER_SCRIPT_URL,
   HELPER_SOURCE_URL,
   MANAGER_FALLBACK,
-  bookmarkHref,
   managerFor,
 } from "@/lib/helper";
 import { t } from "@/lib/i18n";
@@ -36,18 +35,6 @@ export function HelperSection() {
     () => managerFor(navigator.userAgent),
     () => MANAGER_FALLBACK,
   );
-
-  // The bookmark's address is script, which React will not put in an `href`, so it is set on the element.
-  const bookmark = useRef<HTMLAnchorElement>(null);
-  useEffect(() => {
-    bookmark.current?.setAttribute("href", bookmarkHref());
-  }, []);
-
-  const bookmarkSteps = [
-    t(locale, "helper.bookmarkStep1"),
-    t(locale, "helper.bookmarkStep2"),
-    t(locale, "helper.bookmarkStep3"),
-  ];
 
   const steps = [
     {
@@ -103,36 +90,7 @@ export function HelperSection() {
         </p>
       </div>
 
-      <article className="card mt-5 p-5">
-        <h3 className="flex items-center gap-2 font-display text-base font-semibold">
-          <Bookmark size={16} className="text-[var(--blue)]" aria-hidden />
-          {t(locale, "helper.bookmarkTitle")}
-        </h3>
-        <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t(locale, "helper.bookmarkLead")}</p>
-        <ol className="mt-3 grid gap-2 text-sm leading-6">
-          {bookmarkSteps.map((line, index) => (
-            <li key={line} className="flex gap-3">
-              <span aria-hidden="true" className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-semibold text-[var(--accent-ink)]">
-                {index + 1}
-              </span>
-              <span>{line}</span>
-            </li>
-          ))}
-        </ol>
-        <a
-          ref={bookmark}
-          draggable
-          title={t(locale, "helper.bookmarkClickHint")}
-          onClick={(event) => event.preventDefault()}
-          className="btn btn-primary mt-4 w-fit cursor-grab active:cursor-grabbing"
-        >
-          <Bookmark size={15} aria-hidden />
-          {t(locale, "helper.bookmarkButton")}
-        </a>
-        <p className="mt-3 text-xs leading-5 text-[var(--muted)]">{t(locale, "helper.bookmarkNote")}</p>
-      </article>
-
-      <h3 className="mt-8 font-display text-base font-semibold">{t(locale, "helper.extensionTitle")}</h3>
+      <h3 className="mt-10 font-display text-base font-semibold">{t(locale, "helper.extensionTitle")}</h3>
       <ol className="mt-3 grid gap-3">
         {steps.map((step, index) => (
           <li
