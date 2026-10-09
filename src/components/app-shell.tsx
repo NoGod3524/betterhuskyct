@@ -17,6 +17,8 @@ import {
 import { AppFooter } from "@/components/app-footer";
 import { MobileNav } from "@/components/mobile-nav";
 import { NAV_ITEMS } from "@/components/nav-items";
+import { announceSeenChanged, useAnnouncementsSeenAt } from "@/components/use-seen";
+import { ensureAnnouncementsBaseline, unseenAnnouncements } from "@/lib/seen";
 import { SearchPalette } from "@/components/search-palette";
 import { SyncBanner } from "@/components/sync-banner";
 import { useCalendar } from "@/components/calendar-provider";
@@ -87,8 +89,18 @@ export function AppShell({
     formattedImportedAt,
     subscriptions,
     importCalendarFiles,
+    announcements,
   } = useCalendar();
   const [isDroppingFile, setIsDroppingFile] = useState(false);
+
+  // The first run has no past to compare with, so it starts "new" from now; after that the count
+  // of announcements seen since the Announcements page was last left shows beside its link.
+  const announcementsSeenAt = useAnnouncementsSeenAt();
+  const newAnnouncements = unseenAnnouncements(announcements, announcementsSeenAt).size;
+  useEffect(() => {
+    ensureAnnouncementsBaseline(window.localStorage, new Date());
+    announceSeenChanged();
+  }, []);
   // Drag events fire per element as the pointer moves, so a plain boolean
   // flickers. Counting enters and leaves keeps the overlay steady.
   const dragDepth = useRef(0);
@@ -189,6 +201,14 @@ export function AppShell({
                   className={`nav-item${active ? " nav-item-active" : ""}`}
                 >
                   <Icon size={16} />{t(locale, key)}
+                  {href === "/announcements" && newAnnouncements > 0 && !active ? (
+                    <span
+                      className="ml-auto rounded-full bg-[var(--warning-soft)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--warning)]"
+                      aria-label={t(locale, "seen.newCount", { count: newAnnouncements })}
+                    >
+                      {newAnnouncements}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}
