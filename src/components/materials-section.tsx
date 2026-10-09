@@ -24,6 +24,7 @@ import { useCalendar } from "@/components/calendar-provider";
 import { DELIVERY_EVENT, type DeliveryDetail } from "@/components/helper-deliveries";
 import { ListSkeleton } from "@/components/list-skeleton";
 import { SyllabusSummaryCard, SyllabusSummaryHint } from "@/components/syllabus-summary";
+import { announceSeenChanged, useSeenFilesRaw } from "@/components/use-seen";
 import { t } from "@/lib/i18n";
 import {
   folderTree,
@@ -38,6 +39,7 @@ import {
   type StoredFile,
 } from "@/lib/materials";
 import { openMaterialsStore } from "@/lib/materials-store";
+import { markFilesSeen, parseSeenFiles, unseenFiles } from "@/lib/seen";
 import {
   LINKS_PAGE_NAMES,
   ZipTooBigError,
@@ -169,6 +171,24 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
   }, [store, reload]);
 
   const courses = useMemo(() => index?.courses ?? [], [index]);
+
+  // A file not seen on this page before is marked new while the student is on it, and counted as
+  // seen when they leave.
+  const allKeys = useMemo(() => courses.flatMap((course) => course.files.map((file) => file.key)), [courses]);
+  const seenRaw = useSeenFilesRaw();
+  const unseen = useMemo(() => unseenFiles(allKeys, parseSeenFiles(seenRaw)), [allKeys, seenRaw]);
+  const keysNow = useRef<string[]>([]);
+  useEffect(() => {
+    keysNow.current = allKeys;
+  }, [allKeys]);
+  useEffect(
+    () => () => {
+      if (keysNow.current.length === 0) return;
+      markFilesSeen(window.localStorage, keysNow.current);
+      announceSeenChanged();
+    },
+    [],
+  );
   const shown = courseFilter ? courses.filter((course) => course.id === courseFilter) : courses;
   const writePicker =
     typeof window !== "undefined" ? (window as unknown as { showDirectoryPicker?: WritePicker }).showDirectoryPicker : undefined;
@@ -420,6 +440,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
               // Picking a course with its chip is asking to see it.
               const courseOpen = open.has(courseKey) || courseFilter === course.id;
               const missing = course.files.filter((file) => !files.has(file.key)).length;
+              const fresh = course.files.filter((file) => unseen.has(file.key)).length;
               const group = (name: string) => groupKeyOf(course.id, name);
               return (
                 <article key={course.id} className="card overflow-hidden">
@@ -441,7 +462,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                         files: course.files.length,
                         videos: videos.length,
                         links: links.length + course.tools.length,
-                      }) + (missing ? " · " + t(locale, "materials.courseMissing", { count: missing }) : "")
+                      }) + (fresh ? " · " + t(locale, "seen.newCount", { count: fresh }) : "") + (missing ? " · " + t(locale, "materials.courseMissing", { count: missing }) : "")
                     }
                   />
                   {course.files.length > missing ? (
@@ -470,6 +491,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                               <span className="flex min-w-0 items-center gap-2.5 text-sm">
                                 <FileIcon name={file?.name ?? ref.title} />
                                 <span className="truncate">{file?.name ?? ref.title}</span>
+                                {unseen.has(ref.key) ? <span className="shrink-0 rounded bg-[var(--warning-soft)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--warning)]">{t(locale, "seen.new")}</span> : null}
                                 {file ? <span className="shrink-0 text-xs tabular-nums text-[var(--muted)]">{formatBytes(file.size)}</span> : null}
                               </span>
                               {file ? (

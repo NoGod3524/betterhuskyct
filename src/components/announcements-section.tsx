@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 
 import { AnnouncementSummary, type SummaryCourse } from "@/components/announcement-summary";
 import { useCalendar } from "@/components/calendar-provider";
+import { announceSeenChanged, useAnnouncementsSeenAt } from "@/components/use-seen";
 import { chipStyle } from "@/lib/course-colors";
 import type { Announcement } from "@/lib/announcements";
 import { normaliseCourseCode } from "@/lib/courses";
 import { intlLocale, t } from "@/lib/i18n";
+import { markAnnouncementsSeen, unseenAnnouncements } from "@/lib/seen";
 
 /**
  * A body is shown two lines deep, with a button for the rest once it is longer
@@ -64,6 +66,18 @@ export function AnnouncementsSection({
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+
+  // What arrived since the student last left this page is marked new while they are on it, and
+  // counted as seen when they leave.
+  const seenAt = useAnnouncementsSeenAt();
+  const unseen = useMemo(() => unseenAnnouncements(announcements, seenAt), [announcements, seenAt]);
+  useEffect(
+    () => () => {
+      markAnnouncementsSeen(window.localStorage, new Date());
+      announceSeenChanged();
+    },
+    [],
+  );
 
   function toggleOpen(id: string) {
     setOpenIds((current) => {
@@ -221,6 +235,7 @@ export function AnnouncementsSection({
                       >
                         {labelFor(entry)}
                       </span>
+                      {unseen.has(entry.id) ? <span className="shrink-0 rounded bg-[var(--warning-soft)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--warning)]">{t(locale, "seen.new")}</span> : null}
                       <span className="ml-auto shrink-0 tabular-nums">
                         {entry.posted
                           ? t(locale, "announcements.posted", { value: entry.posted })
