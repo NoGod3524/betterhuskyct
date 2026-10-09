@@ -49,6 +49,12 @@ export function HelperSection() {
     t(locale, "helper.bookmarkStep3"),
   ];
 
+  const ownExtSteps = [
+    t(locale, "helper.ownExtStep1"),
+    t(locale, "helper.ownExtStep2"),
+    t(locale, "helper.ownExtStep3"),
+  ];
+
   const steps = [
     {
       title: t(locale, "helper.step1Title"),
@@ -102,6 +108,29 @@ export function HelperSection() {
           {t(locale, "helper.description")}
         </p>
       </div>
+
+      <article className="card mt-5 p-5">
+        <h3 className="flex items-center gap-2 font-display text-base font-semibold">
+          <Download size={16} className="text-[var(--blue)]" aria-hidden />
+          {t(locale, "helper.ownExtTitle")}
+        </h3>
+        <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t(locale, "helper.ownExtLead")}</p>
+        <ol className="mt-3 grid gap-2 text-sm leading-6">
+          {ownExtSteps.map((line, index) => (
+            <li key={line} className="flex gap-3">
+              <span aria-hidden="true" className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-[var(--accent-soft)] text-xs font-semibold text-[var(--accent-ink)]">
+                {index + 1}
+              </span>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ol>
+        <a href="/betterhuskyct-extension.zip" download className="btn btn-primary mt-4 w-fit">
+          <Download size={15} aria-hidden />
+          {t(locale, "helper.ownExtButton")}
+        </a>
+        <p className="mt-3 text-xs leading-5 text-[var(--muted)]">{t(locale, "helper.ownExtNote")}</p>
+      </article>
 
       <article className="card mt-5 p-5">
         <h3 className="flex items-center gap-2 font-display text-base font-semibold">
