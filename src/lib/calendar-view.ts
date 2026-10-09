@@ -1,4 +1,4 @@
-import type { CalendarTask, TaskGroup } from "./calendar-types.ts";
+import { isDeadline, type CalendarTask, type TaskGroup } from "./calendar-types.ts";
 import { addDays, startOfLocalDay, taskDate } from "./date-utils.ts";
 import { DEFAULT_LOCALE, intlLocale, t, type Locale } from "./i18n.ts";
 
@@ -63,6 +63,32 @@ export function groupTasks(
       }),
     },
   ];
+}
+
+/** What is still to do in the week the board shows: how many deadlines on each day-part, and the first. */
+export type DaySummary = {
+  today: number;
+  tomorrow: number;
+  /** The rest of the week, after tomorrow. */
+  later: number;
+  /** The first one still to do, with the group it is in, or null when nothing is. */
+  next: { task: CalendarTask; group: TaskGroup["key"] } | null;
+};
+
+/**
+ * Counts the deadlines left in each group, leaving out class meetings and what is done, so the
+ * top of the page can say what the day asks for. The groups arrive in date order.
+ */
+export function summarizeDays(groups: TaskGroup[], doneIds: ReadonlySet<string>): DaySummary {
+  const summary: DaySummary = { today: 0, tomorrow: 0, later: 0, next: null };
+  for (const group of groups) {
+    const left = group.tasks.filter((task) => isDeadline(task) && !doneIds.has(task.id));
+    if (group.key === "today") summary.today = left.length;
+    else if (group.key === "tomorrow") summary.tomorrow = left.length;
+    else summary.later = left.length;
+    if (!summary.next && left.length > 0) summary.next = { task: left[0], group: group.key };
+  }
+  return summary;
 }
 
 function atLocalTime(base: Date, dayOffset: number, hours: number, minutes = 0) {

@@ -1,6 +1,5 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { Clock3, MapPin } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
@@ -9,6 +8,7 @@ import type { CalendarTask, TaskGroup } from "@/lib/calendar-types";
 import { chipStyle } from "@/lib/course-colors";
 import { formatTaskTime, isDueSoon } from "@/lib/calendar-view";
 import { t, type Locale } from "@/lib/i18n";
+import { useInBrowser } from "@/lib/use-in-browser";
 import type { DoneLabel } from "@/lib/task-status";
 
 const courseStyles = [
@@ -26,11 +26,6 @@ function styleForCourse(course: string) {
   );
   return courseStyles[hash % courseStyles.length];
 }
-
-/** False while the server renders and true in the browser; there is nothing to subscribe to. */
-const NEVER_CHANGES = () => () => {};
-const IN_BROWSER = () => true;
-const ON_SERVER = () => false;
 
 export function TaskCard({
   task,
@@ -56,9 +51,7 @@ export function TaskCard({
   locale: Locale;
 }) {
   const { courseLabelFor, courseColorFor } = useCalendar();
-  // A time is in the reader's zone, which the server does not know: it leaves the time out, so the
-  // text the browser puts in is not a mismatch.
-  const inBrowser = useSyncExternalStore(NEVER_CHANGES, IN_BROWSER, ON_SERVER);
+  const inBrowser = useInBrowser();
   // Blackboard exports no course name on graded items. Rather than invent one,
   // fall back to the user's pick, then the feed, then the default course — and
   // show nothing when none of them applies.
