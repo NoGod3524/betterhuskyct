@@ -84,6 +84,14 @@ export function HelperSyncProvider({ children, deps }: { children: ReactNode; de
         if (live && found) bridge.found = true;
       });
     }
+    // Opened by the bookmark on HuskyCT: the page that opened this one is waiting for the helper
+    // it has just loaded to be asked for a sync, and it is asked here, with no press.
+    if (!deps?.open && new URLSearchParams(window.location.search).get("sync") === "bookmark") {
+      const opened = window.opener as HuskyctTab | null;
+      window.history.replaceState(null, "", window.location.pathname);
+      // The sync asks the HuskyCT page that opened this one, instead of opening a tab.
+      if (opened && !opened.closed) sync.current?.start(opened);
+    }
     return () => {
       live = false;
       window.removeEventListener("message", listener);

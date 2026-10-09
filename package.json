@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-helper.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-helper.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

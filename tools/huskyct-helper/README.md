@@ -36,6 +36,21 @@ button. The two walks above do each of those jobs for every course at once, so
 
 ## Install
 
+**The quick way, a bookmark (helper 1.16.0 and later).** No extension and no browser
+setting: on BetterHuskyCT's Helper page, drag the **Sync HuskyCT** button onto the
+bookmarks bar (Ctrl+Shift+B shows it). Then, signed in to HuskyCT, press the
+bookmark. It opens BetterHuskyCT in a new tab, which asks this page for a sync as
+soon as it has loaded, and loads the helper into the page from
+`https://betterhuskyct.vercel.app/huskyct-helper.js` (a copy of
+`huskyct-helper.user.js` made by `scripts/copy-helper.mjs` before every build, since
+`raw.githubusercontent.com` serves text a browser will not run as a script).
+HuskyCT's pages carry no rule against scripts from another site (measured on
+2026-10-08: their only policy is `frame-ancestors`). The bookmark does the same sync
+as the extension, one press at a time; it cannot sync in the background or on its own,
+and it loads whatever the site serves that day, which is why the source stays open.
+
+**The extension, for a sync in the background and on its own.**
+
 1. Install [Tampermonkey](https://www.tampermonkey.net/) (Chrome, Edge, Firefox,
    Safari) or [Violentmonkey](https://violentmonkey.github.io/).
 2. Open the extension's dashboard → **Create a new script**.

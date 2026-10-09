@@ -219,3 +219,53 @@ test("a helper that says it is here after the page's ask has timed out is used",
     target.postMessage = realPost;
   }
 });
+
+// --- opened by the bookmark ---------------------------------------------------------------------
+
+/** `opener` is a getter on the window, so it is replaced rather than assigned. */
+function setOpener(value: unknown) {
+  Object.defineProperty(window, "opener", { configurable: true, get: () => value });
+}
+
+test("a page opened by the bookmark asks the HuskyCT page that opened it for a sync, with no press, and drops the mark", async () => {
+  const { tab, posted } = fakeTab();
+  window.happyDOM.setURL("https://betterhuskyct.vercel.app/?sync=bookmark");
+  setOpener(tab);
+  try {
+    // No `open`: the provider's own, which is the one that must use the opener.
+    const view = await render({ schedule: noTimers });
+
+    assert.deepEqual(posted, [{ message: { protocol: HELPER_SYNC_PROTOCOL, kind: "request" }, origin: "https://lms.uconn.edu" }]);
+    assert.ok(view.text().includes(t("en", "helpersync.waiting")), "the button did not show the sync it started");
+    assert.equal(window.location.search, "", "the mark stayed in the address");
+
+    // And it follows that page's answer, which only the page that opened it may give.
+    await view.hear(tab, say({ kind: "ack", state: "started" }));
+    assert.ok(view.text().includes(t("en", "helpersync.syncing")));
+    await view.unmount();
+  } finally {
+    setOpener(null);
+    window.happyDOM.setURL("https://betterhuskyct.vercel.app/");
+  }
+});
+
+test("without the mark, or when the opener is gone, nothing starts by itself", async () => {
+  const { tab, posted } = fakeTab();
+  setOpener(tab);
+  const plain = await render({ schedule: noTimers });
+  assert.deepEqual(posted, [], "a page opened without the mark started a sync");
+  await plain.unmount();
+
+  const closed = { ...fakeTab() };
+  closed.tab.closed = true;
+  window.happyDOM.setURL("https://betterhuskyct.vercel.app/?sync=bookmark");
+  setOpener(closed.tab);
+  try {
+    const view = await render({ schedule: noTimers });
+    assert.deepEqual(closed.posted, [], "it asked a window that has been closed");
+    await view.unmount();
+  } finally {
+    setOpener(null);
+    window.happyDOM.setURL("https://betterhuskyct.vercel.app/");
+  }
+});
