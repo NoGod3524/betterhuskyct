@@ -14,6 +14,23 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.27.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.27.0) — A browser extension, and the bookmark is gone
+
+*Minor: a new capability. HuskyCT Helper goes from 1.16.0 to 1.17.0.*
+
+### Added
+
+- **A browser extension for Chrome and Edge.** It runs the same helper without Tampermonkey: a small relay carries the helper's storage and tab requests to the browser, and a background worker puts the helper into the page. The Helper page offers it as a ZIP to load unpacked, and it is built from the helper before every `dev` and `build`. ([#153])
+- **Room for course files.** The extension may keep more than 10 MB while a course file crosses between tabs. ([#155])
+
+### Changed
+
+- **The Helper page puts Tampermonkey first, in six steps**: install it, allow user scripts, install the helper, sign in to HuskyCT, sync, and what to do about updates or a sync that does nothing. The extension follows. ([#156])
+
+### Removed
+
+- **The bookmark.** The Helper page's card, the page it opened, its path in the sync, the copy of the helper served for it, and their tests. The helper itself is otherwise unchanged. ([#154])
+
 ## [1.26.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.26.0) — Sync HuskyCT from a bookmark, with no extension to install
 
 *Minor: a new capability. HuskyCT Helper goes from 1.15.0 to 1.16.0.*
@@ -1753,3 +1770,7 @@ saying what to work on next.*
 [#149]: https://github.com/NoGod3524/betterhuskyct/pull/149
 [#150]: https://github.com/NoGod3524/betterhuskyct/pull/150
 [#151]: https://github.com/NoGod3524/betterhuskyct/pull/151
+[#153]: https://github.com/NoGod3524/betterhuskyct/pull/153
+[#154]: https://github.com/NoGod3524/betterhuskyct/pull/154
+[#155]: https://github.com/NoGod3524/betterhuskyct/pull/155
+[#156]: https://github.com/NoGod3524/betterhuskyct/pull/156
