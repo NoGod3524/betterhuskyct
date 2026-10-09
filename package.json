@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/build-extension.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/build-extension.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

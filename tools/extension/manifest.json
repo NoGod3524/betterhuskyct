@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "BetterHuskyCT Helper",
+  "version": "0.0.0",
+  "description": "Reads your HuskyCT deadlines, announcements, grades and course files in your own browser and hands them to BetterHuskyCT. Nothing leaves your computer.",
+  "author": "Yinuo (NoGod3524)",
+  "homepage_url": "https://github.com/NoGod3524/betterhuskyct",
+  "minimum_chrome_version": "111",
+  "permissions": ["storage", "scripting"],
+  "host_permissions": [
+    "https://lms.uconn.edu/*",
+    "https://huskyct.uconn.edu/*",
+    "https://betterhuskyct.vercel.app/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://lms.uconn.edu/*",
+        "https://huskyct.uconn.edu/*",
+        "https://betterhuskyct.vercel.app/*"
+      ],
+      "js": ["relay.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
