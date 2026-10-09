@@ -75,7 +75,7 @@ test("the components carry the classes the touch rules hang on", () => {
 
   const shell = read("components/app-shell.tsx");
   assert.match(shell, /const iconButton =\s*"tap-icon /, "the header's icon buttons are not finger-sized");
-  assert.equal((shell.match(/\{iconButton\}|\$\{iconButton\}/g) ?? []).length, 2, "the theme and reminder buttons do not both use it");
+  assert.equal((shell.match(/\{iconButton\}|\$\{iconButton\}/g) ?? []).length, 3, "the search, theme and reminder buttons do not all use it");
 
   for (const file of ["materials-section", "grades-section", "announcements-section", "helper-section"]) {
     assert.match(read(`components/${file}.tsx`), /tap-link/, `${file} has a text link a finger could miss`);
