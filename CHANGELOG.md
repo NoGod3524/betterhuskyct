@@ -14,6 +14,19 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.26.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.26.0) — Sync HuskyCT from a bookmark, with no extension to install
+
+*Minor: a new capability. HuskyCT Helper goes from 1.15.0 to 1.16.0.*
+
+### Added
+
+- **A bookmark that syncs HuskyCT.** The Helper page has a **Sync HuskyCT** button to drag onto the bookmarks bar; pressed on HuskyCT, it opens BetterHuskyCT in a new tab, which asks that page for a sync at once, and loads the helper into the page from this site. No userscript manager and no browser setting. It syncs when pressed; the extension stays for a sync in the background and on its own. Loaded this way the helper does not also start a sync of its own. HuskyCT Helper 1.16.0. ([#150])
+- **The author is named** in the footer, in both READMEs and in the helper's header, beside the MIT licence. ([#149])
+
+### Fixed
+
+- **The page the bookmark opens no longer crashes.** It reads nothing of the HuskyCT page that opened it but what a browser allows from another site; a flag it read there made it throw and show "This page couldn't load". ([#151])
+
 ## [1.25.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.25.1) — The newest announcements come first
 
 *Patch: a fix. HuskyCT Helper is unchanged at 1.15.0.*
@@ -1737,3 +1750,6 @@ saying what to work on next.*
 [#145]: https://github.com/NoGod3524/betterhuskyct/pull/145
 [#146]: https://github.com/NoGod3524/betterhuskyct/pull/146
 [#147]: https://github.com/NoGod3524/betterhuskyct/pull/147
+[#149]: https://github.com/NoGod3524/betterhuskyct/pull/149
+[#150]: https://github.com/NoGod3524/betterhuskyct/pull/150
+[#151]: https://github.com/NoGod3524/betterhuskyct/pull/151
