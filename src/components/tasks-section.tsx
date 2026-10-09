@@ -3,6 +3,7 @@
 import { Bell, Check, Download, RefreshCw } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
+import { QuickAdd } from "@/components/quick-add";
 import { TaskCard } from "@/components/task-card";
 import { t } from "@/lib/i18n";
 
@@ -45,6 +46,7 @@ export function TasksSection() {
           </h2>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <QuickAdd />
           {tasks.length > 0 && (
             <button
               type="button"
