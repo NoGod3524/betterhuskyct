@@ -17,6 +17,30 @@
  * is stored, and a message that does not fit is dropped whole.
  */
 
+/**
+ * The types a stored file may be opened as in a tab of this app. A blob address belongs to the app's
+ * own origin, so a page opened from one can read everything the app stores: a course file that is
+ * HTML or SVG, or whose type is blank or a guess, is downloaded instead, never opened.
+ */
+const VIEWABLE_TYPES: ReadonlySet<string> = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "image/avif",
+  "image/bmp",
+  "text/plain",
+  "audio/mpeg",
+  "audio/mp4",
+  "video/mp4",
+  "video/webm",
+]);
+
+export function canViewInTab(type: string): boolean {
+  return VIEWABLE_TYPES.has(type.split(";")[0].trim().toLowerCase());
+}
+
 /** Bumped only if the messages change shape; both sides check it. */
 export const MATERIALS_PROTOCOL = "betterhuskyct/materials@1";
 
