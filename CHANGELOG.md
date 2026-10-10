@@ -14,6 +14,22 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.28.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.28.0) — Search, exams, what is new, and a to-do from the overview
+
+*Minor: new capabilities. HuskyCT Helper is unchanged at 1.17.0.*
+
+### Added
+
+- **A line that says what the day asks for.** Under the greeting, `Today 2 · Tomorrow 1 · Later this week 3` and the next deadline with its time, leaving out what is done and class meetings, in place of one number for the week. ([#159])
+- **A to-do from the overview.** An `Add a to-do` button on the task board takes a title, a day and an optional time, and stores it as the calendar page's own events, so it shows on both. ([#161])
+- **One search over everything.** A button in the header, and Ctrl+K (Cmd+K on a Mac), look through the tasks, the announcements, the course files, links and tools, and the graded items; every word has to match, a title match comes first, and a result opens its page. ([#163])
+- **What is new since the last visit.** An announcement first seen after the student last left the Announcements page, and a course file not seen before on the Materials page, carry a New tag; a course shows how many of its files are new, and the sidebar counts the new announcements. The first run marks nothing. ([#164])
+- **The exams ahead.** A card on the to-do page lists the exams still to come with the days left. HuskyCT does not say what kind of item something is, so an exam is picked by its title (exam, midterm, final, test; not a quiz or a final project), and the card says so. ([#165])
+
+### Fixed
+
+- **A console error on the first paint of the overview.** The task card's time was worked out on the server in its zone and in the browser in the reader's, so React threw error 418 before recovering; the time now waits for the browser. ([#158])
+
 ## [1.27.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.27.0) — A browser extension, and the bookmark is gone
 
 *Minor: a new capability. HuskyCT Helper goes from 1.16.0 to 1.17.0.*
@@ -1774,3 +1790,9 @@ saying what to work on next.*
 [#154]: https://github.com/NoGod3524/betterhuskyct/pull/154
 [#155]: https://github.com/NoGod3524/betterhuskyct/pull/155
 [#156]: https://github.com/NoGod3524/betterhuskyct/pull/156
+[#158]: https://github.com/NoGod3524/betterhuskyct/pull/158
+[#159]: https://github.com/NoGod3524/betterhuskyct/pull/159
+[#161]: https://github.com/NoGod3524/betterhuskyct/pull/161
+[#163]: https://github.com/NoGod3524/betterhuskyct/pull/163
+[#164]: https://github.com/NoGod3524/betterhuskyct/pull/164
+[#165]: https://github.com/NoGod3524/betterhuskyct/pull/165
