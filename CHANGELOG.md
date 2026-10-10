@@ -14,6 +14,25 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.30.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.30.0) — Dates as yyyy/mm/dd, better date reading, and two privacy fixes
+
+*Minor: a change to how every date is shown, and to what the announcement rules read. HuskyCT Helper is unchanged at 1.17.0.*
+
+### Changed
+
+- **Every day is written yyyy/mm/dd.** `2026/10/09` replaces "Fri, Oct 9" and "October 9, 2026" on the to-do page, the exam card, the overview, the announcements, the AI plan, the calendar's selected day, the home page's date line and the "last imported" time, in English and in Chinese; the weekday and the time keep the language. An announcement's posted time is written the same way when HuskyCT's words can be read as a moment, and is left as written when they cannot. The calendar grid's month title, its weekday header and the browser's own date boxes are unchanged. ([#174])
+- **The announcement rules read dates better.** A bare, "this" or "next" weekday is worked out (still marked to check, with the other choices offered), and a slash date that reads two ways is taken when only one reading is near the posting or fits the weekday beside it. Of several days in a sentence the one after "due" or "by" is taken, "today" is dropped when another day is named, and "from A till B" is its end. Sentences that only mention an exam or quiz (advice, office hours, a posting, "uploaded") are no longer offered. On 85 real announcements, with half held back, the day-level F1 on the held-back half rose from 54.8% to 69.0% (precision 44.4% to 66.7%); the kind-only figure did not move, and the held-back half holds 28 events, so it is good to about ±15 points. ([#173])
+
+### Added
+
+- **A way to measure the rules.** `scripts/eval-announcements` labels announcements with a language model twice, settles the differences, and scores the rules by kind, by day, and by day with the choices offered, on a tuning half and a held-back half. The announcements stay outside the repository; the method and the totals are in its README. ([#173])
+
+### Fixed
+
+- **A course file that is a web page can no longer run inside the app.** Open used a blob address, which shares the app's origin, so an HTML or SVG file could read what the app stores. Open now shows a file in a tab only when its type is on a short list that cannot run anything (PDF, images other than SVG, plain text, plain audio and video); anything else is saved to disk. ([#175])
+- **Unticking "Remember this link" now removes the link.** It only saved the box as off, and the link stayed in storage and was fetched again at the next visit. Saved links are taken off when the box is unticked, a refresh in progress stops, and a link left over by the old behaviour is removed when the app opens. What was imported stays. ([#176])
+- **The end-to-end run fails when a check fails.** It used to print the failure and exit 0. The check on an announcement's posted line, stale since the date format changed, is brought up to date. ([#177])
+
 ## [1.29.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.29.0) — Announcements that lead to to-dos
 
 *Minor: new capabilities. HuskyCT Helper is unchanged at 1.17.0.*
@@ -1809,3 +1828,8 @@ saying what to work on next.*
 [#165]: https://github.com/NoGod3524/betterhuskyct/pull/165
 [#170]: https://github.com/NoGod3524/betterhuskyct/pull/170
 [#171]: https://github.com/NoGod3524/betterhuskyct/pull/171
+[#173]: https://github.com/NoGod3524/betterhuskyct/pull/173
+[#174]: https://github.com/NoGod3524/betterhuskyct/pull/174
+[#175]: https://github.com/NoGod3524/betterhuskyct/pull/175
+[#176]: https://github.com/NoGod3524/betterhuskyct/pull/176
+[#177]: https://github.com/NoGod3524/betterhuskyct/pull/177
