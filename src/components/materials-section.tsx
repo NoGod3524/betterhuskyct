@@ -27,6 +27,7 @@ import { SyllabusSummaryCard, SyllabusSummaryHint } from "@/components/syllabus-
 import { announceSeenChanged, useSeenFilesRaw } from "@/components/use-seen";
 import { t } from "@/lib/i18n";
 import {
+  canViewInTab,
   folderTree,
   foldersIn,
   formatBytes,
@@ -218,8 +219,10 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
   }, [courses, files]);
 
   function openFile(file: StoredFile, download: boolean) {
+    // Only a type that cannot run anything is opened here; the rest is saved to disk, not shown.
+    const save = download || !canViewInTab(file.blob.type);
     const url = URL.createObjectURL(file.blob);
-    if (download) {
+    if (save) {
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = file.name;

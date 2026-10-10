@@ -47,7 +47,7 @@ async function seeded(): Promise<MaterialsStore> {
     name: "Section 4.1 PDF.pdf",
     type: "application/pdf",
     size: 1689443,
-    blob: new Blob(["%PDF"]),
+    blob: new Blob(["%PDF"], { type: "application/pdf" }),
     savedAt: "2026-09-27T12:00:00.000Z",
   });
   return store;
@@ -121,6 +121,57 @@ test("opening a course shows its own files and its folders; opening a folder sho
   await view.click("Week 1 - Section 4.1");
   assert.ok(view.text().includes("Section 4.1 PDF.pdf"));
   assert.ok(view.text().includes("1.6 MB"), "the stored file's size is missing");
+  await view.unmount();
+});
+
+test("Open shows a PDF in a tab, but a page that could run (HTML, SVG) is saved to disk and never opened", async () => {
+  window.localStorage.clear();
+  const store = await seeded();
+  const HTML_URL = "https://lms.uconn.edu/bbcswebdav/pid-3-dt-content-rid-3_1/xid-3_1";
+  const SVG_URL = "https://lms.uconn.edu/bbcswebdav/pid-4-dt-content-rid-4_1/xid-4_1";
+  const index = (await store.getIndex())!;
+  index.courses[0].files.push({ key: HTML_URL, path: [], title: "notes.html" }, { key: SVG_URL, path: [], title: "picture.svg" });
+  await store.putIndex(index);
+  const bytes = (type: string) => new Blob(["<script>1</script>"], { type });
+  await store.putFile({ key: HTML_URL, name: "notes.html", type: "text/html", size: 18, blob: bytes("text/html"), savedAt: "2026-09-27T12:00:00.000Z" });
+  await store.putFile({ key: SVG_URL, name: "picture.svg", type: "image/svg+xml", size: 18, blob: bytes("image/svg+xml"), savedAt: "2026-09-27T12:00:00.000Z" });
+
+  const realCreate = URL.createObjectURL;
+  const realRevoke = URL.revokeObjectURL;
+  URL.createObjectURL = () => "blob:test";
+  URL.revokeObjectURL = () => undefined;
+  const opened: string[] = [];
+  const saved: string[] = [];
+  const realOpen = window.open;
+  window.open = ((url: string) => (opened.push(url), null)) as typeof window.open;
+  const realClick = window.HTMLAnchorElement.prototype.click;
+  window.HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+    saved.push(this.download);
+  };
+
+  const view = await render(store);
+  await view.click("MATH 1070Q");
+  const openButtons = () => [...window.document.querySelectorAll("button")].filter((b) => (b.textContent ?? "").includes(t("en", "materials.open")));
+  const pressOpen = async (name: string) => {
+    const row = [...window.document.querySelectorAll("li")].find((li) => (li.textContent ?? "").includes(name));
+    const button = row && [...row.querySelectorAll("button")].find((b) => (b.textContent ?? "").includes(t("en", "materials.open")));
+    assert.ok(button, "no Open for " + name);
+    await act(async () => (button as unknown as HTMLButtonElement).click());
+  };
+  assert.ok(openButtons().length >= 2);
+
+  await view.click("Week 1 - Section 4.1");
+  await pressOpen("Section 4.1 PDF.pdf");
+  await pressOpen("notes.html");
+  await pressOpen("picture.svg");
+
+  window.open = realOpen;
+  window.HTMLAnchorElement.prototype.click = realClick;
+  URL.createObjectURL = realCreate;
+  URL.revokeObjectURL = realRevoke;
+
+  assert.equal(opened.length, 1, "only the PDF may be opened in a tab: " + JSON.stringify(opened));
+  assert.deepEqual(saved, ["notes.html", "picture.svg"]);
   await view.unmount();
 });
 

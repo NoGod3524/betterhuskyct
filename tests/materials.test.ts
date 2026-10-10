@@ -5,6 +5,7 @@ import { Window } from "happy-dom";
 
 import {
   MATERIALS_PROTOCOL,
+  canViewInTab,
   createMaterialsReceiver,
   folderTree,
   foldersIn,
@@ -265,3 +266,9 @@ test("files make a folder tree that names each folder once", () => {
   ]);
 });
 
+test("only a type that cannot run anything is opened in a tab; HTML, SVG, a blank or an unknown type is not", () => {
+  for (const type of ["application/pdf", "image/png", "IMAGE/JPEG", "text/plain; charset=utf-8", "video/mp4"]) assert.equal(canViewInTab(type), true, type);
+  for (const type of ["text/html", "text/html; charset=utf-8", "image/svg+xml", "application/xhtml+xml", "application/xml", "text/xml", "application/javascript", "", "application/octet-stream", "pdf"]) {
+    assert.equal(canViewInTab(type), false, type);
+  }
+});
