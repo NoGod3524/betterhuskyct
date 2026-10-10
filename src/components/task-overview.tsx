@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { useAiPlan } from "@/components/ai-plan-provider";
 import { useCalendar } from "@/components/calendar-provider";
 import type { CalendarTask } from "@/lib/calendar-types";
+import { dateFormatter } from "@/lib/format-date";
 import { intlLocale, t } from "@/lib/i18n";
 import { buildOverview, type Entry } from "@/lib/task-overview";
 import { useInBrowser } from "@/lib/use-in-browser";
@@ -52,7 +53,7 @@ export function TaskOverview({ renderTask }: { renderTask: (task: CalendarTask, 
 
   const total = overview.next7.length + overview.overdue.length + overview.undated.length;
   const dayName = new Intl.DateTimeFormat(intlLocale(locale), { weekday: "short" });
-  const dayLong = new Intl.DateTimeFormat(intlLocale(locale), { weekday: "long", month: "long", day: "numeric" });
+  const dayLong = dateFormatter(locale, { weekday: "long" });
 
   const entries = focus === null ? [] : entriesFor(focus, overview);
 

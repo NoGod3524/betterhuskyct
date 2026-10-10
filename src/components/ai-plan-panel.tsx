@@ -7,7 +7,8 @@ import { AlertTriangle, Sparkles } from "lucide-react";
 import { useAiPlan, type AiPlanValue } from "@/components/ai-plan-provider";
 import { useCalendar } from "@/components/calendar-provider";
 import { localDay, selectedByDefault, suggestionFlags, type Suggestion, type SuggestionFlags } from "@/lib/ai-plan";
-import { intlLocale, t, type Locale, type TranslationKey } from "@/lib/i18n";
+import { formatDate } from "@/lib/format-date";
+import { t, type Locale, type TranslationKey } from "@/lib/i18n";
 
 const BUTTON =
   "inline-flex h-9 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent-ink)] disabled:opacity-50";
@@ -19,12 +20,7 @@ type Row = { suggestion: Suggestion; flags: SuggestionFlags };
 function dayLabel(day: string, time: string | null, locale: Locale): string {
   const [year, month, date] = day.split("-").map(Number);
   const [hour, minute] = (time ?? "00:00").split(":").map(Number);
-  return new Intl.DateTimeFormat(intlLocale(locale), {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    ...(time ? { hour: "numeric", minute: "2-digit" } : {}),
-  }).format(new Date(year, month - 1, date, hour, minute));
+  return formatDate(new Date(year, month - 1, date, hour, minute), locale, { weekday: "short", time: Boolean(time) });
 }
 
 /**

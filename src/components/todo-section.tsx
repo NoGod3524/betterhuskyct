@@ -13,8 +13,9 @@ import { useDecisions, useVersionStore } from "@/components/use-announcement-sta
 import { TaskCard } from "@/components/task-card";
 import { UndatedTodoList } from "@/components/undated-todo-list";
 import { isDeadline, type CalendarTask } from "@/lib/calendar-types";
+import { formatDate } from "@/lib/format-date";
 import { dueTimestamp } from "@/lib/date-utils";
-import { intlLocale, t, type Locale, type TranslationKey } from "@/lib/i18n";
+import { t, type Locale, type TranslationKey } from "@/lib/i18n";
 import { linkNotices } from "@/lib/announcement-decisions";
 import { buildTodo, completionOf, type TodoSectionKey } from "@/lib/todo";
 
@@ -30,12 +31,7 @@ const SECTIONS: ReadonlyArray<{ key: TodoSectionKey; title: TranslationKey; acce
 function dueLabel(task: CalendarTask, locale: Locale): string {
   const due = dueTimestamp(task);
   if (due === null) return "";
-  return new Intl.DateTimeFormat(intlLocale(locale), {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    ...(task.allDay ? {} : { hour: "numeric", minute: "2-digit" }),
-  }).format(new Date(due));
+  return formatDate(new Date(due), locale, { weekday: "short", time: !task.allDay });
 }
 
 /**

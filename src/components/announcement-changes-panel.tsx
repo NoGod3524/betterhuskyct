@@ -6,6 +6,7 @@ import { History } from "lucide-react";
 
 import { useAiPlan } from "@/components/ai-plan-provider";
 import { formatDay } from "@/components/announcement-actions-panel";
+import { dateFormatter } from "@/lib/format-date";
 import { useCalendar } from "@/components/calendar-provider";
 import { updateDecisions, useDecisions, useVersionStore } from "@/components/use-announcement-state";
 import { dayKey, type DayParts } from "@/lib/announcement-dates";
@@ -13,7 +14,7 @@ import { extractCandidates } from "@/lib/announcement-actions";
 import { isUnreviewed, linkNotices, markLinkChecked, markLinkMoved, markReviewed, type LinkNotice } from "@/lib/announcement-decisions";
 import { isNotable, latestChange } from "@/lib/announcement-versions";
 import type { Announcement } from "@/lib/announcements";
-import { intlLocale, t, type Locale, type TranslationKey } from "@/lib/i18n";
+import { t, type Locale, type TranslationKey } from "@/lib/i18n";
 import { dueInstant } from "@/lib/quick-add";
 
 const partsOf = (key: string): DayParts => {
@@ -38,7 +39,7 @@ export function ChangePanel({ announcement, locale }: { announcement: Announceme
   if (!change) return null;
 
   const unreviewed = isUnreviewed(change, decisions);
-  const when = new Intl.DateTimeFormat(intlLocale(locale), { dateStyle: "medium", timeStyle: "short" });
+  const when = dateFormatter(locale, { time: true });
   const live = notices.filter((notice) => notice.added.taskKind === "undated" ? plan?.undated.some((todo) => todo.id === notice.added.taskId) : tasks.some((task) => task.id === notice.added.taskId));
 
   function move(notice: LinkNotice, day: string) {

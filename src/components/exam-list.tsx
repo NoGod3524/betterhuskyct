@@ -5,7 +5,8 @@ import { GraduationCap } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import { chipStyle } from "@/lib/course-colors";
-import { intlLocale, t } from "@/lib/i18n";
+import { dateFormatter } from "@/lib/format-date";
+import { t } from "@/lib/i18n";
 import { upcomingExams } from "@/lib/exams";
 import { useInBrowser } from "@/lib/use-in-browser";
 
@@ -16,7 +17,7 @@ export function ExamList() {
   const exams = useMemo(() => upcomingExams(tasks, doneIds, now), [tasks, doneIds, now]);
   if (exams.length === 0) return null;
 
-  const dayFormat = new Intl.DateTimeFormat(intlLocale(locale), { weekday: "short", month: "short", day: "numeric" });
+  const dayFormat = dateFormatter(locale, { weekday: "short" });
   const daysText = (days: number) =>
     days === 0 ? t(locale, "exams.today") : days === 1 ? t(locale, "exams.tomorrow") : t(locale, "exams.inDays", { count: days });
 
