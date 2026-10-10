@@ -48,20 +48,48 @@ const normal = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, " ").
 /** "Quizzes" and "Quiz", "Exams" and "Exam", the same word. */
 const stem = (word: string) => word.replace(/zzes$/, "z").replace(/(es|s)$/, "");
 
-function keywordsOf(name: string): string[] {
-  const words = normal(name).split(" ").filter(Boolean).map(stem);
-  const found = new Set(words);
+/** Words that say nothing about which part a row is. */
+const STOP = new Set(["the", "and", "for", "of", "in", "take", "home", "online", "total", "all"]);
+
+type Keywords = { words: string[]; numbers: string[]; aliases: string[] };
+
+function keywordsOf(name: string): Keywords {
+  const all = normal(name).split(" ").filter(Boolean);
+  const numbers = all.filter((word) => /^\d+$/.test(word));
+  const words = all.filter((word) => !/^\d+$/.test(word) && word.length > 2 && !STOP.has(word)).map(stem);
+  const aliases = new Set<string>();
   for (const group of ALIASES) {
-    if (group.some((alias) => words.includes(stem(alias)) || words.includes(alias))) for (const alias of group) found.add(stem(alias));
+    if (group.some((alias) => words.includes(stem(alias)))) for (const alias of group) if (!words.includes(stem(alias))) aliases.add(stem(alias));
   }
-  return [...found];
+  return { words, numbers, aliases: [...aliases] };
 }
 
-/** The category whose name, or whose usual synonyms, the title uses; null when none does or two do. */
+const hasWord = (padded: string, word: string) => new RegExp(`\\b${word}`).test(padded);
+
+/**
+ * The category a row's title belongs to: the one whose name it uses most, counting a word of the
+ * name for more than a usual synonym and a number ("Exam 2") only beside a word. Null when none
+ * fits or two fit equally well, so the student chooses.
+ */
 export function guessCategory(title: string, categories: readonly Category[]): string | null {
   const padded = ` ${normal(title)} `;
-  const hits = categories.filter((category) => keywordsOf(category.name).some((keyword) => keyword && new RegExp(`\\b${keyword}`).test(padded)));
-  return hits.length === 1 ? hits[0].id : null;
+  let best: { id: string; score: number } | null = null;
+  let tied = false;
+  for (const category of categories) {
+    const { words, numbers, aliases } = keywordsOf(category.name);
+    const wordHits = words.filter((word) => hasWord(padded, word)).length;
+    const numberHits = numbers.filter((number) => new RegExp(`\\b${number}\\b`).test(padded)).length;
+    const aliasHits = aliases.filter((alias) => hasWord(padded, alias)).length;
+    const score = (wordHits > 0 ? wordHits * 3 + numberHits * 2 : 0) + aliasHits;
+    if (score === 0) continue;
+    if (!best || score > best.score) {
+      best = { id: category.id, score };
+      tied = false;
+    } else if (score === best.score) {
+      tied = true;
+    }
+  }
+  return best && !tied ? best.id : null;
 }
 
 // --- what each part comes to so far -----------------------------------------------------------

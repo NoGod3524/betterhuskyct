@@ -87,3 +87,23 @@ test("a stored scheme is read only when it is in shape, and stray references are
   assert.equal(parseScheme({ categories: [{ id: "x", name: "X", weight: 101 }] }), null);
   assert.equal(parseScheme("nope"), null);
 });
+
+test("with several exam parts a row goes to the one it names, and one that fits them all is left for the student", () => {
+  const stat = [
+    { id: "e1", name: "Exam 1", weight: 25 },
+    { id: "e2", name: "Exam 2", weight: 25 },
+    { id: "fin", name: "Final Exam", weight: 30 },
+    { id: "q", name: "Take-home quizzes", weight: 10 },
+    { id: "m", name: "MINITAB assignments", weight: 10 },
+  ];
+  assert.equal(guessCategory("Exam 2", stat), "e2");
+  assert.equal(guessCategory("Exam 1 Score", stat), "e1");
+  assert.equal(guessCategory("Final Exam", stat), "fin");
+  assert.equal(guessCategory("Take-home Quiz 3", stat), "q");
+  assert.equal(guessCategory("Quiz 7", stat), "q");
+  assert.equal(guessCategory("MINITAB 4", stat), "m");
+  // A midterm could be either exam: no guess.
+  assert.equal(guessCategory("Midterm", stat), null);
+  // A number alone is not a reason.
+  assert.equal(guessCategory("Survey 1", stat), null);
+});

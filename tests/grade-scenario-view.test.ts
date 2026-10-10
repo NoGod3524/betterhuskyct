@@ -86,3 +86,99 @@ test("with no parts there is only the invitation to add some", async () => {
   assert.ok(!view.text().includes(t("en", "scenario.slidersHeading")));
   await act(async () => view.root.unmount());
 });
+
+// --- reading the weights from the syllabus ------------------------------------------------------
+
+const { memoryMaterialsStore } = await import("./support/memory-stores.ts");
+
+async function mountWithSyllabus(opts: { withFile: boolean; fetchImpl: (input: string, init: RequestInit) => Promise<Response> }) {
+  window.localStorage.clear();
+  const store = memoryMaterialsStore();
+  if (opts.withFile) {
+    await store.putIndex({
+      version: 1,
+      term: "Fall 2026",
+      updatedAt: "2026-10-01T00:00:00.000Z",
+      courses: [{ id: "_1_1", code: "STAT 1000Q", files: [{ key: "k1", path: [], title: "syllabus.txt" }], links: [], tools: [] }],
+    });
+    const text = "Grades: Exam 1 25%, Exam 2 25%, Final 30%, quizzes 10%, MINITAB 10%. Email prof@uconn.edu";
+    await store.putFile({ key: "k1", name: "syllabus.txt", type: "text/plain", size: text.length, blob: new Blob([text], { type: "text/plain" }), savedAt: "2026-10-01T00:00:00.000Z" });
+  }
+  const container = window.document.createElement("div");
+  window.document.body.appendChild(container);
+  const root = createRoot(container as unknown as Element);
+  await act(async () => root.render(createElement(GradeScenario, { course: COURSE, locale: "en", openMaterials: async () => store, fetchImpl: opts.fetchImpl })));
+  const text = () => container.textContent ?? "";
+  const press = async (label: string) => {
+    const target = [...container.querySelectorAll("button")].find((b) => (b.textContent ?? "").includes(label));
+    assert.ok(target, `no button "${label}"`);
+    await act(async () => (target as unknown as HTMLButtonElement).click());
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+  };
+  await press(t("en", "scenario.title"));
+  return { container, root, text, press };
+}
+
+const STAT_ANSWER = {
+  parts: [
+    { name: "Exam 1", weight: 25, evidence: "Exam 1 – 25%" },
+    { name: "Exam 2", weight: 25, evidence: "Exam 2 – 25%" },
+    { name: "Final Exam", weight: 30, evidence: "Final Exam – 30%" },
+    { name: "Take-home quizzes", weight: 10, evidence: "Take-home quizzes – 10%" },
+    { name: "MINITAB assignments", weight: 10, evidence: "MINITAB assignments – 10%" },
+  ],
+  note: null,
+  provider: "glm",
+};
+
+test("the weights are read from the syllabus, shown with the syllabus's words for the student to check, and used only when they say so", async () => {
+  const sent: string[] = [];
+  const view = await mountWithSyllabus({
+    withFile: true,
+    fetchImpl: async (_input, init) => {
+      sent.push(String(init.body));
+      return Response.json(STAT_ANSWER);
+    },
+  });
+
+  await view.press(t("en", "scenario.readSyllabus"));
+  assert.equal(sent.length, 1);
+  assert.ok(sent[0].includes("Exam 1 25%"), "the syllabus text was not sent");
+  assert.ok(view.text().includes(t("en", "scenario.foundHeading")));
+  assert.ok(view.text().includes("Final Exam – 30%"), "the syllabus's own words are not shown");
+  // Nothing is used yet.
+  assert.ok(!view.text().includes(t("en", "scenario.slidersHeading")));
+
+  await view.press(t("en", "scenario.useFound"));
+  assert.ok(view.text().includes(t("en", "scenario.slidersHeading")));
+  assert.ok(view.text().includes(t("en", "scenario.weightSum", { sum: "100" })));
+  assert.ok(view.text().includes("Take-home quizzes"));
+  // The quizzes row (Quiz 1, Quiz 2) is put with "Take-home quizzes" by the word.
+  assert.ok(view.text().includes("Now 85% over 2 scored"), view.text());
+  await act(async () => view.root.unmount());
+});
+
+test("a course with no syllabus among its files says so, and sends nothing", async () => {
+  let called = false;
+  const view = await mountWithSyllabus({
+    withFile: false,
+    fetchImpl: async () => {
+      called = true;
+      return Response.json(STAT_ANSWER);
+    },
+  });
+  await view.press(t("en", "scenario.readSyllabus"));
+  assert.equal(called, false);
+  assert.ok(view.text().includes(t("en", "scenario.noSyllabus")));
+  await act(async () => view.root.unmount());
+});
+
+test("when the AI service fails the student is told and can still enter the parts", async () => {
+  const view = await mountWithSyllabus({ withFile: true, fetchImpl: async () => Response.json({ problem: "busy" }, { status: 503 }) });
+  await view.press(t("en", "scenario.readSyllabus"));
+  assert.ok(view.text().includes(t("en", "scenario.errorBusy")));
+  assert.ok(view.text().includes(t("en", "scenario.addPart")));
+  await act(async () => view.root.unmount());
+});
