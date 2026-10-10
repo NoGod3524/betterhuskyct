@@ -47,6 +47,25 @@ test("moving a timed task to all-day sets its date key from the new start", () =
   assert.equal(out.dateKey, "2026-09-20");
 });
 
+test("an all-day edit keeps the day it names, whatever zone its start falls in", () => {
+  // The 16th, as an editor in Auckland saves it: local midnight, which is the 15th in UTC.
+  const edit = { start: "2026-10-15T11:00:00.000Z", dateKey: "2026-10-16", allDay: true };
+  const [out] = applyOverlay([task("a", { start: "2026-10-15T00:00:00.000Z", dateKey: "2026-10-15", allDay: true })], setEventEdit(EMPTY_OVERLAY, "a", edit));
+  assert.equal(out.dateKey, "2026-10-16");
+  // An edit that only retitles an all-day event leaves its day alone.
+  const [kept] = applyOverlay([task("a", { start: "2026-10-15T00:00:00.000Z", dateKey: "2026-10-15", allDay: true })], setEventEdit(EMPTY_OVERLAY, "a", { title: "New name", allDay: true }));
+  assert.equal(kept.dateKey, "2026-10-15");
+  // A timed event has no day key, even if the edit carried one.
+  const [timed] = applyOverlay([task("a")], setEventEdit(EMPTY_OVERLAY, "a", { dateKey: "2026-10-16", allDay: false }));
+  assert.equal(timed.dateKey, null);
+});
+
+test("an edit's day key is kept by the parser, and one that is not a day is a malformed edit", () => {
+  const ok = parseEventOverlay({ edits: { a: { dateKey: "2026-10-16", allDay: true } }, deletedIds: [] });
+  assert.equal(ok?.edits.a.dateKey, "2026-10-16");
+  assert.equal(parseEventOverlay({ edits: { a: { dateKey: "Oct 16" } }, deletedIds: [] })?.edits.a, undefined);
+});
+
 test("a deleted task is dropped, an untouched one is not", () => {
   const overlay = deleteEvent(EMPTY_OVERLAY, "a");
   const out = applyOverlay([task("a"), task("b")], overlay);

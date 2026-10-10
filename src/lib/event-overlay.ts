@@ -14,6 +14,11 @@ import type { CalendarTask } from "./calendar-types.ts";
 export type EventEdit = {
   title?: string;
   start?: string;
+  /**
+   * The calendar day of an all-day event, as written, so that it never has to be worked out from
+   * a moment in some zone. Present whenever the edit sets or keeps an all-day event.
+   */
+  dateKey?: string | null;
   end?: string | null;
   allDay?: boolean;
   location?: string | null;
@@ -48,6 +53,10 @@ function parseEdit(value: unknown): EventEdit | null {
   if (value.start !== undefined) {
     if (!isValidDateString(value.start)) return null;
     edit.start = value.start;
+  }
+  if (value.dateKey !== undefined) {
+    if (value.dateKey !== null && !(typeof value.dateKey === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.dateKey))) return null;
+    edit.dateKey = value.dateKey;
   }
   if (value.end !== undefined) {
     if (value.end !== null && !isValidDateString(value.end)) return null;
@@ -136,8 +145,9 @@ function withEdit(task: CalendarTask, edit: EventEdit): CalendarTask {
     ...task,
     title: edit.title ?? task.title,
     start,
-    // Recomputed whenever either half of the pair moves, never from only one.
-    dateKey: allDay ? start.slice(0, 10) : null,
+    // Recomputed whenever either half of the pair moves, never from only one. The day an edit
+    // names is used as it is; only an older edit, which has none, falls back to the start's UTC date.
+    dateKey: allDay ? (edit.dateKey ?? (edit.start !== undefined ? start.slice(0, 10) : (task.dateKey ?? start.slice(0, 10)))) : null,
     end: edit.end !== undefined ? edit.end : task.end,
     allDay,
     location: edit.location !== undefined ? edit.location : task.location,
