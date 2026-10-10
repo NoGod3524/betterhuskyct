@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, ListChecks } from "lucide-react";
+import { Check, ChevronDown, ListChecks } from "lucide-react";
 
 import { useAiPlan } from "@/components/ai-plan-provider";
 import { useCalendar } from "@/components/calendar-provider";
@@ -182,6 +182,7 @@ function CandidateRow({ announcement, candidate, locale, versionAt }: { announce
 export function CandidateList({ announcement, locale, versionAt }: { announcement: Announcement; locale: Locale; versionAt: string | null }) {
   const decisions = useDecisions();
   const [showDismissed, setShowDismissed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const candidates = useMemo(() => extractCandidates(announcement), [announcement]);
   if (candidates.length === 0) return null;
 
@@ -191,20 +192,23 @@ export function CandidateList({ announcement, locale, versionAt }: { announcemen
 
   return (
     <section className="mt-3 grid gap-2 rounded-xl bg-[var(--subtle)] p-3" aria-label={t(locale, "ann.panelTitle", { count: open.length })}>
-      <h4 className="flex items-center gap-2 text-sm font-semibold">
-        <ListChecks size={15} className="text-[var(--blue)]" aria-hidden />
-        {t(locale, "ann.panelTitle", { count: open.length })}
-        {pending > 0 ? <span className="rounded-full bg-[var(--warning-soft)] px-2 text-[11px] font-semibold text-[var(--warning)]">{t(locale, "ann.toConfirm", { count: pending })}</span> : null}
+      <h4 className="text-sm font-semibold">
+        <button type="button" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} className="flex w-full items-center gap-2 text-left font-semibold">
+          <ListChecks size={15} className="text-[var(--blue)]" aria-hidden />
+          {t(locale, "ann.panelTitle", { count: open.length })}
+          {pending > 0 ? <span className="rounded-full bg-[var(--warning-soft)] px-2 text-[11px] font-semibold text-[var(--warning)]">{t(locale, "ann.toConfirm", { count: pending })}</span> : null}
+          <ChevronDown size={15} className={`ml-auto shrink-0 text-[var(--muted)] transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden />
+        </button>
       </h4>
-      <p className="text-xs leading-5 text-[var(--muted)]">{t(locale, "ann.panelNote")}</p>
-      {open.length > 0 ? (
+      {expanded ? <p className="text-xs leading-5 text-[var(--muted)]">{t(locale, "ann.panelNote")}</p> : null}
+      {expanded && open.length > 0 ? (
         <ul className="grid gap-2">
           {open.map((candidate) => (
             <CandidateRow key={candidate.id} announcement={announcement} candidate={candidate} locale={locale} versionAt={versionAt} />
           ))}
         </ul>
       ) : null}
-      {dismissed.length > 0 ? (
+      {expanded && dismissed.length > 0 ? (
         <div>
           <button type="button" onClick={() => setShowDismissed((value) => !value)} aria-expanded={showDismissed} className="text-xs font-medium text-[var(--link)] hover:underline">
             {t(locale, "ann.dismissedCount", { count: dismissed.length })}
