@@ -17,6 +17,7 @@ import {
 import { AppFooter } from "@/components/app-footer";
 import { MobileNav } from "@/components/mobile-nav";
 import { NAV_ITEMS } from "@/components/nav-items";
+import { recordAnnouncementVersions } from "@/components/use-announcement-state";
 import { announceSeenChanged, useAnnouncementsSeenAt } from "@/components/use-seen";
 import { ensureAnnouncementsBaseline, unseenAnnouncements } from "@/lib/seen";
 import { SearchPalette } from "@/components/search-palette";
@@ -101,6 +102,12 @@ export function AppShell({
     ensureAnnouncementsBaseline(window.localStorage, new Date());
     announceSeenChanged();
   }, []);
+
+  // What each announcement says is kept as it is saved, so a later change to it can be shown. It is
+  // done here, once for every page, so a sync made while another page is open still counts.
+  useEffect(() => {
+    recordAnnouncementVersions(announcements);
+  }, [announcements]);
   // Drag events fire per element as the pointer moves, so a plain boolean
   // flickers. Counting enters and leaves keeps the overlay steady.
   const dragDepth = useRef(0);
