@@ -91,6 +91,12 @@ async function mount(page: "announcements" | "todo" = "announcements") {
       await act(async () => latest!.applyPendingSync());
       await settle(50);
     },
+    /** Opens every collapsed to-do panel, as the student does with the chevron. */
+    expand: async () => {
+      const heads = [...container.querySelectorAll("button[aria-expanded=false]")].filter((b) => (b.textContent ?? "").includes(t("en", "ann.panelTitle", { count: 0 }).split("(")[0]));
+      for (const head of heads) await act(async () => (head as unknown as HTMLElement).click());
+      await settle();
+    },
     unmount: () => act(async () => root.unmount()),
   };
   return view;
@@ -104,6 +110,8 @@ test("what the rules find is shown with its sentence and why, and nothing is add
   await view.sync([announcement(BODY)]);
 
   assert.ok(view.text().includes(t("en", "ann.panelTitle", { count: 2 })), view.text());
+  assert.ok(!view.text().includes(t("en", "ann.panelNote")), "the panel starts open");
+  await view.expand();
   assert.ok(view.text().includes("Quiz 3 is due Friday, October 9 at 11:59 PM."), "the sentence it came from is not shown");
   assert.ok(view.text().includes(t("en", "annBasis.year-from-posting")), "the reason for the year is not shown");
   assert.ok(view.text().includes(t("en", "annBasis.no-date")), "the reason there is no day is not shown");
@@ -115,6 +123,7 @@ test("what the rules find is shown with its sentence and why, and nothing is add
 test("adding one makes a to-do on that day, remembers it, and a second sync of the same text makes nothing twice", async () => {
   const view = await mount();
   await view.sync([announcement(BODY)]);
+  await view.expand();
 
   await view.click(view.button(t("en", "ann.add")));
   assert.deepEqual(customTitles(view), ["Quiz 3"]);
@@ -125,6 +134,7 @@ test("adding one makes a to-do on that day, remembers it, and a second sync of t
 
   // The same announcement arrives again: no new candidate to add, no second task, no second version.
   await view.sync([announcement(BODY)]);
+  await view.expand();
   assert.equal(view.buttons(t("en", "ann.add")).length, 0, "the added one is offered again");
   assert.deepEqual(customTitles(view), ["Quiz 3"]);
   const versions = JSON.parse(window.localStorage.getItem("huskypilot.announcementVersions.v1") ?? "{}");
@@ -135,6 +145,7 @@ test("adding one makes a to-do on that day, remembers it, and a second sync of t
 test("a sentence with no day can be added without one, and turned down, and brought back", async () => {
   const view = await mount();
   await view.sync([announcement(BODY)]);
+  await view.expand();
 
   await view.click(view.button(t("en", "ann.addNoDay")));
   assert.deepEqual(view.plan.undated.map((todo) => todo.title), ["Homework 5"]);
@@ -150,12 +161,14 @@ test("a sentence with no day can be added without one, and turned down, and brou
 test("when the teacher moves the day, the page shows the change and asks about the to-do, and the student's own edits are kept", async () => {
   const view = await mount();
   await view.sync([announcement(BODY)]);
+  await view.expand();
   await view.click(view.button(t("en", "ann.add")));
   const quiz = view.calendar.tasks.find((task) => task.title === "Quiz 3")!;
   // The student renames it.
   await act(async () => view.calendar.editEvent(quiz.id, { title: "Quiz 3 (bring calculator)" }));
 
   await view.sync([announcement(BODY.replace("Friday, October 9", "Monday, October 12"))]);
+  await view.expand();
 
   assert.ok(view.text().includes(t("en", "ann.changedHeading")));
   assert.ok(view.text().includes(t("en", "ann.datesRemoved", { days: "Fri, Oct 9, 2026" })), view.text());
@@ -176,8 +189,10 @@ test("when the teacher moves the day, the page shows the change and asks about t
 test("the to-do page says when to-dos made from announcements may be out of date, and the changed ones can be picked out", async () => {
   const view = await mount();
   await view.sync([announcement(BODY)]);
+  await view.expand();
   await view.click(view.button(t("en", "ann.add")));
   await view.sync([announcement(BODY.replace("Friday, October 9", "Monday, October 12"))]);
+  await view.expand();
   assert.ok(view.text().includes(t("en", "ann.filter.changed") + " (1)"));
   await view.unmount();
 
@@ -189,6 +204,7 @@ test("the to-do page says when to-dos made from announcements may be out of date
 test("the filters narrow the list and say when nothing is left", async () => {
   const view = await mount();
   await view.sync([announcement(BODY), announcement("Welcome to the course.", "Hello (made-up demo)")]);
+  await view.expand();
   assert.ok(view.text().includes(t("en", "announcements.count", { count: 2 })));
 
   await view.click(view.button(t("en", "ann.filter.changed")));
@@ -203,6 +219,7 @@ test("an announcement the rules cannot make anything of is still read whole, and
   const view = await mount();
   const odd = "Das ist ein Test 🎓 ✨ " + "wörter ".repeat(40) + "Mehr: https://example.com/info.";
   await view.sync([announcement(odd, "Nur Text (made-up demo)")]);
+  await view.expand();
   assert.ok(view.text().includes("🎓"));
   assert.ok(!view.text().includes(t("en", "ann.panelTitle", { count: 0 })));
   const link = [...window.document.querySelectorAll("a")].find((a) => (a.getAttribute("href") ?? "").startsWith("https://example.com/info"));
