@@ -14,6 +14,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createChecks } from "./checks.mjs";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -133,11 +134,7 @@ async function waitForHttp(url, label) {
   throw new Error(label + " never came up at " + url);
 }
 
-const failures = [];
-function check(label, ok, detail) {
-  console.log((ok ? "  [PASS] " : "  [FAIL] ") + label + (detail ? "  — " + detail : ""));
-  if (!ok) failures.push(label);
-}
+const { check, failures, exitCodeFor } = createChecks();
 
 /**
  * Spawned without a shell, and as `node <next> start` rather than `npx next`.
@@ -330,7 +327,7 @@ try {
 
   check("the announcements route lists the first announcement", /Midterm moved to the 14th/.test(afterBody));
   check("it lists the second one too", /Online office hours tonight/.test(afterBody));
-  check("the posted line is shown as the page wrote it", /9\/17\/26, 4:47 PM/.test(afterBody));
+  check("the posted line is shown as yyyy/mm/dd from the page's words", /2026\/09\/17 4:47 PM/.test(afterBody));
   check("the relative posted line survived verbatim", /7 hours ago, at 5:31 PM/.test(afterBody));
   check("the course code is the group label", /MATH 1070Q/.test(afterBody));
   check("an unmatched course still shows its code", /SOCI 1501/.test(afterBody));
@@ -508,6 +505,8 @@ try {
   check("the route still renders both", /Midterm moved to the 14th/.test(seededBody) && /Online office hours tonight/.test(seededBody));
 
   console.log("\n=== " + (failures.length === 0 ? "ALL CHECKS PASSED" : failures.length + " FAILED: " + failures.join("; ")) + " ===");
+  // A failed check must fail the run, not only be printed.
+  process.exitCode = exitCodeFor(process.exitCode);
 } catch (error) {
   console.error("E2E ERROR:", error.message);
   // Only set a generic failure code if nothing more specific claimed one — the
