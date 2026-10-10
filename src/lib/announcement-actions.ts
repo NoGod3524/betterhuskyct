@@ -46,9 +46,15 @@ export type Candidate = {
 const CANCEL = /\bcancel+ed\b|\bcancell?ation\b|\bno (?:class|lecture|lab|recitation|discussion|section|meeting)s?\b|\bwill not meet\b|\bwon'?t meet\b|\bcalled off\b/i;
 const EXAM = /\b(?:exams?|midterms?|final exams?|tests?)\b|\bfinals?\b(?!\s+(?:project|paper|presentation|draft|report|essay|assignment|portfolio|submission))/i;
 const QUIZ = /\bquiz(?:zes)?\b/i;
-const DEADLINE = /\b(?:due|deadline|submit(?:ted)?|submission|turn(?:ed)? in|hand(?:ed)? in|upload(?:ed)?|closes?|complete(?:d)? by|must be (?:completed|submitted))\b/i;
+const DEADLINE = /\b(?:due|deadline|submit|submission|turn in|hand in|upload|closes?|complete(?:d)? by|must be (?:completed|submitted))\b|\b(?:complete|finish)\b[^.;]{0,40}\bby\b/i;
 const WORK = /\b(?:assignments?|homework|hw|problem sets?|psets?|projects?|papers?|essays?|reports?|labs?|discussion posts?|reading responses?|presentations?|worksheets?|modules?|exercises?)\b/i;
 const CHANGE = /\b(?:postponed|moved|rescheduled|pushed (?:back|to)|extended|extension|changed to|now (?:due|on|will be))\b/i;
+const KIND_WORDS = /\b(?:exams?|midterms?|finals?|tests?|quiz(?:zes)?)\b/i;
+const OFFICE_HOURS = /\boffice hours?\b/i;
+/** Words that put a date to the thing just before it: "due on Fri, Oct 30", "by next Thursday". */
+const CUE_BEFORE_DATE = /\b(?:due|deadline|by|until|till|before)(?:\s+(?:on|at))?\s+(?:(?:next|this)\s+)?\(?$/i;
+/** An exam or quiz with no day is still worth offering when the sentence says it is to happen. */
+const SCHEDULED = /\b(?:will (?:be )?(?:held|given|take place|open|close|appear)|is scheduled|are scheduled|is (?:next|coming|upcoming)|coming up|upcoming)\b/i;
 const NAMED_WORK = /\b(quiz|exam|midterm|final exam|homework|hw|assignment|project|paper|essay|report|lab|problem set|presentation|worksheet|module|exercise|reading response)s?\s*#?\s*(\d{1,2}|[ivx]{1,4})?\b/i;
 
 const CHECK_BASIS: ReadonlySet<Basis> = new Set(["year-unknown", "order-ambiguous", "weekday-mismatch", "relative-unresolved", "range", "posting-unknown"]);
@@ -82,8 +88,10 @@ export function kindOf(sentence: string): { kind: ActionKind | null; keywords: s
     return Boolean(match);
   };
   const cancel = note(CANCEL);
-  const exam = note(EXAM);
-  const quiz = note(QUIZ);
+  // A sentence about office hours that mentions the exam is not about the exam.
+  const office = OFFICE_HOURS.test(sentence);
+  const exam = !office && note(EXAM);
+  const quiz = !office && note(QUIZ);
   const deadline = note(DEADLINE);
   const work = note(WORK);
   const change = note(CHANGE);
@@ -114,7 +122,19 @@ export function extractCandidates(announcement: Pick<Announcement, "id" | "title
 
   for (const { text, from } of sources) {
     const { kind, keywords, changed } = kindOf(text);
-    const dates = findDates(text, postedAt);
+    const found = findDates(text, postedAt);
+    // Where a sentence gives several days, the one a "due" or "by" points at is the event's.
+    const cued = found.filter((date) => CUE_BEFORE_DATE.test(text.slice(0, date.start)));
+    let dates = kind !== null && kind !== "no-class" && cued.length > 0 ? cued : found;
+    // Several days and no "due" to point at one: when the kind is named once, its day is the nearest.
+    if (kind !== null && kind !== "no-class" && cued.length === 0 && found.length > 1) {
+      const word = KIND_WORDS.exec(text);
+      if (word && !new RegExp(KIND_WORDS.source, "gi").test(text.slice(word.index + word[0].length))) {
+        const gap = (date: { start: number; end: number }) => (date.start >= word.index ? date.start - (word.index + word[0].length) : word.index - date.end);
+        const nearest = Math.min(...found.map(gap));
+        dates = found.filter((date) => gap(date) === nearest);
+      }
+    }
 
     if (kind === null) {
       // A date with no word to say what it is for: shown, not suggested. A month named, or a year
@@ -128,7 +148,9 @@ export function extractCandidates(announcement: Pick<Announcement, "id" | "title
 
     if (dates.length === 0) {
       // No date in the sentence: it may still be something to do, so the student can give the day.
-      if (kind !== "no-class" && kind !== "change" && /\b(?:due|deadline|submit|turn in|hand in|exam|midterm|quiz)\b/i.test(text) && undated < MAX_UNDATED_PER_ANNOUNCEMENT) {
+      const due = /\b(?:due|deadline)\b/i.test(text);
+      const worth = due || ((kind === "exam" || kind === "quiz") && from === "text" && SCHEDULED.test(text));
+      if (kind !== "no-class" && kind !== "change" && worth && undated < MAX_UNDATED_PER_ANNOUNCEMENT) {
         undated += push(out, seen, announcement, text, from, kind, keywords, changed, null) ? 1 : 0;
       }
       continue;
@@ -137,8 +159,9 @@ export function extractCandidates(announcement: Pick<Announcement, "id" | "title
   }
   // A sentence with no day for something that another sentence gives a day is the same thing said twice.
   const dated = new Set(out.filter((candidate) => candidate.match !== null).map((candidate) => `${candidate.kind}|${candidate.title.toLowerCase()}`));
+  const datedKinds = new Set(out.filter((candidate) => candidate.match !== null).map((candidate) => candidate.kind));
   return out
-    .filter((candidate) => candidate.match !== null || !dated.has(`${candidate.kind}|${candidate.title.toLowerCase()}`))
+    .filter((candidate) => candidate.match !== null || (!dated.has(`${candidate.kind}|${candidate.title.toLowerCase()}`) && !(candidate.from === "title" && datedKinds.has(candidate.kind))))
     .slice(0, MAX_CANDIDATES_PER_ANNOUNCEMENT);
 }
 
