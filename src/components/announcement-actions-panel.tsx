@@ -12,7 +12,8 @@ import { dayKey, type DayParts } from "@/lib/announcement-dates";
 import { dismiss, markAdded, undismiss } from "@/lib/announcement-decisions";
 import { draftFrom, todoFrom, type TodoDraft } from "@/lib/announcement-todo";
 import type { Announcement } from "@/lib/announcements";
-import { intlLocale, t, type Locale, type TranslationKey } from "@/lib/i18n";
+import { formatDate } from "@/lib/format-date";
+import { t, type Locale, type TranslationKey } from "@/lib/i18n";
 
 const KIND_STYLE: Record<ActionKind, string> = {
   deadline: "bg-[var(--accent-soft)] text-[var(--accent-ink)]",
@@ -24,7 +25,7 @@ const KIND_STYLE: Record<ActionKind, string> = {
 };
 
 export function formatDay(day: DayParts, locale: Locale): string {
-  return new Intl.DateTimeFormat(intlLocale(locale), { weekday: "short", month: "short", day: "numeric", year: "numeric" }).format(new Date(day.year, day.month - 1, day.day));
+  return formatDate(new Date(day.year, day.month - 1, day.day), locale, { weekday: "short" });
 }
 
 /** The sentence as written, with the date's words marked. */

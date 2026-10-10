@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { isDeadline } from "@/lib/calendar-types";
+import { formatDate } from "@/lib/format-date";
 import type { CalendarImportResult, CalendarTask, TaskGroup } from "@/lib/calendar-types";
 import {
   clearAnnouncements,
@@ -125,7 +126,6 @@ import { courseColor, mergeCourseColors, restoreCourseColors, saveCourseColors, 
 import { helperMessage } from "@/lib/helper-bridge";
 import {
   DEFAULT_LOCALE,
-  intlLocale,
   restoreLocale,
   saveLocale,
   t,
@@ -1110,18 +1110,11 @@ export function CalendarProvider({
     0,
   );
 
-  const formattedToday = new Intl.DateTimeFormat(intlLocale(locale), {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  }).format(now);
+  const formattedToday = formatDate(now, locale, { weekday: "long" });
   const formattedImportedAt = useMemo(() => {
     const latest = latestImportAt(subscriptions);
     if (!latest) return null;
-    return new Intl.DateTimeFormat(intlLocale(locale), {
-      dateStyle: "medium",
-      timeStyle: "short",
-    }).format(new Date(latest));
+    return formatDate(new Date(latest), locale, { time: true });
   }, [subscriptions, locale]);
 
   function toggleRememberSource() {

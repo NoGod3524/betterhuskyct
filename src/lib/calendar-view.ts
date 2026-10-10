@@ -1,15 +1,11 @@
 import { isDeadline, type CalendarTask, type TaskGroup } from "./calendar-types.ts";
 import { addDays, startOfLocalDay, taskDate } from "./date-utils.ts";
 import { DEFAULT_LOCALE, intlLocale, t, type Locale } from "./i18n.ts";
+import { ymd } from "./format-date.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function shortDate(value: Date, locale: Locale) {
-  return new Intl.DateTimeFormat(intlLocale(locale), {
-    month: "short",
-    day: "numeric",
-  }).format(value);
-}
+const shortDate = (value: Date) => ymd(value);
 
 export function groupTasks(
   events: CalendarTask[],
@@ -38,14 +34,14 @@ export function groupTasks(
     {
       key: "today",
       title: t(locale, "group.today"),
-      dateLabel: shortDate(today, locale),
+      dateLabel: shortDate(today),
       accentClass: "bg-[#e6533c]",
       tasks: upcoming.filter((event) => taskDate(event) < tomorrow),
     },
     {
       key: "tomorrow",
       title: t(locale, "group.tomorrow"),
-      dateLabel: shortDate(tomorrow, locale),
+      dateLabel: shortDate(tomorrow),
       accentClass: "bg-[#e9a23b]",
       tasks: upcoming.filter((event) => {
         const start = taskDate(event);
@@ -55,7 +51,7 @@ export function groupTasks(
     {
       key: "week",
       title: t(locale, "group.week"),
-      dateLabel: `${shortDate(dayAfterTomorrow, locale)}–${shortDate(addDays(today, 6), locale)}`,
+      dateLabel: `${shortDate(dayAfterTomorrow)}–${shortDate(addDays(today, 6))}`,
       accentClass: "bg-[#2a71d8]",
       tasks: upcoming.filter((event) => {
         const start = taskDate(event);

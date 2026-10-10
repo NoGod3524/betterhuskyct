@@ -171,18 +171,18 @@ test("when the teacher moves the day, the page shows the change and asks about t
   await view.expand();
 
   assert.ok(view.text().includes(t("en", "ann.changedHeading")));
-  assert.ok(view.text().includes(t("en", "ann.datesRemoved", { days: "Fri, Oct 9, 2026" })), view.text());
-  assert.ok(view.text().includes(t("en", "ann.datesAdded", { days: "Mon, Oct 12, 2026" })));
+  assert.ok(view.text().includes(t("en", "ann.datesRemoved", { days: "2026/10/09 Fri" })), view.text());
+  assert.ok(view.text().includes(t("en", "ann.datesAdded", { days: "2026/10/12 Mon" })));
   assert.ok(view.text().includes(t("en", "ann.noticeNothingChanged")));
   // Nothing was moved on its own.
   assert.equal(new Date(view.calendar.tasks.find((task) => task.id === quiz.id)!.start).getDate(), 9);
 
-  await view.click(view.button(t("en", "ann.moveTo", { day: "Mon, Oct 12, 2026" })));
+  await view.click(view.button(t("en", "ann.moveTo", { day: "2026/10/12 Mon" })));
   const moved = view.calendar.tasks.find((task) => task.id === quiz.id)!;
   assert.equal(new Date(moved.start).getDate(), 12);
   assert.equal(new Date(moved.start).getHours(), 23, "the time was lost");
   assert.equal(moved.title, "Quiz 3 (bring calculator)", "the student's rename was overwritten");
-  assert.equal(view.buttons(t("en", "ann.moveTo", { day: "Mon, Oct 12, 2026" })).length, 0, "it asked again after it was done");
+  assert.equal(view.buttons(t("en", "ann.moveTo", { day: "2026/10/12 Mon" })).length, 0, "it asked again after it was done");
   await view.unmount();
 });
 

@@ -10,14 +10,15 @@ import { useCalendar } from "@/components/calendar-provider";
 import { useDecisions, useVersionStore } from "@/components/use-announcement-state";
 import { announceSeenChanged, useAnnouncementsSeenAt } from "@/components/use-seen";
 import { chipStyle } from "@/lib/course-colors";
+import { dateFormatter, formatDate } from "@/lib/format-date";
 import { extractCandidates, isAddable, type ActionKind } from "@/lib/announcement-actions";
 import { applyFilters, huskyctCourseIds, isFiltering, NO_FILTERS, originalUrl, type Filters, type Recency } from "@/lib/announcement-filters";
 import { mentionsAttachment, segmentsOf } from "@/lib/announcement-text";
 import { latestChange } from "@/lib/announcement-versions";
 import { GRADES_STORAGE_KEY } from "@/lib/grades-store";
-import { MAX_ANNOUNCEMENT_BODY, type Announcement } from "@/lib/announcements";
+import { MAX_ANNOUNCEMENT_BODY, postedTime, type Announcement } from "@/lib/announcements";
 import { normaliseCourseCode } from "@/lib/courses";
-import { intlLocale, t, type TranslationKey } from "@/lib/i18n";
+import { t, type Locale, type TranslationKey } from "@/lib/i18n";
 import { markAnnouncementsSeen, unseenAnnouncements } from "@/lib/seen";
 
 /**
@@ -64,6 +65,12 @@ function courseKeyOf(entry: Announcement, codeForId: (courseId: string) => strin
  * alongside these keep coming from the to-do list, where they were structured
  * to begin with.
  */
+/** The page's "10/5/26, 4:00 PM" as 2026/10/05 4:00 PM; words that are not a moment are shown as they came. */
+function postedLabel(posted: string, locale: Locale): string {
+  const at = postedTime(posted);
+  return at === null ? posted : formatDate(new Date(at), locale, { time: true });
+}
+
 export function AnnouncementsSection({
   summariesEnabled = false,
 }: {
@@ -155,10 +162,7 @@ export function AnnouncementsSection({
 
   const dateFormat = useMemo(
     () =>
-      new Intl.DateTimeFormat(intlLocale(locale), {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }),
+      dateFormatter(locale, { time: true }),
     [locale],
   );
 
@@ -329,7 +333,7 @@ export function AnnouncementsSection({
                         ))}
                       <span className="ml-auto shrink-0 tabular-nums">
                         {entry.posted
-                          ? t(locale, "announcements.posted", { value: entry.posted })
+                          ? t(locale, "announcements.posted", { value: postedLabel(entry.posted, locale) })
                           : t(locale, "announcements.collected", {
                               value: dateFormat.format(new Date(entry.announced)),
                             })}

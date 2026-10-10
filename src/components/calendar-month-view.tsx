@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, GraduationCap, Plus, RotateCcw, Trash2, X } 
 import { useCalendar } from "@/components/calendar-provider";
 import { useAcademicCalendar } from "@/components/use-academic-calendar";
 import { academicByDay, type AcademicEvent } from "@/lib/academic-calendar";
+import { formatDate } from "@/lib/format-date";
 import { chipStyle } from "@/lib/course-colors";
 import { isCustomEventId } from "@/lib/custom-events";
 import { addDays, startOfLocalDay, taskDate } from "@/lib/date-utils";
@@ -17,8 +18,7 @@ const pad = (value: number) => String(value).padStart(2, "0");
 const dayKey = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const toDateInput = (date: Date) => dayKey(date);
 const toTimeInput = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-const longDate = (date: Date, locale: Locale) =>
-  new Intl.DateTimeFormat(locale === "zh-CN" ? "zh-CN" : "en-US", { weekday: "long", month: "long", day: "numeric" }).format(date);
+const longDate = (date: Date, locale: Locale) => formatDate(date, locale, { weekday: "long" });
 
 function localInstant(dateInput: string, timeInput: string): string {
   const [year, month, day] = dateInput.split("-").map(Number);
