@@ -14,6 +14,17 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.29.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.29.0) — Announcements that lead to to-dos
+
+*Minor: new capabilities. HuskyCT Helper is unchanged at 1.17.0.*
+
+### Added
+
+- **Dates and to-dos found in announcements, for the student to confirm.** Simple rules, with no AI, look for a deadline, an exam, a quiz, a cancelled class or a changed date, and show the sentence each came from with the words that matched and the reason for the day and the year. Nothing reaches the to-do list until the student presses Add; they can change the title, day and time first, add one with no day, turn one down, and bring it back. The Announcements page can be filtered, and the to-do page shows an at-a-glance count of what is due and what waits to be confirmed. The panel starts collapsed, with its count and a badge for what is still to confirm. ([#170], [#171])
+- **Changes to an announcement.** Each sync keeps the versions of an announcement and shows what changed between them. A to-do added from an announcement is flagged for a second look when the announcement later moves its date or is cancelled; it is only flagged, never changed. ([#170])
+
+The rules know English keywords only, keep the first 1,200 characters of an announcement, and read numeric dates written with slashes.
+
 ## [1.28.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.28.0) — Search, exams, what is new, and a to-do from the overview
 
 *Minor: new capabilities. HuskyCT Helper is unchanged at 1.17.0.*
@@ -1796,3 +1807,5 @@ saying what to work on next.*
 [#163]: https://github.com/NoGod3524/betterhuskyct/pull/163
 [#164]: https://github.com/NoGod3524/betterhuskyct/pull/164
 [#165]: https://github.com/NoGod3524/betterhuskyct/pull/165
+[#170]: https://github.com/NoGod3524/betterhuskyct/pull/170
+[#171]: https://github.com/NoGod3524/betterhuskyct/pull/171
