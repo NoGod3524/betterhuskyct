@@ -35,6 +35,7 @@ import {
   saveSubscriptions,
   taskOwnerIndex,
   ticksForTasks,
+  forgetLinks,
   updateSubscription,
   MAX_SUBSCRIPTIONS,
   type Subscription,
@@ -544,8 +545,11 @@ export function CalendarProvider({
     let failures = 0;
     let imported = 0;
     for (const subscription of remembered) {
+      // Unticked since this began: that link is no longer ours to fetch.
+      const link = subscriptionsRef.current.find((entry) => entry.id === subscription.id)?.url;
+      if (!link) continue;
       try {
-        const result = await requestImport({ url: subscription.url as string });
+        const result = await requestImport({ url: link });
         imported += result.events.length;
         commitSubscriptions(
           updateSubscription(subscriptionsRef.current, subscription.id, {
@@ -580,9 +584,15 @@ export function CalendarProvider({
       setNow(currentTime);
       const restoredLocale = restoreLocale(window.localStorage);
       setLocale(restoredLocale);
-      setRememberSource(restoreRememberSource(window.localStorage));
+      const remembering = restoreRememberSource(window.localStorage);
+      setRememberSource(remembering);
 
       const restored = restoreSubscriptions(window.localStorage);
+      // A link kept while the box is unticked is one that an earlier version failed to remove.
+      if (!remembering && restored.subscriptions.some((subscription) => subscription.url !== null)) {
+        restored.subscriptions = forgetLinks(restored.subscriptions);
+        saveSubscriptions(window.localStorage, restored.subscriptions);
+      }
       subscriptionsRef.current = restored.subscriptions;
       setSubscriptions(restored.subscriptions);
       setDemoMode(restored.subscriptions.length === 0);
@@ -1121,6 +1131,9 @@ export function CalendarProvider({
     const next = !rememberSource;
     setRememberSource(next);
     saveRememberSource(window.localStorage, next);
+    // Unticking is a promise that the link is gone: the ones already saved go too, and a refresh in
+    // flight finds no link left to fetch.
+    if (!next) commitSubscriptions(forgetLinks(subscriptionsRef.current));
   }
 
   function restoreDemo() {

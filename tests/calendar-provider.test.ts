@@ -4,6 +4,7 @@ import { after, beforeEach, test } from "node:test";
 import { isCourseCatalogueLoaded } from "../src/lib/course-catalogue.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { t } from "../src/lib/i18n.ts";
+import { REMEMBER_SOURCE_KEY, SUBSCRIPTIONS_STORAGE_KEY, saveRememberSource, saveSubscriptions, type Subscription } from "../src/lib/subscriptions.ts";
 import { buildSyncPayload, encodeSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
 import { TASKS_PROTOCOL } from "../src/lib/tasks-sync.ts";
 import { installDom } from "./support/dom.ts";
@@ -463,5 +464,64 @@ test("a sync message from outside HuskyCT's own origins is ignored", async () =>
   });
 
   assert.equal(app.calendar.isImported, false);
+  await app.unmount();
+});
+
+const PRIVATE_LINK = "https://lms.uconn.edu/webapps/calendar/calendarFeed/abc123secret/learn.ics";
+const savedFeed = (): Subscription => ({
+  id: "feed-1",
+  name: "HuskyCT",
+  courseId: null,
+  url: PRIVATE_LINK,
+  importedAt: "2026-09-16T11:00:00.000Z",
+  lastError: null,
+  events: [{ id: "a:2026-09-18T23:59:00.000Z", title: "Section 4.1 Homework", course: "MATH 1070Q", start: "2026-09-18T23:59:00.000Z", dateKey: null, end: null, allDay: false, location: null, kind: "assignment" }],
+});
+const storedFeeds = () => (JSON.parse(window.localStorage.getItem(SUBSCRIPTIONS_STORAGE_KEY) ?? "{}").subscriptions ?? []) as Subscription[];
+
+test("unticking Remember link removes the saved link, keeps what was imported, and does not fetch it again", async () => {
+  saveSubscriptions(window.localStorage, [savedFeed()]);
+  saveRememberSource(window.localStorage, true);
+  const fetched: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    fetched.push(String(input));
+    throw new Error("offline");
+  }) as typeof fetch;
+
+  const app = await mount();
+  assert.equal(app.calendar.rememberSource, true);
+  await app.calendar.toggleRememberSource();
+  await settle();
+
+  assert.equal(app.calendar.rememberSource, false);
+  assert.equal(storedFeeds()[0].url, null, "the private link is still stored");
+  assert.equal(storedFeeds()[0].events.length, 1, "what was imported went with the link");
+  assert.ok(!(window.localStorage.getItem(SUBSCRIPTIONS_STORAGE_KEY) ?? "").includes("abc123secret"));
+  await app.unmount();
+
+  // Opened again, nothing is refreshed and no link is kept.
+  fetched.length = 0;
+  const again = await mount();
+  await settle(60);
+  assert.deepEqual(fetched, []);
+  assert.equal(storedFeeds()[0].url, null);
+  await again.unmount();
+});
+
+test("a link an earlier version kept after the box was unticked is removed when the app opens, and is not fetched", async () => {
+  saveSubscriptions(window.localStorage, [savedFeed()]);
+  window.localStorage.setItem(REMEMBER_SOURCE_KEY, "false");
+  const fetched: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    fetched.push(String(input));
+    throw new Error("offline");
+  }) as typeof fetch;
+
+  const app = await mount();
+  await settle(60);
+
+  assert.deepEqual(fetched, []);
+  assert.equal(storedFeeds()[0].url, null);
+  assert.equal(app.calendar.tasks.some((task) => task.title === "Section 4.1 Homework"), true, "the imported event was lost");
   await app.unmount();
 });
