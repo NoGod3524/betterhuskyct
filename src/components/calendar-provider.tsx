@@ -223,7 +223,8 @@ type CalendarContextValue = {
   eventNoteFor: (taskId: string) => string | null;
   /** Whether this imported event has been corrected or deleted on this device. */
   isEventEdited: (taskId: string) => boolean;
-  addCustomEvent: (input: CustomEventInput) => void;
+  /** Returns the new event's id, so what made it can be remembered. */
+  addCustomEvent: (input: CustomEventInput) => string;
   /** Several at once, as one save: the AI list adds what was ticked in one press. */
   addCustomEvents: (inputs: CustomEventInput[]) => void;
 };
@@ -394,8 +395,10 @@ export function CalendarProvider({
     return Boolean(eventOverlay.edits[taskId]) || eventOverlay.deletedIds.includes(taskId);
   }
 
-  function addCustomEvent(input: CustomEventInput) {
-    commitCustomEvents([...customEvents, buildCustomEvent(input)]);
+  function addCustomEvent(input: CustomEventInput): string {
+    const event = buildCustomEvent(input);
+    commitCustomEvents([...customEvents, event]);
+    return event.id;
   }
 
   function addCustomEvents(inputs: CustomEventInput[]) {

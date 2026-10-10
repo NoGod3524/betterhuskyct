@@ -59,6 +59,8 @@ export type AiPlanValue = {
   resolve: (added: PlanChoice[], dismissed: string[]) => void;
   toggleUndated: (id: string) => void;
   removeUndated: (id: string) => void;
+  /** Adds a to-do with no day, from the announcements page; returns its id. It needs no AI. */
+  addUndated: (todo: { title: string; course: string | null; note: string | null }) => string;
 };
 
 const AiPlanContext = createContext<AiPlanValue | null>(null);
@@ -362,6 +364,11 @@ export function AiPlanProvider({
     },
     toggleUndated: (id) => commitUndated((current) => current.map((todo) => (todo.id === id ? { ...todo, done: !todo.done } : todo))),
     removeUndated: (id) => commitUndated((current) => current.filter((todo) => todo.id !== id)),
+    addUndated: ({ title, course, note }) => {
+      const id = `announcement-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+      commitUndated((current) => [...current, { id, title, course, note, done: false, addedAt: new Date().toISOString() }]);
+      return id;
+    },
   };
 
   return <AiPlanContext.Provider value={value}>{children}</AiPlanContext.Provider>;
