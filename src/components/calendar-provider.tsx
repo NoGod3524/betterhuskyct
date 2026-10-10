@@ -253,6 +253,22 @@ export function useCalendar(): CalendarContextValue {
  * URL is only kept when the user opted in, which is what makes a refresh
  * possible on the next visit.
  */
+/**
+ * The ticks to show for a source: its own that still match a task, and those on the student's own
+ * events, which show in the demo and in an import alike and so are kept apart from both.
+ */
+function restoreTicks(source: "demo" | "imported", subscriptions: Subscription[] | null): Set<string> {
+  const own = restoreCompletedTaskIds(window.localStorage, source);
+  const real = subscriptions ? ticksForTasks(own, subscriptions) : own;
+  return new Set([...real, ...restoreCustomTicks()]);
+}
+
+/** The ticks on events the student added, for the events that are still there. */
+function restoreCustomTicks(): string[] {
+  const mine = new Set(restoreCustomEvents(window.localStorage).map((event) => event.id));
+  return [...restoreCompletedTaskIds(window.localStorage, "custom")].filter((id) => mine.has(id));
+}
+
 export function CalendarProvider({
   initialNow,
   children,
@@ -415,9 +431,7 @@ export function CalendarProvider({
     commitSubscriptions(next);
     setDemoMode(false);
     setRestoredFromStorage(false);
-    setCompletedIds(
-      ticksForTasks(restoreCompletedTaskIds(window.localStorage, "imported"), next),
-    );
+    setCompletedIds(restoreTicks("imported", next));
     setNotice(
       t(
         locale,
@@ -570,7 +584,7 @@ export function CalendarProvider({
       }
     }
 
-    setCompletedIds((previous) => ticksForTasks(previous, subscriptionsRef.current));
+    setCompletedIds((previous) => new Set([...ticksForTasks(previous, subscriptionsRef.current), ...[...previous].filter(isCustomEventId)]));
     setNotice(
       failures === 0
         ? t(activeLocale, "notices.autoRefreshed", { count: imported })
@@ -600,17 +614,12 @@ export function CalendarProvider({
       if (restored.subscriptions.length > 0) {
         setRestoredFromStorage(true);
         setNotice(t(restoredLocale, "notices.restoredImported"));
-        setCompletedIds(
-          ticksForTasks(
-            restoreCompletedTaskIds(window.localStorage, "imported"),
-            restored.subscriptions,
-          ),
-        );
+        setCompletedIds(restoreTicks("imported", restored.subscriptions));
       } else {
         if (restored.recoveredFromCorruptData) {
           setNotice(t(restoredLocale, "notices.corruptDataCleared"));
         }
-        setCompletedIds(restoreCompletedTaskIds(window.localStorage, "demo"));
+        setCompletedIds(restoreTicks("demo", null));
       }
 
       const restoredReminders = restoreReminderState(window.localStorage);
@@ -765,6 +774,12 @@ export function CalendarProvider({
 
   const completionSource: CompletionSource = isImported ? "imported" : "demo";
 
+  /** The ticks on screen are saved in two places: the source's own, and the student's own events'. */
+  function saveTicks(source: CompletionSource, ticks: Set<string>) {
+    saveCompletedTaskIds(window.localStorage, source, new Set([...ticks].filter((id) => !isCustomEventId(id))));
+    saveCompletedTaskIds(window.localStorage, "custom", new Set([...ticks].filter(isCustomEventId)));
+  }
+
   function toggleTaskCompletion(taskId: string) {
     // Done because HuskyCT says so: pressing it reopens the task (the gradebook can be
     // wrong about which task it is), and pressing a reopened one lets HuskyCT's word stand.
@@ -781,7 +796,7 @@ export function CalendarProvider({
         setCompletedIds((previous) => {
           const next = new Set(previous);
           next.delete(taskId);
-          saveCompletedTaskIds(window.localStorage, completionSource, next);
+          saveTicks(completionSource, next);
           return next;
         });
       }
@@ -794,7 +809,7 @@ export function CalendarProvider({
       } else {
         next.add(taskId);
       }
-      saveCompletedTaskIds(window.localStorage, completionSource, next);
+      saveTicks(completionSource, next);
       return next;
     });
   }
@@ -887,7 +902,7 @@ export function CalendarProvider({
     if (next.length === 0) {
       setDemoMode(true);
       setRestoredFromStorage(false);
-      setCompletedIds(restoreCompletedTaskIds(window.localStorage, "demo"));
+      setCompletedIds(restoreTicks("demo", null));
     }
   }
 
@@ -1006,7 +1021,7 @@ export function CalendarProvider({
     setReopened(nextReopened);
 
     if (plan.showImported) setDemoMode(false);
-    if (plan.ticksOnScreen) setCompletedIds(plan.ticksOnScreen);
+    if (plan.ticksOnScreen) setCompletedIds(new Set([...plan.ticksOnScreen, ...restoreCustomTicks()]));
     setRestoredFromStorage(false);
     return merged;
   }
@@ -1139,7 +1154,7 @@ export function CalendarProvider({
   function restoreDemo() {
     setDemoMode(true);
     setRestoredFromStorage(false);
-    setCompletedIds(restoreCompletedTaskIds(window.localStorage, "demo"));
+    setCompletedIds(restoreTicks("demo", null));
     setNotice(
       hasSubscriptions
         ? t(locale, "notices.demoRestoredWithSaved")
@@ -1160,7 +1175,7 @@ export function CalendarProvider({
     setCourseBook(EMPTY_COURSE_BOOK);
     setDemoMode(true);
     setRestoredFromStorage(false);
-    setCompletedIds(restoreCompletedTaskIds(window.localStorage, "demo"));
+    setCompletedIds(restoreTicks("demo", null));
     setNotice(t(locale, "notices.savedDataCleared"));
     setError(null);
   }
@@ -1189,12 +1204,7 @@ export function CalendarProvider({
 
     setDemoMode(false);
     setRestoredFromStorage(true);
-    setCompletedIds(
-      ticksForTasks(
-        restoreCompletedTaskIds(window.localStorage, "imported"),
-        subscriptionsRef.current,
-      ),
-    );
+    setCompletedIds(restoreTicks("imported", subscriptionsRef.current));
     setNotice(t(locale, "notices.savedImportRestored"));
     setError(null);
   }

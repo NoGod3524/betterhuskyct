@@ -2,7 +2,11 @@ export const COMPLETION_STORAGE_KEY_DEMO = "huskypilot.completedTasks.demo.v1";
 export const COMPLETION_STORAGE_KEY_IMPORTED = "huskypilot.completedTasks.imported.v1";
 const COMPLETION_STORAGE_VERSION = 1;
 
-export type CompletionSource = "demo" | "imported";
+/**
+ * Whose ticks these are. "custom" holds the ticks on events the student added themselves: those
+ * events show in the demo and in an import alike, so their ticks belong to neither.
+ */
+export type CompletionSource = "demo" | "imported" | "custom";
 
 type StoredCompletionPayload = {
   version: number;
@@ -13,10 +17,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+export const COMPLETION_STORAGE_KEY_CUSTOM = "huskypilot.completedTasks.custom.v1";
+
 function storageKeyFor(source: CompletionSource): string {
-  return source === "demo"
-    ? COMPLETION_STORAGE_KEY_DEMO
-    : COMPLETION_STORAGE_KEY_IMPORTED;
+  if (source === "custom") return COMPLETION_STORAGE_KEY_CUSTOM;
+  return source === "demo" ? COMPLETION_STORAGE_KEY_DEMO : COMPLETION_STORAGE_KEY_IMPORTED;
 }
 
 export function parseStoredCompletionPayload(
