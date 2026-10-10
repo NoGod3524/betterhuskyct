@@ -1,8 +1,15 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { ChevronRight, Plus, X } from "lucide-react";
+import { ChevronRight, Plus, Sparkles, X } from "lucide-react";
 
+import { joinSyllabusTexts } from "@/lib/ai-plan";
+import { SummaryError } from "@/lib/announcement-summary";
+import { requestGrading } from "@/lib/grading-client";
+import type { GradingResult } from "@/lib/grading-models";
+import type { MaterialsStore, StoredFile } from "@/lib/materials";
+import { openMaterialsStore } from "@/lib/materials-store";
+import { pickSyllabusFiles, readFileText } from "@/lib/syllabus";
 import {
   guessCategory,
   letterFor,
@@ -44,8 +51,21 @@ const newId = () => `p${Date.now().toString(36)}${Math.random().toString(36).sli
  * Everything here is a scenario of the student's own making, not a forecast, and is kept in this
  * browser.
  */
-export function GradeScenario({ course, locale }: { course: GradesCourse; locale: Locale }) {
+export function GradeScenario({
+  course,
+  locale,
+  openMaterials = openMaterialsStore,
+  fetchImpl,
+}: {
+  course: GradesCourse;
+  locale: Locale;
+  openMaterials?: () => Promise<MaterialsStore>;
+  fetchImpl?: (input: string, init: RequestInit) => Promise<Response>;
+}) {
   const [open, setOpen] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [found, setFound] = useState<GradingResult | null>(null);
+  const [readMessage, setReadMessage] = useState<string | null>(null);
   const [target, setTarget] = useState("93");
   const raw = useSyncExternalStore(subscribe, readRaw, () => null);
   const scheme = useMemo(() => schemeFor(parseSchemes(raw), course.id), [raw, course.id]);
@@ -57,6 +77,60 @@ export function GradeScenario({ course, locale }: { course: GradesCourse; locale
   function change(next: Scheme) {
     saveScheme(window.localStorage, course.id, next);
     window.dispatchEvent(new window.Event(SCENARIOS_CHANGED));
+  }
+
+  /**
+   * Reads how the syllabus grades the course, when the student presses the button: the syllabus
+   * text goes to an AI service, and what comes back is shown for them to check, never used on its own.
+   */
+  async function readSyllabus() {
+    setReading(true);
+    setFound(null);
+    setReadMessage(null);
+    try {
+      let files: StoredFile[] = [];
+      let courseFiles: Parameters<typeof pickSyllabusFiles>[0] | undefined;
+      try {
+        const store = await openMaterials();
+        const index = await store.getIndex();
+        courseFiles = index?.courses.find((entry) => entry.id === course.id);
+        files = courseFiles ? await store.files() : [];
+      } catch {
+        courseFiles = undefined;
+      }
+      const byKey = new Map(files.map((file) => [file.key, file]));
+      const picks = courseFiles ? pickSyllabusFiles(courseFiles, byKey) : [];
+      if (picks.length === 0) {
+        setReadMessage(t(locale, "scenario.noSyllabus"));
+        return;
+      }
+      const texts: Array<{ name: string; text: string }> = [];
+      for (const pick of picks) {
+        const text = await readFileText(byKey.get(pick.key)!);
+        if (text) texts.push({ name: pick.name, text });
+      }
+      if (texts.length === 0) {
+        setReadMessage(t(locale, "scenario.noText"));
+        return;
+      }
+      const result = await requestGrading({ courseLabel: (course.code ?? course.id).slice(0, 80), text: joinSyllabusTexts(texts) }, fetchImpl);
+      if (result.parts.length === 0) setReadMessage(t(locale, "scenario.notSaid"));
+      else setFound(result);
+    } catch (error) {
+      const problem = error instanceof SummaryError ? error.problem : "failed";
+      setReadMessage(
+        t(locale, problem === "busy" || problem === "rate-limited" ? "scenario.errorBusy" : problem === "unavailable" ? "scenario.errorUnavailable" : "scenario.errorFailed"),
+      );
+    } finally {
+      setReading(false);
+    }
+  }
+
+  /** The parts the syllabus gave, once the student has checked them: they replace the ones above. */
+  function useFound() {
+    if (!found) return;
+    change({ categories: found.parts.map((part) => ({ id: newId(), name: part.name, weight: part.weight })), assigned: {}, expected: {}, open: [] });
+    setFound(null);
   }
 
   const addPart = () => {
@@ -140,12 +214,47 @@ export function GradeScenario({ course, locale }: { course: GradesCourse; locale
                 <Plus size={13} />
                 {t(locale, "scenario.addPart")}
               </button>
+              <button type="button" onClick={() => void readSyllabus()} disabled={reading} className="btn btn-quiet h-8 px-2.5 text-xs">
+                <Sparkles size={13} aria-hidden />
+                {t(locale, reading ? "scenario.reading" : "scenario.readSyllabus")}
+              </button>
               {scheme.categories.length > 0 ? (
                 <span className={`text-xs ${Math.abs(total.totalWeight - 100) < 0.05 ? "text-[var(--muted)]" : "text-[var(--warning)]"}`}>
                   {t(locale, "scenario.weightSum", { sum: formatPoints(total.totalWeight) })}
                 </span>
               ) : null}
             </div>
+            <p className="text-xs leading-5 text-[var(--muted)]">{t(locale, "scenario.readDisclosure")}</p>
+            {readMessage ? (
+              <p role="status" className="text-xs text-[var(--warning)]">
+                {readMessage}
+              </p>
+            ) : null}
+            {found ? (
+              <div role="region" aria-label={t(locale, "scenario.foundHeading")} className="grid gap-2 rounded-lg border border-[var(--line)] bg-[var(--accent-soft)] p-3">
+                <h5 className="font-semibold">{t(locale, "scenario.foundHeading")}</h5>
+                <ul className="grid gap-1.5">
+                  {found.parts.map((part, index) => (
+                    <li key={index} className="grid gap-0.5">
+                      <span className="font-medium">
+                        {part.name} <span className="font-normal text-[var(--muted)]">· {formatPoints(part.weight)}%</span>
+                      </span>
+                      {part.evidence ? <span className="text-xs italic text-[var(--muted)]">{part.evidence}</span> : null}
+                    </li>
+                  ))}
+                </ul>
+                {found.note ? <p className="text-xs text-[var(--muted)]">{found.note}</p> : null}
+                <p className="text-xs text-[var(--muted)]">{t(locale, "scenario.foundCheck")}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={useFound} className="btn btn-primary h-8 px-3 text-xs">
+                    {t(locale, "scenario.useFound")}
+                  </button>
+                  <button type="button" onClick={() => setFound(null)} className="btn btn-quiet h-8 px-3 text-xs">
+                    {t(locale, "scenario.dismissFound")}
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {scheme.categories.length > 0 ? (
