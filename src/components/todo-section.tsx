@@ -5,13 +5,17 @@ import Link from "next/link";
 import { Check, ChevronRight } from "lucide-react";
 
 import { AiPlanPanel } from "@/components/ai-plan-panel";
+import { useAiPlan } from "@/components/ai-plan-provider";
 import { useCalendar } from "@/components/calendar-provider";
 import { ExamList } from "@/components/exam-list";
+import { TaskOverview } from "@/components/task-overview";
+import { useDecisions, useVersionStore } from "@/components/use-announcement-state";
 import { TaskCard } from "@/components/task-card";
 import { UndatedTodoList } from "@/components/undated-todo-list";
 import { isDeadline, type CalendarTask } from "@/lib/calendar-types";
 import { dueTimestamp } from "@/lib/date-utils";
 import { intlLocale, t, type Locale, type TranslationKey } from "@/lib/i18n";
+import { linkNotices } from "@/lib/announcement-decisions";
 import { buildTodo, completionOf, type TodoSectionKey } from "@/lib/todo";
 
 const SECTIONS: ReadonlyArray<{ key: TodoSectionKey; title: TranslationKey; accent: string }> = [
@@ -44,7 +48,18 @@ function dueLabel(task: CalendarTask, locale: Locale): string {
  * still there for the rest, and for reopening one the gradebook got wrong.
  */
 export function TodoSection() {
-  const { now, locale, tasks, doneIds, doneLabelFor, toggleTaskCompletion, courseLabelFor, courseColorFor, hasGrades } = useCalendar();
+  const { now, locale, tasks, doneIds, doneLabelFor, toggleTaskCompletion, courseLabelFor, courseColorFor, hasGrades, announcements } = useCalendar();
+  const plan = useAiPlan();
+  const versions = useVersionStore();
+  const decisions = useDecisions();
+  // To-dos made from an announcement that has changed since: the student is asked to look, nothing is changed.
+  const stale = useMemo(
+    () =>
+      linkNotices(decisions, announcements, versions).filter((notice) =>
+        notice.added.taskKind === "undated" ? plan?.undated.some((todo) => todo.id === notice.added.taskId) : tasks.some((task) => task.id === notice.added.taskId),
+      ).length,
+    [decisions, announcements, versions, plan?.undated, tasks],
+  );
   const [pickedCourse, setCourse] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
 
@@ -102,7 +117,18 @@ export function TodoSection() {
         </div>
       </div>
 
+      {stale > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-[var(--warning-soft)] px-3.5 py-2.5 text-sm text-[var(--warning)]" role="status">
+          <span>{t(locale, "ann.stale", { count: stale })}</span>
+          <Link href="/announcements?filter=changed" className="font-semibold underline">
+            {t(locale, "ann.staleCta")}
+          </Link>
+        </div>
+      ) : null}
+
       <ExamList />
+
+      <TaskOverview renderTask={(task, overdue) => card(task, overdue)} />
 
       {completion.overall.total > 0 ? (
         <div className="mt-4 max-w-md">

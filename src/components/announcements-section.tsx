@@ -3,13 +3,21 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 
+import { CandidateList } from "@/components/announcement-actions-panel";
+import { ChangePanel } from "@/components/announcement-changes-panel";
 import { AnnouncementSummary, type SummaryCourse } from "@/components/announcement-summary";
 import { useCalendar } from "@/components/calendar-provider";
+import { useDecisions, useVersionStore } from "@/components/use-announcement-state";
 import { announceSeenChanged, useAnnouncementsSeenAt } from "@/components/use-seen";
 import { chipStyle } from "@/lib/course-colors";
-import type { Announcement } from "@/lib/announcements";
+import { extractCandidates, isAddable, type ActionKind } from "@/lib/announcement-actions";
+import { applyFilters, huskyctCourseIds, isFiltering, NO_FILTERS, originalUrl, type Filters, type Recency } from "@/lib/announcement-filters";
+import { mentionsAttachment, segmentsOf } from "@/lib/announcement-text";
+import { latestChange } from "@/lib/announcement-versions";
+import { GRADES_STORAGE_KEY } from "@/lib/grades-store";
+import { MAX_ANNOUNCEMENT_BODY, type Announcement } from "@/lib/announcements";
 import { normaliseCourseCode } from "@/lib/courses";
-import { intlLocale, t } from "@/lib/i18n";
+import { intlLocale, t, type TranslationKey } from "@/lib/i18n";
 import { markAnnouncementsSeen, unseenAnnouncements } from "@/lib/seen";
 
 /**
@@ -66,6 +74,12 @@ export function AnnouncementsSection({
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+  // The to-do page links here with the changed ones already picked.
+  const [filters, setFilters] = useState<Filters>(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("filter") === "changed" ? { ...NO_FILTERS, onlyChanged: true } : NO_FILTERS,
+  );
+  const versions = useVersionStore();
+  const decisions = useDecisions();
 
   // What arrived since the student last left this page is marked new while they are on it, and
   // counted as seen when they leave.
@@ -93,13 +107,36 @@ export function AnnouncementsSection({
     return (courseId: string) => byId.get(courseId) ?? null;
   }, [courses]);
 
-  const visible = useMemo(
+  const byCourse = useMemo(
     () =>
       courseFilter
         ? announcements.filter((entry) => courseKeyOf(entry, courseNameFor) === courseFilter)
         : announcements,
     [announcements, courseFilter, courseNameFor],
   );
+
+  // What the rules found and what changed, per announcement, for the filters and the chips.
+  const candidatesById = useMemo(() => new Map(announcements.map((entry) => [entry.id, extractCandidates(entry)])), [announcements]);
+  const changeById = useMemo(
+    () => new Map(announcements.map((entry) => [entry.id, latestChange(entry.id, versions[entry.id], entry.posted)])),
+    [announcements, versions],
+  );
+  const hasActions = (id: string) =>
+    (candidatesById.get(id) ?? []).some((candidate) => isAddable(candidate) && !decisions.dismissed[candidate.id] && !decisions.added[candidate.id]);
+  const isChanged = (id: string) => changeById.get(id) !== null && changeById.get(id) !== undefined;
+  const [now] = useState(() => Date.now());
+  const filterContext = { now, unseen, hasActions, isChanged };
+  const visible = useMemo(
+    () => applyFilters(byCourse, filters, filterContext),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [byCourse, filters, unseen, candidatesById, changeById, decisions, now],
+  );
+  const counts = {
+    onlyNew: applyFilters(byCourse, { ...NO_FILTERS, onlyNew: true }, filterContext).length,
+    onlyActions: applyFilters(byCourse, { ...NO_FILTERS, onlyActions: true }, filterContext).length,
+    onlyChanged: applyFilters(byCourse, { ...NO_FILTERS, onlyChanged: true }, filterContext).length,
+  };
+  const courseIds = huskyctCourseIds(readGradesRaw());
 
   /**
    * Which courses actually have something, so the filter never offers a course
@@ -214,13 +251,55 @@ export function AnnouncementsSection({
                 key={courseFilter ?? "__all"}
                 locale={locale}
                 course={summaryCourseFor(courseFilter)}
-                announcements={visible}
+                announcements={byCourse}
               />
             ) : null}
 
-            <p className="mt-4 text-xs text-[var(--muted)] first:mt-0">
+            <div role="group" aria-label={t(locale, "ann.filter.label")} className="mt-4 flex flex-wrap items-center gap-2 text-xs first:mt-0">
+              <label className="flex items-center gap-1.5">
+                <span className="text-[var(--muted)]">{t(locale, "ann.filter.recency")}</span>
+                <select
+                  value={filters.recency}
+                  onChange={(event) => setFilters({ ...filters, recency: event.target.value as Recency })}
+                  className="h-8 rounded-md border border-[var(--line)] bg-[var(--surface)] px-1.5"
+                >
+                  <option value="all">{t(locale, "ann.filter.all")}</option>
+                  <option value="7">{t(locale, "ann.filter.7")}</option>
+                  <option value="30">{t(locale, "ann.filter.30")}</option>
+                </select>
+              </label>
+              {(
+                [
+                  ["onlyNew", "ann.filter.new"],
+                  ["onlyActions", "ann.filter.actions"],
+                  ["onlyChanged", "ann.filter.changed"],
+                ] as const
+              ).map(([name, label]) => (
+                <button
+                  key={name}
+                  type="button"
+                  aria-pressed={filters[name]}
+                  onClick={() => setFilters({ ...filters, [name]: !filters[name] })}
+                  className="rounded-full border border-[var(--line)] px-2.5 py-1 font-medium hover:bg-[var(--subtle)] aria-pressed:border-[var(--blue)] aria-pressed:bg-[var(--accent-soft)] aria-pressed:text-[var(--accent-ink)]"
+                >
+                  {t(locale, label)} ({counts[name]})
+                </button>
+              ))}
+              {isFiltering(filters) ? (
+                <button type="button" onClick={() => setFilters(NO_FILTERS)} className="font-medium text-[var(--link)] hover:underline">
+                  {t(locale, "ann.filter.clear")}
+                </button>
+              ) : null}
+            </div>
+
+            <p className="mt-3 text-xs text-[var(--muted)]">
               {t(locale, "announcements.count", { count: visible.length })}
             </p>
+            {visible.length === 0 ? (
+              <p className="card mt-2 p-4 text-sm text-[var(--muted)]" role="status">
+                {t(locale, "ann.filter.none")}
+              </p>
+            ) : null}
             <ul className="card mt-2 divide-y divide-[var(--line)] overflow-hidden">
               {shown.map((entry) => {
                 const open = openIds.has(entry.id);
@@ -236,6 +315,18 @@ export function AnnouncementsSection({
                         {labelFor(entry)}
                       </span>
                       {unseen.has(entry.id) ? <span className="shrink-0 rounded bg-[var(--warning-soft)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--warning)]">{t(locale, "seen.new")}</span> : null}
+                      {isChanged(entry.id) ? (
+                        <span className="shrink-0 rounded bg-[var(--warning-soft)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--warning)]">
+                          {t(locale, "ann.chip.changed")}
+                        </span>
+                      ) : null}
+                      {[...new Set((candidatesById.get(entry.id) ?? []).map((candidate) => candidate.kind))]
+                        .filter((kind): kind is Exclude<ActionKind, "mention"> => kind !== "mention")
+                        .map((kind) => (
+                          <span key={kind} className="shrink-0 rounded bg-[var(--subtle)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--ink)]">
+                            {t(locale, `annKind.${kind}` as TranslationKey)}
+                          </span>
+                        ))}
                       <span className="ml-auto shrink-0 tabular-nums">
                         {entry.posted
                           ? t(locale, "announcements.posted", { value: entry.posted })
@@ -247,11 +338,7 @@ export function AnnouncementsSection({
 
                     <h3 className="mt-2 text-[15px] font-semibold leading-6">{entry.title}</h3>
 
-                    {entry.body ? (
-                      <p className={`mt-1 whitespace-pre-line text-sm leading-6 text-[var(--muted)] ${open ? "" : "line-clamp-2"}`}>
-                        {entry.body}
-                      </p>
-                    ) : null}
+                    {entry.body ? <AnnouncementBody body={entry.body} open={open} /> : null}
                     {entry.body && entry.body.length > CLAMP_LENGTH ? (
                       <button
                         type="button"
@@ -262,6 +349,17 @@ export function AnnouncementsSection({
                         {t(locale, open ? "announcements.collapse" : "announcements.expand")}
                       </button>
                     ) : null}
+
+                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
+                      <a href={originalUrl(entry.courseCode, courseIds)} target="_blank" rel="noopener noreferrer" className="tap-link font-semibold text-[var(--link)] hover:underline">
+                        {t(locale, "ann.openOriginal")}
+                      </a>
+                      {mentionsAttachment(entry.body) ? <span>{t(locale, "ann.attachment")}</span> : null}
+                      {entry.body.length >= MAX_ANNOUNCEMENT_BODY - 5 ? <span>{t(locale, "ann.truncated", { count: MAX_ANNOUNCEMENT_BODY })}</span> : null}
+                    </div>
+
+                    <ChangePanel announcement={entry} locale={locale} />
+                    <CandidateList announcement={entry} locale={locale} versionAt={versions[entry.id]?.slice(-1)[0]?.at ?? null} />
                   </li>
                 );
               })}
@@ -279,6 +377,38 @@ export function AnnouncementsSection({
       )}
     </section>
   );
+}
+
+/** The announcement exactly as saved, with the key sentences marked and the links live. */
+function AnnouncementBody({ body, open }: { body: string; open: boolean }) {
+  const segments = useMemo(() => segmentsOf(body), [body]);
+  return (
+    <p className={`mt-1 whitespace-pre-line text-sm leading-6 text-[var(--muted)] ${open ? "" : "line-clamp-2"}`}>
+      {segments.map((segment, index) =>
+        segment.url ? (
+          <a key={index} href={segment.url} target="_blank" rel="noopener noreferrer" className="break-all font-medium text-[var(--link)] underline">
+            {segment.text}
+          </a>
+        ) : segment.key ? (
+          <mark key={index} className="rounded bg-[var(--warning-soft)] px-0.5 text-[var(--ink)]">
+            {segment.text}
+          </mark>
+        ) : (
+          <span key={index}>{segment.text}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
+/** What the grades say about HuskyCT's course ids, for the link to the original; nothing on the server. */
+function readGradesRaw(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(GRADES_STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 /** One course in the list beside the announcements: its colour, its name and how many it has. */

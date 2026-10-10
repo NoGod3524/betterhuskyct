@@ -4,7 +4,8 @@ import { parseStoredGrades, type GradesStore } from "@/lib/grades";
  * The grades in this browser's localStorage. A term of gradebooks is a few
  * kilobytes, where the course files need IndexedDB. Everything stays here.
  */
-const STORAGE_KEY = "huskypilot.grades.v1";
+export const GRADES_STORAGE_KEY = "huskypilot.grades.v1";
+const STORAGE_KEY = GRADES_STORAGE_KEY;
 
 /**
  * Fired on the window when the grades are written or cleared, so the parts of the

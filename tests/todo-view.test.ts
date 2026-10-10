@@ -116,6 +116,8 @@ async function mountTodo(options: { grades?: GradesSnapshot | null; extra?: Even
     },
     text: () => container.textContent ?? "",
     button: (label: string) => [...container.querySelectorAll("button")].find((b) => (b.textContent ?? "").includes(label)),
+    /** The last button with that label: the course filter comes after the overview's own course chips. */
+    lastButton: (label: string) => [...container.querySelectorAll("button")].filter((b) => (b.textContent ?? "").includes(label)).at(-1),
     checkbox: (title: string) =>
       [...container.querySelectorAll("input[type=checkbox]")].find((i) => (i.getAttribute("aria-label") ?? "").includes(title)) as unknown as HTMLInputElement,
     click: (el: unknown) => act(async () => (el as HTMLElement).click()),
@@ -212,7 +214,7 @@ test("grades that arrive while the page is open tick the work without a reload",
 test("the course filter narrows the list to one course", async () => {
   const view = await mountTodo({ grades: GRADES });
 
-  await view.click(view.button("SOCI 1501"));
+  await view.click(view.lastButton("SOCI 1501"));
 
   assert.ok(view.text().includes("Essay draft"));
   assert.ok(!view.text().includes("Section 4.3 Homework"));
