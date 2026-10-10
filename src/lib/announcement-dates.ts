@@ -148,7 +148,8 @@ function findRaw(sentence: string): Raw[] {
     } else if (first <= 12 && second <= 12 && first !== second) {
       ambiguousWith = { month: second, day: first };
     }
-    take({ start: match.index!, end: match.index! + match[0].length, text: match[0], month, day, year, numeric: true, ambiguousWith });
+    const lead = new RegExp(`\\b${WEEKDAY_RE}\\.?,?\\s+$`, "i").exec(sentence.slice(0, match.index!));
+    take({ start: match.index! - (lead ? lead[0].length : 0), end: match.index! + match[0].length, text: sentence.slice(match.index! - (lead ? lead[0].length : 0), match.index! + match[0].length), month, day, year, weekday: lead ? weekdayIndex(lead[1]) : null, numeric: true, ambiguousWith });
   }
 
   // tomorrow, tonight, in 3 days, next Friday, this Friday, Friday
@@ -230,6 +231,10 @@ export function findDates(sentence: string, postedAt: number | null): FoundDate[
         const ahead = (((rel.weekday ?? 0) - weekdayOf(posted) + 7) % 7) || 7;
         const first = addDaysTo(posted, ahead);
         options = [{ date: first, note: "next" }, { date: addDaysTo(first, 7), note: "following" }];
+        // "Friday" and "this Friday" are the next one after the posting. "Next Friday" is the one in the
+        // week after this one (weeks start on Sunday). Either way it stays marked to be checked.
+        const weekAfter = addDaysTo(posted, 7 - weekdayOf(posted) + (rel.weekday ?? 0));
+        date = rel.kind === "next-weekday" ? weekAfter : first;
         basis.push("relative-unresolved");
       } else {
         basis.push("relative-unresolved");
@@ -277,13 +282,38 @@ export function findDates(sentence: string, postedAt: number | null): FoundDate[
       const other = { year, month: raw.ambiguousWith.month, day: raw.ambiguousWith.day };
       options = [{ date: candidate, note: "us" }];
       if (isRealDay(other)) options.push({ date: other, note: "day-first" });
-      // Neither is chosen for the student.
-      result.push({ start: raw.start, end: raw.end, text: raw.text, date: null, options, time: null, basis });
+      // Both readings are offered. One is taken only when the other lies far from the posting (10/4
+      // posted on October 1 is not April 10), and it is still marked to be checked.
+      let chosen: DayParts | null = null;
+      if (posted && options.length === 2) {
+        const near = options.filter((option) => {
+          const gap = daysBetween(posted, option.date);
+          return gap >= -14 && gap <= 120;
+        });
+        if (near.length === 1) chosen = near[0].date;
+      }
+      // "Sunday 10/11": the weekday that was written belongs to one reading only.
+      if (!chosen && raw.weekday !== null && raw.weekday !== undefined) {
+        const fits = options.filter((option) => weekdayOf(option.date) === raw.weekday);
+        if (fits.length === 1) chosen = fits[0].date;
+      }
+      result.push({ start: raw.start, end: raw.end, text: raw.text, date: chosen, options, time: null, basis });
       continue;
     }
     if (raw.weekday !== null && raw.weekday !== undefined && weekdayOf(candidate) !== raw.weekday) basis.push("weekday-mismatch");
     result.push({ start: raw.start, end: raw.end, text: raw.text, date: candidate, options: [], time: null, basis });
   }
+
+  // "Posted it today, due Thursday, Oct 8": the posting day is not the event's day. "Open from Oct 10
+  // till Oct 16": the event is at the window's end.
+  const kept = result.filter((found, index) => {
+    if (found.basis.includes("relative") && /^(?:today|tonight|yesterday)$/i.test(found.text) && result.some((other) => other !== found)) return false;
+    const next = result[index + 1];
+    if (next && /^[\s,]*(?:\d{1,2}(?::\d{2})?\s*[ap]\.?m\.?)?[\s,]*(?:until|till|through|thru|to)\s*$/i.test(sentence.slice(found.end, next.start))) return false;
+    return true;
+  });
+  result.length = 0;
+  result.push(...kept);
 
   // A time goes to the date it is written next to, within a short way, and each time to one date only.
   for (const time of times) {

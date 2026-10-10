@@ -52,6 +52,22 @@ test("numbers with a slash: month first when the day cannot be a month, day firs
   assert.equal(ymd(only("Due 3/3.").date), "2027-3-3");
 });
 
+test("a slash date that reads two ways is taken when only one reading is near the posting, and stays marked", () => {
+  const near = only("Due 10/4.", new Date(2026, 9, 1, 9, 0).valueOf());
+  assert.equal(ymd(near.date), "2026-10-4");
+  assert.deepEqual(near.options.map((o) => ymd(o.date)), ["2026-10-4", "2026-4-10"]);
+  assert.ok(near.basis.includes("order-ambiguous"));
+  // "Sunday 10/11" is October 11 whatever else is near: only that reading is a Sunday.
+  const sunday = only("Due Sunday 10/11.", new Date(2026, 9, 9, 9, 0).valueOf());
+  assert.equal(ymd(sunday.date), "2026-10-11");
+});
+
+test("the posting day is not the event's day when the sentence names another, and a window is its end", () => {
+  assert.deepEqual(findDates("Posted today, due Thursday, Oct 8 by midnight.", POSTED_AT).map((d) => ymd(d.date)), ["2026-10-8"]);
+  assert.deepEqual(findDates("It is open from Oct 10, 12:00AM till Fri, Oct 16, 11:59PM.", POSTED_AT).map((d) => ymd(d.date)), ["2026-10-16"]);
+  assert.deepEqual(findDates("Open today through Friday, October 9th.", POSTED_AT).map((d) => ymd(d.date)), ["2026-10-9"]);
+});
+
 test("a range gives its two ends to choose from, and an impossible day is not a date", () => {
   const range = only("Presentations are October 14-16.");
   assert.equal(range.date, null);
@@ -68,14 +84,16 @@ test("tomorrow and tonight are worked out only from a posting time the page stat
   assert.ok(unknown.basis.includes("posting-unknown"));
 });
 
-test("a bare or next weekday is left to the student, with the Fridays after posting to pick from", () => {
-  for (const text of ["Due Friday.", "Due next Friday.", "Due this Friday."]) {
+test("a bare, this or next weekday is the next such day, kept to be checked, with the Fridays after posting to pick from", () => {
+  // Posted on Monday the 5th: Friday and this Friday are the 9th, next Friday is the one in the week after.
+  for (const [text, day] of [["Due Friday.", "2026-10-9"], ["Due this Friday.", "2026-10-9"], ["Due next Friday.", "2026-10-16"]]) {
     const found = only(text);
-    assert.equal(found.date, null, text);
+    assert.equal(ymd(found.date), day, text);
     assert.deepEqual(found.options.map((o) => ymd(o.date)), ["2026-10-9", "2026-10-16"], text);
     assert.ok(found.basis.includes("relative-unresolved"));
   }
   // The same weekday as the posting is a week on, not that day.
+  assert.equal(ymd(only("Due Monday.").date), "2026-10-12");
   assert.equal(ymd(only("Due Monday.").options[0].date), "2026-10-12");
   assert.deepEqual(findDates("Due next class.", POSTED_AT), []);
 });
@@ -117,6 +135,25 @@ test("a due sentence with no date is offered with no day, for the student to giv
   const found = extractCandidates(ann("Homework 5 is due by the start of next class."));
   assert.deepEqual(found.map((c) => [c.kind, c.title, c.date, c.check]), [["deadline", "Homework 5", null, true]]);
   assert.deepEqual(extractCandidates(ann("Please read chapter 4 before we meet.")), []);
+});
+
+test("of several days in a sentence, the one a due points at is taken, else the one nearest the exam or quiz", () => {
+  const [due] = extractCandidates(ann("After Tue, Oct 13 lecture you can start Assignment 5 (due on Fri, Oct 30, 11:59 PM)."));
+  assert.equal(ymd(due.date), "2026-10-30");
+  const found = extractCandidates(ann("The coming week we will have Quiz 2 on Monday and also start Module 3 on Wednesday."));
+  assert.deepEqual(found.map((c) => [c.kind, ymd(c.date)]), [["quiz", "2026-10-12"]]);
+});
+
+test("what only mentions an exam or a quiz is not offered: office hours, advice, a posting, a thing already submitted", () => {
+  for (const text of [
+    "Office hours tomorrow are not for questions about the exam.",
+    "Before taking a quiz, you should study exactly as you would for an exam.",
+    "The final exam includes material from six chapters.",
+    "I have also uploaded the PowerPoint for Thursday's lecture.",
+    "You will submit your Assignment to your TA.",
+  ]) assert.deepEqual(extractCandidates(ann(text, "Update")), [], text);
+  // But one that says it is to happen is still offered, for the student to give the day.
+  assert.deepEqual(extractCandidates(ann("The midterm will take place in our usual room.", "Update")).map((c) => [c.kind, c.date]), [["exam", null]]);
 });
 
 test("a cancelled class is a candidate that is not added to the to-do", () => {
