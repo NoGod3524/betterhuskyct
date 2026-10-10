@@ -233,6 +233,16 @@ export function removeSubscription(
   return subscriptions.filter((subscription) => subscription.id !== id);
 }
 
+/**
+ * The same subscriptions with every saved link taken off. What was imported stays; only the private
+ * address goes, so nothing can fetch it again.
+ */
+export function forgetLinks(subscriptions: Subscription[]): Subscription[] {
+  return subscriptions.some((subscription) => subscription.url !== null)
+    ? subscriptions.map((subscription) => (subscription.url === null ? subscription : { ...subscription, url: null }))
+    : subscriptions;
+}
+
 export function updateSubscription(
   subscriptions: Subscription[],
   id: string,
