@@ -129,9 +129,7 @@ test("unrelated calendars that share Blackboard's name are not merged", () => {
     id: "sub-math",
     name: "University of Connecticut",
     courseId: null,
-    url: null,
     importedAt: AT.toISOString(),
-    lastError: null,
     events: [task("math-hw")],
   };
 

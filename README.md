@@ -1,6 +1,6 @@
 # BetterHuskyCT
 
-**Your course deadlines, organized.** Bring a calendar from any LMS or calendar app — paste its private ICS link, or drop a downloaded `.ics` file — and get one calm, ordered view of what's due next.
+**Your course deadlines, organized.** Press Sync and your HuskyCT deadlines, announcements, course files and grades arrive in one calm, ordered view of what's due next.
 
 **English** | [简体中文](./README.zh.md)
 
@@ -12,7 +12,7 @@
 
 ## Screenshots
 
-**Overview** — add your calendar, then the rolling week.
+**Overview** — press Sync, then the rolling week.
 
 ![Overview route](./public/screenshots/overview.png)
 
@@ -24,18 +24,16 @@ The same routes in Chinese: [`overview.zh.png`](./public/screenshots/overview.zh
 
 ## Why
 
-Students track deadlines across an LMS, a syllabus, and email. BetterHuskyCT turns the calendar feed you already have into a single rolling 7-day list, so "what's due next" is one glance instead of a scavenger hunt.
+Students track deadlines across an LMS, a syllabus, and email. BetterHuskyCT turns what HuskyCT already shows you into a single rolling 7-day list, so "what's due next" is one glance instead of a scavenger hunt.
 
-It is deliberately small and privacy-first: no NetID, no password, no scraping, no account.
+It is deliberately small and privacy-first: no NetID, no password, no account, and nothing leaves your browser except what you ask an AI model to read.
 
-BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkward case: it hands out **one feed per course**, and its assignment entries carry no course name. Anything that exports iCalendar works too — see [Where to get your calendar](#where-to-get-your-calendar).
+BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkward case: it hands out **one feed per course**, and its assignment entries carry no course name. The browser helper reads it from your own signed-in session; see [Getting your deadlines in](#getting-your-deadlines-in).
 
 ## Features
 
-- **Import any ICS calendar** — drop a downloaded `.ics` file anywhere on the page, or paste a private feed URL; several at once is fine
 - **Courses named for you** — a Blackboard feed titles a class meeting `Environmental Science` and never says which course it is, so the app looks the title up in UConn's public course catalogue and fills in `NRE 1000E` itself. Nothing to configure
-- **Sync to your phone without a server** — *Sync* packs the calendars, your ticks, your courses and the announcements the helper brought in into one link (about 3,100 characters for a term of 120 deadlines and 40 announcements). It rides in the URL fragment, so it is never uploaded, and your feed link is left out of it on purpose
-- **Several calendars, several courses** — HuskyCT issues one feed per course, so add as many as you have; file each under a course (code plus LEC / DIS / LAB / SEM), and every task shows its course, whether it is a class meeting or an assignment, its room, and the exact due time — with a per-task picker for the rows the default gets wrong
+- **Several calendars, several courses** — HuskyCT has a feed per course, and a sync brings them all; file each under a course (code plus LEC / DIS / LAB / SEM), and every task shows its course, whether it is a class meeting or an assignment, its room, and the exact due time — with a per-task picker for the rows the default gets wrong
 - **Rolling 7-day view** — Today / Tomorrow / This week, grouped and time-sorted
 - **Due-soon reminders** — an in-app banner for anything due in the next 24 hours, plus optional browser notifications while the app is open
 - **Works on a phone** — below 1024 px a bar along the bottom reaches every page (four main ones, and a *More* sheet with the rest), buttons and the completion checkbox are finger-sized on a touch screen, and the header fits the width
@@ -51,90 +49,31 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Each course in its HuskyCT colour** — the helper reads each course card's colour on HuskyCT's Courses page (during Collect everything, and during Sync when HuskyCT is opened on that page) and sends it with the deadlines; course chips on the to-do list, the dashboard and the calendar, and the to-do filters, use it. A course whose colour could not be read keeps the one this app picks
 - **Completion on the to-do list** — how much of the term's work is done, overall and per course
 - **English / 简体中文** — one-click language toggle, remembered across visits
-- **Local persistence** — re-importing the same calendar preserves your completion state
-- **Optional auto-refresh** — off by default; tick **Remember new links** and BetterHuskyCT re-imports those feeds whenever you open it
-- **Privacy by design** — no NetID, no password, no account. Your ICS URL is used once and discarded unless you opt in to remembering it
+- **Local persistence** — syncing again preserves your completion state
+- **Privacy by design** — no NetID, no password, no account. Everything the helper brings stays in this browser
 
-## Where to get your calendar
+## Getting your deadlines in
 
-Any system that exports iCalendar (`.ics`) works. The two routes in are equivalent — a link refreshes itself, a file needs no setup at all.
-
-| System | How to get it | One feed covers |
-| --- | --- | --- |
-| **Blackboard / HuskyCT** | Calendar → gear (*setting*) → ⋯ → *share calendar* → *copy* → paste into the address bar → drag the downloaded file in | **one course per link** |
-| **Canvas** | Calendar → *Calendar feed* (bottom right) | every course you are enrolled in |
-| **Moodle** | Calendar → *Export calendar* → *Get calendar URL*, or download the `.ics` | whichever courses you select |
-| **Google Classroom** | Classroom → *Calendar* → the calendar's settings → *Secret address in iCal format* | every class on that calendar |
-| **Google Calendar / Outlook** | Calendar settings → the private/secret iCal address, or *Export* to download a file | the whole calendar |
-
-If your system hands out one link per course — Blackboard does — either paste them one at a time, or download each `.ics` and drop them all into the import card together. Rows are de-duplicated by their ICS UID, so overlapping feeds never double up.
+Press **Sync** at the top of the page. The first time, set up the browser helper (the **Helper** page walks through it): a Tampermonkey userscript, or a small extension for Chrome and Edge loaded unpacked. It runs on HuskyCT's own pages in your signed-in session, reads your courses' deadlines, announcements, files and grades, and hands them to this page tab to tab. The page accepts them only from HuskyCT's own origins.
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    subgraph Browser["Browser - React client"]
-        UI["Route sections<br/>app-shell.tsx + *-section.tsx"]
-        VIEW["calendar-view.ts<br/>group + format"]
-        STORE[("localStorage<br/>calendar - completion - locale")]
-    end
+A static Next.js app that keeps its data in the browser. The server has three small routes and holds none of your data:
 
-    subgraph Server["Next.js server - Node runtime"]
-        API["POST /api/calendar/import<br/>route.ts"]
-        GUARD["safe-fetch.ts<br/>SSRF-guarded HTTPS fetch"]
-        PARSE["parse-calendar.ts<br/>node-ical to CalendarTask list"]
-    end
+- `/api/announcements/summarize` and `/api/plan/extract` pass text you ask to be summarised or read to an AI service, and cache the answer by a hash of what was sent;
+- `/api/academic-calendar` reads UConn's public Registrar page about once a day.
 
-    FEED[("HuskyCT / Blackboard<br/>private ICS feed")]
+### How a sync works
 
-    UI -->|"1 paste ICS URL"| API
-    API -->|"2 zod validate"| GUARD
-    GUARD -->|"3 HTTPS GET"| FEED
-    FEED -->|"4 ICS text"| PARSE
-    PARSE -->|"5 JSON events"| API
-    API -->|"6 JSON response"| UI
-    UI --> VIEW
-    UI <-->|"7 persist / restore"| STORE
-
-    classDef client fill:#eaf2ff,stroke:#2a71d8,color:#12314f
-    classDef server fill:#eef7f1,stroke:#2f8f5b,color:#123a26
-    classDef feed fill:#fff4e8,stroke:#d98324,color:#5a3410
-    class UI,VIEW,STORE client
-    class API,GUARD,PARSE server
-    class FEED feed
-```
-
-### How an import works
-
-1. You paste an ICS URL into the dashboard.
-2. The client `POST`s it to `/api/calendar/import` (a Next.js route handler on the Node runtime).
-3. The payload is validated with Zod (one `url` field, ≤ 2048 characters; request body ≤ 4 KB).
-4. `safe-fetch.ts` validates and downloads the feed (see **Security** below).
-5. `parse-calendar.ts` parses it with `node-ical`, expanding recurring events, handling all-day events, and extracting course codes from titles.
-6. The route returns `{ calendarName, importedAt, events[] }` as JSON with `Cache-Control: no-store`.
-7. The client groups events into Today / Tomorrow / This week and renders them. Completed task IDs and the language choice are kept in `localStorage`.
-
-## Security: fetching a user-supplied URL safely
-
-Downloading a URL that a user provides is a textbook SSRF surface, so the download path (`src/lib/safe-fetch.ts`) is intentionally strict:
-
-| Control | What it does |
-|---|---|
-| HTTPS only | Rejects `http:`, URLs containing credentials, and any port other than 443 |
-| DNS pre-resolution | Resolves every address and rejects private, loopback, link-local, multicast, and reserved ranges (IPv4 and IPv6) |
-| Pinned connection | Connects to the **validated IP** while preserving the original `Host` header and TLS SNI, reducing DNS-rebinding risk |
-| Bounded redirects | Follows at most 3 redirects, re-validating each hop |
-| Size and time caps | Rejects responses over 2 MB (both declared and streamed) and times out after 8 seconds |
-| Content check | Requires a `BEGIN:VCALENDAR` / `END:VCALENDAR` payload |
-
-Failures are logged without ever writing the private calendar URL to the log.
+1. You press **Sync**. The helper opens HuskyCT (or uses a tab already open) and reads, through HuskyCT's own pages and API, your courses' deadlines, announcements, files and grades.
+2. It sends them to this page with `postMessage`, and the page accepts them only from HuskyCT's own origins. Anything bigger than a message can carry (files) goes one at a time, each acknowledged.
+3. The page merges what arrived with what it already has, by stable keys, so syncing again never doubles anything and keeps your ticks, corrections and notes.
+4. Everything is stored in `localStorage` and IndexedDB, versioned and checked on the way back in.
 
 ## Privacy model
 
 | Data | Where it lives |
 |---|---|
-| Your ICS URL | Nowhere by default — used once, then discarded. Saved in this browser only if you tick **Remember new links** |
-| A dropped `.ics` file | Read in the page, sent to BetterHuskyCT's own endpoint to be parsed, and never written anywhere |
 | Parsed events | `localStorage`, in your browser only |
 | Course announcements | `localStorage`, in your browser only — sent over by the browser helper alongside your deadlines |
 | Course materials | IndexedDB, in your browser only — the files are read on HuskyCT by the helper and handed to this page tab to tab; the app accepts them only from HuskyCT's own pages, and never sends them anywhere |
@@ -145,7 +84,7 @@ Failures are logged without ever writing the private calendar URL to the log.
 | Completed task IDs | `localStorage`, in your browser only |
 | Language choice | `localStorage`, in your browser only |
 
-No NetID, no password, no account, no analytics. Calendar data stays in your browser; the only optional server-side database is the summary cache described above. The **Clear saved data** button wipes the saved calendar and the completion state together.
+No NetID, no password, no account, no analytics. Calendar data stays in your browser; the only optional server-side database is the summary cache described above. The **Clear saved data** button wipes the saved calendars and the completion state together.
 
 ## Tech stack
 
@@ -154,7 +93,6 @@ No NetID, no password, no account, no analytics. Calendar data stays in your bro
 | Framework | Next.js 16 (App Router) |
 | Language | TypeScript, with native type-stripping for tests |
 | UI | React 19, Tailwind CSS 4, lucide-react |
-| Calendar parsing | node-ical |
 | Validation | Zod |
 | Tests | Node's built-in test runner (`node --test`) |
 | Hosting | Vercel |
@@ -164,12 +102,11 @@ No NetID, no password, no account, no analytics. Calendar data stays in your bro
 ```text
 src/
 ├─ app/
-│  ├─ api/calendar/import/route.ts   # POST endpoint: validate -> fetch -> parse -> JSON
 │  ├─ layout.tsx                     # Metadata, theme setup, provider, persistent shell
 │  ├─ manifest.ts                    # Web app manifest (installable PWA)
 │  ├─ page.tsx                       # /          overview
 │  ├─ tasks/page.tsx                 # /tasks     the to-do list
-│  ├─ calendar/page.tsx              # /calendar  add another calendar
+│  ├─ calendar/page.tsx              # /calendar  the month, and the connected calendars
 │  ├─ announcements/page.tsx         # /announcements  course announcements
 │  ├─ materials/page.tsx             # /materials      course files, videos and links
 │  ├─ grades/page.tsx                # /grades         gradebook rows and the points so far
@@ -179,7 +116,7 @@ src/
 ├─ components/
 │  ├─ calendar-provider.tsx          # Every piece of app state, in the root layout
 │  ├─ app-shell.tsx                  # Sidebar, header, footer
-│  ├─ connect-section.tsx            # Import form, course list, help text
+│  ├─ connect-section.tsx            # Connected calendars, course list, how to connect
 │  ├─ helper-section.tsx             # How to install the browser helper
 │  ├─ tasks-section.tsx              # The dashboard's Today / Tomorrow / This week board
 │  ├─ todo-section.tsx               # The to-do list: open work by when, done work apart
@@ -195,18 +132,14 @@ src/
 │  ├─ app-footer.tsx                 # Version footer
 │  └─ service-worker-registrar.tsx   # Registers the offline service worker (production only)
 └─ lib/
-   ├─ safe-fetch.ts                  # SSRF-hardened HTTPS download
-   ├─ parse-calendar.ts              # ICS parsing -> CalendarTask[]
    ├─ calendar-view.ts               # Grouping (Today / Tomorrow / This week) and formatting
    ├─ calendar-types.ts              # Shared types
    ├─ date-utils.ts                  # Shared local-date helpers
    ├─ effort.ts                      # Per-task effort estimates
    ├─ courses.ts                     # Course list, per-task overrides, 1.0.1 migration
-   ├─ calendar-source.ts             # Opt-in remembered feed URL
    ├─ export.ts                      # CSV export
    ├─ reminders.ts                   # Due-soon detection and reminder settings
-   ├─ calendar-file.ts               # Reading a dropped .ics: size, sanity, file-name labelling
-   ├─ subscriptions.ts               # The list of calendars: cached events, names, opt-in URLs
+   ├─ subscriptions.ts               # The list of calendars: cached events, names, course filing
    ├─ announcements.ts               # Course announcements: derived ids, caps, storage
    ├─ materials.ts                   # Materials: the helper's messages, checked; merging; folder import
    ├─ materials-store.ts             # Materials in IndexedDB
@@ -215,7 +148,6 @@ src/
    ├─ task-status.ts                 # Which deadlines the gradebook says are done, and why
    ├─ todo.ts                        # The to-do list's sections
    ├─ grades-store.ts                # Grades in localStorage
-   ├─ import-storage.ts              # 1.0.x single-import storage, read once to migrate
    ├─ completion-storage.ts          # Versioned localStorage for completed task IDs
    └─ i18n.ts                        # English / 简体中文 dictionaries and lookup
 public/
@@ -231,7 +163,7 @@ Requires **Node.js 22+** (the test script relies on native TypeScript type strip
 ```bash
 npm install
 npm run dev      # http://localhost:3000
-npm test         # parsing, grouping, URL blocking, storage
+npm test         # helper messages, merging, grouping, rules, storage
 npm run lint
 npm run build
 npm run course-map   # rebuild the UConn course catalogue (once a semester)
@@ -289,22 +221,20 @@ slowly, so running it once a semester is plenty. Pass a term to limit it:
 
 ## Design decisions
 
-- **Fetch on the server, not in the browser.** Calendar hosts rarely send permissive CORS headers, and keeping the download in one module (`safe-fetch.ts`) makes the SSRF controls reviewable in a single place.
-- **Store the ICS URL only when asked.** The feed URL embeds a private token, so by default it is used once and never written anywhere. Auto-refresh is an explicit opt-in: the URL stays in this browser only (never on the server, never in logs) and is removed by unticking the box or pressing **Clear saved data**.
 - **Version every stored payload.** Each `localStorage` entry is a versioned, structurally validated object. Malformed data is dropped (and the user is told) instead of crashing the app.
-- **Completion is keyed by event ID.** IDs are derived from the event UID plus start time, so re-importing the same calendar preserves completion. If the source calendar moves an event's start time, its ID changes and completion resets — a known limitation.
+- **Completion is keyed by event ID.** IDs are derived from the event UID plus start time, so syncing again preserves completion. If the source calendar moves an event's start time, its ID changes and completion resets — a known limitation.
 - **A rolling 7 days, not a calendar week.** The question the app answers is "what's due next", not "what is on this week's grid".
 - **No i18n library.** The string set is bounded and small; two dictionaries plus a lookup function were enough.
 - **Reminders only fire while the app is open.** Real background push would need a push server plus stored subscriptions, which this project deliberately avoids. So reminders are an in-app banner plus opt-in notifications, de-duplicated by a task fingerprint so the same reminder is never repeated.
-- **Offline means the app shell, not the data.** The service worker serves navigations network-first (so a new deploy lands immediately) and hashed assets cache-first, and never caches the import API. The tasks themselves already live in `localStorage`.
+- **Offline means the app shell, not the data.** The service worker serves navigations network-first (so a new deploy lands immediately) and hashed assets cache-first. The tasks themselves already live in `localStorage`.
 
 ## Testing
 
-`npm test` runs the `node:test` suite using Node's native TypeScript type stripping — no bundler or test framework needed. Coverage includes ICS parsing (recurring events, all-day events, course extraction), grouping, URL / SSRF rejection, and the versioned import and completion storage modules.
+`npm test` runs the `node:test` suite using Node's native TypeScript type stripping — no bundler or test framework needed. Coverage includes the helper's messages and how they are checked, merging, grouping, the announcement rules, and the versioned storage modules.
 
 ## Background
 
-BetterHuskyCT started as a personal tool. Deadlines were spread across HuskyCT, syllabi, and email, and the existing options either asked for a NetID or wanted more access than a simple "what's due next" view needs. This project is a narrow attempt to fix that: one private calendar feed in, one clear list out, and calendar data kept on your own device. Optional announcement summaries follow the privacy model above.
+BetterHuskyCT started as a personal tool. Deadlines were spread across HuskyCT, syllabi, and email, and the existing options either asked for a NetID or wanted more access than a simple "what's due next" view needs. This project is a narrow attempt to fix that: your own HuskyCT session in, one clear list out, and the data kept on your own device. Optional announcement summaries follow the privacy model above.
 
 ## Roadmap
 
@@ -312,7 +242,6 @@ BetterHuskyCT started as a personal tool. Deadlines were spread across HuskyCT, 
 - [x] To-do completion rate, overall and per course (replaces the Insights view)
 - [x] Installable PWA with an offline app shell
 - [x] Due-soon reminders (while the app is open)
-- [x] Optional, opt-in auto-refresh (stores the feed URL locally, off by default)
 - [x] Export tasks to CSV
 - [ ] Background push reminders (would require a push server)
 
@@ -324,7 +253,7 @@ Built by [Yinuo (NoGod3524)](https://github.com/NoGod3524), a UConn student.
 
 BetterHuskyCT is an independent student project. It is **not affiliated with, endorsed by, or supported by** the University of Connecticut, HuskyCT, or Blackboard Inc. "HuskyCT", "Blackboard" and "UConn" are named only to describe what the app reads.
 
-You paste your own private calendar link, and you are responsible for keeping it private — it works like a password. The app stores no calendar or account data in a server-side database. An optional Upstash database holds summary cache entries for up to 6 hours; a link you tick **Remember** is saved in that browser.
+The helper reads HuskyCT through your own signed-in session and never sees or sends your password. The app stores no calendar or account data in a server-side database. An optional Upstash database holds summary cache entries for up to 6 hours.
 
 ## Author and license
 

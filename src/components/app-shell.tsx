@@ -3,11 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { HelperSyncButton } from "@/components/helper-sync-button";
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import {
   BellOff,
   BellRing,
-  FileUp,
   Monitor,
   Moon,
   Sparkles,
@@ -60,11 +59,6 @@ function useTheme(): [Theme, (theme: Theme) => void] {
 
 const THEME_ICONS = { system: Monitor, light: Sun, dark: Moon } as const;
 
-/** True when a drag is carrying files rather than text or a link. */
-function carriesFiles(event: DragEvent): boolean {
-  return Array.from(event.dataTransfer?.types ?? []).includes("Files");
-}
-
 /**
  * Persistent chrome: the sidebar and the top header. It is rendered once by the
  * root layout, so the language toggle, reminder toggle, and navigation stay
@@ -89,10 +83,8 @@ export function AppShell({
     calendarName,
     formattedImportedAt,
     subscriptions,
-    importCalendarFiles,
     announcements,
   } = useCalendar();
-  const [isDroppingFile, setIsDroppingFile] = useState(false);
 
   // The first run has no past to compare with, so it starts "new" from now; after that the count
   // of announcements seen since the Announcements page was last left shows beside its link.
@@ -108,60 +100,6 @@ export function AppShell({
   useEffect(() => {
     recordAnnouncementVersions(announcements);
   }, [announcements]);
-  // Drag events fire per element as the pointer moves, so a plain boolean
-  // flickers. Counting enters and leaves keeps the overlay steady.
-  const dragDepth = useRef(0);
-  const importFiles = useRef(importCalendarFiles);
-
-  useEffect(() => {
-    importFiles.current = importCalendarFiles;
-  }, [importCalendarFiles]);
-
-  /**
-   * Accept a dropped calendar anywhere on the page.
-   *
-   * Aiming at one dashed rectangle is a small thing to ask and a real one to
-   * miss, so the whole window is a target — including the routes that have no
-   * import card on them.
-   */
-  useEffect(() => {
-    function onDragEnter(event: DragEvent) {
-      if (!carriesFiles(event)) return;
-      dragDepth.current += 1;
-      setIsDroppingFile(true);
-    }
-
-    function onDragOver(event: DragEvent) {
-      if (!carriesFiles(event)) return;
-      // Without this the browser navigates away and opens the file itself.
-      event.preventDefault();
-    }
-
-    function onDragLeave(event: DragEvent) {
-      if (!carriesFiles(event)) return;
-      dragDepth.current = Math.max(0, dragDepth.current - 1);
-      if (dragDepth.current === 0) setIsDroppingFile(false);
-    }
-
-    function onDrop(event: DragEvent) {
-      if (!carriesFiles(event)) return;
-      event.preventDefault();
-      dragDepth.current = 0;
-      setIsDroppingFile(false);
-      void importFiles.current(Array.from(event.dataTransfer?.files ?? []));
-    }
-
-    window.addEventListener("dragenter", onDragEnter);
-    window.addEventListener("dragover", onDragOver);
-    window.addEventListener("dragleave", onDragLeave);
-    window.addEventListener("drop", onDrop);
-    return () => {
-      window.removeEventListener("dragenter", onDragEnter);
-      window.removeEventListener("dragover", onDragOver);
-      window.removeEventListener("dragleave", onDragLeave);
-      window.removeEventListener("drop", onDrop);
-    };
-  }, []);
 
   const iconButton =
     "tap-icon grid size-8 shrink-0 place-items-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--subtle)] hover:text-[var(--ink)]";
@@ -172,19 +110,6 @@ export function AppShell({
 
   return (
     <main className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
-      {isDroppingFile && (
-        <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center bg-[var(--c-081f3a)]/45 backdrop-blur-sm">
-          <div className="rounded-2xl border-2 border-dashed border-white/70 px-12 py-9 text-center text-white">
-            <FileUp size={30} className="mx-auto" />
-            <p className="font-display mt-3 text-xl font-semibold">
-              {t(locale, "file.dropActive")}
-            </p>
-            <p className="mt-1 text-sm text-blue-100/85">
-              {t(locale, "file.dropAnywhere")}
-            </p>
-          </div>
-        </div>
-      )}
       <div className="flex min-h-screen">
         <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-[var(--line)] px-3 py-4 lg:flex">
           <Link href="/" className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">

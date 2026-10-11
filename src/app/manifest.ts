@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "BetterHuskyCT — Course deadlines, organized",
     short_name: "BetterHuskyCT",
     description:
-      "Turn your HuskyCT / Blackboard ICS calendar into a clean, private deadline dashboard.",
+      "Your HuskyCT deadlines, announcements, course files and grades in one clean, private dashboard.",
     start_url: "/",
     scope: "/",
     display: "standalone",

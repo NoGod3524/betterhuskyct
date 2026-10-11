@@ -34,12 +34,6 @@ export function isDeadline(task: CalendarTask): boolean {
   return task.kind !== "class";
 }
 
-export type CalendarImportResult = {
-  calendarName: string | null;
-  importedAt: string;
-  events: CalendarTask[];
-};
-
 export type TaskGroup = {
   key: "today" | "tomorrow" | "week";
   title: string;

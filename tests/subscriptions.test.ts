@@ -2,21 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { CalendarTask } from "../src/lib/calendar-types.ts";
-import { IMPORT_STORAGE_KEY, serializeImportPayload } from "../src/lib/import-storage.ts";
-import { CALENDAR_SOURCE_STORAGE_KEY } from "../src/lib/calendar-source.ts";
 import {
-  MAX_SUBSCRIPTIONS,
-  REMEMBER_SOURCE_KEY,
   SUBSCRIPTIONS_STORAGE_KEY,
-  addSubscription,
   clearSubscriptions,
   latestImportAt,
   mergeTasks,
   parseStoredSubscriptions,
   removeSubscription,
-  restoreRememberSource,
   restoreSubscriptions,
-  saveRememberSource,
   saveSubscriptions,
   taskOwnerIndex,
   ticksForTasks,
@@ -71,9 +64,7 @@ function feed(id: string, events: CalendarTask[], patch: Partial<Subscription> =
     id,
     name: `Calendar ${id}`,
     courseId: null,
-    url: null,
     importedAt: "2026-09-10T12:00:00.000Z",
-    lastError: null,
     events,
     ...patch,
   };
@@ -82,74 +73,13 @@ function feed(id: string, events: CalendarTask[], patch: Partial<Subscription> =
 test("saveSubscriptions round-trips through restoreSubscriptions", () => {
   const storage = new MemoryStorage();
   const subscriptions = [
-    feed("a", [task("t1")], { courseId: "course-1", url: "https://x.example/f.ics" }),
-    feed("b", [task("t2")], { lastError: "boom" }),
+    feed("a", [task("t1")], { courseId: "course-1" }),
+    feed("b", [task("t2")]),
   ];
 
   saveSubscriptions(storage, subscriptions);
 
   assert.deepEqual(restoreSubscriptions(storage).subscriptions, subscriptions);
-});
-
-test("restoreSubscriptions migrates the 1.0.x single import and its URL", () => {
-  const storage = new MemoryStorage();
-  storage.setItem(
-    IMPORT_STORAGE_KEY,
-    serializeImportPayload({
-      calendarName: "University of Connecticut",
-      importedAt: "2026-09-10T12:00:00.000Z",
-      events: [task("t1", "Environmental Science")],
-    }),
-  );
-  storage.setItem(
-    CALENDAR_SOURCE_STORAGE_KEY,
-    JSON.stringify({
-      version: 1,
-      url: "https://huskyct.uconn.edu/learn.ics",
-      savedAt: "2026-09-10T12:00:00.000Z",
-    }),
-  );
-
-  const restored = restoreSubscriptions(storage);
-
-  assert.equal(restored.subscriptions.length, 1);
-  assert.equal(restored.subscriptions[0].events.length, 1);
-  assert.equal(restored.subscriptions[0].name, "University of Connecticut");
-  assert.equal(restored.subscriptions[0].url, "https://huskyct.uconn.edu/learn.ics");
-  assert.equal(restored.subscriptions[0].courseId, null);
-  // Migrating is a one-way door: the old keys must not come back.
-  assert.equal(storage.getItem(IMPORT_STORAGE_KEY), null);
-  assert.equal(storage.getItem(CALENDAR_SOURCE_STORAGE_KEY), null);
-  assert.equal(restoreSubscriptions(storage).subscriptions.length, 1);
-});
-
-test("migrating an import that was never remembered yields no URL", () => {
-  const storage = new MemoryStorage();
-  storage.setItem(
-    IMPORT_STORAGE_KEY,
-    serializeImportPayload({
-      calendarName: null,
-      importedAt: "2026-09-10T12:00:00.000Z",
-      events: [task("t1")],
-    }),
-  );
-
-  assert.equal(restoreSubscriptions(storage).subscriptions[0].url, null);
-});
-
-test("a stale remembered URL with no import is simply dropped", () => {
-  const storage = new MemoryStorage();
-  storage.setItem(
-    CALENDAR_SOURCE_STORAGE_KEY,
-    JSON.stringify({
-      version: 1,
-      url: "https://huskyct.uconn.edu/learn.ics",
-      savedAt: "2026-09-10T12:00:00.000Z",
-    }),
-  );
-
-  assert.deepEqual(restoreSubscriptions(storage).subscriptions, []);
-  assert.equal(storage.getItem(CALENDAR_SOURCE_STORAGE_KEY), null);
 });
 
 test("restoreSubscriptions returns nothing when nothing is stored", () => {
@@ -203,39 +133,6 @@ test("parseStoredSubscriptions ignores a duplicate id", () => {
   );
 
   assert.equal(parsed?.length, 1);
-});
-
-test("addSubscription links the course and only stores a URL when asked", () => {
-  const result = {
-    calendarName: "University of Connecticut",
-    importedAt: "2026-09-10T12:00:00.000Z",
-    events: [task("t1")],
-  };
-
-  const remembered = addSubscription([], result, {
-    courseId: "course-1",
-    url: "https://huskyct.uconn.edu/learn.ics",
-  });
-  assert.equal(remembered.length, 1);
-  assert.equal(remembered[0].courseId, "course-1");
-  assert.equal(remembered[0].url, "https://huskyct.uconn.edu/learn.ics");
-
-  const oneShot = addSubscription([], result);
-  assert.equal(oneShot[0].url, null);
-  assert.equal(oneShot[0].courseId, null);
-});
-
-test("addSubscription keeps feeds in the order they were added, up to the cap", () => {
-  let subscriptions: Subscription[] = [];
-  for (let index = 0; index < MAX_SUBSCRIPTIONS + 2; index += 1) {
-    subscriptions = addSubscription(subscriptions, {
-      calendarName: null,
-      importedAt: "2026-09-10T12:00:00.000Z",
-      events: [],
-    });
-  }
-
-  assert.equal(subscriptions.length, MAX_SUBSCRIPTIONS);
 });
 
 test("removeSubscription and updateSubscription only touch their own feed", () => {
@@ -306,30 +203,28 @@ test("ticksForTasks keeps only ticks whose task is still on screen", () => {
   assert.deepEqual([...ticksForTasks(["t1"], [])], [], "no calendars means no ticks on screen");
 });
 
-test("the remember-links preference round-trips", () => {
+const RETIRED = ["huskypilot.rememberSource.v1", "huskypilot.importedCalendar.v1", "huskypilot.calendarSource.v1"];
+
+test("opening the app removes the keys of the retired link import, and the address a saved calendar still carries", () => {
   const storage = new MemoryStorage();
-  assert.equal(restoreRememberSource(storage), false);
+  for (const key of RETIRED) storage.setItem(key, "https://lms.uconn.edu/webapps/calendar/calendarFeed/secret/learn.ics");
+  storage.setItem(
+    SUBSCRIPTIONS_STORAGE_KEY,
+    JSON.stringify({ version: 1, subscriptions: [{ ...feed("a", [task("t1")]), url: "https://lms.uconn.edu/webapps/calendar/calendarFeed/secret/learn.ics", lastError: "boom" }] }),
+  );
 
-  saveRememberSource(storage, true);
-  assert.equal(restoreRememberSource(storage), true);
+  const { subscriptions } = restoreSubscriptions(storage);
 
-  saveRememberSource(storage, false);
-  assert.equal(restoreRememberSource(storage), false);
+  assert.equal(subscriptions.length, 1);
+  assert.equal(subscriptions[0].events.length, 1, "the events went with the address");
+  for (const key of RETIRED) assert.equal(storage.getItem(key), null, key);
+  assert.ok(!(storage.getItem(SUBSCRIPTIONS_STORAGE_KEY) ?? "").includes("secret"), "the private address is still stored");
+  assert.ok(!("url" in subscriptions[0]) && !("lastError" in subscriptions[0]));
 });
 
-test("clearSubscriptions removes every key it owns", () => {
+test("clearSubscriptions removes the saved calendars", () => {
   const storage = new MemoryStorage();
-  saveSubscriptions(storage, [feed("a", [task("t1")], { url: "https://x.example/f.ics" })]);
-  storage.setItem(IMPORT_STORAGE_KEY, "{}");
-  storage.setItem(CALENDAR_SOURCE_STORAGE_KEY, "{}");
-
+  saveSubscriptions(storage, [feed("a", [task("t1")])]);
   clearSubscriptions(storage);
-
   assert.equal(storage.getItem(SUBSCRIPTIONS_STORAGE_KEY), null);
-  assert.equal(storage.getItem(IMPORT_STORAGE_KEY), null);
-  assert.equal(storage.getItem(CALENDAR_SOURCE_STORAGE_KEY), null);
-  // The preference is not data to be cleared alongside the feeds.
-  saveRememberSource(storage, true);
-  clearSubscriptions(storage);
-  assert.equal(storage.getItem(REMEMBER_SOURCE_KEY), "true");
 });

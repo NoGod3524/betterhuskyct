@@ -28,9 +28,7 @@ function feed(events: CalendarTask[]): Subscription {
     id: "local-feed",
     name: "Mine",
     courseId: null,
-    url: null,
     importedAt: START,
-    lastError: null,
     events,
   };
 }
