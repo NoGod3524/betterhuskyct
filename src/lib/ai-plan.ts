@@ -3,6 +3,7 @@ import type { Announcement } from "./announcements.ts";
 import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import type { CustomEventInput } from "./custom-events.ts";
 import { taskDate } from "./date-utils.ts";
+import { contentHash } from "./content-hash.ts";
 import { cleanSummary, isNotAToDo, MAX_PLAN_TEXT, parsePlanResult, PLAN_ITEM_KINDS, type PlanAnnouncement, type PlanItem, type PlanRequest } from "./plan-models.ts";
 import type { SummaryChoice } from "./summary-choice.ts";
 import type { ProviderId, SummaryLocale } from "./summary-models.ts";
@@ -38,6 +39,8 @@ export type Suggestion = PlanItem & {
   /** The file's name, or the announcement's title. */
   fromLabel: string;
   foundAt: string;
+  /** For one found in an announcement: which, so that reading it again can replace what it said before. */
+  announcementId?: string;
 };
 
 /** A course's syllabus summed up, as the model wrote it; shown on the Materials page. */
@@ -148,6 +151,7 @@ function parseSuggestion(value: unknown): Suggestion | null {
     from,
     fromLabel: typeof fromLabel === "string" ? fromLabel : "",
     foundAt: typeof foundAt === "string" ? foundAt : new Date(0).toISOString(),
+    ...(typeof value.announcementId === "string" ? { announcementId: value.announcementId } : {}),
   };
 }
 
@@ -315,7 +319,14 @@ export function tidyPending(pending: Suggestion[]): Suggestion[] {
 export function addFound(
   state: PlanState,
   items: PlanItem[],
-  meta: { course: string | null; from: SuggestionSource; fromLabel: (item: PlanItem) => string; foundAt: string },
+  meta: {
+    course: string | null;
+    from: SuggestionSource;
+    fromLabel: (item: PlanItem) => string;
+    foundAt: string;
+    /** Which announcement an item came from, when it came from one. */
+    announcementId?: (item: PlanItem) => string | null;
+  },
 ): PlanState {
   const known = new Set([...state.pending.map((suggestion) => suggestion.id), ...Object.keys(state.decided)]);
   let pending = state.pending;
@@ -337,11 +348,27 @@ export function addFound(
     if (offered.some((other) => datedElsewhere(candidate, other))) continue;
     known.add(id);
     if (item.date) pending = pending.filter((other) => !datedElsewhere(other, candidate));
-    pending = [...pending, { ...item, id, course: meta.course, from: meta.from, fromLabel: meta.fromLabel(item), foundAt: meta.foundAt }];
+    const announcementId = meta.announcementId?.(item) ?? null;
+    pending = [
+      ...pending,
+      { ...item, id, course: meta.course, from: meta.from, fromLabel: meta.fromLabel(item), foundAt: meta.foundAt, ...(announcementId ? { announcementId } : {}) },
+    ];
     offered.push(candidate);
     changed = true;
   }
   return changed ? { ...state, pending, offered } : state;
+}
+
+/**
+ * What was waiting from announcements that have just been read again, taken away, so the new reading
+ * replaces it and a date the teacher moved is not offered twice. What was already added or turned
+ * down stays decided.
+ */
+export function supersede(state: PlanState, announcementIds: string[]): PlanState {
+  if (announcementIds.length === 0) return state;
+  const gone = new Set(announcementIds);
+  const pending = state.pending.filter((suggestion) => !(suggestion.announcementId && gone.has(suggestion.announcementId)));
+  return pending.length === state.pending.length ? state : { ...state, pending };
 }
 
 export function markRead(state: PlanState, key: string, signature: string): PlanState {
@@ -391,8 +418,15 @@ export function setSummary(state: PlanState, courseId: string, summary: Syllabus
   return { ...state, summaries: { ...state.summaries, [courseId]: summary } };
 }
 
-/** An announcement's id comes from its course, title and posting time, so having read it is all there is to record. */
-export const ANNOUNCEMENT_SIGNATURE = "1";
+/**
+ * What an announcement looked like when it was read: the title, body and posting time the model is
+ * given. Its id is made from the course, title and posting time and does not change when the teacher
+ * edits the text, so the id alone cannot say whether it has to be read again. The leading "2" is
+ * this scheme; a read from before it carries "1" and is read once more, as a syllabus's was.
+ */
+export function announcementSignature(announcement: Pick<Announcement, "title" | "body" | "posted">): string {
+  return "2|" + contentHash([announcement.title.slice(0, 200), announcement.body, announcement.posted?.slice(0, 120) ?? ""].join("\u0000"));
+}
 
 export function announcementKey(id: string): string {
   return `announcement:${id}`;
@@ -405,7 +439,7 @@ export function localDay(date: Date): string {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-export type AnnouncementBatch = { course: string | null; ids: string[]; announcements: PlanAnnouncement[] };
+export type AnnouncementBatch = { course: string | null; ids: string[]; signatures: string[]; announcements: PlanAnnouncement[] };
 
 /**
  * The announcements still to read, by course, newest first, in batches small
@@ -416,7 +450,7 @@ export function announcementBatches(announcements: Announcement[], state: PlanSt
   const since = state.enabledAt ? Date.parse(state.enabledAt) - ANNOUNCEMENT_LOOKBACK_DAYS * 86_400_000 : -Infinity;
   const byCourse = new Map<string | null, Announcement[]>();
   for (const announcement of announcements) {
-    if (!needsReading(state, announcementKey(announcement.id), ANNOUNCEMENT_SIGNATURE)) continue;
+    if (!needsReading(state, announcementKey(announcement.id), announcementSignature(announcement))) continue;
     if (Date.parse(announcement.announced) < since) continue;
     const list = byCourse.get(announcement.courseCode) ?? [];
     list.push(announcement);
@@ -426,17 +460,18 @@ export function announcementBatches(announcements: Announcement[], state: PlanSt
   const batches: AnnouncementBatch[] = [];
   for (const [course, list] of byCourse) {
     list.sort((left, right) => (left.announced < right.announced ? 1 : left.announced > right.announced ? -1 : 0));
-    let batch: AnnouncementBatch = { course, ids: [], announcements: [] };
+    let batch: AnnouncementBatch = { course, ids: [], signatures: [], announcements: [] };
     let characters = 0;
     for (const announcement of list) {
       const item = { title: announcement.title.slice(0, 200), body: announcement.body, posted: announcement.posted?.slice(0, 120) ?? null };
       const size = item.title.length + item.body.length;
       if (batch.ids.length > 0 && (batch.ids.length >= MAX_BATCH_ANNOUNCEMENTS || characters + size > MAX_BATCH_CHARACTERS)) {
         batches.push(batch);
-        batch = { course, ids: [], announcements: [] };
+        batch = { course, ids: [], signatures: [], announcements: [] };
         characters = 0;
       }
       batch.ids.push(announcement.id);
+      batch.signatures.push(announcementSignature(announcement));
       batch.announcements.push(item);
       characters += size;
     }

@@ -8,13 +8,14 @@ import {
   addFound,
   announcementBatches,
   announcementKey,
-  ANNOUNCEMENT_SIGNATURE,
+  announcementSignature,
   decide,
   EMPTY_PLAN_STATE,
   joinSyllabusTexts,
   localDay,
   markFailed,
   markRead,
+  supersede,
   needsReading,
   requestPlan,
   restorePlanState,
@@ -247,16 +248,17 @@ export function AiPlanProvider({
       const outcome = await ask({ kind: "announcements", courseLabel: label, term: null, today, text: "", announcements: batch.announcements });
       if ("stop" in outcome) return { problem: outcome.stop, retry: outcome.retry };
       if ("failed" in outcome) {
-        commit((current) => batch.ids.reduce((next, id) => markFailed(next, announcementKey(id), ANNOUNCEMENT_SIGNATURE), current));
+        commit((current) => batch.ids.reduce((next, id, index) => markFailed(next, announcementKey(id), batch.signatures[index]), current));
         continue;
       }
       commit((current) =>
         batch.ids.reduce(
-          (next, id) => markRead(next, announcementKey(id), ANNOUNCEMENT_SIGNATURE),
-          addFound(current, outcome.items, {
+          (next, id, index) => markRead(next, announcementKey(id), batch.signatures[index]),
+          addFound(supersede(current, batch.ids), outcome.items, {
             course: batch.course,
             from: "announcement",
             fromLabel: (item) => (item.source ? batch.announcements[item.source - 1]?.title ?? "" : ""),
+            announcementId: (item) => (item.source ? batch.ids[item.source - 1] ?? null : null),
             foundAt: new Date().toISOString(),
           }),
         ),
@@ -310,7 +312,8 @@ export function AiPlanProvider({
   }, []);
 
   // When announcements change, once they settle.
-  const announcementIds = useMemo(() => announcements.map((announcement) => announcement.id).join("|"), [announcements]);
+  // Their text counts as well as their ids: the id stays when the teacher edits the body.
+  const announcementIds = useMemo(() => announcements.map((announcement) => announcement.id + ":" + announcementSignature(announcement)).join("|"), [announcements]);
   useEffect(() => {
     if (!state.enabled || !announcementIds) return;
     const timer = setTimeout(() => void runRef.current(), SETTLE_MS);

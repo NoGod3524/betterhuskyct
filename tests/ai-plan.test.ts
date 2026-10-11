@@ -5,7 +5,7 @@ import {
   addFound,
   announcementBatches,
   announcementKey,
-  ANNOUNCEMENT_SIGNATURE,
+  announcementSignature,
   decide,
   EMPTY_PLAN_STATE,
   markFailed,
@@ -21,6 +21,7 @@ import {
   suggestionId,
   suggestionToEvent,
   suggestionToUndated,
+  supersede,
   syllabusSignature,
   weekdayMismatch,
   type PlanState,
@@ -115,14 +116,16 @@ test("announcements are read by course, newest first, and only from a month befo
 
 test("announcements already read, or given up on, are not sent again, and a long run is split", () => {
   let state: PlanState = { ...EMPTY_PLAN_STATE, enabled: true, enabledAt: "2026-10-01T00:00:00.000Z" };
-  state = markRead(state, announcementKey("read"), ANNOUNCEMENT_SIGNATURE);
-  for (let attempt = 0; attempt < MAX_FAILURES; attempt += 1) state = markFailed(state, announcementKey("broken"), ANNOUNCEMENT_SIGNATURE);
+  const readOne = announcement("read", "MATH 1070Q", "2026-10-02T00:00:00.000Z");
+  const brokenOne = announcement("broken", "MATH 1070Q", "2026-10-02T00:00:00.000Z");
+  state = markRead(state, announcementKey("read"), announcementSignature(readOne));
+  for (let attempt = 0; attempt < MAX_FAILURES; attempt += 1) state = markFailed(state, announcementKey("broken"), announcementSignature(brokenOne));
   const many = Array.from({ length: 25 }, (_, index) =>
     announcement(`n${index}`, "MATH 1070Q", new Date(Date.UTC(2026, 9, 1, index)).toISOString()),
   );
 
   const batches = announcementBatches(
-    [announcement("read", "MATH 1070Q", "2026-10-02T00:00:00.000Z"), announcement("broken", "MATH 1070Q", "2026-10-02T00:00:00.000Z"), ...many],
+    [readOne, brokenOne, ...many],
     state,
   );
 
@@ -136,6 +139,64 @@ test("announcements already read, or given up on, are not sent again, and a long
     state,
   );
   assert.equal(long.length, 2, "two long announcements were sent as one oversized request");
+});
+
+test("an announcement is read again when its text changes, and not when it does not", () => {
+  const before = announcement("a", "MATH 1070Q", "2026-10-02T00:00:00.000Z", "Exam 2 is Oct 21.");
+  let state: PlanState = { ...EMPTY_PLAN_STATE, enabled: true, enabledAt: "2026-10-01T00:00:00.000Z" };
+  state = markRead(state, announcementKey("a"), announcementSignature(before));
+
+  assert.deepEqual(announcementBatches([before], state), [], "an unchanged announcement was read again");
+  // Same id, same title, same posting time: only the body is different.
+  const after = { ...before, body: "Exam 2 is moved to Oct 23." };
+  assert.equal(after.id, before.id);
+  const batches = announcementBatches([after], state);
+  assert.deepEqual(batches.map((batch) => batch.ids), [["a"]]);
+  assert.deepEqual(batches[0].signatures, [announcementSignature(after)]);
+  assert.notEqual(announcementSignature(after), announcementSignature(before));
+  // A title or posting time edit counts too, and what the model is never given does not.
+  assert.notEqual(announcementSignature({ ...before, title: "Other" }), announcementSignature(before));
+  assert.notEqual(announcementSignature({ ...before, posted: "10/3/26, 9:00 AM" }), announcementSignature(before));
+  assert.equal(announcementSignature({ ...before, title: before.title + "z".repeat(300) }), announcementSignature({ ...before, title: before.title + "z".repeat(301) }));
+  // Failing again as it is now is counted against the new text, not the old.
+  let failing = markFailed(markFailed(state, announcementKey("a"), announcementSignature(before)), announcementKey("a"), announcementSignature(before));
+  assert.deepEqual(announcementBatches([before], failing), []);
+  assert.equal(announcementBatches([after], failing).length, 1, "giving up on the old text stopped the new one being read");
+  failing = markRead(failing, announcementKey("a"), announcementSignature(after));
+  assert.deepEqual(announcementBatches([after], failing), []);
+});
+
+test("an announcement read before text was tracked is read once more, and then settles", () => {
+  const one = announcement("a", "MATH 1070Q", "2026-10-02T00:00:00.000Z");
+  let state: PlanState = { ...EMPTY_PLAN_STATE, enabled: true, enabledAt: "2026-10-01T00:00:00.000Z" };
+  state = markRead(state, announcementKey("a"), "1");
+  assert.equal(announcementBatches([one], state).length, 1);
+  state = markRead(state, announcementKey("a"), announcementSignature(one));
+  assert.deepEqual(announcementBatches([one], state), []);
+});
+
+test("reading an edited announcement again replaces what it offered before, and leaves what was decided and what other announcements offered", () => {
+  const from = (announcementId: string) => ({ ...meta, from: "announcement" as const, announcementId: () => announcementId });
+  let state = addFound(EMPTY_PLAN_STATE, [item({ title: "Exam 2", date: "2026-10-21" })], from("a"));
+  state = addFound(state, [item({ title: "Quiz 4", date: "2026-10-12", kind: "quiz" })], from("b"));
+  state = addFound(state, [item({ title: "Homework 6", date: "2026-10-15", kind: "assignment" })], from("a"));
+  const homework = state.pending.find((entry) => entry.title === "Homework 6")!;
+  state = decide(state, { [homework.id]: "added" });
+  assert.deepEqual(state.pending.map((entry) => entry.title).sort(), ["Exam 2", "Quiz 4"]);
+
+  // The teacher moved the exam; reading "a" again drops the old offer and offers the new day.
+  state = addFound(supersede(state, ["a"]), [item({ title: "Exam 2", date: "2026-10-23" }), item({ title: "Homework 6", date: "2026-10-15", kind: "assignment" })], from("a"));
+  assert.deepEqual(state.pending.map((entry) => [entry.title, entry.date]).sort(), [["Exam 2", "2026-10-23"], ["Quiz 4", "2026-10-12"]]);
+  assert.equal(state.decided[homework.id], "added", "a decision was undone");
+  assert.equal(state.pending.find((entry) => entry.title === "Exam 2")?.announcementId, "a");
+  assert.equal(supersede(state, []), state);
+});
+
+test("which announcement a find came from is kept when the state is saved and read back", () => {
+  const state = addFound(EMPTY_PLAN_STATE, [item()], { ...meta, from: "announcement", announcementId: () => "a1" });
+  const back = parsePlanState(JSON.stringify(state));
+  assert.equal(back.pending[0].announcementId, "a1");
+  assert.equal(parsePlanState(JSON.stringify(addFound(EMPTY_PLAN_STATE, [item()], meta))).pending[0].announcementId, undefined);
 });
 
 test("a weekday in the source that the date does not fall on is caught: last year's syllabus", () => {

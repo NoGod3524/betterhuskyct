@@ -236,6 +236,47 @@ test("new announcements are read by course and what they ask is listed with wher
   await view.unmount();
 });
 
+test("an announcement whose text is edited, with the same id, is read again and its old offer is replaced", async () => {
+  const announced = new Date().toISOString();
+  const announcement = (body: string): Announcement => ({ id: "a1", courseId: null, courseCode: "SOCI 1501", title: "Exam 2 moved", body, posted: "Oct 1", announced });
+  const view = await mount({
+    store: memoryMaterialsStore(),
+    answer: (request) =>
+      request.kind === "announcements"
+        ? { items: [{ title: "Exam 2", date: inDays(request.announcements[0].body.includes("later") ? 12 : 10), time: null, kind: "exam", evidence: "Exam 2", source: 1 }] }
+        : { items: [] },
+    announcements: [announcement("Exam 2 moves to next week.")],
+  });
+  await view.click(view.button(t("en", "aiPlan.enable")));
+  await settle(60);
+  const sent = () => view.requests.filter((request) => request.kind === "announcements");
+  assert.equal(sent().length, 1);
+  const label = t("en", "aiPlan.fromAnnouncement", { title: "Exam 2 moved" });
+  assert.equal(view.text().split(label).length - 1, 1);
+
+  // The same announcement, nothing changed: not sent again.
+  const sync = async (body: string) => {
+    const packed = await encodeSyncPayload(buildSyncPayload({ feeds: [], completedIds: [], courses: EMPTY_COURSE_BOOK, announcements: [announcement(body)] }));
+    await act(async () => {
+      window.location.hash = `#sync=${packed}`;
+      window.dispatchEvent(new window.Event("hashchange"));
+    });
+    await settle(50);
+    await act(async () => view.calendar.applyPendingSync());
+    // The provider lets announcements settle for a second before it reads.
+    await settle(250);
+  };
+  await sync("Exam 2 moves to next week.");
+  assert.equal(sent().length, 1, "an unchanged announcement was read again");
+
+  // The teacher edits only the body. The id is the same; the text is not.
+  await sync("Exam 2 moves to later than that.");
+  assert.equal(sent().length, 2, "the edited announcement was never read again");
+  assert.ok(sent()[1].announcements[0].body.includes("later"));
+  assert.equal(view.text().split(label).length - 1, 1, "the old offer was left beside the new one");
+  await view.unmount();
+});
+
 test("on the page as it is mounted for real, a service that is not set up is asked once, not again on every render", { timeout: 30_000 }, async () => {
   const view = await mount({ answer: () => ({ problem: "not-configured" }), realWait: true });
   await view.click(view.button(t("en", "aiPlan.enable")));
