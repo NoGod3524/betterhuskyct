@@ -299,11 +299,6 @@ export async function decodeSyncPayload(packed: string): Promise<SyncPayload | n
   }
 }
 
-/** The full link a user sends to their other device. */
-export function syncLink(origin: string, pathname: string, packed: string): string {
-  return `${origin}${pathname}${SYNC_FRAGMENT}${packed}`;
-}
-
 export function readSyncFragment(hash: string): string | null {
   if (!hash.startsWith(SYNC_FRAGMENT)) return null;
   const packed = hash.slice(SYNC_FRAGMENT.length);

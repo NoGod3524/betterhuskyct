@@ -9,13 +9,11 @@ import {
   LoaderCircle,
   Plus,
   RefreshCw,
-  Smartphone,
   TriangleAlert,
   X,
 } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
-import { SyncSection } from "@/components/sync-section";
 import {
   COURSE_COMPONENTS,
   MAX_COURSES,
@@ -100,7 +98,6 @@ export function ConnectSection() {
   const atCourseLimit = courses.length >= MAX_COURSES;
   const hasCalendars = subscriptions.length > 0;
   const [isExpanded, setIsExpanded] = useState(false);
-  const [openSync, setOpenSync] = useState(false);
   const previousCount = useRef(subscriptions.length);
 
   // Adding a calendar is the moment this card stops being useful, so it folds
@@ -151,19 +148,6 @@ export function ConnectSection() {
           >
             {t(locale, "connect.manage")}
             <ChevronRight size={14} />
-          </button>
-          {/* Sync lives inside the panel, so the collapsed bar needs its own way
-              in — nobody would look for it under a button about calendars. */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsExpanded(true);
-              setOpenSync(true);
-            }}
-            className="btn btn-quiet h-8 shrink-0"
-          >
-            <Smartphone size={14} />
-            {t(locale, "sync.button")}
           </button>
         </div>
         <StatusRows error={error} notice={notice} />
@@ -404,21 +388,6 @@ export function ConnectSection() {
             </p>
           )}
         </div>
-      )}
-
-      {subscriptions.length > 0 && (
-        <details
-          open={openSync}
-          onToggle={(event) => setOpenSync(event.currentTarget.open)}
-          className="group border-t border-[var(--line)] px-5 py-3 text-sm sm:px-7"
-        >
-          <summary className="flex cursor-pointer list-none items-center gap-2 font-semibold text-[var(--ink)] [&::-webkit-details-marker]:hidden">
-            <ChevronRight size={15} className="shrink-0 text-[var(--blue)] transition group-open:rotate-90" />
-            <Smartphone size={15} className="shrink-0 text-[var(--blue)]" />
-            {t(locale, "sync.summary")}
-          </summary>
-          <SyncSection />
-        </details>
       )}
 
       <details className="group border-t border-[var(--line)] px-5 py-3 text-sm sm:px-7">

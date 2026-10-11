@@ -44,11 +44,8 @@ import { CalendarFileError, readCalendarFile } from "@/lib/calendar-file";
 import { watchClock } from "@/lib/clock";
 import { requestCalendarImport, type ImportRequest } from "@/lib/import-client";
 import {
-  buildSyncPayload,
   decodeSyncPayload,
-  encodeSyncPayload,
   readSyncFragment,
-  syncLink,
   type SyncPayload,
 } from "@/lib/sync";
 import { planSyncApply } from "@/lib/sync-apply";
@@ -206,10 +203,6 @@ type CalendarContextValue = {
   applyPendingSync: () => void;
   dismissPendingSync: () => void;
   /** The generated link, once the user has asked for one. */
-  outgoingSyncLink: string | null;
-  createSyncLink: () => Promise<void>;
-  isPackingSync: boolean;
-  syncError: string | null;
 
   /** Course announcements, newest first. Empty until a helper sends some. */
   announcements: Announcement[];
@@ -321,9 +314,6 @@ export function CalendarProvider({
   const [courseColors, setCourseColors] = useState<CourseColors>({});
   // A link from another device is offered, never applied on its own.
   const [pendingSync, setPendingSync] = useState<SyncPayload | null>(null);
-  const [outgoingSyncLink, setOutgoingSyncLink] = useState<string | null>(null);
-  const [isPackingSync, setIsPackingSync] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
 
   const hasSubscriptions = subscriptions.length > 0;
   const isImported = hasSubscriptions && !demoMode;
@@ -946,42 +936,6 @@ export function CalendarProvider({
     window.history.replaceState(null, "", `${pathname}${search}`);
   }
 
-  /**
-   * Packs everything this device knows into a link the user sends themselves.
-   *
-   * The feed URL stays behind on purpose: a link that gets pasted into a chat
-   * client must not be a password. The events travel instead, which is what lets
-   * the second device skip the import entirely.
-   */
-  async function createSyncLink() {
-    setIsPackingSync(true);
-    setSyncError(null);
-    try {
-      const payload = buildSyncPayload({
-        feeds: subscriptionsRef.current.map((subscription) => ({
-          name: subscription.name,
-          courseId: subscription.courseId,
-          importedAt: subscription.importedAt,
-          events: subscription.events,
-        })),
-        completedIds,
-        courses: courseBook,
-        announcements: announcementsRef.current,
-        doneByHuskyct: autoDone,
-        reopened,
-      });
-      const packed = await encodeSyncPayload(payload);
-
-      setOutgoingSyncLink(
-        syncLink(window.location.origin, window.location.pathname, packed),
-      );
-    } catch {
-      setSyncError(t(locale, "sync.packFailed"));
-    } finally {
-      setIsPackingSync(false);
-    }
-  }
-
   // Which ticks go into the merge and what the screen shows afterwards are
   // decided by `planSyncApply`; this only writes the result. Shared by the
   // `#sync=` link, which asks first, and the helper's direct `postMessage`,
@@ -1030,7 +984,6 @@ export function CalendarProvider({
     if (!pendingSync) return;
     const merged = applyPayload(pendingSync);
     setPendingSync(null);
-    setOutgoingSyncLink(null);
     clearSyncFragment();
     setError(null);
     setNotice(
@@ -1266,10 +1219,6 @@ export function CalendarProvider({
     pendingSync,
     applyPendingSync,
     dismissPendingSync,
-    outgoingSyncLink,
-    createSyncLink,
-    isPackingSync,
-    syncError,
     announcements,
     clearAnnouncements: dropAnnouncements,
     editEvent,
