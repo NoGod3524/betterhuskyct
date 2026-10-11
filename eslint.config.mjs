@@ -26,7 +26,7 @@ const eslintConfig = defineConfig([
   },
   {
     // Command-line scripts: printing is their output.
-    files: ["scripts/**", "tools/e2e/**"],
+    files: ["scripts/**"],
     rules: { "no-console": "off" },
   },
   // Override default ignores of eslint-config-next.
