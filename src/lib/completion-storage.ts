@@ -1,3 +1,5 @@
+import { isRecord } from "./is-record.ts";
+
 export const COMPLETION_STORAGE_KEY_DEMO = "huskypilot.completedTasks.demo.v1";
 export const COMPLETION_STORAGE_KEY_IMPORTED = "huskypilot.completedTasks.imported.v1";
 const COMPLETION_STORAGE_VERSION = 1;
@@ -12,10 +14,6 @@ type StoredCompletionPayload = {
   version: number;
   completedIds: string[];
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export const COMPLETION_STORAGE_KEY_CUSTOM = "huskypilot.completedTasks.custom.v1";
 

@@ -8,6 +8,7 @@ import {
   CALENDAR_SOURCE_STORAGE_KEY,
   parseStoredSource,
 } from "./calendar-source.ts";
+import { isRecord } from "./is-record.ts";
 
 export const SUBSCRIPTIONS_STORAGE_KEY = "huskypilot.subscriptions.v1";
 
@@ -48,10 +49,6 @@ export type Subscription = {
   lastError: string | null;
   events: CalendarTask[];
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isValidDateString(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));

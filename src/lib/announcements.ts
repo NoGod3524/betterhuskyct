@@ -25,6 +25,7 @@
  */
 
 import { contentHash } from "./content-hash.ts";
+import { isRecord } from "./is-record.ts";
 
 export const ANNOUNCEMENTS_STORAGE_KEY = "huskypilot.announcements.v1";
 const ANNOUNCEMENTS_STORAGE_VERSION = 1;
@@ -54,10 +55,6 @@ export type Announcement = {
   /** When this device (or the device that sent it) actually saw it. */
   announced: string;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isValidDateString(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));

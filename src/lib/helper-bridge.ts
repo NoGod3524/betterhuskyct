@@ -1,5 +1,6 @@
 import type { HuskyctTab } from "./helper-sync.ts";
 import { HUSKYCT_ORIGINS } from "./materials.ts";
+import { isRecord } from "./is-record.ts";
 
 /**
  * The helper's bridge, as BetterHuskyCT sees it.
@@ -20,10 +21,6 @@ export const BRIDGE_IN = "betterhuskyct/bridge-in@1";
 export const PING_TIMEOUT_MS = 1500;
 
 type BridgeWindow = Pick<Window, "postMessage" | "addEventListener" | "removeEventListener"> & { location: { origin: string } };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 const tabs = new WeakMap<object, HuskyctTab>();
 

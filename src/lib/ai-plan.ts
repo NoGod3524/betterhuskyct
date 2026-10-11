@@ -8,6 +8,7 @@ import { cleanSummary, isNotAToDo, MAX_PLAN_TEXT, parsePlanResult, PLAN_ITEM_KIN
 import type { SummaryChoice } from "./summary-choice.ts";
 import type { ProviderId, SummaryLocale } from "./summary-models.ts";
 import type { UndatedTodo } from "./undated-todos.ts";
+import { isRecord } from "./is-record.ts";
 
 /**
  * The page's side of finding dates with a model: what has been read, what was
@@ -119,10 +120,6 @@ function parseSummaries(value: unknown): Record<string, SyllabusSummary> {
     };
   }
   return summaries;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function stringMap(value: unknown): Record<string, string> {

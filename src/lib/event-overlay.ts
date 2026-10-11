@@ -1,4 +1,5 @@
 import type { CalendarTask } from "./calendar-types.ts";
+import { isRecord } from "./is-record.ts";
 
 /**
  * What the calendar page changed about an imported event, kept apart from the
@@ -34,10 +35,6 @@ export type EventOverlay = {
 export const EMPTY_OVERLAY: EventOverlay = { edits: {}, deletedIds: [] };
 
 const STORAGE_KEY = "huskypilot.eventOverlay.v1";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isValidDateString(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));

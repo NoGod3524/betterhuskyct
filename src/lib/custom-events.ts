@@ -1,4 +1,5 @@
 import type { CalendarTask } from "./calendar-types.ts";
+import { isRecord } from "./is-record.ts";
 
 /**
  * Events the student added on the calendar page itself — office hours, a
@@ -14,10 +15,6 @@ export const MAX_CUSTOM_EVENTS = 500;
 
 export function isCustomEventId(id: string): boolean {
   return id.startsWith(ID_PREFIX);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function isValidDateString(value: unknown): value is string {

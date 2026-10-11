@@ -1,3 +1,5 @@
+import { isRecord } from "./is-record.ts";
+
 export const CALENDAR_SOURCE_STORAGE_KEY = "huskypilot.calendarSource.v1";
 const SOURCE_STORAGE_VERSION = 1;
 const MAX_URL_LENGTH = 2_048;
@@ -14,10 +16,6 @@ export type RememberedSource = {
   url: string;
   savedAt: string;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isValidSavedAt(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
