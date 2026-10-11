@@ -120,6 +120,9 @@ test("a summary is reused only for the same announcements in the same language",
   assert.equal(summarySignature(two, "en"), summarySignature([...two].reverse(), "en"));
   assert.notEqual(summarySignature(two, "en"), summarySignature([...two, announcement(3)], "en"));
   assert.notEqual(summarySignature(two, "en"), summarySignature(two, "zh-CN"));
+  // The same announcement with its text edited is not the one that was summarised.
+  assert.notEqual(summarySignature(two, "en"), summarySignature([announcement(1, { body: "Moved to Friday." }), announcement(2)], "en"));
+  assert.notEqual(summarySignature(two, "en"), summarySignature([announcement(1, { title: "Changed title" }), announcement(2)], "en"));
   assert.deepEqual(
     newestFirst(two).map((entry) => entry.id),
     ["a2", "a1"],

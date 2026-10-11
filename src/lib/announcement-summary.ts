@@ -1,3 +1,4 @@
+import { contentHash } from "./content-hash.ts";
 import type { Announcement } from "./announcements.ts";
 import type { SummaryChoice } from "./summary-choice.ts";
 import type { ProviderId, SummaryItem, SummaryLocale, SummaryRequest } from "./summary-models.ts";
@@ -146,7 +147,7 @@ export async function requestSummary(
  */
 export function summarySignature(announcements: Announcement[], locale: SummaryLocale): string {
   return `${locale}\n${announcements
-    .map((announcement) => announcement.id)
+    .map((announcement) => announcement.id + ":" + contentHash(announcement.title + "\u0000" + announcement.body))
     .sort()
     .join("|")}`;
 }
