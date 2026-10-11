@@ -14,6 +14,14 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.33.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.33.2) — The README's project structure, up to date
+
+*Patch: documentation and one test. HuskyCT Helper is unchanged at 1.17.0.*
+
+### Fixed
+
+- **The README's project structure matches the repository again, and a test keeps it so.** The block listed 18 of the 59 files in `src/lib` in English and 11 in Chinese, 17 and 11 of the 35 components, and still named `effort.ts`, which is gone; `public/`, `tools/`, `scripts/` and the API routes were missing or old. Both READMEs are rewritten from the tree, and a test checks that every named file exists, that every component and library file is named, and that the two languages name the same ones. ([#195])
+
 ## [1.33.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.33.1) — How well the date finding works, in the README
 
 *Patch: documentation only. HuskyCT Helper is unchanged at 1.17.0.*
@@ -1885,3 +1893,4 @@ saying what to work on next.*
 [#190]: https://github.com/NoGod3524/betterhuskyct/pull/190
 [#191]: https://github.com/NoGod3524/betterhuskyct/pull/191
 [#193]: https://github.com/NoGod3524/betterhuskyct/pull/193
+[#195]: https://github.com/NoGod3524/betterhuskyct/pull/195
