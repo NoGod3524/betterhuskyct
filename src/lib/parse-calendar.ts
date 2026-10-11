@@ -7,6 +7,7 @@ import ical, {
 } from "node-ical";
 
 import type { CalendarImportResult, CalendarTask, TaskKind } from "./calendar-types.ts";
+import { OVERDUE_DAYS } from "./todo.ts";
 
 const MAX_EVENTS = 500;
 /** A daily meeting for about five months; far more than any real class. */
@@ -176,7 +177,9 @@ export async function parseCalendar(
   now: Date = new Date(),
 ): Promise<CalendarImportResult> {
   const parsed = await ical.async.parseICS(icsText);
-  const from = new Date(now.valueOf() - 24 * 60 * 60 * 1000);
+  // Back as far as the to-do list looks for what is overdue, so a refresh does not drop an unfinished
+  // deadline the list would still show in red.
+  const from = new Date(now.valueOf() - OVERDUE_DAYS * 24 * 60 * 60 * 1000);
   const to = new Date(now.valueOf() + FUTURE_WINDOW_MS);
   const tasks: CalendarTask[] = [];
 
