@@ -2,6 +2,7 @@ import type { Announcement } from "./announcements.ts";
 import { postedTime } from "./announcements.ts";
 import { dayKey, findDates, type Basis, type DateOption, type DayParts, type FoundDate } from "./announcement-dates.ts";
 import { sentencesOf } from "./announcement-sentences.ts";
+import { contentHash } from "./content-hash.ts";
 
 export { sentencesOf };
 
@@ -58,16 +59,6 @@ const SCHEDULED = /\b(?:will (?:be )?(?:held|given|take place|open|close|appear)
 const NAMED_WORK = /\b(quiz|exam|midterm|final exam|homework|hw|assignment|project|paper|essay|report|lab|problem set|presentation|worksheet|module|exercise|reading response)s?\s*#?\s*(\d{1,2}|[ivx]{1,4})?\b/i;
 
 const CHECK_BASIS: ReadonlySet<Basis> = new Set(["year-unknown", "order-ambiguous", "weekday-mismatch", "relative-unresolved", "range", "posting-unknown"]);
-
-/** FNV-1a, as hex: stable and cheap, as the announcements' own ids are. */
-function hash(value: string): string {
-  let accumulator = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    accumulator ^= value.charCodeAt(index);
-    accumulator = Math.imul(accumulator, 0x01000193);
-  }
-  return (accumulator >>> 0).toString(16).padStart(8, "0");
-}
 
 const oneLine = (value: string) => value.replace(/\s+/g, " ").trim();
 
@@ -184,7 +175,7 @@ function push(
   seen.add(key);
   const check = !found || date === null || kind === "mention" || basis.some((code) => CHECK_BASIS.has(code));
   out.push({
-    id: hash(`${announcement.id}|${kind}|${oneLine(sentence).toLowerCase()}|${found?.start ?? "x"}|${found && date ? dayKey(date) : ""}`),
+    id: contentHash(`${announcement.id}|${kind}|${oneLine(sentence).toLowerCase()}|${found?.start ?? "x"}|${found && date ? dayKey(date) : ""}`),
     announcementId: announcement.id,
     kind,
     title,

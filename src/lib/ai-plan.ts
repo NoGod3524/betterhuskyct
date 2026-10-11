@@ -224,22 +224,12 @@ function normalTitle(title: string): string {
   return title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
-/** FNV-1a, as hex: short, stable, and only ever compared with itself. */
-function hash(text: string): string {
-  let value = 0x811c9dc5;
-  for (let index = 0; index < text.length; index += 1) {
-    value ^= text.charCodeAt(index);
-    value = Math.imul(value, 0x01000193);
-  }
-  return (value >>> 0).toString(16).padStart(8, "0");
-}
-
 /**
  * The same exam found in the syllabus and again in an announcement gets the
  * same id, so it is offered once. A moved exam has a new date, and a new id.
  */
 export function suggestionId(course: string | null, title: string, date: string | null): string {
-  return "ai-" + hash(`${(course ?? "").toLowerCase()}|${normalTitle(title)}|${date ?? ""}`);
+  return "ai-" + contentHash(`${(course ?? "").toLowerCase()}|${normalTitle(title)}|${date ?? ""}`);
 }
 
 /** Words that say a day is off without saying which one: "No class", "Break", "Recess". */
