@@ -54,7 +54,7 @@ sealed one.
 ## Results
 
 Rules before this change, and after, on 88 announcements (85 distinct texts, 45 dev and 40 test).
-`test` holds 28 events, so a figure there is good to about ±15 points either way.
+`test` holds 28 events, so a figure there is uncertain by about ±13 points: see the intervals below.
 
 | | | precision | recall | F1 |
 | --- | --- | --- | --- | --- |
@@ -77,6 +77,39 @@ What the numbers say:
   is mostly an event in a sentence with no keyword, an event with no day in a weekly schedule, and
   labels that are arguable; the held-back misses were not read.
 
+## How sure the numbers are
+
+`score.cpp` (C++17, standard library only) scores the same events a second time and puts an interval on every
+figure: a percentile bootstrap over announcements, 5,000 resamples, seed 2026 (`std::mt19937_64`, so a seed gives the same intervals on any platform). Announcements are what is
+resampled because that is what was sampled; the events in one announcement are not independent of each
+other. With `--compare` it resamples the old and the new rules together and gives the interval of the
+*change*, which is what shows whether the improvement is more than luck.
+
+| held-back half (40 announcements, 28 events) | precision | recall | F1 |
+| --- | --- | --- | --- |
+| kind | 69.6% [50.0, 86.7] | 69.6% [52.4, 85.7] | 69.6% [54.2, 81.4] |
+| date | 66.7% [50.0, 81.1] | 71.4% [55.0, 86.2] | **69.0% [54.5, 79.2]** |
+| assisted | 66.7% [50.0, 81.8] | 71.4% [55.0, 85.7] | 69.0% [54.2, 79.4] |
+
+| change in F1 on the held-back half | before → after | change [95% interval] | better in |
+| --- | --- | --- | --- |
+| kind | 70.8% → 69.6% | −1.3 [−10.4, +9.1] | 35.2% of resamples |
+| date | 54.8% → 69.0% | **+14.2 [+4.3, +26.0]** | 99.9% of resamples |
+| assisted | 57.5% → 69.0% | +11.4 [+2.4, +21.7] | 99.4% of resamples |
+
+What this adds to the table above:
+
+- The day-level gain is unlikely to be chance: its interval does not reach zero. The level itself is still
+  uncertain: 69.0% could be anywhere from about 55% to 79% on this sample.
+- The kind-level figure did not change, and the interval says it could have gone either way.
+- On the tuning half the day-level change is +31.2 [+20.7, +43.1], larger because the rules were shaped
+  by it.
+- The intervals say how much the sample could have moved the numbers. They do not say anything about the
+  labels, which are a model's (see above), or about announcements from other courses or terms.
+
+The two implementations are tied together by a test (`tests/eval-cpp.test.ts`, which compiles `score.cpp` and is skipped where there is no C++ compiler): on a made-up set the
+counts and the rates must agree exactly with `common.ts`.
+
 ## What changed in the rules
 
 - A bare, "this" or "next" weekday is now worked out (the next such day after the posting; "next"
@@ -96,6 +129,11 @@ What the numbers say:
 node --experimental-strip-types --import ./tests/support/register-tsx.mjs scripts/eval-announcements/label.ts <dataDir> <keyFile>
 node --experimental-strip-types --import ./tests/support/register-tsx.mjs scripts/eval-announcements/agree.ts <dataDir>
 node --experimental-strip-types --import ./tests/support/register-tsx.mjs scripts/eval-announcements/score.ts <dataDir> [--errors]
+
+# the same scoring with intervals, from a file that holds no text
+node --experimental-strip-types --import ./tests/support/register-tsx.mjs scripts/eval-announcements/export.ts <dataDir>
+g++ -O2 -std=c++17 -o score scripts/eval-announcements/score.cpp
+./score <dataDir>/events.txt [--compare before.txt]
 ```
 
 `<dataDir>` holds `announcements.json`, the value of `huskypilot.announcements.v1` from the browser.
