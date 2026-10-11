@@ -14,6 +14,14 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.33.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.33.1) — How well the date finding works, in the README
+
+*Patch: documentation only. HuskyCT Helper is unchanged at 1.17.0.*
+
+### Changed
+
+- **The README says how well the date finding works, and how far to trust it.** Both READMEs gain a section on the held-out evaluation of the announcement rules: the data (88 real announcements, 800 sentences, labelled twice by a model, 17 sentences decided by hand), the held-back result (date-level F1 54.8% to 69.0%), and the limits: 28 events so about ±15 points, labels from a model and not independent human ones, the 97.9% agreement being over sentences that mostly hold no event, English only. ([#193])
+
 ## [1.33.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.33.0) — Less to carry: two ways in are gone
 
 *Minor: two features removed. HuskyCT Helper is unchanged at 1.17.0.*
@@ -1876,3 +1884,4 @@ saying what to work on next.*
 [#189]: https://github.com/NoGod3524/betterhuskyct/pull/189
 [#190]: https://github.com/NoGod3524/betterhuskyct/pull/190
 [#191]: https://github.com/NoGod3524/betterhuskyct/pull/191
+[#193]: https://github.com/NoGod3524/betterhuskyct/pull/193
