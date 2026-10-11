@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { groupTasks } from "../src/lib/calendar-view.ts";
+import { buildTodo, OVERDUE_DAYS } from "../src/lib/todo.ts";
 import { parseCalendar } from "../src/lib/parse-calendar.ts";
 import { fetchCalendarText, SafeFetchError } from "../src/lib/safe-fetch.ts";
 
@@ -85,6 +86,38 @@ END:VCALENDAR`;
   assert.equal(groups[0].tasks.some((event) => event.course === "CSE 2050"), true);
   assert.equal(groups[1].tasks[0].course, "ENGL 1007");
   assert.equal(groups[2].tasks.some((event) => event.course === "ECON 1201"), true);
+});
+
+test("a refresh keeps an unfinished deadline for as long as the to-do list calls it overdue, and no longer", async () => {
+  const now = new Date(2026, 8, 25, 9, 0, 0);
+  const event = (uid: string, days: number) => `BEGIN:VEVENT
+UID:${uid}
+DTSTAMP:20260801T120000Z
+DTSTART:${icsDate(addDays(now, days, 18))}
+SUMMARY:${uid}
+END:VEVENT`;
+  const calendar = `BEGIN:VCALENDAR
+VERSION:2.0
+${event("two-days-ago", -2)}
+${event("last-day-of-the-window", -(OVERDUE_DAYS - 1))}
+${event("past-the-window", -(OVERDUE_DAYS + 2))}
+${event("tomorrow", 1)}
+BEGIN:VTODO
+UID:todo-overdue
+DTSTAMP:20260801T120000Z
+DUE:${icsDate(addDays(now, -5, 18))}
+SUMMARY:todo-overdue
+STATUS:NEEDS-ACTION
+END:VTODO
+END:VCALENDAR`;
+
+  const parsed = await parseCalendar(calendar, now);
+  const titles = parsed.events.map((entry) => entry.title).sort();
+  assert.deepEqual(titles, ["last-day-of-the-window", "todo-overdue", "tomorrow", "two-days-ago"]);
+
+  // And the list the student sees shows them as overdue, not as missing.
+  const todo = buildTodo(parsed.events, new Set(), now);
+  assert.deepEqual(todo.open.overdue.map((entry) => entry.title).sort(), ["last-day-of-the-window", "todo-overdue", "two-days-ago"]);
 });
 
 /**
