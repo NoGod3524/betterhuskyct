@@ -525,3 +525,70 @@ test("a link an earlier version kept after the box was unticked is removed when 
   assert.equal(app.calendar.tasks.some((task) => task.title === "Section 4.1 Homework"), true, "the imported event was lost");
   await app.unmount();
 });
+
+const OWN_EVENT = {
+  title: "Read chapter 5",
+  course: null,
+  start: "2026-09-20T18:00:00.000Z",
+  end: null,
+  allDay: false,
+  location: null,
+  note: null,
+};
+const addOwn = async (app: Awaited<ReturnType<typeof mount>>) => {
+  let id = "";
+  await act(async () => {
+    id = app.calendar.addCustomEvent(OWN_EVENT);
+  });
+  return id;
+};
+
+test("a task the student added and ticked is still ticked after a reload, with a calendar imported", async () => {
+  const app = await mount();
+  await importOneTask(app);
+  const own = await addOwn(app);
+  await act(async () => app.calendar.toggleTaskCompletion(own));
+  assert.equal(app.calendar.doneIds.has(own), true);
+  await app.unmount();
+
+  const again = await mount();
+  assert.equal(again.calendar.isImported, true);
+  assert.equal(again.calendar.doneIds.has(own), true, "the tick on the student's own task was lost on reload");
+  await again.unmount();
+});
+
+test("a tick on the student's own task survives the first import, and unticking it is remembered too", async () => {
+  const app = await mount();
+  assert.equal(app.calendar.isImported, false);
+  const own = await addOwn(app);
+  await act(async () => app.calendar.toggleTaskCompletion(own));
+  assert.equal(app.calendar.doneIds.has(own), true);
+
+  await importOneTask(app);
+  assert.equal(app.calendar.doneIds.has(own), true, "the import took the tick away");
+  await app.unmount();
+
+  const again = await mount();
+  assert.equal(again.calendar.doneIds.has(own), true);
+  await act(async () => again.calendar.toggleTaskCompletion(own));
+  assert.equal(again.calendar.doneIds.has(own), false);
+  await again.unmount();
+
+  const last = await mount();
+  assert.equal(last.calendar.doneIds.has(own), false, "an unticked task came back ticked");
+  await last.unmount();
+});
+
+test("a tick on an imported task and one on the student's own task are kept apart, and each stays", async () => {
+  const app = await mount();
+  const imported = await importOneTask(app);
+  const own = await addOwn(app);
+  await act(async () => app.calendar.toggleTaskCompletion(imported));
+  await act(async () => app.calendar.toggleTaskCompletion(own));
+  await app.unmount();
+
+  const again = await mount();
+  assert.equal(again.calendar.doneIds.has(imported), true);
+  assert.equal(again.calendar.doneIds.has(own), true);
+  await again.unmount();
+});
