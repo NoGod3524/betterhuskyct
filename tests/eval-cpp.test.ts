@@ -8,12 +8,18 @@ import test from "node:test";
 import { add, KINDS, rates, score, zero, type Event, type Level } from "../scripts/eval-announcements/common.ts";
 
 /**
- * score.py is a second implementation of the scoring in common.ts, there so that the numbers can be
+ * score.cpp is a second implementation of the scoring in common.ts, there so that the numbers can be
  * recomputed without the app and so that they carry intervals. The two must agree exactly, so this
- * scores a made-up set with both and compares the counts. Skipped where there is no Python.
+ * scores a made-up set with both and compares the counts. Skipped where there is no C++ compiler.
  */
-const python = ["python", "python3", "py"].find((name) => spawnSync(name, ["--version"]).status === 0);
-const SCRIPT = "scripts/eval-announcements/score.py";
+const compiler = ["g++", "c++", "clang++"].find((name) => spawnSync(name, ["--version"]).status === 0);
+const work = mkdtempSync(join(tmpdir(), "eval-cpp-"));
+const binary = join(work, process.platform === "win32" ? "score.exe" : "score");
+
+if (compiler) {
+  const built = spawnSync(compiler, ["-O2", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-o", binary, "scripts/eval-announcements/score.cpp"], { encoding: "utf8" });
+  assert.equal(built.status, 0, `score.cpp does not compile: ${built.stderr}`);
+}
 
 type Row = { split: "dev" | "test"; gold: Event[]; predicted: Array<Event & { choices: string[] }> };
 
@@ -48,18 +54,6 @@ function madeUp(count: number, seed = 7): Row[] {
   });
 }
 
-function write(rows: Row[], name: string): string {
-  const path = join(mkdtempSync(join(tmpdir(), "eval-")), name);
-  writeFileSync(path, JSON.stringify({ version: 1, announcements: rows }));
-  return path;
-}
-
-function run(args: string[]) {
-  const done = spawnSync(python!, [SCRIPT, ...args, "--resamples", "300"], { encoding: "utf8" });
-  assert.equal(done.status, 0, done.stderr);
-  return done;
-}
-
 /** The cases the random set rarely reaches: a day left open whose right day is also suggested on its own. */
 const EDGES: Row[] = [
   { split: "test", gold: [{ kind: "quiz", date: "2026-10-09" }], predicted: [{ kind: "quiz", date: null, choices: ["2026-10-09"] }, { kind: "quiz", date: "2026-10-09", choices: [] }] },
@@ -68,9 +62,28 @@ const EDGES: Row[] = [
   { split: "dev", gold: [], predicted: [] },
 ];
 
-test("score.py counts exactly what the TypeScript scoring counts", { skip: !python }, () => {
+/** The text format export.ts writes. */
+function write(rows: Row[], name: string): string {
+  const lines: string[] = [];
+  for (const row of rows) {
+    lines.push(`A ${row.split}`);
+    for (const e of row.gold) lines.push(`G ${e.kind} ${e.date ?? "-"}`);
+    for (const e of row.predicted) lines.push(`P ${e.kind} ${e.date ?? "-"} ${e.choices.length > 0 ? e.choices.join(",") : "-"}`);
+  }
+  const path = join(work, name);
+  writeFileSync(path, lines.join("\n") + "\n");
+  return path;
+}
+
+function run(args: string[]) {
+  const done = spawnSync(binary, [...args, "--resamples", "300"], { encoding: "utf8" });
+  assert.equal(done.status, 0, done.stderr);
+  return done;
+}
+
+test("score.cpp counts exactly what the TypeScript scoring counts", { skip: !compiler }, () => {
   const rows = [...madeUp(60), ...EDGES];
-  const result = JSON.parse(run([write(rows, "events.json"), "--json"]).stdout);
+  const result = JSON.parse(run([write(rows, "events.txt"), "--json"]).stdout);
 
   for (const part of ["dev", "test"] as const) {
     const totals: Record<Level, ReturnType<typeof zero>> = { kind: zero(), date: zero(), assisted: zero() };
@@ -90,10 +103,11 @@ test("score.py counts exactly what the TypeScript scoring counts", { skip: !pyth
   }
 });
 
-test("the interval is repeatable, holds the point estimate, and an unchanged version shows no change", { skip: !python }, () => {
-  const file = write(madeUp(60), "events.json");
+test("the interval is repeatable, holds the point estimate, and an unchanged version shows no change", { skip: !compiler }, () => {
+  const file = write(madeUp(60), "events.txt");
   const first = run([file, "--json"]).stdout;
   assert.equal(run([file, "--json"]).stdout, first, "the same seed gave a different interval");
+  assert.notEqual(run([file, "--json", "--seed", "1"]).stdout, first, "the seed changes nothing");
 
   const date = JSON.parse(first).test.levels.date;
   assert.ok(date.ci95.f1[0] <= date.f1 && date.f1 <= date.ci95.f1[1], "the F1 is outside its own interval");
@@ -102,17 +116,17 @@ test("the interval is repeatable, holds the point estimate, and an unchanged ver
   for (const level of ["kind", "date", "assisted"]) assert.equal(same.test.vsBefore[level].change, 0, level);
 });
 
-test("a change in the rules shows as a change, and files of different announcements are refused", { skip: !python }, () => {
+test("a change in the rules shows as a change, and files of different announcements are refused", { skip: !compiler }, () => {
   const rows = madeUp(60);
   // The "after" rules suggest exactly the gold events; the "before" rules suggested one thing that
   // was never there and found at most one of the real ones.
   const gold = (row: Row) => row.gold.map((event) => ({ ...event, choices: [] }));
   const afterRows = rows.map((row) => ({ ...row, predicted: gold(row) }));
   const before = rows.map((row) => ({ ...row, predicted: [{ kind: "quiz" as const, date: "2099-01-01", choices: [] }, ...gold(row).slice(0, 1)] }));
-  const result = JSON.parse(run([write(afterRows, "after.json"), "--compare", write(before, "before.json"), "--json"]).stdout);
+  const result = JSON.parse(run([write(afterRows, "after.txt"), "--compare", write(before, "before.txt"), "--json"]).stdout);
   assert.ok(result.test.vsBefore.date.change > 0, "suggesting the right things did not improve on suggesting one wrong thing");
 
-  const other = spawnSync(python!, [SCRIPT, write(rows, "a.json"), "--compare", write(madeUp(30, 99), "b.json")], { encoding: "utf8" });
+  const other = spawnSync(binary, [write(rows, "a.txt"), "--compare", write(madeUp(30, 99), "b.txt")], { encoding: "utf8" });
   assert.notEqual(other.status, 0);
   assert.match(other.stderr, /not the same announcements/);
 });

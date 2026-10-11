@@ -79,35 +79,35 @@ What the numbers say:
 
 ## How sure the numbers are
 
-`score.py` (Python, standard library only) scores the same events a second time and puts an interval on every
-figure: a percentile bootstrap over announcements, 5,000 resamples, seed 2026. Announcements are what is
+`score.cpp` (C++17, standard library only) scores the same events a second time and puts an interval on every
+figure: a percentile bootstrap over announcements, 5,000 resamples, seed 2026 (`std::mt19937_64`, so a seed gives the same intervals on any platform). Announcements are what is
 resampled because that is what was sampled; the events in one announcement are not independent of each
 other. With `--compare` it resamples the old and the new rules together and gives the interval of the
 *change*, which is what shows whether the improvement is more than luck.
 
 | held-back half (40 announcements, 28 events) | precision | recall | F1 |
 | --- | --- | --- | --- |
-| kind | 69.6% [52.0, 86.7] | 69.6% [52.6, 86.4] | 69.6% [54.5, 81.6] |
-| date | 66.7% [50.0, 82.1] | 71.4% [55.0, 85.7] | **69.0% [53.8, 79.2]** |
-| assisted | 66.7% [50.0, 81.8] | 71.4% [55.0, 86.0] | 69.0% [54.5, 79.4] |
+| kind | 69.6% [50.0, 86.7] | 69.6% [52.4, 85.7] | 69.6% [54.2, 81.4] |
+| date | 66.7% [50.0, 81.1] | 71.4% [55.0, 86.2] | **69.0% [54.5, 79.2]** |
+| assisted | 66.7% [50.0, 81.8] | 71.4% [55.0, 85.7] | 69.0% [54.2, 79.4] |
 
 | change in F1 on the held-back half | before → after | change [95% interval] | better in |
 | --- | --- | --- | --- |
-| kind | 70.8% → 69.6% | −1.3 [−10.9, +9.1] | 37.8% of resamples |
-| date | 54.8% → 69.0% | **+14.2 [+4.8, +25.8]** | 100.0% of resamples |
-| assisted | 57.5% → 69.0% | +11.4 [+2.7, +21.8] | 99.6% of resamples |
+| kind | 70.8% → 69.6% | −1.3 [−10.4, +9.1] | 35.2% of resamples |
+| date | 54.8% → 69.0% | **+14.2 [+4.3, +26.0]** | 99.9% of resamples |
+| assisted | 57.5% → 69.0% | +11.4 [+2.4, +21.7] | 99.4% of resamples |
 
 What this adds to the table above:
 
 - The day-level gain is unlikely to be chance: its interval does not reach zero. The level itself is still
-  uncertain: 69.0% could be anywhere from about 54% to 79% on this sample.
+  uncertain: 69.0% could be anywhere from about 55% to 79% on this sample.
 - The kind-level figure did not change, and the interval says it could have gone either way.
-- On the tuning half the day-level change is +31.2 [+21.2, +42.8], larger because the rules were shaped
+- On the tuning half the day-level change is +31.2 [+20.7, +43.1], larger because the rules were shaped
   by it.
 - The intervals say how much the sample could have moved the numbers. They do not say anything about the
   labels, which are a model's (see above), or about announcements from other courses or terms.
 
-The two implementations are tied together by a test (`tests/eval-python.test.ts`): on a made-up set the
+The two implementations are tied together by a test (`tests/eval-cpp.test.ts`, which compiles `score.cpp` and is skipped where there is no C++ compiler): on a made-up set the
 counts and the rates must agree exactly with `common.ts`.
 
 ## What changed in the rules
@@ -132,7 +132,8 @@ node --experimental-strip-types --import ./tests/support/register-tsx.mjs script
 
 # the same scoring with intervals, from a file that holds no text
 node --experimental-strip-types --import ./tests/support/register-tsx.mjs scripts/eval-announcements/export.ts <dataDir>
-python scripts/eval-announcements/score.py <dataDir>/events.json [--compare before.json]
+g++ -O2 -std=c++17 -o score scripts/eval-announcements/score.cpp
+./score <dataDir>/events.txt [--compare before.txt]
 ```
 
 `<dataDir>` holds `announcements.json`, the value of `huskypilot.announcements.v1` from the browser.
