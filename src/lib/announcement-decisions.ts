@@ -91,12 +91,6 @@ export function undismiss(decisions: Decisions, candidateId: string): Decisions 
 
 export const markAdded = (decisions: Decisions, candidateId: string, added: Added): Decisions => ({ ...decisions, added: { ...decisions.added, [candidateId]: added } });
 
-export function forgetAdded(decisions: Decisions, candidateId: string): Decisions {
-  const added = { ...decisions.added };
-  delete added[candidateId];
-  return { ...decisions, added };
-}
-
 /** The student has looked at an announcement's latest change. */
 export const markReviewed = (decisions: Decisions, announcementId: string, versionAt: string): Decisions => ({ ...decisions, reviewed: { ...decisions.reviewed, [announcementId]: versionAt } });
 
