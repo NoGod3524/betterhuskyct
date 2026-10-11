@@ -14,6 +14,14 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.33.3](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.33.3) — Intervals on the date-finding numbers
+
+*Patch: evaluation scripts, a test and documentation. The app and HuskyCT Helper (1.17.0) are unchanged.*
+
+### Added
+
+- **A scorer that gives each number a 95% interval, and says whether a change is real.** `scripts/eval-announcements/score.cpp` reads a text file of events (written by `export.ts`, with no announcement text in it) and prints precision, recall and F1 for the dev and test halves at the kind, date and assisted levels, each with a bootstrap interval over announcements. `--compare before.txt` adds a paired bootstrap of the change in F1. It is C++, so it needs only a compiler, and a test compiles it and checks that its counts equal the TypeScript scoring on made-up data. The README's results now carry the intervals (day-level F1 69.0%, 95% [54.5, 79.2]). ([#197])
+
 ## [1.33.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.33.2) — The README's project structure, up to date
 
 *Patch: documentation and one test. HuskyCT Helper is unchanged at 1.17.0.*
@@ -1894,3 +1902,4 @@ saying what to work on next.*
 [#191]: https://github.com/NoGod3524/betterhuskyct/pull/191
 [#193]: https://github.com/NoGod3524/betterhuskyct/pull/193
 [#195]: https://github.com/NoGod3524/betterhuskyct/pull/195
+[#197]: https://github.com/NoGod3524/betterhuskyct/pull/197
