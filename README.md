@@ -56,6 +56,14 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 
 Press **Sync** at the top of the page. The first time, set up the browser helper (the **Helper** page walks through it): a Tampermonkey userscript, or a small extension for Chrome and Edge loaded unpacked. It runs on HuskyCT's own pages in your signed-in session, reads your courses' deadlines, announcements, files and grades, and hands them to this page tab to tab. The page accepts them only from HuskyCT's own origins.
 
+## How well does the date finding work?
+
+The to-dos suggested from an announcement ("Possible to-dos in this announcement") come from plain rules, not a model, and the rules were measured rather than assumed. [`scripts/eval-announcements`](./scripts/eval-announcements/README.md) holds the method and the totals.
+
+- **Data:** 88 real announcements from five courses (85 distinct texts), cut into 800 sentences. A language model labelled them twice with two differently worded instructions; the 17 sentences where the two passes differed were decided by hand, and the rules were tuned on half the announcements and scored on the other half, whose errors were never read.
+- **Result, on the held-back half:** finding the right kind of event on the right day went from F1 54.8% to 69.0% (precision 44.4% to 66.7%, recall 71.4% to 71.4%) after fixing what the misses showed. The kind alone stayed about 70%.
+- **How far to trust it:** that half has 28 events, so a figure is good to about ±15 points. The labels are a model's, checked by one reader (an assistant), not by the student, and not independent human labels. The two labelling passes agreed on 97.9% of sentences, but most sentences hold no event; on the events themselves they agreed with precision 87% and recall 93%. The rules read English only. It shows the rules are better than they were, not that 69% of a student's tasks come out right.
+
 ## Architecture
 
 A static Next.js app that keeps its data in the browser. The server has three small routes and holds none of your data:
