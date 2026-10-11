@@ -1,146 +1,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { CalendarTask } from "../src/lib/calendar-types.ts";
 import { groupTasks } from "../src/lib/calendar-view.ts";
-import { buildTodo, OVERDUE_DAYS } from "../src/lib/todo.ts";
-import { parseCalendar } from "../src/lib/parse-calendar.ts";
-import { fetchCalendarText, SafeFetchError } from "../src/lib/safe-fetch.ts";
 
-function addDays(value: Date, days: number, hour: number) {
-  const copy = new Date(value.getFullYear(), value.getMonth(), value.getDate() + days, hour);
-  return copy;
+function at(now: Date, days: number, hour: number) {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, hour);
 }
 
-function icsDate(value: Date) {
-  return value
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/\.\d{3}Z$/, "Z");
+function task(id: string, start: Date, course: string, overrides: Partial<CalendarTask> = {}): CalendarTask {
+  return { id, title: id, course, start: start.toISOString(), dateKey: null, end: null, allDay: false, location: null, kind: "assignment", ...overrides };
 }
 
-test("parses, sorts and groups future VEVENT and VTODO items", async () => {
+test("tasks are grouped into today, tomorrow and later this week, each in time order", () => {
   const now = new Date(2026, 8, 1, 9, 0, 0);
-  const calendar = `BEGIN:VCALENDAR
-VERSION:2.0
-X-WR-CALNAME:HuskyCT Test Calendar
-BEGIN:VEVENT
-UID:today
-DTSTAMP:20260801T120000Z
-DTSTART:${icsDate(addDays(now, 0, 14))}
-SUMMARY:CSE 2050: Problem Set 1
-END:VEVENT
-BEGIN:VEVENT
-UID:tomorrow
-DTSTAMP:20260801T120000Z
-DTSTART:${icsDate(addDays(now, 1, 11))}
-SUMMARY:[ENGL 1007] Reading response
-END:VEVENT
-BEGIN:VEVENT
-UID:week
-DTSTAMP:20260801T120000Z
-DTSTART:${icsDate(addDays(now, 3, 16))}
-SUMMARY:Chapter quiz
-CATEGORIES:ECON 1201
-END:VEVENT
-BEGIN:VEVENT
-UID:cancelled
-DTSTAMP:20260801T120000Z
-DTSTART:${icsDate(addDays(now, 2, 12))}
-SUMMARY:Cancelled task
-STATUS:CANCELLED
-END:VEVENT
-BEGIN:VTODO
-UID:todo
-DTSTAMP:20260801T120000Z
-DUE:${icsDate(addDays(now, 6, 18))}
-SUMMARY:MATH 2110Q: Practice quiz
-STATUS:NEEDS-ACTION
-END:VTODO
-BEGIN:VEVENT
-UID:all-day
-DTSTAMP:20260801T120000Z
-DTSTART;VALUE=DATE:20260901
-SUMMARY:All-day reminder
-END:VEVENT
-END:VCALENDAR`;
-
-  const parsed = await parseCalendar(calendar, now);
-  assert.equal(parsed.calendarName, "HuskyCT Test Calendar");
-  assert.equal(parsed.events.some((event) => event.title === "Cancelled task"), false);
-  assert.deepEqual(
-    parsed.events.map((event) => event.start),
-    [...parsed.events]
-      .sort((left, right) => Date.parse(left.start) - Date.parse(right.start))
-      .map((event) => event.start),
+  const groups = groupTasks(
+    [
+      task("later", at(now, 6, 18), "ECON 1201"),
+      task("this-afternoon", at(now, 0, 14), "CSE 2050"),
+      task("tomorrow", at(now, 1, 16), "ENGL 1007"),
+      task("three-days", at(now, 3, 16), "ECON 1201"),
+      task("a-month-away", at(now, 30, 12), "MATH 2110Q"),
+    ],
+    now,
   );
 
-  const allDay = parsed.events.find((event) => event.id.startsWith("all-day:"));
-  assert.equal(allDay?.allDay, true);
-  assert.equal(allDay?.dateKey, "2026-09-01");
-
-  const groups = groupTasks(parsed.events, now);
   assert.deepEqual(
-    groups.map((group) => group.tasks.length),
-    [2, 1, 2],
+    groups.map((group) => group.tasks.map((entry) => entry.id)),
+    [["this-afternoon"], ["tomorrow"], ["three-days", "later"]],
   );
-  assert.equal(groups[0].tasks.some((event) => event.course === "CSE 2050"), true);
-  assert.equal(groups[1].tasks[0].course, "ENGL 1007");
-  assert.equal(groups[2].tasks.some((event) => event.course === "ECON 1201"), true);
-});
-
-test("a refresh keeps an unfinished deadline for as long as the to-do list calls it overdue, and no longer", async () => {
-  const now = new Date(2026, 8, 25, 9, 0, 0);
-  const event = (uid: string, days: number) => `BEGIN:VEVENT
-UID:${uid}
-DTSTAMP:20260801T120000Z
-DTSTART:${icsDate(addDays(now, days, 18))}
-SUMMARY:${uid}
-END:VEVENT`;
-  const calendar = `BEGIN:VCALENDAR
-VERSION:2.0
-${event("two-days-ago", -2)}
-${event("last-day-of-the-window", -(OVERDUE_DAYS - 1))}
-${event("past-the-window", -(OVERDUE_DAYS + 2))}
-${event("tomorrow", 1)}
-BEGIN:VTODO
-UID:todo-overdue
-DTSTAMP:20260801T120000Z
-DUE:${icsDate(addDays(now, -5, 18))}
-SUMMARY:todo-overdue
-STATUS:NEEDS-ACTION
-END:VTODO
-END:VCALENDAR`;
-
-  const parsed = await parseCalendar(calendar, now);
-  const titles = parsed.events.map((entry) => entry.title).sort();
-  assert.deepEqual(titles, ["last-day-of-the-window", "todo-overdue", "tomorrow", "two-days-ago"]);
-
-  // And the list the student sees shows them as overdue, not as missing.
-  const todo = buildTodo(parsed.events, new Set(), now);
-  assert.deepEqual(todo.open.overdue.map((entry) => entry.title).sort(), ["last-day-of-the-window", "todo-overdue", "two-days-ago"]);
-});
-
-/**
- * A date-only DTSTART carries no zone: 20260901 is the first of September
- * wherever the reader is. This passes in any zone now — it did not always, and
- * the reason CI runs the suite a second time east of UTC is this test.
- */
-test("an all-day entry keeps the date the file wrote, wherever this runs", async () => {
-  const calendar = `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:all-day
-DTSTAMP:20260801T120000Z
-DTSTART;VALUE=DATE:20260901
-SUMMARY:All-day reminder
-END:VEVENT
-END:VCALENDAR`;
-
-  const parsed = await parseCalendar(calendar, new Date(2026, 8, 1, 9, 0, 0));
-  const allDay = parsed.events[0];
-
-  assert.equal(allDay.allDay, true);
-  assert.equal(allDay.dateKey, "2026-09-01");
 });
 
 test("hides timed events earlier today but keeps all-day events for today", () => {
@@ -176,100 +64,4 @@ test("hides timed events earlier today but keeps all-day events for today", () =
   );
   assert.equal(groups[0].tasks.some((event) => event.id === "timed-earlier-today"), false);
   assert.equal(groups[0].tasks.some((event) => event.id === "all-day-today"), true);
-});
-
-test("parses bracketed course names from event titles", async () => {
-  const now = new Date(2026, 8, 1, 9, 0, 0);
-  const calendar = `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:chem
-DTSTAMP:20260801T120000Z
-DTSTART:${icsDate(addDays(now, 0, 14))}
-SUMMARY:[CHEM 1127Q] Lab report
-END:VEVENT
-END:VCALENDAR`;
-
-  const parsed = await parseCalendar(calendar, now);
-  const task = parsed.events[0];
-
-  assert.equal(task.course, "CHEM 1127Q");
-  assert.equal(task.title, "Lab report");
-});
-
-test("rejects non-HTTPS and private-network calendar targets", async () => {
-  await assert.rejects(
-    () => fetchCalendarText("http://example.com/calendar.ics"),
-    (error) => error instanceof SafeFetchError && /HTTPS/.test(error.message),
-  );
-  await assert.rejects(
-    () => fetchCalendarText("https://127.0.0.1/calendar.ics"),
-    (error) => error instanceof SafeFetchError && /not allowed/.test(error.message),
-  );
-});
-
-/**
- * A feed with one real deadline and one recurring event, as a string.
- *
- * The recurring event is the variable: each test picks a rule that used to hurt
- * the deadline next to it.
- */
-function feedWithRecurring(rule: string) {
-  return `BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:real-deadline
-DTSTAMP:20260901T120000Z
-DTSTART:20261120T235900Z
-SUMMARY:Final project
-END:VEVENT
-BEGIN:VEVENT
-UID:noisy
-DTSTAMP:20260901T120000Z
-DTSTART:20260920T000000Z
-RRULE:${rule}
-SUMMARY:Office hours ping
-END:VEVENT
-END:VCALENDAR`;
-}
-
-test("a recurring rule the expander refuses costs that event, not the calendar", async () => {
-  // FREQ=MINUTELY trips node-ical's 10,000-iteration guard; this used to throw
-  // out of parseCalendar and fail the whole import with a 422.
-  const parsed = await parseCalendar(
-    feedWithRecurring("FREQ=MINUTELY"),
-    new Date("2026-09-24T12:00:00Z"),
-  );
-
-  assert.deepEqual(
-    parsed.events.map((event) => event.title),
-    ["Final project"],
-  );
-});
-
-test("one frequent recurring event cannot crowd real deadlines out of the import", async () => {
-  // Hourly from September: without a per-event cap it fills all 500 slots by
-  // mid-October, and a November deadline is cut off.
-  const parsed = await parseCalendar(
-    feedWithRecurring("FREQ=HOURLY"),
-    new Date("2026-09-24T12:00:00Z"),
-  );
-
-  assert.ok(
-    parsed.events.some((event) => event.title === "Final project"),
-    "the November deadline was truncated by the hourly event",
-  );
-  assert.ok(parsed.events.filter((event) => event.title === "Office hours ping").length <= 150);
-});
-
-test("a class meeting that recurs all term still arrives whole", async () => {
-  const parsed = await parseCalendar(
-    feedWithRecurring("FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=45"),
-    new Date("2026-09-20T00:00:00Z"),
-  );
-
-  assert.equal(
-    parsed.events.filter((event) => event.title === "Office hours ping").length,
-    45,
-  );
 });

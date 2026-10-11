@@ -1,22 +1,15 @@
 import type { CalendarTask } from "./calendar-types.ts";
-import {
-  IMPORT_STORAGE_KEY,
-  isCalendarTask,
-  parseStoredImportPayload,
-} from "./import-storage.ts";
-import {
-  CALENDAR_SOURCE_STORAGE_KEY,
-  parseStoredSource,
-} from "./calendar-source.ts";
+import { isCalendarTask } from "./calendar-task.ts";
 import { isRecord } from "./is-record.ts";
 
 export const SUBSCRIPTIONS_STORAGE_KEY = "huskypilot.subscriptions.v1";
 
 /**
- * Whether new links should be remembered. A preference, not a secret: the URLs
- * themselves live inside the subscriptions that were added while it was on.
+ * Keys that earlier versions wrote and nothing reads now: a remembered calendar link, the choice to
+ * remember it, and the single calendar of the first versions. The link was a private address, so
+ * they are removed when the app opens rather than left behind.
  */
-export const REMEMBER_SOURCE_KEY = "huskypilot.rememberSource.v1";
+const RETIRED_KEYS = ["huskypilot.rememberSource.v1", "huskypilot.importedCalendar.v1", "huskypilot.calendarSource.v1"];
 
 const SUBSCRIPTIONS_VERSION = 1;
 
@@ -24,29 +17,17 @@ const SUBSCRIPTIONS_VERSION = 1;
 export const MAX_SUBSCRIPTIONS = 8;
 
 /**
- * One calendar the user added, from a link or from a downloaded `.ics` file.
+ * One calendar a sync brought, with the events cached here: that is what the app renders.
  *
- * HuskyCT issues a feed per course, so a semester is several subscriptions, not
- * one. The events are cached here — that is what the app actually renders — and
- * the URL is kept only when the user opted in to remembering it, which is what
- * makes a refresh possible on the next visit.
+ * HuskyCT has a feed per course, so a semester can be several subscriptions, not one.
  */
 export type Subscription = {
   id: string;
-  /**
-   * What to call this calendar on screen. A file import is named after the file
-   * — five Blackboard exports all announce themselves as "University of
-   * Connecticut", which is no help at all — and a link import after the feed's
-   * own `X-WR-CALNAME`.
-   */
+  /** What to call this calendar on screen. */
   name: string | null;
   /** The course this feed belongs to, when the user has said which. */
   courseId: string | null;
-  /** `null` when the user chose not to remember this link. */
-  url: string | null;
   importedAt: string;
-  /** The last refresh failure, cleared by the next success. */
-  lastError: string | null;
   events: CalendarTask[];
 };
 
@@ -74,9 +55,7 @@ function parseSubscription(value: unknown): Subscription | null {
     id: value.id,
     name: typeof value.name === "string" ? value.name : null,
     courseId: typeof value.courseId === "string" ? value.courseId : null,
-    url: typeof value.url === "string" ? value.url : null,
     importedAt: value.importedAt,
-    lastError: typeof value.lastError === "string" ? value.lastError : null,
     events: value.events,
   };
 }
@@ -117,110 +96,25 @@ export function saveSubscriptions(storage: Storage, subscriptions: Subscription[
 
 export function clearSubscriptions(storage: Storage) {
   storage.removeItem(SUBSCRIPTIONS_STORAGE_KEY);
-  storage.removeItem(IMPORT_STORAGE_KEY);
-  storage.removeItem(CALENDAR_SOURCE_STORAGE_KEY);
-}
-
-export function restoreRememberSource(storage: Storage): boolean {
-  return storage.getItem(REMEMBER_SOURCE_KEY) === "true";
-}
-
-export function saveRememberSource(storage: Storage, remember: boolean) {
-  storage.setItem(REMEMBER_SOURCE_KEY, remember ? "true" : "false");
-}
-
-/**
- * Upgrades the 1.0.x single-import and remembered-URL keys into one
- * subscription, so an existing user keeps both their tasks and their refresh.
- */
-export function migrateLegacyImport(storage: Storage): Subscription[] | null {
-  const raw = storage.getItem(IMPORT_STORAGE_KEY);
-  const sourceRaw = storage.getItem(CALENDAR_SOURCE_STORAGE_KEY);
-  if (!raw) {
-    storage.removeItem(CALENDAR_SOURCE_STORAGE_KEY);
-    return null;
-  }
-
-  const parsed = parseStoredImportPayload(raw);
-  const source = sourceRaw ? parseStoredSource(sourceRaw) : null;
-  storage.removeItem(IMPORT_STORAGE_KEY);
-  storage.removeItem(CALENDAR_SOURCE_STORAGE_KEY);
-  if (!parsed) return null;
-
-  const subscriptions: Subscription[] = [
-    {
-      id: newSubscriptionId(),
-      name: parsed.calendarName,
-      courseId: null,
-      url: source?.url ?? null,
-      importedAt: parsed.importedAt,
-      lastError: null,
-      events: parsed.events,
-    },
-  ];
-  saveSubscriptions(storage, subscriptions);
-  return subscriptions;
 }
 
 export function restoreSubscriptions(storage: Storage): {
   subscriptions: Subscription[];
   recoveredFromCorruptData: boolean;
 } {
+  for (const key of RETIRED_KEYS) storage.removeItem(key);
   const raw = storage.getItem(SUBSCRIPTIONS_STORAGE_KEY);
-  if (!raw) {
-    const migrated = migrateLegacyImport(storage);
-    return { subscriptions: migrated ?? [], recoveredFromCorruptData: false };
-  }
+  if (!raw) return { subscriptions: [], recoveredFromCorruptData: false };
 
   const parsed = parseStoredSubscriptions(raw);
-  if (parsed) return { subscriptions: parsed, recoveredFromCorruptData: false };
+  if (parsed) {
+    // A calendar saved while links were remembered still holds its address: write it back without.
+    if (/"(?:url|lastError)"\s*:/.test(raw)) saveSubscriptions(storage, parsed);
+    return { subscriptions: parsed, recoveredFromCorruptData: false };
+  }
 
   clearSubscriptions(storage);
   return { subscriptions: [], recoveredFromCorruptData: true };
-}
-
-export function addSubscription(
-  subscriptions: Subscription[],
-  result: {
-    calendarName: string | null;
-    importedAt: string;
-    events: CalendarTask[];
-  },
-  options: { courseId?: string | null; url?: string | null; name?: string | null } = {},
-): Subscription[] {
-  if (subscriptions.length >= MAX_SUBSCRIPTIONS) return subscriptions;
-
-  return [
-    ...subscriptions,
-    {
-      id: newSubscriptionId(),
-      name: options.name ?? result.calendarName,
-      courseId: options.courseId ?? null,
-      url: options.url ?? null,
-      importedAt: result.importedAt,
-      lastError: null,
-      events: result.events,
-    },
-  ];
-}
-
-/**
- * Adds several calendars at once — a batch of dropped files, say — stopping at
- * the cap rather than silently dropping some in the middle.
- */
-export function addSubscriptions(
-  subscriptions: Subscription[],
-  results: Array<{ calendarName: string | null; importedAt: string; events: CalendarTask[] }>,
-  options: { courseId?: string | null; name?: (index: number) => string | null } = {},
-): Subscription[] {
-  return results.reduce(
-    (accumulated, result, index) =>
-      addSubscription(accumulated, result, {
-        courseId: options.courseId ?? null,
-        name: options.name ? options.name(index) : null,
-      }),
-    subscriptions,
-  );
 }
 
 export function removeSubscription(
@@ -228,16 +122,6 @@ export function removeSubscription(
   id: string,
 ): Subscription[] {
   return subscriptions.filter((subscription) => subscription.id !== id);
-}
-
-/**
- * The same subscriptions with every saved link taken off. What was imported stays; only the private
- * address goes, so nothing can fetch it again.
- */
-export function forgetLinks(subscriptions: Subscription[]): Subscription[] {
-  return subscriptions.some((subscription) => subscription.url !== null)
-    ? subscriptions.map((subscription) => (subscription.url === null ? subscription : { ...subscription, url: null }))
-    : subscriptions;
 }
 
 export function updateSubscription(

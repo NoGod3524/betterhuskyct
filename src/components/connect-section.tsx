@@ -1,17 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import {
-  Check,
-  ChevronRight,
-  ChevronUp,
-  FileUp,
-  LoaderCircle,
-  Plus,
-  RefreshCw,
-  TriangleAlert,
-  X,
-} from "lucide-react";
+import { Check, ChevronRight, ChevronUp, Plug, Plus, TriangleAlert, X } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import {
@@ -19,7 +10,6 @@ import {
   MAX_COURSES,
   type CourseComponent,
 } from "@/lib/courses";
-import { MAX_SUBSCRIPTIONS } from "@/lib/subscriptions";
 import { t } from "@/lib/i18n";
 
 /** The error and success rows, shared by both states of the card. */
@@ -58,40 +48,25 @@ function StatusRows({
 }
 
 /**
- * The import card.
+ * The card for what is connected: the calendars a sync brought, which course each belongs to, and
+ * the student's own list of courses. With nothing connected it says how to: the Sync button at
+ * the top of the page, and the helper it needs the first time.
  *
- * The path a HuskyCT student actually walks ends at a file: Share calendar →
- * Copy → paste into the address bar → the browser downloads an `.ics` → drag it
- * in. So the drop target is the destination, and the numbered steps sit beside
- * it, ending on it. Pasting the copied link straight in is offered as the
- * shortcut it is — two steps shorter, but not the route anyone was taught.
- *
- * Once a calendar is in, the card gets out of the way: it shrinks to one line.
+ * Once something is in, the card gets out of the way: it shrinks to one line.
  */
 export function ConnectSection() {
   const {
     locale,
-    handleImport,
-    importCalendarFiles,
-    calendarUrl,
-    setCalendarUrl,
-    isLoading,
     error,
     notice,
-    rememberSource,
-    toggleRememberSource,
     courses,
     addCourse,
     editCourse,
     dropCourse,
     setDefaultCourse,
     subscriptions,
-    canAddSubscription,
-    importCourseId,
-    setImportCourseId,
     addFeedCourse,
     dropSubscription,
-    refreshSubscription,
   } = useCalendar();
   const [draftCode, setDraftCode] = useState("");
   const [draftComponent, setDraftComponent] = useState<CourseComponent | "">("");
@@ -125,7 +100,7 @@ export function ConnectSection() {
       >
         <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-5">
           <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent-ink)]">
-            <FileUp size={15} />
+            <Plug size={15} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">
@@ -163,7 +138,7 @@ export function ConnectSection() {
     >
       <div className="flex gap-4 p-5 pb-0 sm:p-6 sm:pb-0">
         <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--accent-soft)] text-[var(--accent-ink)]">
-          <FileUp size={17} />
+          <Plug size={17} />
         </div>
         <div className="min-w-0 flex-1">
           <h2 id="connect-title" className="font-display text-base font-semibold">
@@ -185,127 +160,14 @@ export function ConnectSection() {
         )}
       </div>
 
-      <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[1fr_1fr] lg:items-start">
-        <div>
-          <div className="rounded-xl border border-dashed border-[var(--line-strong)] bg-[var(--canvas)] px-5 py-6 text-center">
-            <FileUp size={24} className="mx-auto text-[var(--blue)]" />
-            <p className="font-display mt-2 text-base font-semibold text-[var(--ink)]">
-              {t(locale, "file.title")}
-            </p>
-            <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-[var(--muted)]">
-              {t(locale, "file.hint")}
-            </p>
-            <label
-              htmlFor="calendar-files"
-              className="btn btn-primary mt-3 h-9 cursor-pointer px-4 text-sm"
-            >
-              <FileUp size={16} />
-              {t(locale, "file.choose")}
-            </label>
-            <input
-              id="calendar-files"
-              type="file"
-              multiple
-              accept=".ics,.ical,.ifb,text/calendar"
-              className="sr-only"
-              onChange={(event) => {
-                void importCalendarFiles(Array.from(event.target.files ?? []));
-                event.target.value = "";
-              }}
-            />
-          </div>
-
-          <div className="mt-4">
-            <p className="text-xs font-semibold text-[var(--ink)]">
-              {t(locale, "connect.shortcutLabel")}
-            </p>
-            <form className="mt-2 flex flex-col gap-2 sm:flex-row" onSubmit={handleImport}>
-              <label className="sr-only" htmlFor="calendar-url">
-                {t(locale, "connect.inputLabel")}
-              </label>
-              <input
-                id="calendar-url"
-                name="calendarUrl"
-                type="url"
-                inputMode="url"
-                autoComplete="off"
-                required
-                value={calendarUrl}
-                onChange={(event) => setCalendarUrl(event.target.value)}
-                placeholder={t(locale, "connect.placeholder")}
-                className="h-11 min-w-0 flex-1 rounded-xl border border-[var(--line-strong)] bg-[var(--surface)] px-4 text-sm outline-none transition focus:border-[var(--blue)] focus:ring-4 focus:ring-[var(--blue)]/10"
-              />
-              {courses.length > 0 && (
-                <select
-                  aria-label={t(locale, "connect.courseLabel")}
-                  value={importCourseId}
-                  onChange={(event) => setImportCourseId(event.target.value)}
-                  className="h-11 rounded-xl border border-[var(--line-strong)] bg-[var(--surface)] px-3 text-sm outline-none transition focus:border-[var(--blue)] focus:ring-4 focus:ring-[var(--blue)]/10"
-                >
-                  <option value="">{t(locale, "connect.courseNone")}</option>
-                  {courses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.code.trim() || t(locale, "course.untitled")}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--accent-ink)] transition hover:border-[var(--line-strong)] focus:outline-none focus:ring-4 focus:ring-[var(--blue)]/20 disabled:cursor-wait disabled:opacity-70"
-              >
-                {isLoading ? (
-                  <><LoaderCircle size={17} className="animate-spin" />{t(locale, "connect.importing")}</>
-                ) : (
-                  <>{t(locale, "connect.importButton")}<ChevronRight size={16} /></>
-                )}
-              </button>
-            </form>
-
-            <div className="mt-2 flex items-start gap-2.5">
-              <label htmlFor="remember-calendar" className="tap-check shrink-0 [--tap-top:2px]">
-                <input
-                  id="remember-calendar"
-                  type="checkbox"
-                  checked={rememberSource}
-                  onChange={toggleRememberSource}
-                  className="mt-0.5 size-4 shrink-0 cursor-pointer accent-[var(--blue)]"
-                />
-              </label>
-              <div className="min-w-0">
-                <label
-                  htmlFor="remember-calendar"
-                  className="text-sm font-semibold text-[var(--ink)]"
-                >
-                  {t(locale, "connect.rememberLabel")}
-                </label>
-                <p className="mt-0.5 text-xs leading-5 text-[var(--muted)]">
-                  {t(locale, "connect.rememberHint")}
-                </p>
-              </div>
-            </div>
-          </div>
+      {!hasCalendars && (
+        <div className="flex flex-wrap items-center gap-3 p-5 pt-3 sm:p-6 sm:pt-3">
+          <Link href="/helper" className="btn btn-primary h-9 px-4 text-sm">
+            {t(locale, "connect.setup")}
+            <ChevronRight size={16} />
+          </Link>
         </div>
-
-        <div className="rounded-xl bg-[var(--subtle)] p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
-            {t(locale, "connect.stepsTitle")}
-          </p>
-          <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm leading-6 text-[var(--ink)]">
-            <li>{t(locale, "connect.helpStep1")}</li>
-            <li>{t(locale, "connect.helpStep2")}</li>
-            <li>{t(locale, "connect.helpStep3")}</li>
-            <li>{t(locale, "connect.helpStep4")}</li>
-            <li>{t(locale, "connect.helpStep5")}</li>
-            <li>{t(locale, "connect.helpStep6")}</li>
-            <li>{t(locale, "connect.helpStep7")}</li>
-          </ol>
-          <p className="mt-3 text-xs leading-5 text-[var(--muted)]">
-            {t(locale, "connect.helpNote")}
-          </p>
-        </div>
-      </div>
+      )}
 
       {subscriptions.length > 0 && (
         <div className="border-t border-[var(--line)] px-5 py-4 sm:px-7">
@@ -352,16 +214,6 @@ export function ConnectSection() {
                     ))}
                   </select>
                 )}
-                {subscription.url && (
-                  <button
-                    type="button"
-                    onClick={() => void refreshSubscription(subscription.id)}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 text-[11px] font-semibold text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:text-[var(--accent-ink)]"
-                  >
-                    <RefreshCw size={13} />
-                    {t(locale, "subscriptions.refresh")}
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => dropSubscription(subscription.id)}
@@ -374,19 +226,9 @@ export function ConnectSection() {
                 >
                   <X size={15} />
                 </button>
-                {subscription.lastError && (
-                  <p className="w-full text-[11px] text-[var(--c-a34235)]">
-                    {subscription.lastError}
-                  </p>
-                )}
               </li>
             ))}
           </ul>
-          {!canAddSubscription && (
-            <p className="mt-2 text-xs text-[var(--muted)]">
-              {t(locale, "subscriptions.limit", { max: MAX_SUBSCRIPTIONS })}
-            </p>
-          )}
         </div>
       )}
 

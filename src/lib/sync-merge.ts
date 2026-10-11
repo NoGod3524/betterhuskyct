@@ -110,10 +110,7 @@ export function mergeSyncPayload(
       id: createSubscriptionId(),
       name: feed.name,
       courseId: feed.courseId ? (idMap.get(feed.courseId) ?? null) : null,
-      // The feed URL is a password and never travels; the events came instead.
-      url: null,
       importedAt: feed.importedAt,
-      lastError: null,
       events: feed.events,
     });
     addedFeeds += 1;

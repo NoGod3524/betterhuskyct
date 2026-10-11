@@ -5,7 +5,7 @@ import {
   type Announcement,
 } from "./announcements.ts";
 import { isDeadline, type CalendarTask } from "./calendar-types.ts";
-import { isCalendarTask } from "./import-storage.ts";
+import { isCalendarTask } from "./calendar-task.ts";
 import { doneMapFrom, type DoneReason } from "./task-status.ts";
 import {
   parseCourseBook,

@@ -1,6 +1,6 @@
 # BetterHuskyCT
 
-**把你的课程 deadline 整理清楚。** 把任何 LMS 或日历应用的日历接进来——粘贴私人 ICS 链接，或者直接拖入下载好的 `.ics` 文件——得到一份清晰有序的「接下来要交什么」。
+**把你的课程 deadline 整理清楚。** 点一下「同步」，你在 HuskyCT 上的 deadline、公告、课程文件和成绩就会汇到一份清晰有序的「接下来要交什么」里。
 
 [English](./README.md) | **简体中文**
 
@@ -12,7 +12,7 @@
 
 ## 界面截图
 
-**总览** —— 添加日历，然后是滚动的本周视图。
+**总览** —— 点「同步」，然后是滚动的本周视图。
 
 ![总览页](./public/screenshots/overview.zh.png)
 
@@ -24,18 +24,16 @@
 
 ## 为什么做这个
 
-学生的 deadline 散落在教学平台、课程大纲和邮件里。BetterHuskyCT 把你本来就有的日历订阅，变成一份滚动的未来 7 天任务清单——「接下来要交什么」一眼可见，不用到处翻。
+学生的 deadline 散落在教学平台、课程大纲和邮件里。BetterHuskyCT 把 HuskyCT 本来就摆在你面前的东西，变成一份滚动的未来 7 天任务清单——「接下来要交什么」一眼可见，不用到处翻。
 
-它刻意做得小而注重隐私：不需要 NetID、不需要密码、不爬取网页、不需要注册账号。
+它刻意做得小而注重隐私：不需要 NetID、不需要密码、不需要注册账号，除了你主动让 AI 读的文字，什么都不会离开你的浏览器。
 
-BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好是最难搞的那一档：**一门课一条订阅**，而且作业条目完全不写课程名。除此之外，任何能导出 iCalendar 的系统都能用——见[去哪儿取你的日历](#去哪儿取你的日历)。
+BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好是最难搞的那一档：**一门课一条订阅**，而且作业条目完全不写课程名。浏览器助手在你自己已登录的会话里读取这些，见[怎么把 deadline 接进来](#怎么把-deadline-接进来)。
 
 ## 功能
 
-- **导入任意 ICS 日历** —— 把下载好的 `.ics` 文件拖到页面任何位置，或者粘贴私人订阅链接；一次多个也行
 - **自动填上课程号** —— Blackboard 的订阅只写「Environmental Science」不写课号，所以 App 会去 UConn 公开的课程目录里查，自己填上 `NRE 1000E`。不用任何配置
-- **不用服务器就能同步到手机** —— 点「同步」把日历、勾选、课程，以及助手带回来的课程公告，压成一条链接（120 条 deadline + 40 条公告大约 3,100 字符）。它放在 URL 的 fragment 里，不会被上传；你的订阅链接**故意不包含在内**
-- **多个日历、多门课** —— HuskyCT 是每门课一条订阅，你有几条就加几条；每条订阅归到一门课（课程代码 + LEC / DIS / LAB / SEM），任务行就会显示它属于哪门课、是「上课」还是「作业」、在哪个教室、精确到分钟的截止时间；默认不对的那条可以单独改
+- **多个日历、多门课** —— HuskyCT 是每门课一条订阅，一次同步全部带回来；每条订阅归到一门课（课程代码 + LEC / DIS / LAB / SEM），任务行就会显示它属于哪门课、是「上课」还是「作业」、在哪个教室、精确到分钟的截止时间；默认不对的那条可以单独改
 - **滚动 7 天视图** —— 今天 / 明天 / 本周，分组并按时间排序
 - **到期提醒** —— 未来 24 小时有任务到期时显示横幅；可选开启浏览器通知（App 打开时生效）
 - **可安装 + 离线** —— 作为 PWA 加到手机主屏幕，没网也能看已保存的任务
@@ -47,90 +45,31 @@ BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好�
 - **完成勾选** —— 勾选任务；状态存在浏览器里，刷新不丢
 - **待办完成率** —— 整学期的完成情况，总体与各课程
 - **English / 简体中文** —— 一键切换语言，选择会被记住
-- **本地持久化** —— 重新导入同一份日历，勾选状态会保留
-- **可选自动刷新** —— 默认关闭；勾选「记住新加的链接」后，每次打开都会自动重新导入这些订阅
-- **隐私优先设计** —— 不要 NetID、不要密码、不要账号。ICS 链接默认用完即弃，只有你主动勾选才会保存在本机浏览器
+- **本地持久化** —— 再次同步，勾选状态会保留
+- **隐私优先设计** —— 不要 NetID、不要密码、不要账号。助手带来的一切只存在这个浏览器里
 
-## 去哪儿取你的日历
+## 怎么把 deadline 接进来
 
-任何能导出 iCalendar（`.ics`）的系统都能用。两条路效果一样——链接能自动刷新，文件则完全不用配置。
-
-| 系统 | 怎么拿 | 一条覆盖多少 |
-| --- | --- | --- |
-| **Blackboard / HuskyCT** | Calendar → 齿轮（*setting*）→ ⋯ → *share calendar* → *copy* → 粘到地址栏 → 把下载到的文件拖进来 | **一门课一条链接** |
-| **Canvas** | 日历 → 右下角「Calendar feed」 | 你选的全部课程 |
-| **Moodle** | 日历 →「导出日历」→「获取日历 URL」，或直接下载 `.ics` | 你勾选的课程 |
-| **Google Classroom** | 课堂 →「日历」→ 该日历的设置 →「iCal 格式的私密地址」 | 该日历上的所有课 |
-| **Google 日历 / Outlook** | 日历设置 → 私密 iCal 地址，或「导出」下载文件 | 整个日历 |
-
-如果你的系统是一门课一条链接（Blackboard 就是），要么一条条粘，要么把每门课的 `.ics` 都下载下来，**一次性全拖进导入卡片**。任务行按 ICS 的 UID 去重，所以有重叠的订阅不会重复出现。
+点页面顶部的**同步**。第一次需要先设置浏览器助手（「助手」页一步步带你做）：一个 Tampermonkey 用户脚本，或者一个手动加载的 Chrome / Edge 小扩展。它在 HuskyCT 自己的页面上、用你已登录的会话读取各门课的 deadline、公告、文件和成绩，再在标签页之间交给这个页面。页面只接受来自 HuskyCT 自己域名的数据。
 
 ## 架构
 
-```mermaid
-flowchart TB
-    subgraph Browser["浏览器 - React 客户端"]
-        UI["各路由区块<br/>app-shell.tsx + *-section.tsx"]
-        VIEW["calendar-view.ts<br/>分组 + 格式化"]
-        STORE[("localStorage<br/>日历 - 勾选 - 语言")]
-    end
+一个把数据留在浏览器里的 Next.js 应用。服务端只有三个小接口，不存任何你的数据：
 
-    subgraph Server["Next.js 服务端 - Node 运行时"]
-        API["POST /api/calendar/import<br/>route.ts"]
-        GUARD["safe-fetch.ts<br/>防 SSRF 的 HTTPS 抓取"]
-        PARSE["parse-calendar.ts<br/>node-ical 解析为 CalendarTask 列表"]
-    end
+- `/api/announcements/summarize` 和 `/api/plan/extract`：把你要求总结或读取的文字交给 AI 服务，并按发送内容的哈希缓存答案；
+- `/api/academic-calendar`：大约每天读一次 UConn 教务处的公开页面。
 
-    FEED[("HuskyCT / Blackboard<br/>私人 ICS 订阅")]
+### 一次同步的流程
 
-    UI -->|"1 粘贴 ICS 链接"| API
-    API -->|"2 zod 校验"| GUARD
-    GUARD -->|"3 HTTPS GET"| FEED
-    FEED -->|"4 ICS 文本"| PARSE
-    PARSE -->|"5 事件 JSON"| API
-    API -->|"6 JSON 响应"| UI
-    UI --> VIEW
-    UI <-->|"7 保存 / 恢复"| STORE
-
-    classDef client fill:#eaf2ff,stroke:#2a71d8,color:#12314f
-    classDef server fill:#eef7f1,stroke:#2f8f5b,color:#123a26
-    classDef feed fill:#fff4e8,stroke:#d98324,color:#5a3410
-    class UI,VIEW,STORE client
-    class API,GUARD,PARSE server
-    class FEED feed
-```
-
-### 一次导入的流程
-
-1. 你在页面里粘贴 ICS 链接。
-2. 前端把它 `POST` 到 `/api/calendar/import`（Next.js 的 Node 运行时路由处理函数）。
-3. 用 Zod 校验请求体（一个 `url` 字段，≤ 2048 字符；请求体 ≤ 4 KB）。
-4. `safe-fetch.ts` 校验并下载日历（见下面**安全**一节）。
-5. `parse-calendar.ts` 用 `node-ical` 解析：展开重复事件、处理全天事件、从标题里提取课程名。
-6. 路由返回 `{ calendarName, importedAt, events[] }` JSON，并带 `Cache-Control: no-store`。
-7. 前端把事件分到 今天 / 明天 / 本周 并渲染；已完成的任务 ID 和语言选择存在 `localStorage`。
-
-## 安全：如何安全地抓取用户提供的 URL
-
-让用户提供一个 URL、由服务器去抓取，是典型的 SSRF 攻击面，所以下载路径（`src/lib/safe-fetch.ts`）写得非常严格：
-
-| 控制 | 作用 |
-|---|---|
-| 只允许 HTTPS | 拒绝 `http:`、带用户名或密码的 URL、以及 443 以外的端口 |
-| 预解析 DNS | 解析所有地址，拒绝内网、回环、链路本地、组播和保留地址段（IPv4 与 IPv6） |
-| 绑定已验证 IP | 连接到**校验通过的 IP**，同时保留原始 `Host` 头和 TLS SNI，降低 DNS rebinding 风险 |
-| 限制重定向 | 最多跟随 3 次重定向，且每一跳都重新校验 |
-| 大小与时间上限 | 超过 2 MB（声明值和实际流式字节都检查）一律拒绝；8 秒超时 |
-| 内容校验 | 必须包含 `BEGIN:VCALENDAR` / `END:VCALENDAR` |
-
-出错时记录日志，但**绝不把私人的日历 URL 写进日志**。
+1. 你点**同步**。助手打开 HuskyCT（或用已经开着的标签页），通过 HuskyCT 自己的页面和接口读取各门课的 deadline、公告、文件和成绩。
+2. 它用 `postMessage` 发给这个页面，页面只接受来自 HuskyCT 自己域名的消息。一条消息装不下的（文件）逐个发送、逐个确认。
+3. 页面把收到的和已有的按稳定的键合并，所以再次同步不会重复，并保留你的勾选、修改和备注。
+4. 一切存在 `localStorage` 和 IndexedDB 里，带版本，读回来时会校验。
 
 ## 隐私模型
 
 | 数据 | 存在哪 |
 |---|---|
-| 你的 ICS 链接 | 默认哪里都不存——用完即弃。只有勾选「记住新加的链接」时，才只保存在此浏览器 |
-| 拖入的 `.ics` 文件 | 在页面里读取，发给 BetterHuskyCT 自己的接口解析，不会被写到任何地方 |
 | 解析后的事件 | 只在你浏览器的 `localStorage` |
 | 课程公告 | 只在你浏览器的 `localStorage`（由浏览器助手随 deadline 一起送来） |
 | 公告总结 | 只在你按下「总结」且没有可复用的缓存时：这门课的公告（标题、正文、发布时间——不含你的信息和日历链接），把邮箱、电话、链接替换掉之后，经 BetterHuskyCT 自己的接口发给 AI 服务。先发给 [Z.ai](https://z.ai)：它在新加坡运行 GLM，API 条款写明不保存内容。Z.ai 是中国公司智谱 AI 的国际品牌，美国商务部于 2025 年 1 月将其列入实体清单（[联邦公报](https://federalregister.gov/d/2025-00704)）。该清单涉及的是出口许可，而不是限制你能用什么；写在这里，是为了让你自己判断是否放心使用这个提供方。Z.ai 忙或出错时改用 [Google Gemini 免费版](https://ai.google.dev/gemini-api/terms)：其条款允许 Google 用这些内容改进模型、人工审核员可能会看；来自欧洲经济区、瑞士、英国的请求绝不会交给它。两家都忙时改用 [Groq](https://console.groq.com/docs/your-data)：美国公司，条款写明不拿发送的内容训练，只在调查滥用时保存；只会发给它约 8000 token 以内的请求。接口不记录任何公告文本。总结在服务器内存里最多缓存 6 小时；配置 Upstash Redis 后，也会在服务实例之间共享。共享缓存只存 SHA-256 哈希键、总结、模型提供方和原始生成时间，不存原公告、IP 地址、请求明文或凭据 |
@@ -148,7 +87,6 @@ flowchart TB
 | 框架 | Next.js 16（App Router） |
 | 语言 | TypeScript，测试用原生类型擦除（type stripping） |
 | 界面 | React 19、Tailwind CSS 4、lucide-react |
-| 日历解析 | node-ical |
 | 校验 | Zod |
 | 测试 | Node 内置测试运行器（`node --test`） |
 | 部署 | Vercel |
@@ -158,7 +96,6 @@ flowchart TB
 ```text
 src/
 ├─ app/
-│  ├─ api/calendar/import/route.ts   # POST 接口：校验 -> 抓取 -> 解析 -> JSON
 │  ├─ layout.tsx                     # 元数据、主题、状态 Provider、常驻外壳
 │  ├─ manifest.ts                    # PWA 清单（可安装）
 │  ├─ page.tsx                       # /          总览
@@ -171,7 +108,7 @@ src/
 ├─ components/
 │  ├─ calendar-provider.tsx          # 全部应用状态，挂在根布局
 │  ├─ app-shell.tsx                  # 侧边栏、页头、页脚
-│  ├─ connect-section.tsx            # 导入表单、课程列表、帮助说明
+│  ├─ connect-section.tsx            # 已连接的日历、课程列表、怎么连接
 │  ├─ helper-section.tsx             # 怎么安装浏览器助手
 │  ├─ tasks-section.tsx              # 任务分组与卡片
 │  ├─ task-card.tsx                  # 单条任务：标签、时间、教室、课程下拉
@@ -181,20 +118,15 @@ src/
 │  ├─ app-footer.tsx                 # 版本号页脚
 │  └─ service-worker-registrar.tsx   # 注册离线 Service Worker（仅生产环境）
 └─ lib/
-   ├─ safe-fetch.ts                  # 防 SSRF 的 HTTPS 下载
-   ├─ parse-calendar.ts              # ICS 解析 -> CalendarTask[]
    ├─ calendar-view.ts               # 分组（今天 / 明天 / 本周）与时间格式化
    ├─ calendar-types.ts              # 共享类型
    ├─ date-utils.ts                  # 共享的本地日期工具
    ├─ effort.ts                      # 每条任务的工作量估计
    ├─ courses.ts                     # 课程列表、单条覆盖、1.0.1 数据迁移
-   ├─ calendar-source.ts             # 可选记住的订阅链接
    ├─ export.ts                      # CSV 导出
    ├─ reminders.ts                   # 到期检测与提醒设置
-   ├─ calendar-file.ts               # 读取拖入的 .ics：大小、格式检查、按文件名命名
-   ├─ subscriptions.ts               # 订阅列表：缓存的事件、名字、可选保存的链接
+   ├─ subscriptions.ts               # 日历列表：缓存的事件、名字、归到哪门课
    ├─ announcements.ts               # 课程公告：派生 ID、上限、存储
-   ├─ import-storage.ts              # 1.0.x 的单份导入存储，只在升级时读一次
    ├─ completion-storage.ts          # 带版本的 localStorage（已完成的任务 ID）
    └─ i18n.ts                        # 中英文字典与查表函数
 public/
@@ -249,22 +181,20 @@ key 只在服务端由 `src/app/api/announcements/summarize` 读取，从不发�
 
 ## 设计取舍
 
-- **在服务端抓取，而不是在浏览器里抓。** 日历服务器基本不会返回宽松的 CORS 头；而且把下载集中在一个模块（`safe-fetch.ts`）里，SSRF 防护更好审查。
-- **只有你明确要求时才保存 ICS 链接。** 订阅链接里嵌着私人 token，所以默认用完即弃、绝不写入任何地方。自动刷新是显式的开关：链接只存在此浏览器（不上服务器、不进日志），取消勾选或点「清除已保存的数据」即可删除。
 - **每个存储结构都带版本号。** 每条 `localStorage` 都是带版本、经过结构校验的对象；损坏的数据会被丢弃（并告知用户），而不是让页面崩溃。
-- **完成状态按事件 ID 记录。** ID 由事件的 UID 加开始时间生成，所以重新导入同一份日历能保留勾选状态；但如果源日历改了某个事件的开始时间，它的 ID 会变、勾选会重置（已知限制）。
+- **完成状态按事件 ID 记录。** ID 由事件的 UID 加开始时间生成，所以再次同步能保留勾选状态；但如果源日历改了某个事件的开始时间，它的 ID 会变、勾选会重置（已知限制）。
 - **滚动 7 天，而不是自然周。** 这个应用回答的是「接下来要交什么」，不是「这周日历格子上有什么」。
 - **不引入 i18n 库。** 字符串集合有限且不大，两份字典加一个查表函数就够了。
 - **提醒只在 App 打开时生效。** 真正的后台推送需要推送服务器和订阅存储，这是本项目刻意避开的。所以提醒做成「App 内横幅 + 可选通知」，并用任务指纹去重，不会重复轰炸。
-- **离线指的是应用外壳，不是数据。** Service Worker 对页面导航走网络优先（保证新部署立刻生效）、对带哈希的静态资源走缓存优先，且永不缓存导入接口；任务数据本来就在 `localStorage` 里。
+- **离线指的是应用外壳，不是数据。** Service Worker 对页面导航走网络优先（保证新部署立刻生效）、对带哈希的静态资源走缓存优先；任务数据本来就在 `localStorage` 里。
 
 ## 测试
 
-`npm test` 用 Node 原生的 TypeScript 类型擦除运行 `node:test` 测试，不需要打包器或测试框架。覆盖范围包括：ICS 解析（重复事件、全天事件、课程名提取）、分组、URL / SSRF 拦截，以及带版本的导入与勾选存储模块。
+`npm test` 用 Node 原生的 TypeScript 类型擦除运行 `node:test` 测试，不需要打包器或测试框架。覆盖范围包括：助手的消息及其校验、合并、分组、公告规则，以及带版本的存储模块。
 
 ## 项目背景
 
-BetterHuskyCT 最初是一个自用工具。deadline 散落在 HuskyCT、课程大纲和邮件里，而现成的方案要么要交出 NetID，要么索取了远超「看一眼日历」所需的权限。这个项目想把这件事做到又窄又诚实：输入一份私人日历订阅，得到一份清晰的清单，日历数据留在你自己的设备上。可选的公告总结遵循上面的隐私模型。
+BetterHuskyCT 最初是一个自用工具。deadline 散落在 HuskyCT、课程大纲和邮件里，而现成的方案要么要交出 NetID，要么索取了远超「看一眼日历」所需的权限。这个项目想把这件事做到又窄又诚实：输入你自己的 HuskyCT 会话，得到一份清晰的清单，数据留在你自己的设备上。可选的公告总结遵循上面的隐私模型。
 
 ## 路线图
 
@@ -272,7 +202,6 @@ BetterHuskyCT 最初是一个自用工具。deadline 散落在 HuskyCT、课程�
 - [x] 待办页完成率：总体与各课程（取代原洞察页）
 - [x] 可安装的 PWA（含离线应用外壳）
 - [x] 到期提醒（App 打开时生效）
-- [x] 可选自动刷新（链接存在本机，默认关闭）
 - [x] 导出任务为 CSV
 - [ ] 后台推送提醒（需要推送服务器）
 
@@ -284,7 +213,7 @@ BetterHuskyCT 最初是一个自用工具。deadline 散落在 HuskyCT、课程�
 
 BetterHuskyCT 是独立的个人学生项目，**与康涅狄格大学、HuskyCT、Blackboard 官方没有任何隶属、背书或支持关系**。文中提到这些名字，只是为了说明这个工具读取的是什么。
 
-你粘贴的是你自己的私人日历链接，请当作密码保管。本应用不在服务端数据库存储日历或账号数据；可选的 Upstash 数据库只保存最多 6 小时的总结缓存。如果你勾选了「记住这条链接」，它会保存在那台浏览器里。
+助手通过你自己已登录的会话读取 HuskyCT，不会看到也不会发送你的密码。本应用不在服务端数据库存储日历或账号数据；可选的 Upstash 数据库只保存最多 6 小时的总结缓存。
 
 ## 作者与许可证
 

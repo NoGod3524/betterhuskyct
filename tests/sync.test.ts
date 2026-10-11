@@ -52,9 +52,8 @@ function feed(id: string, events: CalendarTask[], patch: Partial<Subscription> =
     id,
     name: `Calendar ${id}`,
     courseId: null,
-    url: null,
+
     importedAt: "2026-09-16T11:00:00.000Z",
-    lastError: null,
     events,
     ...patch,
   };
@@ -261,7 +260,7 @@ test("merging brings the calendar across as a new subscription", () => {
   assert.equal(merged.subscriptions[0].name, "NRE 1000E");
   assert.equal(merged.subscriptions[0].events.length, 2);
   // The password never travels, so the synced copy has no link to refresh.
-  assert.equal(merged.subscriptions[0].url, null);
+  assert.ok(!("url" in merged.subscriptions[0]));
 });
 
 test("a calendar already on this device keeps its identity and is not duplicated", () => {

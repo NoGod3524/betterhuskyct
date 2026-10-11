@@ -8,13 +8,12 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent,
   type ReactNode,
 } from "react";
 
 import { isDeadline } from "@/lib/calendar-types";
 import { formatDate } from "@/lib/format-date";
-import type { CalendarImportResult, CalendarTask, TaskGroup } from "@/lib/calendar-types";
+import type { CalendarTask, TaskGroup } from "@/lib/calendar-types";
 import {
   clearAnnouncements,
   restoreAnnouncements,
@@ -23,26 +22,18 @@ import {
   type Announcement,
 } from "@/lib/announcements";
 import {
-  addSubscription,
-  addSubscriptions,
   clearSubscriptions,
   latestImportAt,
   mergeTasks,
   removeSubscription as removeSubscriptionFrom,
-  restoreRememberSource,
   restoreSubscriptions,
-  saveRememberSource,
   saveSubscriptions,
   taskOwnerIndex,
   ticksForTasks,
-  forgetLinks,
   updateSubscription,
-  MAX_SUBSCRIPTIONS,
   type Subscription,
 } from "@/lib/subscriptions";
-import { CalendarFileError, readCalendarFile } from "@/lib/calendar-file";
 import { watchClock } from "@/lib/clock";
-import { requestCalendarImport, type ImportRequest } from "@/lib/import-client";
 import {
   decodeSyncPayload,
   readSyncFragment,
@@ -173,20 +164,11 @@ type CalendarContextValue = {
   restoredFromStorage: boolean;
 
   subscriptions: Subscription[];
-  canAddSubscription: boolean;
-  importCourseId: string;
-  setImportCourseId: (value: string) => void;
   addFeedCourse: (subscriptionId: string, courseId: string | null) => void;
   dropSubscription: (subscriptionId: string) => void;
-  refreshSubscription: (subscriptionId: string) => Promise<void>;
 
-  calendarUrl: string;
-  setCalendarUrl: (value: string) => void;
-  isLoading: boolean;
   notice: string | null;
   error: string | null;
-  handleImport: (event: FormEvent<HTMLFormElement>) => Promise<void>;
-  importCalendarFiles: (files: File[]) => Promise<void>;
   restoreDemo: () => void;
   restoreSavedImport: () => void;
   clearSavedData: () => void;
@@ -195,8 +177,6 @@ type CalendarContextValue = {
   remindersEnabled: boolean;
   toggleReminders: () => Promise<void>;
 
-  rememberSource: boolean;
-  toggleRememberSource: () => void;
 
   /** A link from another device, waiting for the user to accept it. */
   pendingSync: SyncPayload | null;
@@ -271,8 +251,6 @@ export function CalendarProvider({
 }) {
   const [now, setNow] = useState(() => new Date(initialNow));
   const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
-  const [calendarUrl, setCalendarUrl] = useState("");
-  const [importCourseId, setImportCourseId] = useState("");
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   // Course announcements. They arrive by sync only — the app never fetches
   // HuskyCT itself — so this is empty on a device that has never been sent any.
@@ -281,7 +259,6 @@ export function CalendarProvider({
   // been imported yet or because the user asked for the demo back.
   const [demoMode, setDemoMode] = useState(true);
   const [restoredFromStorage, setRestoredFromStorage] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
@@ -301,7 +278,6 @@ export function CalendarProvider({
     NotificationPermission | "unsupported"
   >("default");
   // Opt-in only: when false, a feed URL is never written to storage.
-  const [rememberSource, setRememberSource] = useState(false);
   // Mirrors `subscriptions` for async work, which would otherwise close over a
   // stale value between awaits.
   const subscriptionsRef = useRef<Subscription[]>([]);
@@ -412,191 +388,13 @@ export function CalendarProvider({
     if (inputs.length > 0) commitCustomEvents([...customEvents, ...inputs.map(buildCustomEvent)]);
   }
 
-  /**
-   * Everything that must happen after a calendar lands: show the imported data
-   * instead of the demo, keep the tick marks that still match a real task, and
-   * say how much arrived.
-   */
-  function applyAddedSubscriptions(next: Subscription[], events: number) {
-    commitSubscriptions(next);
-    setDemoMode(false);
-    setRestoredFromStorage(false);
-    setCompletedIds(restoreTicks("imported", next));
-    setNotice(
-      t(
-        locale,
-        events === 1 ? "notices.importedEvent" : "notices.importedEvents",
-        { count: events },
-      ),
-    );
-  }
-
-  function requestImport(payload: ImportRequest) {
-    return requestCalendarImport(payload, {
-      unavailable: t(locale, "errors.importUnavailable"),
-      failed: t(locale, "errors.importFailed"),
-    });
-  }
-
-  function handleImport(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setNotice(null);
-    setIsLoading(true);
-
-    return (async () => {
-      try {
-        const result = await requestImport({ url: calendarUrl });
-        const next = addSubscription(subscriptionsRef.current, result, {
-          courseId: importCourseId || null,
-          url: rememberSource ? calendarUrl : null,
-        });
-
-        if (next.length === subscriptionsRef.current.length) {
-          setError(t(locale, "errors.tooManyCalendars", { max: MAX_SUBSCRIPTIONS }));
-          return;
-        }
-
-        applyAddedSubscriptions(next, result.events.length);
-        setCalendarUrl("");
-      } catch (caughtError) {
-        setError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : t(locale, "errors.importFailed"),
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }
-
-  /**
-   * Imports downloaded `.ics` files.
-   *
-   * The file is read and parsed here in the page, so it is never uploaded and no
-   * link has to be found — which is the only import path that behaves the same
-   * way on Blackboard, Canvas, Moodle, Google Classroom and anything else that
-   * can hand out an iCalendar file.
-   */
-  async function importCalendarFiles(files: File[]) {
-    if (files.length === 0) return;
-
-    setError(null);
-    setNotice(null);
-    setIsLoading(true);
-
-    try {
-      const accepted: Array<{ name: string; result: CalendarImportResult }> = [];
-      const skipped: string[] = [];
-      for (const file of files) {
-        try {
-          const { name, icsText } = await readCalendarFile(file);
-          accepted.push({ name, result: await requestImport({ ics: icsText }) });
-        } catch (caughtError) {
-          skipped.push(
-            caughtError instanceof CalendarFileError &&
-              caughtError.problem === "too-large"
-              ? t(locale, "errors.fileTooLarge", { name: file.name })
-              : file.name,
-          );
-        }
-      }
-
-      if (accepted.length === 0) {
-        setError(
-          skipped.length > 0
-            ? t(locale, "errors.filesSkipped", { names: skipped.join(", ") })
-            : t(locale, "errors.noCalendarFiles"),
-        );
-        return;
-      }
-
-      const next = addSubscriptions(
-        subscriptionsRef.current,
-        accepted.map((entry) => entry.result),
-        {
-          courseId: importCourseId || null,
-          name: (index) => accepted[index].name,
-        },
-      );
-      const added = next.length - subscriptionsRef.current.length;
-      const events = accepted.reduce(
-        (total, entry) => total + entry.result.events.length,
-        0,
-      );
-
-      applyAddedSubscriptions(next, events);
-
-      if (added < accepted.length) {
-        setError(t(locale, "errors.tooManyCalendars", { max: MAX_SUBSCRIPTIONS }));
-      } else if (skipped.length > 0) {
-        setError(t(locale, "errors.filesSkipped", { names: skipped.join(", ") }));
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  /** Re-fetch every feed the user asked us to remember, one at a time. */
-  async function refreshRemembered(
-    initial: Subscription[],
-    activeLocale: Locale,
-  ) {
-    const remembered = initial.filter((subscription) => subscription.url);
-    if (remembered.length === 0) return;
-
-    let failures = 0;
-    let imported = 0;
-    for (const subscription of remembered) {
-      // Unticked since this began: that link is no longer ours to fetch.
-      const link = subscriptionsRef.current.find((entry) => entry.id === subscription.id)?.url;
-      if (!link) continue;
-      try {
-        const result = await requestImport({ url: link });
-        imported += result.events.length;
-        commitSubscriptions(
-          updateSubscription(subscriptionsRef.current, subscription.id, {
-            events: result.events,
-            name: result.calendarName,
-            importedAt: result.importedAt,
-            lastError: null,
-          }),
-        );
-      } catch {
-        // Offline, or the feed stopped working: keep the cached copy and say so.
-        failures += 1;
-        commitSubscriptions(
-          updateSubscription(subscriptionsRef.current, subscription.id, {
-            lastError: t(activeLocale, "subscriptions.failed"),
-          }),
-        );
-      }
-    }
-
-    setCompletedIds((previous) => new Set([...ticksForTasks(previous, subscriptionsRef.current), ...[...previous].filter(isCustomEventId)]));
-    setNotice(
-      failures === 0
-        ? t(activeLocale, "notices.autoRefreshed", { count: imported })
-        : t(activeLocale, "notices.autoRefreshFailed"),
-    );
-  }
-
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const currentTime = new Date();
       setNow(currentTime);
       const restoredLocale = restoreLocale(window.localStorage);
       setLocale(restoredLocale);
-      const remembering = restoreRememberSource(window.localStorage);
-      setRememberSource(remembering);
-
       const restored = restoreSubscriptions(window.localStorage);
-      // A link kept while the box is unticked is one that an earlier version failed to remove.
-      if (!remembering && restored.subscriptions.some((subscription) => subscription.url !== null)) {
-        restored.subscriptions = forgetLinks(restored.subscriptions);
-        saveSubscriptions(window.localStorage, restored.subscriptions);
-      }
       subscriptionsRef.current = restored.subscriptions;
       setSubscriptions(restored.subscriptions);
       setDemoMode(restored.subscriptions.length === 0);
@@ -631,14 +429,11 @@ export function CalendarProvider({
       setCustomEvents(restoreCustomEvents(window.localStorage));
       setCourseColors(restoreCourseColors(window.localStorage));
 
-      void refreshRemembered(restored.subscriptions, restoredLocale);
     }, 0);
 
     return () => window.clearTimeout(timer);
-    // Restore-on-mount must run exactly once. `refreshRemembered` is recreated
-    // on every render, so listing it here would re-run the whole restore on each
-    // render instead of once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Restore-on-mount must run exactly once; listing the functions it calls would re-run the
+    // whole restore on each render instead.
   }, []);
 
   /**
@@ -896,40 +691,6 @@ export function CalendarProvider({
     }
   }
 
-  async function refreshSubscription(subscriptionId: string) {
-    const subscription = subscriptionsRef.current.find(
-      (entry) => entry.id === subscriptionId,
-    );
-    if (!subscription?.url) return;
-
-    try {
-      const result = await requestImport({ url: subscription.url });
-      commitSubscriptions(
-        updateSubscription(subscriptionsRef.current, subscriptionId, {
-          events: result.events,
-          name: result.calendarName,
-          importedAt: result.importedAt,
-          lastError: null,
-        }),
-      );
-      setNotice(
-        t(locale, "notices.importedEvents", { count: result.events.length }),
-      );
-      setError(null);
-    } catch (caughtError) {
-      const message =
-        caughtError instanceof Error
-          ? caughtError.message
-          : t(locale, "errors.importFailed");
-      commitSubscriptions(
-        updateSubscription(subscriptionsRef.current, subscriptionId, {
-          lastError: message,
-        }),
-      );
-      setError(message);
-    }
-  }
-
   /** Drops the `#sync=…` fragment without reloading or navigating. */
   function clearSyncFragment() {
     const { pathname, search } = window.location;
@@ -1095,15 +856,6 @@ export function CalendarProvider({
     return formatDate(new Date(latest), locale, { time: true });
   }, [subscriptions, locale]);
 
-  function toggleRememberSource() {
-    const next = !rememberSource;
-    setRememberSource(next);
-    saveRememberSource(window.localStorage, next);
-    // Unticking is a promise that the link is gone: the ones already saved go too, and a refresh in
-    // flight finds no link left to fetch.
-    if (!next) commitSubscriptions(forgetLinks(subscriptionsRef.current));
-  }
-
   function restoreDemo() {
     setDemoMode(true);
     setRestoredFromStorage(false);
@@ -1195,27 +947,16 @@ export function CalendarProvider({
     hasSavedImport: hasSubscriptions,
     restoredFromStorage,
     subscriptions,
-    canAddSubscription: subscriptions.length < MAX_SUBSCRIPTIONS,
-    importCourseId,
-    setImportCourseId,
     addFeedCourse,
     dropSubscription,
-    refreshSubscription,
-    calendarUrl,
-    setCalendarUrl,
-    isLoading,
     notice,
     error,
-    handleImport,
-    importCalendarFiles,
     restoreDemo,
     restoreSavedImport,
     clearSavedData,
     exportTasks,
     remindersEnabled,
     toggleReminders,
-    rememberSource,
-    toggleRememberSource,
     pendingSync,
     applyPendingSync,
     dismissPendingSync,

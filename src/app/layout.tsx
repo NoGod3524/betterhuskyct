@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   applicationName: "BetterHuskyCT",
   title: "BetterHuskyCT — Your course deadlines, organized",
   description:
-    "Turn a HuskyCT or Blackboard ICS calendar into a clear, private deadline dashboard.",
+    "Your HuskyCT deadlines, announcements, course files and grades in one clear, private dashboard.",
   appleWebApp: {
     capable: true,
     title: "BetterHuskyCT",
