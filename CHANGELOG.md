@@ -14,6 +14,20 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.33.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.33.0) — Less to carry: two ways in are gone
+
+*Minor: two features removed. HuskyCT Helper is unchanged at 1.17.0.*
+
+### Removed
+
+- **The calendar link and file import.** Pasting an ICS link, dropping a `.ics` file (on the card or anywhere on the page), remembering a link and refreshing it on every visit are gone, with the server route that fetched the address, the guarded download, the ICS parser and the `node-ical` package. The HuskyCT helper does not use that route: it brings deadlines, announcements, files and grades in through its own sync, so the Connect card now says to press Sync, with a button to the Helper page, and with calendars connected it lists them (course, task count, remove) and the course list as before. **Someone without the helper has no way to bring a calendar in; the demo data still shows.** The keys of the old remembered link, and any private address a saved calendar still carried, are removed when the app opens; the calendars and their events stay. ([#191])
+- **The device-to-device sync link and its QR code.** "Create sync link", the QR code, the copy button, and the `qrcode` packages. Receiving a `#sync=` link (the helper's delivery) is unchanged. ([#190])
+- **The end-to-end script** in `tools/e2e`, which CI never ran and which had already gone out of date once. ([#189])
+
+### Changed
+
+- **Fewer copies of the same small things, with no change in behaviour:** one FNV-1a hash instead of four ([#186]), one `isRecord` instead of twenty-one, the stricter of the two kinds ([#187]), one `localDay` for the local YYYY-MM-DD instead of four ([#188]), and a dead function removed ([#185]).
+
 ## [1.32.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.32.0) — Overdue kept, edited announcements read again
 
 *Minor: two corrections to what is kept and what is read again. HuskyCT Helper is unchanged at 1.17.0.*
@@ -1855,3 +1869,10 @@ saying what to work on next.*
 [#180]: https://github.com/NoGod3524/betterhuskyct/pull/180
 [#182]: https://github.com/NoGod3524/betterhuskyct/pull/182
 [#183]: https://github.com/NoGod3524/betterhuskyct/pull/183
+[#185]: https://github.com/NoGod3524/betterhuskyct/pull/185
+[#186]: https://github.com/NoGod3524/betterhuskyct/pull/186
+[#187]: https://github.com/NoGod3524/betterhuskyct/pull/187
+[#188]: https://github.com/NoGod3524/betterhuskyct/pull/188
+[#189]: https://github.com/NoGod3524/betterhuskyct/pull/189
+[#190]: https://github.com/NoGod3524/betterhuskyct/pull/190
+[#191]: https://github.com/NoGod3524/betterhuskyct/pull/191
