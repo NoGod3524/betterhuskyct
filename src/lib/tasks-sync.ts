@@ -10,6 +10,7 @@
  */
 import { HUSKYCT_ORIGINS } from "@/lib/materials";
 import { parseSyncPayloadValue, type SyncPayload } from "@/lib/sync";
+import { isRecord } from "./is-record.ts";
 
 /** Bumped only if the messages change shape; both sides check it. */
 export const TASKS_PROTOCOL = "betterhuskyct/tasks@1";
@@ -17,10 +18,6 @@ export const TASKS_PROTOCOL = "betterhuskyct/tasks@1";
 export type IncomingTasksMessage =
   | { kind: "hello" }
   | { kind: "sync"; payload: SyncPayload };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 /** A message from the helper, or null. Anything but exactly one of the two kinds is ignored. */
 export function parseTasksMessage(data: unknown): IncomingTasksMessage | null {

@@ -17,6 +17,8 @@
  * is stored, and a message that does not fit is dropped whole.
  */
 
+import { isRecord } from "./is-record.ts";
+
 /**
  * The types a stored file may be opened as in a tab of this app. A blob address belongs to the app's
  * own origin, so a page opened from one can read everything the app stores: a course file that is
@@ -101,10 +103,6 @@ export type IncomingMessage =
   | { kind: "done"; complete: boolean };
 
 // --- checking what arrives -------------------------------------------------------
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function text(value: unknown, limit = MAX_TEXT): string | null {
   return typeof value === "string" && value.length > 0 && value.length <= limit ? value : null;

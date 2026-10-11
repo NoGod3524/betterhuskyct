@@ -12,6 +12,8 @@
  * in the right one.
  */
 
+import { isRecord } from "./is-record.ts";
+
 export const REGISTRAR_CALENDAR_URL = "https://registrar.uconn.edu/academic-calendar/";
 export const ACADEMIC_CALENDAR_ENDPOINT = "/api/academic-calendar";
 export const ACADEMIC_CALENDAR_STORAGE_KEY = "huskypilot.academicCalendar.v1";
@@ -166,10 +168,6 @@ export function parseAcademicCalendar(html: string): AcademicEvent[] {
     }
   });
   return events;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;

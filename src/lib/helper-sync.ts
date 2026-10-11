@@ -1,4 +1,5 @@
 import { HUSKYCT_ORIGINS } from "./materials.ts";
+import { isRecord } from "./is-record.ts";
 
 /**
  * BetterHuskyCT's Sync button, which asks the helper in a HuskyCT tab to read HuskyCT in the
@@ -70,10 +71,6 @@ function detailOf(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const plain = value.replace(/[^\w .:/-]/g, "").trim().slice(0, 240);
   return plain || null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function count(value: unknown): number | null {

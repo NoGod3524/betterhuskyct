@@ -11,6 +11,7 @@ import {
   type ProviderId,
   type SummaryLocale,
 } from "./summary-models.ts";
+import { isRecord } from "./is-record.ts";
 
 /**
  * Reading a syllabus or a course's announcements for the dates and the work in
@@ -160,10 +161,6 @@ function summaryRules(locale: SummaryLocale): string[] {
     "Copy every number, percentage, date and name of a policy exactly as the syllabus states it. Leave out what it does not say; never fill a gap with what is usual.",
     'Write 5 to 10 bullet points, one per line, each starting with "- ". Keep course codes, book titles and tool names as written. Plain text: no headings, no bold.',
   ];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** A real calendar day, written `YYYY-MM-DD`. */
