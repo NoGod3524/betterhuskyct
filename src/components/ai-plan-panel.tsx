@@ -6,7 +6,8 @@ import { AlertTriangle, Sparkles } from "lucide-react";
 
 import { useAiPlan, type AiPlanValue } from "@/components/ai-plan-provider";
 import { useCalendar } from "@/components/calendar-provider";
-import { localDay, selectedByDefault, suggestionFlags, type Suggestion, type SuggestionFlags } from "@/lib/ai-plan";
+import { selectedByDefault, suggestionFlags, type Suggestion, type SuggestionFlags } from "@/lib/ai-plan";
+import { localDay } from "@/lib/date-utils";
 import { formatDate } from "@/lib/format-date";
 import { t, type Locale, type TranslationKey } from "@/lib/i18n";
 

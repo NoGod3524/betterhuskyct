@@ -2,7 +2,7 @@ import { SummaryError, type SummaryProblem } from "./announcement-summary.ts";
 import type { Announcement } from "./announcements.ts";
 import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import type { CustomEventInput } from "./custom-events.ts";
-import { taskDate } from "./date-utils.ts";
+import { localDay, taskDate } from "./date-utils.ts";
 import { contentHash } from "./content-hash.ts";
 import { cleanSummary, isNotAToDo, MAX_PLAN_TEXT, parsePlanResult, PLAN_ITEM_KINDS, type PlanAnnouncement, type PlanItem, type PlanRequest } from "./plan-models.ts";
 import type { SummaryChoice } from "./summary-choice.ts";
@@ -430,13 +430,6 @@ export function announcementSignature(announcement: Pick<Announcement, "title" |
 
 export function announcementKey(id: string): string {
   return `announcement:${id}`;
-}
-
-/** Today in the reader's own time zone. */
-export function localDay(date: Date): string {
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 export type AnnouncementBatch = { course: string | null; ids: string[]; signatures: string[]; announcements: PlanAnnouncement[] };

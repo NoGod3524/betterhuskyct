@@ -9,14 +9,12 @@ import { academicByDay, type AcademicEvent } from "@/lib/academic-calendar";
 import { formatDate } from "@/lib/format-date";
 import { chipStyle } from "@/lib/course-colors";
 import { isCustomEventId } from "@/lib/custom-events";
-import { addDays, startOfLocalDay, taskDate } from "@/lib/date-utils";
+import { addDays, localDay, startOfLocalDay, taskDate } from "@/lib/date-utils";
 import { t, type Locale } from "@/lib/i18n";
 import type { CalendarTask } from "@/lib/calendar-types";
 import type { EventEdit } from "@/lib/event-overlay";
 
 const pad = (value: number) => String(value).padStart(2, "0");
-const dayKey = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-const toDateInput = (date: Date) => dayKey(date);
 const toTimeInput = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 const longDate = (date: Date, locale: Locale) => formatDate(date, locale, { weekday: "long" });
 
@@ -46,7 +44,7 @@ function emptyDraft(date: Date): Draft {
   return {
     title: "",
     course: "",
-    date: toDateInput(date),
+    date: localDay(date),
     startTime: "09:00",
     endTime: "",
     allDay: false,
@@ -61,7 +59,7 @@ function draftFrom(task: CalendarTask, note: string | null): Draft {
     title: task.title,
     course: task.course ?? "",
     // An all-day event is on its day as written, not on the day its start falls on in this zone.
-    date: task.allDay && task.dateKey ? task.dateKey : toDateInput(start),
+    date: task.allDay && task.dateKey ? task.dateKey : localDay(start),
     startTime: toTimeInput(start),
     endTime: task.end ? toTimeInput(new Date(task.end)) : "",
     allDay: task.allDay,
@@ -162,7 +160,7 @@ export function CalendarMonthView({
     for (const task of tasks) {
       const date = taskDate(task);
       if (Number.isNaN(date.valueOf())) continue;
-      const key = dayKey(date);
+      const key = localDay(date);
       const list = map.get(key);
       if (list) list.push(task);
       else map.set(key, [task]);
@@ -178,7 +176,7 @@ export function CalendarMonthView({
   const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   const gridStart = addDays(monthStart, -monthStart.getDay());
   const days = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index));
-  const todayKey = dayKey(startOfLocalDay(now));
+  const todayKey = localDay(startOfLocalDay(now));
 
   function openAdd(date: Date) {
     setDraftFor({ mode: "add", date });
@@ -288,7 +286,7 @@ export function CalendarMonthView({
 
       <div className="grid grid-cols-7">
         {days.map((date) => {
-          const key = dayKey(date);
+          const key = localDay(date);
           const inMonth = date.getMonth() === cursor.getMonth();
           const events = eventsByDay.get(key) ?? [];
           const visible = events.slice(0, MAX_VISIBLE_PER_DAY);
@@ -396,7 +394,7 @@ export function CalendarMonthView({
 
       {dayDetail &&
         (() => {
-          const date = days.find((entry) => dayKey(entry) === dayDetail);
+          const date = days.find((entry) => localDay(entry) === dayDetail);
           if (!date) return null;
           const events = eventsByDay.get(dayDetail) ?? [];
           const school = schoolDays.get(dayDetail) ?? [];
