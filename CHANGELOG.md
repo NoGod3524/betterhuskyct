@@ -14,6 +14,15 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.32.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.32.0) — Overdue kept, edited announcements read again
+
+*Minor: two corrections to what is kept and what is read again. HuskyCT Helper is unchanged at 1.17.0.*
+
+### Fixed
+
+- **A calendar import keeps what the to-do list still calls overdue.** An import or refresh kept only the last 24 hours, so a deadline due two days ago and not handed in showed in red until the next refresh and then vanished. It now keeps events back as far as the to-do list looks (21 days), for events and for to-dos in the file. It applies to calendar files and links; HuskyCT's own sync does not go through it. ([#182])
+- **An announcement the teacher edits is read again.** The AI reading and the course summary went by the announcement's id, which stays the same when only the body is edited, so a moved exam date was never read again and the first reading's offers stayed. They now go by the text the model is given: an edited announcement is read again, what it offered before and was still waiting is replaced, and what was added or let go stays decided. What was read before this is read once more. A task already added from the old reading is not changed or flagged. ([#183])
+
 ## [1.31.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.31.0) — The right day for an all-day event, and your own ticks kept
 
 *Minor: two corrections to what the calendar remembers. HuskyCT Helper is unchanged at 1.17.0.*
@@ -1844,3 +1853,5 @@ saying what to work on next.*
 [#177]: https://github.com/NoGod3524/betterhuskyct/pull/177
 [#179]: https://github.com/NoGod3524/betterhuskyct/pull/179
 [#180]: https://github.com/NoGod3524/betterhuskyct/pull/180
+[#182]: https://github.com/NoGod3524/betterhuskyct/pull/182
+[#183]: https://github.com/NoGod3524/betterhuskyct/pull/183
