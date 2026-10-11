@@ -110,57 +110,91 @@ No NetID, no password, no account, no analytics. Calendar data stays in your bro
 ```text
 src/
 ├─ app/
-│  ├─ layout.tsx                     # Metadata, theme setup, provider, persistent shell
-│  ├─ manifest.ts                    # Web app manifest (installable PWA)
-│  ├─ page.tsx                       # /          overview
-│  ├─ tasks/page.tsx                 # /tasks     the to-do list
-│  ├─ calendar/page.tsx              # /calendar  the month, and the connected calendars
-│  ├─ announcements/page.tsx         # /announcements  course announcements
-│  ├─ materials/page.tsx             # /materials      course files, videos and links
-│  ├─ grades/page.tsx                # /grades         gradebook rows and the points so far
-│  ├─ helper/page.tsx                # /helper    install the browser helper
-│  ├─ globals.css
-│  └─ icon.tsx
+│  ├─ api/academic-calendar/route.ts             # GET  UConn's academic calendar, read from the Registrar about once a day
+│  ├─ api/announcements/summarize/route.ts       # POST a course's announcements -> key points (hosted model, cached)
+│  ├─ api/plan/extract/route.ts                  # POST a syllabus or announcements -> dates and to-dos as JSON
+│  ├─ layout.tsx                                 # Metadata, theme setup, provider, persistent shell
+│  ├─ manifest.ts                                # Web app manifest (installable PWA)
+│  ├─ page.tsx                                   # /              overview
+│  ├─ tasks/page.tsx                             # /tasks         the to-do list
+│  ├─ calendar/page.tsx                          # /calendar      the month, and the connected calendars
+│  ├─ announcements/page.tsx                     # /announcements course announcements
+│  ├─ materials/page.tsx                         # /materials     course files, videos and links
+│  ├─ grades/page.tsx                            # /grades        gradebook rows and the points so far
+│  ├─ helper/page.tsx                            # /helper        install the browser helper
+│  ├─ globals.css, icon.tsx                      # Styles; the app icon
 ├─ components/
-│  ├─ calendar-provider.tsx          # Every piece of app state, in the root layout
-│  ├─ app-shell.tsx                  # Sidebar, header, footer
-│  ├─ connect-section.tsx            # Connected calendars, course list, how to connect
-│  ├─ helper-section.tsx             # How to install the browser helper
-│  ├─ tasks-section.tsx              # The dashboard's Today / Tomorrow / This week board
-│  ├─ todo-section.tsx               # The to-do list: open work by when, done work apart
-│  ├─ task-card.tsx                  # One task: badges, time, room, course picker
-│  ├─ course-picker.tsx              # Per-task course override
-│  ├─ announcements-section.tsx      # Course announcements, grouped and filterable
-│  ├─ materials-section.tsx          # Course materials, by course and folder; receives from the helper
-│  ├─ grades-section.tsx             # Grades by course; receives from the helper
-│  ├─ mobile-nav.tsx                 # The phone's bottom bar and its More sheet
-│  ├─ nav-items.ts                   # Every page, and which the bar shows
-│  ├─ list-skeleton.tsx              # Placeholders while saved data is read
-│  ├─ hero-section.tsx               # Overview header and status line
-│  ├─ app-footer.tsx                 # Version footer
-│  └─ service-worker-registrar.tsx   # Registers the offline service worker (production only)
+│  ├─ calendar-provider.tsx                      # Every piece of app state, in the root layout
+│  ├─ app-shell.tsx                              # Sidebar, header, footer, theme and language toggles
+│  ├─ app-footer.tsx                             # Version footer
+│  ├─ nav-items.ts                               # Every page, and which the phone's bar shows
+│  ├─ mobile-nav.tsx                             # The phone's bottom bar and its More sheet
+│  ├─ search-palette.tsx                         # Ctrl+K search over tasks, announcements, files and grades
+│  ├─ hero-section.tsx                           # Overview header, status line, the big Sync button
+│  ├─ helper-sync-button.tsx                     # The Sync button: opens HuskyCT and follows the helper's progress
+│  ├─ helper-section.tsx                         # How to install the browser helper
+│  ├─ helper-deliveries.tsx                      # Receives what the helper sends: materials and grades
+│  ├─ sync-banner.tsx                            # The banner for an incoming #sync= link
+│  ├─ connect-section.tsx                        # Connected calendars, course list, how to connect
+│  ├─ tasks-section.tsx                          # The overview's Today / Tomorrow / This week board
+│  ├─ todo-section.tsx                           # The to-do list: open work by when, done work apart
+│  ├─ task-card.tsx                              # One task: badges, time, room, course picker
+│  ├─ course-picker.tsx                          # Per-task course override
+│  ├─ task-overview.tsx                          # Counts of what is open: next 7 days, overdue, undated
+│  ├─ exam-list.tsx                              # The exams still ahead, with the days left
+│  ├─ quick-add.tsx                              # Add a to-do from the overview
+│  ├─ undated-todo-list.tsx                      # To-dos with no date, as their own group
+│  ├─ calendar-month-view.tsx                    # The month grid, editable in place
+│  ├─ announcements-section.tsx                  # Course announcements, grouped, filterable, with the rules' to-dos
+│  ├─ announcement-actions-panel.tsx             # Possible to-dos in one announcement, to confirm
+│  ├─ announcement-changes-panel.tsx             # What changed in an announcement since it was first saved
+│  ├─ announcement-summary.tsx                   # Per-course summary, with the model choice
+│  ├─ materials-section.tsx                      # Course materials by course and folder; save to a folder or ZIP
+│  ├─ syllabus-summary.tsx                       # A syllabus summed up, on the Materials page
+│  ├─ grades-section.tsx                         # Grades by course
+│  ├─ ai-plan-provider.tsx                       # State of the AI date finding: what is read, offered, decided
+│  ├─ ai-plan-panel.tsx                          # The AI's finds, for the student to check before they reach the calendar
+│  ├─ list-skeleton.tsx                          # Placeholders while saved data is read
+│  ├─ service-worker-registrar.tsx               # Registers the offline service worker (production only)
+│  ├─ use-academic-calendar.ts, use-announcement-state.ts, use-seen.ts# Hooks over the academic calendar, announcement state and what is new
 └─ lib/
-   ├─ calendar-view.ts               # Grouping (Today / Tomorrow / This week) and formatting
-   ├─ calendar-types.ts              # Shared types
-   ├─ date-utils.ts                  # Shared local-date helpers
-   ├─ effort.ts                      # Per-task effort estimates
-   ├─ courses.ts                     # Course list, per-task overrides, 1.0.1 migration
-   ├─ export.ts                      # CSV export
-   ├─ reminders.ts                   # Due-soon detection and reminder settings
-   ├─ subscriptions.ts               # The list of calendars: cached events, names, course filing
-   ├─ announcements.ts               # Course announcements: derived ids, caps, storage
-   ├─ materials.ts                   # Materials: the helper's messages, checked; merging; folder import
-   ├─ materials-store.ts             # Materials in IndexedDB
-   ├─ materials-export.ts            # Materials out to a folder or a ZIP, laid out as the importer expects
-   ├─ grades.ts                      # Grades: the helper's messages, checked; totals; merging
-   ├─ task-status.ts                 # Which deadlines the gradebook says are done, and why
-   ├─ todo.ts                        # The to-do list's sections
-   ├─ grades-store.ts                # Grades in localStorage
-   ├─ completion-storage.ts          # Versioned localStorage for completed task IDs
-   └─ i18n.ts                        # English / 简体中文 dictionaries and lookup
+   ├─ calendar-types.ts                          # Shared types: a task, a group, deadline vs class
+   ├─ calendar-task.ts                           # Whether a stored or synced value is shaped like a task
+   ├─ calendar-view.ts                           # Grouping (Today / Tomorrow / This week) and formatting
+   ├─ date-utils.ts, format-date.ts              # Local-date helpers; every day written yyyy/mm/dd
+   ├─ clock.ts, use-in-browser.ts                # Keeps "now" moving; waits for the browser before showing times
+   ├─ subscriptions.ts                           # The list of calendars: cached events, names, course filing
+   ├─ event-overlay.ts, custom-events.ts         # Corrections to synced events; events the student adds
+   ├─ completion-storage.ts                      # Versioned localStorage for completed task IDs
+   ├─ courses.ts, course-catalogue.ts, course-colors.ts# Course list and overrides; UConn catalogue titles; each course's colour
+   ├─ todo.ts, task-overview.ts, exams.ts, undated-todos.ts# The to-do list's sections; counts; exams ahead; to-dos with no date
+   ├─ task-status.ts                             # Which deadlines the gradebook says are done, and why
+   ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# Due-soon detection; the add form; search; what is new
+   ├─ export.ts                                  # CSV export
+   ├─ announcements.ts                           # Course announcements: derived ids, caps, storage
+   ├─ announcement-actions.ts, announcement-dates.ts, announcement-sentences.ts# The rules: sentences, the dates in them, the to-dos they suggest
+   ├─ announcement-decisions.ts, announcement-versions.ts, announcement-todo.ts, announcement-text.ts, announcement-filters.ts# What the student decided; what each announcement said when saved; the add form; showing the text; filters
+   ├─ announcement-summary.ts, summary-models.ts, summary-cache.ts, summary-choice.ts# Summaries: the page's side, the hosted models (fallback chain), the cache, the model choice
+   ├─ ai-plan.ts, plan-models.ts                 # Finding dates with a model: state, what is offered; the request and the checked answer
+   ├─ rate-limit.ts                              # A small fixed-window rate limiter for the routes
+   ├─ materials.ts, materials-store.ts, materials-export.ts# Materials: the helper's messages, checked and merged; IndexedDB; out to a folder or a ZIP
+   ├─ syllabus.ts                                # Finding a course's syllabus among the files and reading its text
+   ├─ grades.ts, grades-store.ts, grades-export.ts# Grades: the helper's messages, totals, merging; storage; export
+   ├─ helper.ts, helper-bridge.ts, helper-sync.ts, tasks-sync.ts# Where to get the helper; its bridge; the Sync button's protocol; deadlines and announcements delivered tab to tab
+   ├─ sync.ts, sync-merge.ts, sync-apply.ts      # The #sync= payload: pack, check, merge what is already here
+   ├─ academic-calendar.ts                       # UConn's academic calendar from the Registrar's page
+   ├─ content-hash.ts, is-record.ts              # A short text fingerprint; "is this a plain object"
+   ├─ theme.ts, i18n.ts                          # Light, dark or the device's; English / 简体中文 dictionaries and lookup
 public/
 ├─ sw.js                             # Offline app-shell service worker
+├─ og.png, screenshots/              # Social preview and the README screenshots
 └─ icons/                            # PWA icons (192 / 512 / maskable)
+tools/
+├─ huskyct-helper/                   # The userscript that reads HuskyCT in your own session
+└─ extension/                        # The same helper as a Chrome / Edge extension (built into public/ before dev and build)
+scripts/
+├─ build-extension.mjs, build-course-map.mjs
+└─ eval-announcements/               # How well the date finding works: labelling, agreement, scoring
 tests/                               # node:test suites
 ```
 

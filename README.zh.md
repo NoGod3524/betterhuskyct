@@ -104,42 +104,91 @@ BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好�
 ```text
 src/
 ├─ app/
-│  ├─ layout.tsx                     # 元数据、主题、状态 Provider、常驻外壳
-│  ├─ manifest.ts                    # PWA 清单（可安装）
-│  ├─ page.tsx                       # /          总览
-│  ├─ tasks/page.tsx                 # /tasks     滚动 7 天清单
-│  ├─ calendar/page.tsx              # /calendar  再加一个日历
-│  ├─ announcements/page.tsx         # /announcements 课程公告
-│  ├─ helper/page.tsx                # /helper    安装浏览器助手
-│  ├─ globals.css
-│  └─ icon.tsx
+│  ├─ api/academic-calendar/route.ts             # GET  UConn 校历，大约每天从教务处读一次
+│  ├─ api/announcements/summarize/route.ts       # POST 一门课的公告 -> 要点（托管模型，带缓存）
+│  ├─ api/plan/extract/route.ts                  # POST 大纲或公告 -> JSON 形式的日期和待办
+│  ├─ layout.tsx                                 # 元数据、主题设置、提供者、常驻外壳
+│  ├─ manifest.ts                                # Web App manifest（可安装的 PWA）
+│  ├─ page.tsx                                   # /              总览
+│  ├─ tasks/page.tsx                             # /tasks         待办列表
+│  ├─ calendar/page.tsx                          # /calendar      月视图和已连接的日历
+│  ├─ announcements/page.tsx                     # /announcements 课程公告
+│  ├─ materials/page.tsx                         # /materials     课程文件、视频和链接
+│  ├─ grades/page.tsx                            # /grades        各项成绩和目前得分
+│  ├─ helper/page.tsx                            # /helper        安装浏览器助手
+│  ├─ globals.css, icon.tsx                      # 样式；应用图标
 ├─ components/
-│  ├─ calendar-provider.tsx          # 全部应用状态，挂在根布局
-│  ├─ app-shell.tsx                  # 侧边栏、页头、页脚
-│  ├─ connect-section.tsx            # 已连接的日历、课程列表、怎么连接
-│  ├─ helper-section.tsx             # 怎么安装浏览器助手
-│  ├─ tasks-section.tsx              # 任务分组与卡片
-│  ├─ task-card.tsx                  # 单条任务：标签、时间、教室、课程下拉
-│  ├─ course-picker.tsx              # 单条任务的课程覆盖
-│  ├─ announcements-section.tsx      # 课程公告：按课程分组、可筛选
-│  ├─ hero-section.tsx               # 总览页头部与状态行
-│  ├─ app-footer.tsx                 # 版本号页脚
-│  └─ service-worker-registrar.tsx   # 注册离线 Service Worker（仅生产环境）
+│  ├─ calendar-provider.tsx                      # 整个应用的状态，放在根布局里
+│  ├─ app-shell.tsx                              # 侧栏、顶栏、页脚、主题和语言切换
+│  ├─ app-footer.tsx                             # 版本页脚
+│  ├─ nav-items.ts                               # 所有页面，以及手机底栏显示哪些
+│  ├─ mobile-nav.tsx                             # 手机底栏和「更多」面板
+│  ├─ search-palette.tsx                         # Ctrl+K，搜索任务、公告、文件和成绩
+│  ├─ hero-section.tsx                           # 总览顶部、状态行、大号同步按钮
+│  ├─ helper-sync-button.tsx                     # 同步按钮：打开 HuskyCT 并跟随助手的进度
+│  ├─ helper-section.tsx                         # 怎么安装浏览器助手
+│  ├─ helper-deliveries.tsx                      # 接收助手发来的资料和成绩
+│  ├─ sync-banner.tsx                            # 收到 #sync= 链接时的提示条
+│  ├─ connect-section.tsx                        # 已连接的日历、课程列表、怎么连接
+│  ├─ tasks-section.tsx                          # 总览的 今天 / 明天 / 本周 看板
+│  ├─ todo-section.tsx                           # 待办列表：未完成的按时间，已完成的另放
+│  ├─ task-card.tsx                              # 一条任务：徽标、时间、教室、课程选择
+│  ├─ course-picker.tsx                          # 单条任务的课程覆盖
+│  ├─ task-overview.tsx                          # 未完成的计数：未来 7 天、逾期、无日期
+│  ├─ exam-list.tsx                              # 还没到的考试和剩余天数
+│  ├─ quick-add.tsx                              # 在总览里加一条待办
+│  ├─ undated-todo-list.tsx                      # 没有日期的待办，单独成组
+│  ├─ calendar-month-view.tsx                    # 月视图，可就地编辑
+│  ├─ announcements-section.tsx                  # 课程公告：分组、可筛选，带规则找出的待办
+│  ├─ announcement-actions-panel.tsx             # 一条公告里可能的待办，由你确认
+│  ├─ announcement-changes-panel.tsx             # 一条公告自首次保存以来改了什么
+│  ├─ announcement-summary.tsx                   # 按课程的总结，可选模型
+│  ├─ materials-section.tsx                      # 按课程和文件夹浏览资料；保存到文件夹或 ZIP
+│  ├─ syllabus-summary.tsx                       # 资料页上的大纲总结
+│  ├─ grades-section.tsx                         # 按课程的成绩
+│  ├─ ai-plan-provider.tsx                       # AI 找日期的状态：读了什么、提议了什么、定了什么
+│  ├─ ai-plan-panel.tsx                          # AI 找到的东西，加入日历之前由你核对
+│  ├─ list-skeleton.tsx                          # 读取已保存数据时的占位
+│  ├─ service-worker-registrar.tsx               # 注册离线 service worker（仅生产环境）
+│  ├─ use-academic-calendar.ts, use-announcement-state.ts, use-seen.ts# 校历、公告状态、「新」标记的 hooks
 └─ lib/
-   ├─ calendar-view.ts               # 分组（今天 / 明天 / 本周）与时间格式化
-   ├─ calendar-types.ts              # 共享类型
-   ├─ date-utils.ts                  # 共享的本地日期工具
-   ├─ effort.ts                      # 每条任务的工作量估计
-   ├─ courses.ts                     # 课程列表、单条覆盖、1.0.1 数据迁移
-   ├─ export.ts                      # CSV 导出
-   ├─ reminders.ts                   # 到期检测与提醒设置
-   ├─ subscriptions.ts               # 日历列表：缓存的事件、名字、归到哪门课
-   ├─ announcements.ts               # 课程公告：派生 ID、上限、存储
-   ├─ completion-storage.ts          # 带版本的 localStorage（已完成的任务 ID）
-   └─ i18n.ts                        # 中英文字典与查表函数
+   ├─ calendar-types.ts                          # 共用类型：任务、分组、deadline 与上课
+   ├─ calendar-task.ts                           # 判断存储或同步来的值是不是任务
+   ├─ calendar-view.ts                           # 分组（今天 / 明天 / 本周）和格式化
+   ├─ date-utils.ts, format-date.ts              # 本地日期工具；所有日期写成 yyyy/mm/dd
+   ├─ clock.ts, use-in-browser.ts                # 让「现在」持续走动；等浏览器加载后再显示时间
+   ├─ subscriptions.ts                           # 日历列表：缓存的事件、名字、归到哪门课
+   ├─ event-overlay.ts, custom-events.ts         # 对同步事件的修改；学生自己加的事件
+   ├─ completion-storage.ts                      # 已完成任务 ID 的带版本存储
+   ├─ courses.ts, course-catalogue.ts, course-colors.ts# 课程列表和覆盖；UConn 课程目录标题；各课程颜色
+   ├─ todo.ts, task-overview.ts, exams.ts, undated-todos.ts# 待办的分组；计数；将到的考试；无日期待办
+   ├─ task-status.ts                             # 成绩册说哪些 deadline 已经完成，以及原因
+   ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# 快到期检测；添加表单；搜索；「新」标记
+   ├─ export.ts                                  # CSV 导出
+   ├─ announcements.ts                           # 课程公告：推导的 id、上限、存储
+   ├─ announcement-actions.ts, announcement-dates.ts, announcement-sentences.ts# 规则：切句子、找日期、给出待办建议
+   ├─ announcement-decisions.ts, announcement-versions.ts, announcement-todo.ts, announcement-text.ts, announcement-filters.ts# 学生的决定；公告每次保存时的内容；添加表单；文本展示；筛选
+   ├─ announcement-summary.ts, summary-models.ts, summary-cache.ts, summary-choice.ts# 总结：页面一侧、托管模型（回退链）、缓存、模型选择
+   ├─ ai-plan.ts, plan-models.ts                 # 用模型找日期：状态和提议；请求和校验过的答案
+   ├─ rate-limit.ts                              # 给接口用的小型固定窗口限流
+   ├─ materials.ts, materials-store.ts, materials-export.ts# 资料：助手的消息（校验、合并）；IndexedDB；导出到文件夹或 ZIP
+   ├─ syllabus.ts                                # 在文件里找课程大纲并读出文字
+   ├─ grades.ts, grades-store.ts, grades-export.ts# 成绩：助手的消息、合计、合并；存储；导出
+   ├─ helper.ts, helper-bridge.ts, helper-sync.ts, tasks-sync.ts# 去哪儿拿助手；助手的桥；同步按钮的协议；标签页之间送达的 deadline 和公告
+   ├─ sync.ts, sync-merge.ts, sync-apply.ts      # #sync= 载荷：打包、校验、与已有的合并
+   ├─ academic-calendar.ts                       # 来自教务处页面的 UConn 校历
+   ├─ content-hash.ts, is-record.ts              # 文字短指纹；「是不是普通对象」
+   ├─ theme.ts, i18n.ts                          # 浅色、深色或跟随设备；中英文字典和查表
 public/
-├─ sw.js                             # 离线应用外壳 Service Worker
+├─ sw.js                             # 离线应用外壳的 service worker
+├─ og.png, screenshots/              # 社交预览图和 README 截图
 └─ icons/                            # PWA 图标（192 / 512 / maskable）
+tools/
+├─ huskyct-helper/                   # 在你自己的会话里读取 HuskyCT 的用户脚本
+└─ extension/                        # 同一个助手做成 Chrome / Edge 扩展（在 dev 和 build 之前打进 public/）
+scripts/
+├─ build-extension.mjs, build-course-map.mjs
+└─ eval-announcements/               # 日期识别准不准：标注、一致性、打分
 tests/                               # node:test 测试
 ```
 
