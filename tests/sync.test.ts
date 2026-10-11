@@ -19,7 +19,6 @@ import {
   parseSyncPayload,
   readSyncFragment,
   serialiseSyncPayload,
-  syncLink,
   unpackSync,
 } from "../src/lib/sync.ts";
 import { mergeSyncPayload } from "../src/lib/sync-merge.ts";
@@ -212,11 +211,6 @@ test("the fragment helpers only accept our own fragment", () => {
   assert.equal(readSyncFragment(""), null);
   assert.equal(readSyncFragment(SYNC_FRAGMENT), null);
   assert.equal(readSyncFragment(`${SYNC_FRAGMENT}abc`), "abc");
-
-  assert.equal(
-    syncLink("https://example.com", "/", "abc"),
-    `https://example.com/${SYNC_FRAGMENT}abc`,
-  );
 });
 
 test("describeSync counts what the user is being offered", () => {

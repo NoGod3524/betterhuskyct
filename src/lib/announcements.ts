@@ -24,6 +24,9 @@
  *   against: it is how an empty entry reaches the output.
  */
 
+import { contentHash } from "./content-hash.ts";
+import { isRecord } from "./is-record.ts";
+
 export const ANNOUNCEMENTS_STORAGE_KEY = "huskypilot.announcements.v1";
 const ANNOUNCEMENTS_STORAGE_VERSION = 1;
 
@@ -53,10 +56,6 @@ export type Announcement = {
   announced: string;
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function isValidDateString(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
 }
@@ -76,22 +75,6 @@ export function isAnnouncement(value: unknown): value is Announcement {
 }
 
 /**
- * FNV-1a, as hex.
- *
- * Not a security hash and not trying to be: it only has to be stable, cheap, and
- * spread well enough that two announcements in one course do not collide. A
- * cryptographic digest would be more code for a property nothing reads.
- */
-function hash(value: string): string {
-  let accumulator = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    accumulator ^= value.charCodeAt(index);
-    accumulator = Math.imul(accumulator, 0x01000193);
-  }
-  return (accumulator >>> 0).toString(16).padStart(8, "0");
-}
-
-/**
  * The id an announcement keeps for the rest of its life.
  *
  * The course code is an input rather than the resolved course id because ids are
@@ -103,7 +86,7 @@ export function computeAnnouncementId(input: {
   title: string;
   posted: string | null;
 }): string {
-  return hash(
+  return contentHash(
     `${input.courseCode ?? ""}|${input.title}|${input.posted ?? ""}`,
   );
 }

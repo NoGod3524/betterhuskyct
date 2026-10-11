@@ -12,6 +12,7 @@
  * is stored, and a message that does not fit is dropped whole.
  */
 import { HUSKYCT_ORIGINS } from "@/lib/materials";
+import { isRecord } from "./is-record.ts";
 
 /** Bumped only if the messages change shape; both sides check it. */
 export const GRADES_PROTOCOL = "betterhuskyct/grades@1";
@@ -77,10 +78,6 @@ export type GradesSnapshot = {
 export type IncomingGradesMessage = { kind: "hello" } | { kind: "grades"; grades: GradesSnapshot };
 
 // --- checking what arrives -------------------------------------------------------
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function text(value: unknown, limit = MAX_TEXT): string | null {
   return typeof value === "string" && value.length > 0 && value.length <= limit ? value : null;

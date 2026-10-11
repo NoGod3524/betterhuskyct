@@ -12,6 +12,7 @@ import {
   serialiseCourseBook,
   type CourseBook,
 } from "./courses.ts";
+import { isRecord } from "./is-record.ts";
 
 /**
  * Moving a set-up dashboard from one device to another without a server.
@@ -79,10 +80,6 @@ export type SyncPayload = {
   /** Each course's colour on HuskyCT, by code. Optional on input, like the announcements. */
   courseColors: CourseColors;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isValidDateString(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
@@ -300,11 +297,6 @@ export async function decodeSyncPayload(packed: string): Promise<SyncPayload | n
     // A truncated or corrupted link is a normal thing to be handed, not a crash.
     return null;
   }
-}
-
-/** The full link a user sends to their other device. */
-export function syncLink(origin: string, pathname: string, packed: string): string {
-  return `${origin}${pathname}${SYNC_FRAGMENT}${packed}`;
 }
 
 export function readSyncFragment(hash: string): string | null {

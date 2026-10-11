@@ -2,6 +2,7 @@ import type { Announcement } from "./announcements.ts";
 import { postedTime } from "./announcements.ts";
 import { sentencesOf, mentionsCancellation } from "./announcement-actions.ts";
 import { dayKey, findDates } from "./announcement-dates.ts";
+import { isRecord } from "./is-record.ts";
 
 /**
  * What an announcement said each time this browser saw it, so that a change to it can be shown.
@@ -20,10 +21,6 @@ export const VERSIONS_KEY = "huskypilot.announcementVersions.v1";
 export const VERSIONS_CHANGED = "huskypilot:announcement-versions-changed";
 const MAX_VERSIONS = 6;
 const MAX_ANNOUNCEMENTS = 400;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 /** The stored versions, or an empty store when they are missing or unreadable. */
 export function parseVersions(raw: string | null): VersionStore {

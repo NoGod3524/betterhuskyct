@@ -8,6 +8,7 @@ import { cleanSummary, isNotAToDo, MAX_PLAN_TEXT, parsePlanResult, PLAN_ITEM_KIN
 import type { SummaryChoice } from "./summary-choice.ts";
 import type { ProviderId, SummaryLocale } from "./summary-models.ts";
 import type { UndatedTodo } from "./undated-todos.ts";
+import { isRecord } from "./is-record.ts";
 
 /**
  * The page's side of finding dates with a model: what has been read, what was
@@ -121,10 +122,6 @@ function parseSummaries(value: unknown): Record<string, SyllabusSummary> {
   return summaries;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function stringMap(value: unknown): Record<string, string> {
   if (!isRecord(value)) return {};
   return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
@@ -224,22 +221,12 @@ function normalTitle(title: string): string {
   return title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
-/** FNV-1a, as hex: short, stable, and only ever compared with itself. */
-function hash(text: string): string {
-  let value = 0x811c9dc5;
-  for (let index = 0; index < text.length; index += 1) {
-    value ^= text.charCodeAt(index);
-    value = Math.imul(value, 0x01000193);
-  }
-  return (value >>> 0).toString(16).padStart(8, "0");
-}
-
 /**
  * The same exam found in the syllabus and again in an announcement gets the
  * same id, so it is offered once. A moved exam has a new date, and a new id.
  */
 export function suggestionId(course: string | null, title: string, date: string | null): string {
-  return "ai-" + hash(`${(course ?? "").toLowerCase()}|${normalTitle(title)}|${date ?? ""}`);
+  return "ai-" + contentHash(`${(course ?? "").toLowerCase()}|${normalTitle(title)}|${date ?? ""}`);
 }
 
 /** Words that say a day is off without saying which one: "No class", "Break", "Recess". */

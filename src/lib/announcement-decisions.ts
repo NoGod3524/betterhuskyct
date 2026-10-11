@@ -1,5 +1,6 @@
 import type { Announcement } from "./announcements.ts";
 import { latestChange, type Change, type VersionStore } from "./announcement-versions.ts";
+import { isRecord } from "./is-record.ts";
 
 /**
  * What the student has decided about the candidates found in announcements, kept in this browser:
@@ -34,10 +35,6 @@ export const DECISIONS_KEY = "huskypilot.announcementActions.v1";
 export const DECISIONS_CHANGED = "huskypilot:announcement-actions-changed";
 export const EMPTY_DECISIONS: Decisions = { version: 1, dismissed: {}, added: {}, reviewed: {} };
 const MAX_ENTRIES = 1500;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 const isString = (value: unknown): value is string => typeof value === "string";
 
@@ -90,12 +87,6 @@ export function undismiss(decisions: Decisions, candidateId: string): Decisions 
 }
 
 export const markAdded = (decisions: Decisions, candidateId: string, added: Added): Decisions => ({ ...decisions, added: { ...decisions.added, [candidateId]: added } });
-
-export function forgetAdded(decisions: Decisions, candidateId: string): Decisions {
-  const added = { ...decisions.added };
-  delete added[candidateId];
-  return { ...decisions, added };
-}
 
 /** The student has looked at an announcement's latest change. */
 export const markReviewed = (decisions: Decisions, announcementId: string, versionAt: string): Decisions => ({ ...decisions, reviewed: { ...decisions.reviewed, [announcementId]: versionAt } });
