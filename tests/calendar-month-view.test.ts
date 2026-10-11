@@ -240,6 +240,59 @@ test("editing an imported event corrects it, and restoring brings back HuskyCT's
   await view.unmount();
 });
 
+test("editing an all-day imported event shows its own day and keeps it, in any zone", async () => {
+  const realZone = process.env.TZ;
+  try {
+    // The server hands an all-day event over as UTC midnight with the day written beside it; an
+    // editor west of UTC would see the 17th and one east of it would save the 17th as the 18th.
+    for (const zone of ["America/New_York", "Pacific/Auckland", "UTC"]) {
+      process.env.TZ = zone;
+      const view = await render();
+      const packed = await encodeSyncPayload(
+        buildSyncPayload({
+          feeds: [
+            {
+              name: "HuskyCT",
+              courseId: null,
+              importedAt: "2026-09-16T11:00:00.000Z",
+              events: [{ id: "d:2026-09-18", title: "Reading week", course: null, start: "2026-09-18T00:00:00.000Z", dateKey: "2026-09-18", end: null, allDay: true, location: null, kind: "assignment" }],
+            },
+          ],
+          completedIds: [],
+          courses: EMPTY_COURSE_BOOK,
+        }),
+      );
+      await act(async () => {
+        window.location.hash = `#sync=${packed}`;
+        window.dispatchEvent(new window.Event("hashchange"));
+      });
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 60));
+      });
+      await act(async () => view.calendar.applyPendingSync());
+
+      await view.clickPill("Reading week");
+      assert.equal(view.field(t("en", "calendar.fieldDate"))!.value, "2026-09-18", zone + ": the editor shows another day");
+      await view.setValue(view.field(t("en", "calendar.fieldTitle"))!, "Reading week (moved)");
+      await view.clickButton(t("en", "calendar.save"));
+
+      const saved = view.calendar.tasks.find((task) => task.title === "Reading week (moved)");
+      assert.equal(saved?.allDay, true, zone);
+      assert.equal(saved?.dateKey, "2026-09-18", zone + ": saving only the title moved the day");
+
+      // Moving it to the 21st puts it on the 21st.
+      await view.clickPill("Reading week (moved)");
+      await view.setValue(view.field(t("en", "calendar.fieldDate"))!, "2026-09-21");
+      await view.clickButton(t("en", "calendar.save"));
+      assert.equal(view.calendar.tasks.find((task) => task.title === "Reading week (moved)")?.dateKey, "2026-09-21", zone);
+      await view.unmount();
+    }
+  } finally {
+    if (realZone === undefined) delete process.env.TZ;
+    else process.env.TZ = realZone;
+  }
+});
+
 test("deleting an imported event hides it without touching HuskyCT's copy, and Undo brings it back", async () => {
   const view = await render();
   await importOneTask(view);

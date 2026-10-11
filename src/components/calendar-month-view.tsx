@@ -60,7 +60,8 @@ function draftFrom(task: CalendarTask, note: string | null): Draft {
   return {
     title: task.title,
     course: task.course ?? "",
-    date: toDateInput(start),
+    // An all-day event is on its day as written, not on the day its start falls on in this zone.
+    date: task.allDay && task.dateKey ? task.dateKey : toDateInput(start),
     startTime: toTimeInput(start),
     endTime: task.end ? toTimeInput(new Date(task.end)) : "",
     allDay: task.allDay,
@@ -219,6 +220,7 @@ export function CalendarMonthView({
       const edit: EventEdit = {
         title: fields.title,
         start: fields.start,
+        dateKey: fields.allDay ? draft.date : null,
         end: fields.end,
         allDay: fields.allDay,
         location: fields.location,
