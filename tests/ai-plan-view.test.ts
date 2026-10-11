@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 
-import { localDay, PLAN_STORAGE_KEY } from "../src/lib/ai-plan.ts";
+import { PLAN_STORAGE_KEY } from "../src/lib/ai-plan.ts";
+import { localDay } from "../src/lib/date-utils.ts";
 import type { Announcement } from "../src/lib/announcements.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { t } from "../src/lib/i18n.ts";

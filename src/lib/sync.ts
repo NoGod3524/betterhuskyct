@@ -12,6 +12,7 @@ import {
   serialiseCourseBook,
   type CourseBook,
 } from "./courses.ts";
+import { isRecord } from "./is-record.ts";
 
 /**
  * Moving a set-up dashboard from one device to another without a server.
@@ -79,10 +80,6 @@ export type SyncPayload = {
   /** Each course's colour on HuskyCT, by code. Optional on input, like the announcements. */
   courseColors: CourseColors;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isValidDateString(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));

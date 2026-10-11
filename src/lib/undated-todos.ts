@@ -6,6 +6,8 @@
  * student adds on the calendar do.
  */
 
+import { isRecord } from "./is-record.ts";
+
 export type UndatedTodo = {
   id: string;
   title: string;
@@ -17,10 +19,6 @@ export type UndatedTodo = {
 
 export const UNDATED_TODOS_KEY = "huskypilot.undatedTodos.v1";
 export const MAX_UNDATED_TODOS = 300;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export function parseUndatedTodo(value: unknown): UndatedTodo | null {
   if (!isRecord(value)) return null;

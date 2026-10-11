@@ -1,5 +1,6 @@
 import type { CalendarTask } from "./calendar-types.ts";
 import { courseCodeForTitle } from "./course-catalogue.ts";
+import { isRecord } from "./is-record.ts";
 
 export const COURSES_STORAGE_KEY = "huskypilot.courses.v1";
 
@@ -52,10 +53,6 @@ export type CourseBook = {
 };
 
 export const EMPTY_COURSE_BOOK: CourseBook = { courses: [], assignments: {} };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 export function isCourseComponent(value: unknown): value is CourseComponent {
   return (

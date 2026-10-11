@@ -1,5 +1,6 @@
 import { isDeadline, type CalendarTask } from "./calendar-types.ts";
 import { dueTimestamp } from "./date-utils.ts";
+import { isRecord } from "./is-record.ts";
 
 // "When is this task due" is a date concern, so it lives in date-utils and is
 // re-exported here to keep existing imports working.
@@ -28,10 +29,6 @@ export const DEFAULT_REMINDER_STATE: ReminderState = {
 };
 
 type StoredReminderPayload = ReminderState & { version: number };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 /** Tasks due between now and `windowHours` from now, soonest first. */
 export function dueSoonTasks(
