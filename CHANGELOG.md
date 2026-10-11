@@ -14,6 +14,15 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.31.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.31.0) — The right day for an all-day event, and your own ticks kept
+
+*Minor: two corrections to what the calendar remembers. HuskyCT Helper is unchanged at 1.17.0.*
+
+### Fixed
+
+- **An all-day event is edited on its own day.** The editor worked the day out from the event's start in the reader's time zone, so in New York the 15th opened as the 14th and saving, even only a new title, wrote the 14th; in Auckland saving moved the event a day earlier. The editor now shows the day HuskyCT gave, and saving keeps the day named. An event already saved with the wrong day is not repaired. ([#179])
+- **A task you add yourself keeps its tick.** With a calendar imported, a ticked task of your own came back unticked after a reload, after an automatic refresh and after restoring a saved import, and a tick made before the first import was left behind by it. These ticks now have a store of their own and show wherever the task does. Ticks lost by the old code are not recovered. ([#180])
+
 ## [1.30.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.30.0) — Dates as yyyy/mm/dd, better date reading, and two privacy fixes
 
 *Minor: a change to how every date is shown, and to what the announcement rules read. HuskyCT Helper is unchanged at 1.17.0.*
@@ -1833,3 +1842,5 @@ saying what to work on next.*
 [#175]: https://github.com/NoGod3524/betterhuskyct/pull/175
 [#176]: https://github.com/NoGod3524/betterhuskyct/pull/176
 [#177]: https://github.com/NoGod3524/betterhuskyct/pull/177
+[#179]: https://github.com/NoGod3524/betterhuskyct/pull/179
+[#180]: https://github.com/NoGod3524/betterhuskyct/pull/180
