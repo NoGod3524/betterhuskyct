@@ -12,7 +12,6 @@ import {
   decide,
   EMPTY_PLAN_STATE,
   joinSyllabusTexts,
-  localDay,
   markFailed,
   markRead,
   supersede,
@@ -29,6 +28,7 @@ import {
   type Suggestion,
   type SyllabusSummary,
 } from "@/lib/ai-plan";
+import { localDay } from "@/lib/date-utils";
 import { SummaryError, type SummaryProblem } from "@/lib/announcement-summary";
 import type { MaterialsStore, StoredFile } from "@/lib/materials";
 import { openMaterialsStore } from "@/lib/materials-store";

@@ -5,7 +5,8 @@ import { Plus } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import { t } from "@/lib/i18n";
-import { dueInstant, todayInput } from "@/lib/quick-add";
+import { localDay } from "@/lib/date-utils";
+import { dueInstant } from "@/lib/quick-add";
 
 /**
  * A to-do added from the overview, with a title, a day and, if it has one, a time. It is the
@@ -22,7 +23,7 @@ export function QuickAdd() {
 
   // Read when it is opened, not when the page renders: the server does not know the reader's day.
   function show() {
-    setDate(todayInput(now));
+    setDate(localDay(now));
     setOpen(true);
   }
 

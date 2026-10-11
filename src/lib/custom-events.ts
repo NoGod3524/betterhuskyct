@@ -1,4 +1,5 @@
 import type { CalendarTask } from "./calendar-types.ts";
+import { localDay } from "./date-utils.ts";
 import { isRecord } from "./is-record.ts";
 
 /**
@@ -85,12 +86,7 @@ export type CustomEventInput = {
  * midnight as a UTC ISO string, so slicing the string would land a day early
  * anywhere ahead of UTC; `taskDate` reads the key back as a local date too.
  */
-function localDateKey(start: string): string {
-  const date = new Date(start);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-}
+const localDateKey = (start: string) => localDay(new Date(start));
 
 export function buildCustomEvent(input: CustomEventInput): CustomEvent {
   return {
