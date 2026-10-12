@@ -22,7 +22,7 @@ function announce(detail: DeliveryDetail) {
  * Listens for the helper's gradebooks and course files on every page, not
  * only on the Grades and Materials pages.
  *
- * A "Collect everything" press sends its results from whatever page the
+ * A sync pressed in the helper's panel sends its results from whatever page the
  * student is on, and a page that is not mounted cannot answer. So the receivers
  * live here, in the shell, and write to the same stores the pages read; a page
  * that is open hears the change through `DELIVERY_EVENT` and refreshes.

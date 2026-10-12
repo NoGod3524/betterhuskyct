@@ -26,7 +26,7 @@ type Helper = {
   readCoursesApi: () => Promise<unknown>;
   readColors: (storage: Storage) => Record<string, string>;
   cardColorFromIndex: (index: unknown) => string | null;
-  collectMaterials: (options?: Record<string, unknown>) => Promise<{ courses: Array<{ id: string; files: unknown[]; skipped: boolean }> }>;
+  syncLight: (options?: Record<string, unknown>) => Promise<{ materials: { courses: Array<{ id: string; files: unknown[]; skipped: boolean }> } }>;
   COLORS_KEY: string;
 };
 
@@ -137,7 +137,7 @@ test("content that is refused, or a next address outside HuskyCT's content, give
   assert.ok(!asked.some((path) => path.includes("evil.example")), "followed an address outside HuskyCT");
 });
 
-test("Collect everything reads materials from HuskyCT's data when it answers, and opens no outline", async () => {
+test("a sync reads materials from HuskyCT's data when it answers, and opens no outline", async () => {
   const memberships = page([
     {
       courseId: COURSE,
@@ -150,13 +150,13 @@ test("Collect everything reads materials from HuskyCT's data when it answers, an
   const visited: string[] = [];
   window.addEventListener("popstate", () => visited.push(window.location.pathname));
 
-  const manifest = plain(await helper.collectMaterials({ useCache: false }));
+  const manifest = plain((await helper.syncLight({ gap: 0 })).materials);
 
   assert.deepEqual(manifest.courses.map((course) => [course.id, course.skipped, course.files.length]), [[COURSE, false, 3]]);
   assert.ok(!visited.some((path) => path.includes("/outline")), "opened an outline: " + visited.join(", "));
 });
 
-test("each course's colour comes with the course list, and replaces one read off the page before", async () => {
+test("each course's colour comes with the course list, and replaces one kept from before", async () => {
   const membership = (id: string, index: number) => ({
     courseId: id,
     isAvailable: true,
@@ -167,7 +167,7 @@ test("each course's colour comes with the course list, and replaces one read off
   const { helper, window } = openPage((path) =>
     path.startsWith("/learn/api/v1/users/me/memberships") ? page([membership("_1_1", 180), membership("_2_1", 77), membership("_3_1", 18)]) : null,
   );
-  // Read wrong off the page before, as an earlier helper did.
+  // Kept wrong from before, as an earlier helper did.
   window.localStorage.setItem(helper.COLORS_KEY, JSON.stringify({ _1_1: "#a234b5" }));
 
   await helper.readCoursesApi();

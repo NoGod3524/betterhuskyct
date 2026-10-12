@@ -138,7 +138,6 @@ test("every page of the list is read and the courses to collect are this term's 
   assert.deepEqual(found?.cards.map((card) => card.id), ["_203765_1", "_100001_1", "_198430_1"]);
   // Last term's CHEM is on the list but not in the walk.
   assert.deepEqual(found?.queue, [{ id: "_203765_1", code: "MATH 1070Q" }, { id: "_198430_1", code: "ECON 1201" }]);
-  assert.equal(found?.pageFound, true);
 });
 
 test("a list that is refused, empty, not a list, or short of its count is not trusted", async () => {
