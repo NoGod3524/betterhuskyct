@@ -122,6 +122,7 @@ src/
 │  ├─ materials/page.tsx                         # /materials     course files, videos and links
 │  ├─ grades/page.tsx                            # /grades        gradebook rows and the points so far
 │  ├─ helper/page.tsx                            # /helper        install the browser helper
+│  ├─ privacy/page.tsx                            # /privacy       what the helper reads and never does
 │  ├─ globals.css, icon.tsx                      # Styles; the app icon
 ├─ components/
 │  ├─ calendar-provider.tsx                      # Every piece of app state, in the root layout
@@ -133,6 +134,7 @@ src/
 │  ├─ hero-section.tsx                           # Overview header, status line, the big Sync button
 │  ├─ helper-sync-button.tsx                     # The Sync button: opens HuskyCT and follows the helper's progress
 │  ├─ helper-section.tsx                         # How to install the browser helper
+│  ├─ privacy-section.tsx                         # The helper's privacy policy, which the stores link to
 │  ├─ helper-deliveries.tsx                      # Receives what the helper sends: materials and grades
 │  ├─ sync-banner.tsx                            # The banner for an incoming #sync= link
 │  ├─ connect-section.tsx                        # Connected calendars, course list, how to connect

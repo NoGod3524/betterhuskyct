@@ -1,14 +1,41 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
+import Link from "next/link";
 import { Download, ShieldCheck, Sparkles } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
-import { HELPER_SOURCE_URL } from "@/lib/helper";
+import {
+  HELPER_SCRIPT_URL,
+  HELPER_SOURCE_URL,
+  MANAGER_FALLBACK,
+  managerFor,
+} from "@/lib/helper";
 import { t } from "@/lib/i18n";
 
-/** How to get the browser helper: the extension, added by hand once, then three steps. */
+/** The user agent never changes, so there is nothing to subscribe to. */
+const NEVER_CHANGES = () => () => {};
+
+/**
+ * How to get the browser helper.
+ *
+ * The whole point is that a newcomer does not have to find anything: two store
+ * links and a sentence about what to do when they get there.
+ *
+ * The store link comes from the user agent, which the server cannot read — so
+ * it renders the neutral fallback while the client renders the real one. That
+ * is a client-only value with two snapshots, which is what `useSyncExternalStore`
+ * is for; doing it with an effect and a `setState` is both a wasted paint and
+ * something the hooks lint rule rejects. `getSnapshot` returns one of the
+ * module's own constants, so its identity is stable and React does not loop.
+ */
 export function HelperSection() {
   const { locale } = useCalendar();
+  const manager = useSyncExternalStore(
+    NEVER_CHANGES,
+    () => managerFor(navigator.userAgent),
+    () => MANAGER_FALLBACK,
+  );
 
   const ownExtSteps = [
     t(locale, "helper.ownExtStep1"),
@@ -17,9 +44,44 @@ export function HelperSection() {
   ];
 
   const steps = [
-    { title: t(locale, "helper.step4Title"), body: t(locale, "helper.step4Body") },
-    { title: t(locale, "helper.step5Title"), body: t(locale, "helper.step5Body") },
-    { title: t(locale, "helper.step6Title"), body: t(locale, "helper.step6Body") },
+    {
+      title: t(locale, "helper.step1Title"),
+      body: t(locale, "helper.step1Body"),
+      action: {
+        href: manager.url,
+        label: t(locale, "helper.step1Button", { store: manager.store }),
+        primary: false,
+      },
+    },
+    {
+      title: t(locale, "helper.step2Title"),
+      body: t(locale, "helper.step2Body"),
+      action: null,
+    },
+    {
+      title: t(locale, "helper.step3Title"),
+      body: t(locale, "helper.step3Body"),
+      action: {
+        href: HELPER_SCRIPT_URL,
+        label: t(locale, "helper.step3Button"),
+        primary: true,
+      },
+    },
+    {
+      title: t(locale, "helper.step4Title"),
+      body: t(locale, "helper.step4Body"),
+      action: null,
+    },
+    {
+      title: t(locale, "helper.step5Title"),
+      body: t(locale, "helper.step5Body"),
+      action: null,
+    },
+    {
+      title: t(locale, "helper.step6Title"),
+      body: t(locale, "helper.step6Body"),
+      action: null,
+    },
   ];
 
   const does = [
@@ -50,7 +112,43 @@ export function HelperSection() {
         </p>
       </div>
 
-      <article className="card mt-6 p-5">
+      <h3 className="mt-6 font-display text-base font-semibold">{t(locale, "helper.extensionTitle")}</h3>
+      <ol className="mt-3 grid gap-3">
+        {steps.map((step, index) => (
+          <li
+            key={step.title}
+            className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
+          >
+            <div className="flex flex-wrap items-start gap-4">
+              <span
+                aria-hidden="true"
+                className="font-display flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-sm font-semibold text-[var(--accent-ink)]"
+              >
+                {index + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-display text-base font-semibold text-[var(--ink)]">{step.title}</h3>
+                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{step.body}</p>
+              </div>
+              {step.action ? (
+                <a
+                  href={step.action.href}
+                  className={
+                    step.action.primary
+                      ? "tap-link inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-[var(--blue)] px-3 text-sm font-semibold text-white transition hover:bg-[var(--navy)]"
+                      : "tap-link inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--accent-ink)] transition hover:border-[var(--line-strong)]"
+                  }
+                >
+                  <Download size={15} />
+                  {step.action.label}
+                </a>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ol>
+
+      <article className="card mt-5 p-5">
         <h3 className="flex items-center gap-2 font-display text-base font-semibold">
           <Download size={16} className="text-[var(--blue)]" aria-hidden />
           {t(locale, "helper.ownExtTitle")}
@@ -70,29 +168,8 @@ export function HelperSection() {
           <Download size={15} aria-hidden />
           {t(locale, "helper.ownExtButton")}
         </a>
+        <p className="mt-3 text-xs leading-5 text-[var(--muted)]">{t(locale, "helper.ownExtNote")}</p>
       </article>
-
-      <ol className="mt-5 grid gap-3">
-        {steps.map((step, index) => (
-          <li
-            key={step.title}
-            className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]"
-          >
-            <div className="flex flex-wrap items-start gap-4">
-              <span
-                aria-hidden="true"
-                className="font-display flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-sm font-semibold text-[var(--accent-ink)]"
-              >
-                {index + 1}
-              </span>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-display text-base font-semibold text-[var(--ink)]">{step.title}</h3>
-                <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{step.body}</p>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ol>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <article className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,58,92,0.05)]">
@@ -127,6 +204,12 @@ export function HelperSection() {
           >
             {t(locale, "helper.sourceLink")}
           </a>
+          <Link
+            href="/privacy"
+            className="tap-link ml-4 mt-4 inline-block text-xs font-semibold text-[var(--accent-ink)] underline underline-offset-2"
+          >
+            {t(locale, "privacy.link")}
+          </Link>
         </article>
       </div>
     </section>

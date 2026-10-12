@@ -69,6 +69,7 @@ test("a pressed button shrinks a little, and not for people who asked for less m
 test("the components carry the classes the touch rules hang on", () => {
   const card = read("components/task-card.tsx");
   assert.match(card, /<label htmlFor=\{checkboxId\} className="tap-check[^"]*">\s*<input/, "the checkbox is not inside its hit area");
+  assert.equal((read("components/helper-section.tsx").match(/tap-link inline-flex h-9/g) ?? []).length, 2, "an install button is under a finger's height");
 
   const shell = read("components/app-shell.tsx");
   assert.match(shell, /const iconButton =\s*"tap-icon /, "the header's icon buttons are not finger-sized");

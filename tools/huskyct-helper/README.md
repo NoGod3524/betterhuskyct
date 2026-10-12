@@ -36,19 +36,13 @@ button. The two walks above do each of those jobs for every course at once, so
 
 ## Install
 
-**As the browser extension** (Chrome and Edge), which is how BetterHuskyCT's
-Helper page hands it out: see `../extension`. This file is its source, and
-the extension runs it unchanged.
+**With a userscript manager.**
 
-**With a userscript manager**, for a browser the extension does not cover:
-
-1. Install [Tampermonkey](https://www.tampermonkey.net/) or
-   [Violentmonkey](https://violentmonkey.github.io/).
-2. Open the manager's dashboard → **Create a new script**.
+1. Install [Tampermonkey](https://www.tampermonkey.net/) (Chrome, Edge, Firefox,
+   Safari) or [Violentmonkey](https://violentmonkey.github.io/).
+2. Open the extension's dashboard → **Create a new script**.
 3. Delete the template, paste in the whole of `huskyct-helper.user.js`, and save.
 4. Open HuskyCT. A small panel appears in the bottom-right corner.
-
-Use one or the other, or HuskyCT is read twice.
 
 ## Why it reads pages rather than asking HuskyCT
 
@@ -348,9 +342,8 @@ BetterHuskyCT:
 - **Minor** (`1.1.0`) — a new capability.
 - **Patch** (`1.0.1`) — a fix or a small addition.
 
-The panel shows the version it is running. The extension takes its version from
-`@version` and a userscript manager only offers an update when it goes up, so
-every change that ships raises it.
+The panel shows the version it is running. Tampermonkey only offers an update
+when `@version` goes up, so every change that ships raises it.
 
 ## Status
 
