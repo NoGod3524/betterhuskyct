@@ -36,7 +36,9 @@ type Helper = {
   readBasket: (storage: unknown) => {
     courses: Array<{ id: string; announcements: Array<{ title: string }>; announcementsAt: string | null }>;
     dueDates?: Array<{ uid: string; title: string; course: string | null; start: string }>;
+    todos: Array<{ uid: string; title: string; course: string | null; start: string }>;
   };
+  readTodosApi: (options?: Record<string, unknown>, codes?: Map<string, string>) => Promise<unknown>;
   readDueDatesApi: (options?: Record<string, unknown>) => Promise<Array<{ uid: string; title: string; course: string | null; courseId: string | null; due: Date }> | null>;
 };
 
@@ -133,9 +135,14 @@ const DUE = [
   gradable("Final Project", "2026-12-12T04:59:00.000Z", MATH, MATH_NAME),
 ];
 
+/** The To Do list as HuskyCT answers it: an item is the gradebook column with its title and due date. */
+const todoItem = (title: string, dueDate: string, id: string) => ({ title, dueDate, contentVisibility: "VISIBLE", column: { id, courseId: MATH, contentId: "_9_1", dueDate } });
+const TODO = { overdueItems: [todoItem("Quiz 3", "2026-10-10T03:59:00.000Z", "_31_1")], dueTodayItems: [], futureDueItems: [todoItem("Section 5.1 Homework", "2026-10-30T03:59:00.000Z", "_32_1")] };
+
 /** HuskyCT's data, with the parts a test wants to go wrong able to be switched off. */
-function data(fail: { announcements?: string[]; grades?: string[]; list?: boolean; me?: boolean; calendar?: boolean; paged?: boolean } = {}) {
+function data(fail: { announcements?: string[]; grades?: string[]; list?: boolean; me?: boolean; calendar?: boolean; paged?: boolean; todo?: boolean } = {}) {
   return async (path: string) => {
+    if (path.startsWith("/learn/api/v1/calendars/todo/studentItems")) return fail.todo ? new Response("{}", { status: 500 }) : json(TODO);
     if (path.startsWith("/learn/api/v1/calendars/calendarItems")) {
       if (fail.calendar) return new Response("{}", { status: 500 });
       if (fail.paged) {
@@ -185,6 +192,24 @@ test("a sync reads the term's due dates from the calendar's data: only what is d
     ["huskyct-due-_203765_1-Final-Project", "Final Project", "MATH 1070Q", "2026-12-12T04:59:00.000Z"],
   ]);
   assert.equal(moved(), 0, "a page was opened for them");
+});
+
+test("a sync reads the To Do list from HuskyCT's data, overdue work included, under the id the page gave, and a list that will not answer fails nothing", async () => {
+  const { window, helper, moved } = openPage(data());
+  const out = plain(await helper.syncLight());
+  assert.equal(out.ok, true);
+  assert.deepEqual(plain(helper.readBasket(window.localStorage)).todos.map((item) => [item.uid, item.title, item.course, item.start]), [
+    ["huskyct-todo-_31_1", "Quiz 3", "MATH 1070Q", "2026-10-10T03:59:00.000Z"],
+    ["huskyct-todo-_32_1", "Section 5.1 Homework", "MATH 1070Q", "2026-10-30T03:59:00.000Z"],
+  ]);
+  assert.equal(moved(), 0, "a page was opened for it");
+
+  const silent = openPage(data({ todo: true }));
+  assert.equal((await silent.helper.syncLight()).ok, true, "the sync failed for want of the To Do list");
+  assert.deepEqual(plain(silent.helper.readBasket(silent.window.localStorage)).todos, []);
+
+  const odd = openPage(async () => json({ overdueItems: "no" }));
+  assert.equal(await odd.helper.readTodosApi(), null);
 });
 
 test("the due dates are read across pages of the answer, and only HuskyCT's own next address is followed", async () => {

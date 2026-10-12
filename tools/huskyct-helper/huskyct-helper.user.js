@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      1.17.0
+// @version      1.18.0
 // @description  Collects your HuskyCT deadlines, announcements and course files, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       Yinuo (NoGod3524)
 // @homepageURL  https://github.com/NoGod3524/betterhuskyct
@@ -56,7 +56,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "1.17.0";
+  const VERSION = "1.18.0";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -540,6 +540,43 @@
     return records;
   }
 
+  /**
+   * The To Do list, from HuskyCT's own data: what is due this week or overdue and not yet handed
+   * in, as the records the basket keeps, or null if it could not be read this way. Measured on
+   * 2026-10-12: `/learn/api/v1/calendars/todo/studentItems?since=…&until=…` answers
+   * `{ overdueItems, dueTodayItems, futureDueItems }`, each a list of `{ title, dueDate,
+   * contentVisibility, column: { id, courseId, contentId, … } }`. The span may not exceed
+   * 14 days (21 is a 400), so this asks for a week either side of today. The column's id is the id
+   * the page's own to-do rows carry, so the uid is the one the page reading gave. `codes` maps a
+   * course id to its code, which the answer does not carry.
+   */
+  const TODO_DAYS = 7;
+
+  async function readTodosApi(opts, codes) {
+    const timeout = (opts && opts.apiTimeout) || 8000;
+    const now = Date.now();
+    const at = (days) => encodeURIComponent(new Date(now + days * 86400000).toISOString());
+    const answer = await fetchJson("/learn/api/v1/calendars/todo/studentItems?since=" + at(-TODO_DAYS) + "&until=" + at(TODO_DAYS), timeout);
+    if (!answer) return null;
+    const records = [];
+    const seen = new Set();
+    for (const list of [answer.overdueItems, answer.dueTodayItems, answer.futureDueItems]) {
+      if (!Array.isArray(list)) return null;
+      for (const item of list) {
+        const column = item && item.column;
+        const title = textOf({ textContent: item && item.title });
+        const due = new Date((item && (item.dueDate || (column && column.dueDate))) || "");
+        if (!column || typeof column.id !== "string" || !title || Number.isNaN(due.valueOf())) continue;
+        const uid = "huskyct-todo-" + column.id.replace(/[^\w.-]+/g, "-");
+        if (seen.has(uid)) continue;
+        seen.add(uid);
+        const courseId = typeof column.courseId === "string" ? column.courseId : null;
+        records.push({ uid, title, course: (codes && courseId && codes.get(courseId)) || null, courseId, dueText: "", due });
+      }
+    }
+    return records;
+  }
+
   /** The course id out of a course URL, e.g. `/ultra/courses/_203765_1/outline`. */
   function currentCourseId() {
     const match = window.location.pathname.match(/\/ultra\/courses\/([^/]+)/);
@@ -745,11 +782,8 @@
    * HuskyCT for anything: it keeps what the pages the student opens anyway
    * already show, and one press sends all of it.
    *
-   * It still reads only the rendered page. Measured again on 2026-09-27: a
-   * script's own request to /learn/api/v1/users/me and to a course's
-   * announcements endpoint both returned 403 AccessDenied, as the README
-   * records. So a course's announcements are in the basket once its
-   * Announcements page has been open — the course outline does not show them.
+   * What the panel reads off the pages the student opens anyway lands here as they browse.
+   * Collect everything and the quick sync fill it from HuskyCT's own data instead.
    *
    * It lives in this site's localStorage, so it survives HuskyCT's full page
    * loads, and it never leaves the browser except inside the link the student
@@ -990,9 +1024,8 @@
   /**
    * The basket used to fill only as the student opened each course's
    * Announcements tab by hand, which is the chore it was meant to remove.
-   * "Collect everything" gathers it all in one press: the to-do list from the
-   * Courses page (the one thing still read off a page), and the due dates, each
-   * course's announcements, gradebook and files from HuskyCT's own data, then
+   * "Collect everything" gathers it all in one press: the to-do list, the due
+   * dates, each course's announcements, gradebook and files from HuskyCT's own data, then
    * back to where the student was.
    */
 
@@ -1298,7 +1331,6 @@
         every: 300,
         pageTimeout: 15000,
         emptySettle: 4000,
-        todoSettle: 2500,
         gap: 250,
         onProgress() {},
         shouldStop: () => false,
@@ -1318,15 +1350,16 @@
       opts.onProgress({ step: "courses" });
       let basket = readBasket(storage);
       const found = await findCourses(opts, async (recent) => {
-        // An empty week has no to-do items at all, so this simply runs out.
-        await waitFor(() => document.querySelector("[aria-label*=', due ']"), opts.every, opts.todoSettle);
-        basket = save(rememberTodos(basket, todosToRecords(collectTodos(document)), new Date()));
         basket = save(rememberCourses(basket, recent));
       });
       const queue = found.queue;
       report.problems.push(...coursesProblems(found));
       save(rememberCourses(basket, queue));
       report.courses = queue.length;
+
+      // The to-do list, from HuskyCT's data. An empty week has none, which is not a failure.
+      const todos = await readTodosApi(opts, new Map(queue.map((course) => [course.id, course.code])));
+      if (todos) save(rememberTodos(readBasket(storage), todosToRecords(todos), new Date()));
 
       // 3. The due dates, from HuskyCT's calendar data: the whole term, not just the week the
       // to-do list covers.
@@ -2368,6 +2401,10 @@
       out.dueDates = dueDates.length;
       save(rememberDueDates(readBasket(storage), todosToRecords(dueDates), new Date()));
     }
+
+    const todos = await readTodosApi(opts, new Map(queue.map((course) => [course.id, course.code])));
+    lastApiFailure = failedBefore;
+    if (todos) save(rememberTodos(readBasket(storage), todosToRecords(todos), new Date()));
 
     const userId = await readUserId(opts);
     const manifest = { term: walkTerm(found), courses: [], stopped: false, signedOut: false, problems: [] };
@@ -3425,6 +3462,7 @@
       deadlineRecords,
       collectDueDates,
       readDueDatesApi,
+      readTodosApi,
       captureIntoBasket,
       basketSummary,
       routeTo,

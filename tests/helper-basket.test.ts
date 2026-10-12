@@ -569,6 +569,9 @@ function huskyctData(calendar: "items" | "paged" | "refused" = "items") {
         ],
       });
     }
+    if (path.startsWith("/learn/api/v1/calendars/todo/studentItems")) {
+      return reply({ overdueItems: [], dueTodayItems: [], futureDueItems: [{ title: "Section 4.7 Homework", dueDate: "2026-09-26T03:59:00.000Z", contentVisibility: "VISIBLE", column: { id: "_3867214_1", courseId: "_203765_1" } }] });
+    }
     if (path.startsWith("/learn/api/v1/calendars/calendarItems")) {
       if (calendar === "refused") return reply({}, 500);
       if (calendar === "paged" && !path.includes("offset=")) {
@@ -895,7 +898,7 @@ test("the switch for the sync on its own is kept, and says which way it is", asy
   assert.equal(plain(page.helper.readSyncState(page.window.localStorage)).auto, false);
 });
 
-test("the course list comes from HuskyCT's data, while the to-do list is still read from the Courses page", async () => {
+test("the course list comes from HuskyCT's data, and so is the to-do list; the Courses page is visited only for its recent strip", async () => {
   const page = openPage("https://lms.uconn.edu/ultra/stream", "<main><p>Activity stream</p></main>");
   const huskyct = fakeHuskyct(page.window);
   const membership = (id: string, displayName: string, courseId: string) => ({
@@ -905,7 +908,9 @@ test("the course list comes from HuskyCT's data, while the to-do list is still r
     course: { id, courseId, displayName, isOrganization: false, isAvailable: true, effectiveAvailability: true },
   });
   (page.window as unknown as { fetch: unknown }).fetch = async (path: string) =>
-    path.startsWith("/learn/api/v1/users/me/memberships")
+    path.startsWith("/learn/api/v1/calendars/todo/studentItems")
+      ? new Response(JSON.stringify({ overdueItems: [], dueTodayItems: [], futureDueItems: [{ title: "Section 4.7 Homework", dueDate: "2026-09-26T03:59:00.000Z", contentVisibility: "VISIBLE", column: { id: "_3867214_1", courseId: "_203765_1" } }] }), { status: 200 })
+      : path.startsWith("/learn/api/v1/users/me/memberships")
       ? new Response(
           JSON.stringify({
             paging: { count: 2, nextPage: "" },
@@ -922,7 +927,7 @@ test("the course list comes from HuskyCT's data, while the to-do list is still r
 
   // Two courses from the data, where the pages would have found five.
   assert.equal(report.courses, 2);
-  assert.ok(huskyct.visited.includes("/ultra/course"), "the to-do list was not read from the Courses page");
+  assert.ok(huskyct.visited.includes("/ultra/course"), "the Courses page was not visited for its recent strip");
   assert.ok(!huskyct.visited.includes("/ultra/calendar"), "the Calendar's page was opened for the due dates");
   assert.equal(page.basket().todos.length, 1);
   assert.deepEqual(plain(page.basket().courses.map((course) => course.id)).sort(), ["_198430_1", "_203765_1"]);
