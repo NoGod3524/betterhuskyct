@@ -17,6 +17,8 @@ manifest.version = version;
 const files = { "manifest.json": strToU8(JSON.stringify(manifest, null, 2) + "\n"), "huskyct-helper.js": strToU8(helper) };
 for (const name of ["background.js", "relay.js", "shim.js"]) files[name] = readFileSync(here(`../tools/extension/${name}`));
 
+for (const size of [16, 48, 128]) files[`icons/icon-${size}.png`] = readFileSync(here(`../tools/extension/icons/icon-${size}.png`));
+
 mkdirSync(here("../public/"), { recursive: true });
 writeFileSync(here("../public/betterhuskyct-extension.zip"), zipSync(files, { level: 9 }));
 console.log(`public/betterhuskyct-extension.zip written (${version})`);

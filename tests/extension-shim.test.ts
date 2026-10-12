@@ -64,3 +64,13 @@ test("opening a tab asks the background, and closing names the same tab", () => 
   assert.equal(posted[1].kind, "close");
   assert.equal(posted[1].id, posted[0].id);
 });
+
+test("the manifest names icons that exist, at the sizes the stores ask for", () => {
+  const manifest = JSON.parse(readFileSync(join(HERE, "..", "tools", "extension", "manifest.json"), "utf8")) as { icons: Record<string, string> };
+  assert.deepEqual(Object.keys(manifest.icons).sort(), ["128", "16", "48"]);
+  for (const [size, path] of Object.entries(manifest.icons)) {
+    const png = readFileSync(join(HERE, "..", "tools", "extension", path));
+    assert.equal(png.readUInt32BE(16), Number(size), `${path} is not ${size} wide`);
+    assert.equal(png.readUInt32BE(20), Number(size), `${path} is not ${size} tall`);
+  }
+});
