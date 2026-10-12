@@ -28,12 +28,13 @@ function store(options: { uploadAnswers?: object[]; publishAnswers?: object[]; p
     const url = String(input);
     const method = init?.method ?? "GET";
     calls.push({ method, url, headers: init?.headers as Record<string, string>, body: init?.body });
-    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200 });
+    // The store answers an operation that is still going with 202, and a finished one with 200.
+    const json = (body: { status?: string }) => new Response(JSON.stringify(body), { status: body.status === "InProgress" ? 202 : 200 });
     if (method === "POST") {
       const status = options.postStatus?.[url.endsWith("/draft/package") ? "upload" : "publish"] ?? 202;
       return new Response(status === 202 ? "" : "refused", { status, headers: status === 202 && !options.noLocation ? { location: url.endsWith("/draft/package") ? "op-upload" : "op-publish" } : {} });
     }
-    return json(url.includes("/draft/package/operations/") ? uploadAnswers.shift() : publishAnswers.shift());
+    return json((url.includes("/draft/package/operations/") ? uploadAnswers.shift() : publishAnswers.shift()) as { status?: string });
   };
   return { calls, fetch: fetcher as typeof fetch };
 }
