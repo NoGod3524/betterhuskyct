@@ -54,7 +54,8 @@ export async function publishToEdge(settings: Settings, deps: Deps = {}): Promis
   async function finished(step: string, url: string): Promise<Operation> {
     for (let look = 0; look < tries; look++) {
       const response = await request(url, { headers: auth });
-      if (response.status !== 200) throw new Error(`${step}: checking on it, the store answered ${response.status}`);
+      // Microsoft documents 200 here, and the store answers 202 while an operation is still going: both carry the status.
+      if (response.status !== 200 && response.status !== 202) throw new Error(`${step}: checking on it, the store answered ${response.status}`);
       const operation = (await response.json()) as Operation;
       if (operation.status === "Succeeded") return operation;
       if (operation.status === "Failed") throw failure(step, operation);
