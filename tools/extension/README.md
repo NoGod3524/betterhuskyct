@@ -11,7 +11,7 @@ The same helper as the userscript in `../huskyct-helper`, run by the browser its
 
 ## Sending a new version to Edge
 
-Releases do it on their own. When a release is tagged (`vX.Y.Z`) and the helper's `@version` moved since the tag before, the workflow `.github/workflows/publish-edge.yml` builds the zip, uploads it over the draft in Microsoft Edge Add-ons with `scripts/publish-edge.ts`, and submits it for review with the notes in `certification-notes.txt` and the release's title on top. Review still takes up to seven days, and the browsers update the extension by themselves after it. A release that did not touch the helper sends nothing. **Run workflow** in the Actions tab sends the current helper by hand.
+Releases do it on their own. When a release is tagged (`vX.Y.Z`) and the helper's `@version` has not been sent yet, the workflow `.github/workflows/publish-edge.yml` builds the zip, uploads it over the draft in Microsoft Edge Add-ons with `scripts/publish-edge.ts`, and submits it for review with the notes in `certification-notes.txt` and the release's title on top. Review still takes up to seven days, and the browsers update the extension by themselves after it. Once the store has it, the version is remembered as a tag, `edge/X.Y.Z`, and a release that did not move the helper finds that tag and sends nothing. **Run workflow** in the Actions tab sends the current helper by hand.
 
 It uses Microsoft's Add-ons API, v1.1, and needs two repository secrets, from Partner Center → Microsoft Edge → **Publish API** → **Create API credentials**:
 

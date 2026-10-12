@@ -1,16 +1,17 @@
 name: Publish the extension to Edge
 
-# A release is tagged vX.Y.Z. If the helper's version moved since the tag before it, the extension
-# is built, uploaded over the draft in Microsoft Edge Add-ons, and submitted for review. A release
-# that did not touch the helper changes nothing in the store. Run by hand to send the current
-# helper whatever the tags say.
+# A release is tagged vX.Y.Z. If the helper's version has not been sent yet, the extension is
+# built, uploaded over the draft in Microsoft Edge Add-ons, and submitted for review, and the
+# version is remembered as a tag, edge/X.Y.Z. A release that did not move the helper changes
+# nothing in the store. Run by hand to send the current helper whatever the tags say.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
 
+# Write, to leave the edge/X.Y.Z tag that says a version was sent.
 permissions:
-  contents: read
+  contents: write
 
 # Two submissions at once would race for the same draft.
 concurrency:
@@ -28,28 +29,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Has the helper moved since the last release?
+      - name: Has this helper version been sent?
         id: moved
         run: |
-          helper=tools/huskyct-helper/huskyct-helper.user.js
-          version() { grep -m1 '^// @version' | awk '{print $3}'; }
-          current=$(version < "$helper")
+          current=$(grep -m1 '^// @version' tools/huskyct-helper/huskyct-helper.user.js | awk '{print $3}')
+          echo "version=$current" >> "$GITHUB_OUTPUT"
+          echo "note=$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             echo "Run by hand: sending $current."
             echo "send=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          previous_tag=$(git tag --sort=-v:refname | grep -vx "$GITHUB_REF_NAME" | head -n 1 || true)
-          previous=""
-          if [ -n "$previous_tag" ]; then previous=$(git show "$previous_tag:$helper" | version); fi
-          echo "Helper: $current now, ${previous:-none} at ${previous_tag:-no earlier tag}."
-          if [ "$current" = "$previous" ]; then
-            echo "The helper did not move, so the store is left as it is."
+          elif git rev-parse -q --verify "refs/tags/edge/$current" > /dev/null; then
+            echo "Helper $current was sent before (tag edge/$current), so the store is left as it is."
             echo "send=false" >> "$GITHUB_OUTPUT"
           else
+            echo "Helper $current has not been sent."
             echo "send=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "note=$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
         if: steps.moved.outputs.send == 'true'
@@ -75,3 +70,10 @@ jobs:
           EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
           EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
           RELEASE_NOTE: ${{ steps.moved.outputs.note }}
+
+      # Only after the store took it: a failed run leaves no tag, so the next release tries again.
+      - name: Remember that this version was sent
+        if: steps.moved.outputs.send == 'true'
+        run: |
+          git tag "edge/${{ steps.moved.outputs.version }}" || true
+          git push origin "edge/${{ steps.moved.outputs.version }}"
