@@ -90,12 +90,16 @@ test("an upload that is refused outright, or accepted with no operation, or neve
   );
 });
 
-test("the workflow sends only when the helper moved, with the secrets from the repository and none written in it", () => {
+test("the workflow sends only a helper version it has not sent, with the secrets from the repository and none written in it", () => {
   const workflow = readFileSync(new URL("../.github/workflows/publish-edge.yml", import.meta.url), "utf8");
   assert.match(workflow, /tags: \["v\*"\]/);
   assert.match(workflow, /EDGE_CLIENT_ID: \$\{\{ secrets\.EDGE_CLIENT_ID \}\}/);
   assert.match(workflow, /EDGE_API_KEY: \$\{\{ secrets\.EDGE_API_KEY \}\}/);
   assert.match(workflow, /steps\.moved\.outputs\.send == 'true'/);
+  // A version that was sent leaves a tag, and a tag skips it next time; a failed run leaves none.
+  assert.match(workflow, /refs\/tags\/edge\/\$current/);
+  const sent = workflow.indexOf("Remember that this version was sent");
+  assert.ok(sent > workflow.indexOf("node scripts/publish-edge.ts"), "the version is remembered before the store has it");
   assert.doesNotMatch(workflow, /EDGE_API_KEY: [^$\s]/, "a key is written into the workflow");
 });
 
