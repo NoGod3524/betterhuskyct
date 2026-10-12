@@ -116,6 +116,7 @@ src/
 │  ├─ materials/page.tsx                         # /materials     课程文件、视频和链接
 │  ├─ grades/page.tsx                            # /grades        各项成绩和目前得分
 │  ├─ helper/page.tsx                            # /helper        安装浏览器助手
+│  ├─ privacy/page.tsx                            # /privacy       助手读什么、绝不做什么
 │  ├─ globals.css, icon.tsx                      # 样式；应用图标
 ├─ components/
 │  ├─ calendar-provider.tsx                      # 整个应用的状态，放在根布局里
@@ -127,6 +128,7 @@ src/
 │  ├─ hero-section.tsx                           # 总览顶部、状态行、大号同步按钮
 │  ├─ helper-sync-button.tsx                     # 同步按钮：打开 HuskyCT 并跟随助手的进度
 │  ├─ helper-section.tsx                         # 怎么安装浏览器助手
+│  ├─ privacy-section.tsx                         # 助手的隐私政策，商店页面会链接到它
 │  ├─ helper-deliveries.tsx                      # 接收助手发来的资料和成绩
 │  ├─ sync-banner.tsx                            # 收到 #sync= 链接时的提示条
 │  ├─ connect-section.tsx                        # 已连接的日历、课程列表、怎么连接

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import Link from "next/link";
 import { Download, ShieldCheck, Sparkles } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
@@ -203,6 +204,12 @@ export function HelperSection() {
           >
             {t(locale, "helper.sourceLink")}
           </a>
+          <Link
+            href="/privacy"
+            className="tap-link ml-4 mt-4 inline-block text-xs font-semibold text-[var(--accent-ink)] underline underline-offset-2"
+          >
+            {t(locale, "privacy.link")}
+          </Link>
         </article>
       </div>
     </section>
