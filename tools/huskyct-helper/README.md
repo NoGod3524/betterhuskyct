@@ -72,8 +72,10 @@ them. So the helper goes and gets them.
 
 Press **Collect everything** and the panel walks HuskyCT in the tab you are in:
 
-1. **The Courses page**, for the to-do list. It only covers a week either side
-   of today, and it is the one place overdue work shows.
+1. **The to-do list**, from `/learn/api/v1/calendars/todo/studentItems`, the
+   data the Courses page's To Do panel draws from. It only covers a week either
+   side of today, and it is the one place overdue work shows. The quick sync
+   reads it too, so overdue work comes with the Sync button.
 2. **Every course you are enrolled in.** On a wide screen the Courses page lists
    them all as cards; on a narrow one it shows only the few opened most recently
    (four of six on the account this was measured with) and the rest are behind
