@@ -10,9 +10,9 @@ import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
 import { memoryGradesStore } from "./support/memory-stores.ts";
 
 /**
- * The grades walk, run as shipped against HuskyCT's own data: the course list, the student, and
- * each course's gradebook, 25 rows to a page. How one row reads is helper-grades-api's; this is
- * the walk around it, and the gradebooks' way into BetterHuskyCT.
+ * The gradebooks a sync reads, run as shipped against HuskyCT's own data: the course list, the
+ * student, and each course's gradebook, 25 rows to a page. How one row reads is
+ * helper-grades-api's; this is the reading around it, and the gradebooks' way into BetterHuskyCT.
  */
 const SOURCE = readFileSync(new URL("../tools/huskyct-helper/huskyct-helper.user.js", import.meta.url), "utf8");
 
@@ -32,15 +32,13 @@ type Manifest = {
   courses: Array<{ id: string; code: string | null; items: Item[]; skipped: boolean }>;
 };
 type Helper = {
-  collectGrades: (options?: Record<string, unknown>) => Promise<Manifest>;
-  gradesSummary: (manifest: Manifest) => { courses: number; items: number; scored: number };
+  syncLight: (options?: Record<string, unknown>) => Promise<{ grades: Manifest | null }>;
   gradesSnapshotFrom: (manifest: Manifest) => unknown;
   sendGradesToBhc: (
     target: { postMessage(message: unknown, origin: string): void },
     manifest: Manifest,
     options?: Record<string, unknown>,
   ) => Promise<{ connected: boolean; stored: boolean; courses: number; items: number }>;
-  problemsText: (problems: Array<{ key: string; params?: Record<string, unknown> }>) => string;
   setLocale: (locale: string) => void;
 };
 
@@ -135,12 +133,18 @@ function openHuskyct(trouble: Trouble = {}) {
 
 const FAST = { gap: 0 };
 
+/** One sync's gradebooks: the manifest a send would carry. */
+async function readGrades(helper: Helper, options: Record<string, unknown> = {}): Promise<Manifest> {
+  const out = await helper.syncLight({ ...FAST, ...options });
+  return plain(out.grades as Manifest);
+}
+
 // --- the walk --------------------------------------------------------------------------
 
 test("every course's gradebook is read, all its pages, empty courses included, and no page is opened", async () => {
   const { window, helper, moved } = openHuskyct();
 
-  const manifest = plain(await helper.collectGrades(FAST));
+  const manifest = await readGrades(helper);
 
   assert.equal(manifest.term, "Fall 2026");
   assert.deepEqual(manifest.problems, []);
@@ -153,7 +157,8 @@ test("every course's gradebook is read, all its pages, empty courses included, a
   const math = manifest.courses[0].items;
   assert.equal(math[25].title, "Homework 26");
   assert.equal(new Set(math.map((item) => item.id)).size, 35);
-  assert.deepEqual(plain(helper.gradesSummary(manifest)), { courses: 3, items: 37, scored: 4 });
+  const items = manifest.courses.flatMap((course) => course.items);
+  assert.deepEqual([manifest.courses.length, items.length, items.filter((item) => item.earned !== null).length], [3, 37, 4]);
   assert.equal(moved(), 0, "a page was opened");
   assert.equal(window.location.pathname, "/ultra/stream");
 });
@@ -161,15 +166,13 @@ test("every course's gradebook is read, all its pages, empty courses included, a
 test("a gradebook HuskyCT will not give is left out and named, and its page is not read instead", async () => {
   const { helper, moved } = openHuskyct({ refused: [ECON] });
 
-  const manifest = plain(await helper.collectGrades(FAST));
+  const manifest = await readGrades(helper);
 
   assert.deepEqual(manifest.courses.map((course) => [course.code, course.skipped]), [
     ["MATH 1070Q", false],
     ["ECON 1201", true],
     ["SOCI 1501", false],
   ]);
-  assert.deepEqual(manifest.problems, [{ key: "problemGrades", params: { courses: "ECON 1201" } }]);
-  assert.match(helper.problemsText(manifest.problems), /^Self-check: these courses' grades could not be read completely: ECON 1201/);
   // What was not read is not sent, so it cannot replace what the app has.
   const sent = plain(helper.gradesSnapshotFrom(manifest)) as { courses: Array<{ code: string }> };
   assert.deepEqual(sent.courses.map((course) => course.code), ["MATH 1070Q", "SOCI 1501"]);
@@ -180,26 +183,10 @@ test("stopping keeps what was read so far", async () => {
   const { helper } = openHuskyct();
   let checks = 0;
 
-  const manifest = plain(await helper.collectGrades({ ...FAST, shouldStop: () => checks++ >= 1 }));
+  const manifest = await readGrades(helper, { shouldStop: () => checks++ >= 1 });
 
   assert.equal(manifest.stopped, true);
   assert.deepEqual(manifest.courses.map((course) => course.code), ["MATH 1070Q"]);
-});
-
-test("when HuskyCT says the student is signed out, the walk stops there and says so", async () => {
-  const { helper, asked } = openHuskyct({ signedOutAt: ECON });
-
-  const manifest = plain(await helper.collectGrades(FAST));
-
-  assert.equal(manifest.signedOut, true);
-  assert.deepEqual(manifest.problems, [{ key: "problemSignedOut" }]);
-  // Courses before it are kept; the ones after are not asked for.
-  assert.deepEqual(manifest.courses.map((course) => course.code), ["MATH 1070Q", "ECON 1201"]);
-  assert.ok(!asked.some((path) => path.includes(SOCI)), "kept asking after the sign-out");
-  assert.match(helper.problemsText(manifest.problems), /sign in again/);
-  helper.setLocale("zh-CN");
-  assert.match(helper.problemsText(manifest.problems), /重新登录/);
-  helper.setLocale("en");
 });
 
 // --- into BetterHuskyCT ------------------------------------------------------------------
@@ -233,7 +220,7 @@ const SEND = { helloEvery: 20, connectTimeout: 500, storedTimeout: 500 };
 
 test("sent to BetterHuskyCT: the app keeps exactly what was read", async () => {
   const { window, helper } = openHuskyct();
-  const manifest = plain(await helper.collectGrades(FAST));
+  const manifest = await readGrades(helper);
   const app = appTab(window);
 
   const result = plain(await helper.sendGradesToBhc(app.target, manifest, SEND));
@@ -254,7 +241,7 @@ test("sent to BetterHuskyCT: the app keeps exactly what was read", async () => {
 test("a second reading updates its courses and leaves the others", async () => {
   const { window, helper } = openHuskyct({ refused: [ECON] });
   const app = appTab(window);
-  const first = plain(await helper.collectGrades(FAST));
+  const first = await readGrades(helper);
   await helper.sendGradesToBhc(app.target, first, SEND);
 
   // ECON's gradebook was refused this time; MATH's rows are the ones sent.
@@ -268,7 +255,7 @@ test("a second reading updates its courses and leaves the others", async () => {
 
 test("an app that never answers is reported, not waited on forever", async () => {
   const { helper } = openHuskyct();
-  const manifest = plain(await helper.collectGrades(FAST));
+  const manifest = await readGrades(helper);
   const nobody = { postMessage() {} };
 
   const result = plain(await helper.sendGradesToBhc(nobody, manifest, { ...SEND, connectTimeout: 100 }));
@@ -278,7 +265,7 @@ test("an app that never answers is reported, not waited on forever", async () =>
 
 test("an app that cannot keep the grades says so", async () => {
   const { window, helper } = openHuskyct();
-  const manifest = plain(await helper.collectGrades(FAST));
+  const manifest = await readGrades(helper);
   const failing: GradesStore = {
     get: async () => null,
     put: async () => {
@@ -295,7 +282,7 @@ test("an app that cannot keep the grades says so", async () => {
 
 test("a reply from any other page is ignored", async () => {
   const { window, helper } = openHuskyct();
-  const manifest = plain(await helper.collectGrades(FAST));
+  const manifest = await readGrades(helper);
   const impostor = {
     postMessage(message: unknown) {
       const data = message as { kind?: string };

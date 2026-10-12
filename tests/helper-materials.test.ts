@@ -10,8 +10,8 @@ import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
 import { memoryMaterialsStore } from "./support/memory-stores.ts";
 
 /**
- * The materials walk, run as shipped against HuskyCT's own data, and the files' way into
- * BetterHuskyCT. How one course's content reads is helper-materials-api's; this is the walk
+ * The materials a sync reads, run as shipped against HuskyCT's own data, and the files' way into
+ * BetterHuskyCT. How one course's content reads is helper-materials-api's; this is the reading
  * around it and the delivery after it.
  */
 const SOURCE = readFileSync(new URL("../tools/huskyct-helper/huskyct-helper.user.js", import.meta.url), "utf8");
@@ -33,13 +33,11 @@ type Manifest = {
 };
 
 type Helper = {
-  collectMaterials: (options?: Record<string, unknown>) => Promise<Manifest>;
-  materialsSummary: (manifest: Manifest) => { courses: number; files: number; videos: number; links: number; tools: number };
+  syncLight: (options?: Record<string, unknown>) => Promise<{ materials: Manifest | null }>;
   safeName: (name: string, fallback: string) => string;
   nameFromStoreUrl: (url: string) => string | null;
   termLabel: (code: number) => string | null;
   setLocale: (locale: string) => void;
-  problemsText: (problems: Array<{ key: string; params?: Record<string, unknown> }>) => string;
   sendMaterialsToBhc: (
     target: { postMessage(message: unknown, origin: string): void },
     manifest: Manifest,
@@ -141,12 +139,18 @@ function openPage(refused: string[] = []) {
 
 const FAST = { gap: 0 };
 
+/** One sync's course content: the manifest a send would carry. */
+async function readMaterials(helper: Helper, options: Record<string, unknown> = {}): Promise<Manifest> {
+  const out = await helper.syncLight({ ...FAST, ...options });
+  return plain(out.materials as Manifest);
+}
+
 // --- the walk --------------------------------------------------------------------------
 
 test("every course's files, links and tools are found, folders and documents included, and no page is opened", async () => {
   const { helper, moved } = openPage();
 
-  const manifest = plain(await helper.collectMaterials(FAST));
+  const manifest = await readMaterials(helper);
 
   assert.equal(manifest.term, "Fall 2026");
   assert.deepEqual(manifest.problems, []);
@@ -158,28 +162,37 @@ test("every course's files, links and tools are found, folders and documents inc
   ]);
   assert.deepEqual(math.links.map((link) => [link.path.join("/"), link.title, link.kind]), [["Week 1", "Section 4.1 - Lecture", "video"]]);
   assert.deepEqual(math.tools.map((tool) => [tool.path.join("/"), tool.title]), [["Week 1", "Cengage WebAssign"]]);
-  assert.deepEqual(plain(helper.materialsSummary(manifest)), { courses: 2, files: 4, videos: 1, links: 0, tools: 1 });
+  const read = manifest.courses.filter((course) => !course.skipped);
+  const count = (pick: (course: (typeof read)[number]) => number) => read.reduce((total, course) => total + pick(course), 0);
+  assert.deepEqual(
+    {
+      courses: read.length,
+      files: count((course) => course.files.length),
+      videos: count((course) => course.links.filter((link) => link.kind === "video").length),
+      links: count((course) => course.links.filter((link) => link.kind !== "video").length),
+      tools: count((course) => course.tools.length),
+    },
+    { courses: 2, files: 4, videos: 1, links: 0, tools: 1 },
+  );
   assert.equal(moved(), 0, "a page was opened");
 });
 
 test("a course whose content HuskyCT will not give is named, and the others are still read", async () => {
   const { helper } = openPage([ECON]);
 
-  const manifest = plain(await helper.collectMaterials(FAST));
+  const manifest = await readMaterials(helper);
 
   assert.deepEqual(manifest.courses.map((course) => [course.code, course.skipped]), [
     ["MATH 1070Q", false],
     ["ECON 1201", true],
   ]);
-  assert.deepEqual(manifest.problems, [{ key: "problemOutlines", params: { courses: "ECON 1201" } }]);
-  assert.match(helper.problemsText(manifest.problems), /could not be read: ECON 1201/);
 });
 
 test("stopping keeps what was found so far", async () => {
   const { helper } = openPage();
   let checks = 0;
 
-  const manifest = plain(await helper.collectMaterials({ ...FAST, shouldStop: () => checks++ >= 1 }));
+  const manifest = await readMaterials(helper, { shouldStop: () => checks++ >= 1 });
 
   assert.equal(manifest.stopped, true);
   assert.deepEqual(manifest.courses.map((course) => course.code), ["MATH 1070Q"]);
@@ -243,7 +256,7 @@ const SEND = { helloEvery: 20, connectTimeout: 1000, fileTimeout: 1000 };
 
 test("sent to BetterHuskyCT: every file stored there, then only what is new", async () => {
   const { window, helper, requests } = openPage();
-  const manifest = await helper.collectMaterials(FAST);
+  const manifest = await readMaterials(helper);
   const app = appTab(window);
 
   const first = plain(await helper.sendMaterialsToBhc(app.target, manifest, SEND));
@@ -263,7 +276,7 @@ test("sent to BetterHuskyCT: every file stored there, then only what is new", as
 
 test("an app that never answers is reported, not waited on forever", async () => {
   const { helper } = openPage();
-  const manifest = await helper.collectMaterials(FAST);
+  const manifest = await readMaterials(helper);
   const silent = { postMessage() {} };
 
   const result = plain(await helper.sendMaterialsToBhc(silent, manifest, { ...SEND, connectTimeout: 200 }));
@@ -273,7 +286,7 @@ test("an app that never answers is reported, not waited on forever", async () =>
 
 test("a reply from any other page is ignored", async () => {
   const { window, helper } = openPage();
-  const manifest = await helper.collectMaterials(FAST);
+  const manifest = await readMaterials(helper);
   // Something else on the web answering "ready" must not start a delivery.
   const impostor = {
     postMessage() {

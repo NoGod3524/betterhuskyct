@@ -5,8 +5,7 @@
  * The files never touch a server. They arrive one of two ways, and both end in
  * the same store:
  *
- * - **Sent by the helper.** After "Collect course materials" on HuskyCT, the
- *   helper opens this app's Materials page and posts each file to it, tab to
+ * - **Sent by the helper.** On a sync, the helper posts each file to this app, tab to
  *   tab, with `postMessage`. The files are read on HuskyCT's side because only
  *   that page has HuskyCT's session; this app never talks to HuskyCT itself.
  * - **Imported from a folder** the helper saved them into, for a browser where

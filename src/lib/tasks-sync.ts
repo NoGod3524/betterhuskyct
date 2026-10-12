@@ -41,7 +41,7 @@ export type TasksEvent = { origin: string; data: unknown; source: Source | null 
  *
  * `onSync` applies the payload straight away — there is no confirmation
  * banner on this route, unlike the `#sync=` link, because the student already
- * pressed "Collect everything" and does not need to be asked twice.
+ * pressed Sync and does not need to be asked twice.
  */
 export function createTasksReceiver(options: { onSync: (payload: SyncPayload) => boolean }) {
   return function receive(event: TasksEvent): void {
