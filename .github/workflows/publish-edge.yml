@@ -1,0 +1,77 @@
+name: Publish the extension to Edge
+
+# A release is tagged vX.Y.Z. If the helper's version moved since the tag before it, the extension
+# is built, uploaded over the draft in Microsoft Edge Add-ons, and submitted for review. A release
+# that did not touch the helper changes nothing in the store. Run by hand to send the current
+# helper whatever the tags say.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Two submissions at once would race for the same draft.
+concurrency:
+  group: publish-edge
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: upload and submit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Has the helper moved since the last release?
+        id: moved
+        run: |
+          helper=tools/huskyct-helper/huskyct-helper.user.js
+          version() { grep -m1 '^// @version' | awk '{print $3}'; }
+          current=$(version < "$helper")
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Run by hand: sending $current."
+            echo "send=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          previous_tag=$(git tag --sort=-v:refname | grep -vx "$GITHUB_REF_NAME" | head -n 1 || true)
+          previous=""
+          if [ -n "$previous_tag" ]; then previous=$(git show "$previous_tag:$helper" | version); fi
+          echo "Helper: $current now, ${previous:-none} at ${previous_tag:-no earlier tag}."
+          if [ "$current" = "$previous" ]; then
+            echo "The helper did not move, so the store is left as it is."
+            echo "send=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "send=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "note=$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        if: steps.moved.outputs.send == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.moved.outputs.send == 'true'
+        run: npm ci
+
+      - name: Build the extension
+        if: steps.moved.outputs.send == 'true'
+        run: node scripts/build-extension.mjs
+
+      - name: Upload and submit
+        if: steps.moved.outputs.send == 'true'
+        run: node scripts/publish-edge.ts
+        env:
+          # Partner Center, Microsoft Edge, Publish API. The product id is the extension's, in its address.
+          EDGE_PRODUCT_ID: 765d310d-eb89-4c3c-af8d-d031dbc78399
+          EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+          RELEASE_NOTE: ${{ steps.moved.outputs.note }}

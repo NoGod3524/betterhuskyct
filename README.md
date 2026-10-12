@@ -195,7 +195,7 @@ tools/
 ├─ huskyct-helper/                   # The userscript that reads HuskyCT in your own session
 └─ extension/                        # The same helper as a Chrome / Edge extension (built into public/ before dev and build)
 scripts/
-├─ build-extension.mjs, build-course-map.mjs
+├─ build-extension.mjs, build-course-map.mjs, publish-edge.ts
 └─ eval-announcements/               # How well the date finding works: labelling, agreement, scoring
 tests/                               # node:test suites
 ```

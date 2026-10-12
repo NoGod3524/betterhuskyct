@@ -189,7 +189,7 @@ tools/
 ├─ huskyct-helper/                   # 在你自己的会话里读取 HuskyCT 的用户脚本
 └─ extension/                        # 同一个助手做成 Chrome / Edge 扩展（在 dev 和 build 之前打进 public/）
 scripts/
-├─ build-extension.mjs, build-course-map.mjs
+├─ build-extension.mjs, build-course-map.mjs, publish-edge.ts
 └─ eval-announcements/               # 日期识别准不准：标注、一致性、打分
 tests/                               # node:test 测试
 ```
