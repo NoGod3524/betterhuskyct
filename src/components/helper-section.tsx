@@ -6,6 +6,7 @@ import { Download, ShieldCheck, Sparkles } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import {
+  EDGE_ADDONS_URL,
   HELPER_SCRIPT_URL,
   HELPER_SOURCE_URL,
   MANAGER_FALLBACK,
@@ -112,7 +113,20 @@ export function HelperSection() {
         </p>
       </div>
 
-      <h3 className="mt-6 font-display text-base font-semibold">{t(locale, "helper.extensionTitle")}</h3>
+      <article className="card mt-6 p-5">
+        <h3 className="flex items-center gap-2 font-display text-base font-semibold">
+          <Download size={16} className="text-[var(--blue)]" aria-hidden />
+          {t(locale, "helper.edgeTitle")}
+        </h3>
+        <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t(locale, "helper.edgeLead")}</p>
+        <a href={EDGE_ADDONS_URL} className="btn btn-primary mt-4 w-fit">
+          <Download size={15} aria-hidden />
+          {t(locale, "helper.edgeButton")}
+        </a>
+        <p className="mt-3 text-xs leading-5 text-[var(--muted)]">{t(locale, "helper.ownExtNote")}</p>
+      </article>
+
+      <h3 className="mt-8 font-display text-base font-semibold">{t(locale, "helper.extensionTitle")}</h3>
       <ol className="mt-3 grid gap-3">
         {steps.map((step, index) => (
           <li

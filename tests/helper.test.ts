@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  EDGE_ADDONS_URL,
   HELPER_SCRIPT_URL,
   HELPER_SOURCE_URL,
   MANAGER_FALLBACK,
@@ -65,4 +66,8 @@ test("the script and source links point at main", () => {
     "https://github.com/NoGod3524/betterhuskyct/tree/main/tools/huskyct-helper",
   );
   assert.ok(HELPER_SCRIPT_URL.endsWith(".user.js"), "a manager only intercepts .user.js");
+});
+
+test("the Edge listing is the extension's own page in Edge Add-ons", () => {
+  assert.match(EDGE_ADDONS_URL, /^https:\/\/microsoftedge\.microsoft\.com\/addons\/detail\/betterhuskyct-helper\/[a-z]{32}$/);
 });
