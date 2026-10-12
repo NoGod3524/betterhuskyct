@@ -1,6 +1,6 @@
 # BetterHuskyCT Helper — browser extension
 
-The same helper as the userscript in `../huskyct-helper`, run by the browser itself instead of Tampermonkey. Manifest V3, Chrome and Edge.
+The same helper as the userscript in `../huskyct-helper`, run by the browser itself, with no userscript manager. Manifest V3, Chrome and Edge. This is the install BetterHuskyCT's Helper page offers.
 
 - `manifest.json` — permissions: `storage`, `scripting`, and the three sites the helper already matched.
 - `relay.js` — content script in the extension's world; carries the helper's storage to `chrome.storage.local` and its tab requests to the background.
