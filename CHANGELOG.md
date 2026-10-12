@@ -14,6 +14,26 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.34.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.34.0) — The helper reads no page, and Edge installs it from the store
+
+*Minor: a rebuilt helper, a privacy page, and the extension in Microsoft Edge Add-ons. HuskyCT Helper goes from 1.17.0 to 2.0.0.*
+
+### Changed
+
+- **HuskyCT Helper 2.0.0 reads no page.** Everything it needs is in HuskyCT's own data, so the code that read pages is gone, about 2,850 lines of it: the readers of announcements, the to-do list, due dates and course cards, the timer that noted what the pages you opened showed, **Collect everything** with its walks through the Courses and Announcements pages, **Send everything**'s `#sync=` link, and **Clear basket**. The panel is **Sync now** (reads, then sends to BetterHuskyCT, which the press opens; files too big for the bridge go whole this way) and the automatic-sync switch. BetterHuskyCT's own Sync button and the sync on open are unchanged. The four empty-state texts and the Helper page's description that named Collect everything now say Sync. The helper's README, which still said HuskyCT's data refuses scripts, is rewritten. ([#206])
+- **The helper's to-do list is read from HuskyCT's data**, `/learn/api/v1/calendars/todo/studentItems`, by Collect everything and by the quick sync, so overdue work now comes with the Sync button too. (helper 1.18.0, [#200])
+- **The Helper page leads with the extension's listing in Microsoft Edge Add-ons**, with an **Add to Microsoft Edge** button; the Tampermonkey steps stay below it, and the card for adding the extension by hand is headed for Chrome, whose store does not have it yet. ([#207])
+
+### Added
+
+- **The extension is ready for the stores, and in Edge's.** Icons at 16, 48 and 128, a manifest description inside the 132 characters both stores allow, the listing text in English and Chinese, every permission's justification and the certification note in `tools/extension/STORE.md`, and screenshots at 1280×800. ([#202], [#203])
+- **A privacy page**, `/privacy`, in English and Chinese: what the helper reads, what it never does, where the data goes, and what each permission is for. The stores want a public address for it, and GitHub's own page for `PRIVACY.md` answered 503 to a checker. It is linked from the Helper page. ([#205])
+- **New versions of the extension go to Edge on their own.** When a release is tagged and the helper's version has not been sent, a workflow builds the zip, uploads it over the draft and submits it for review through Microsoft's Add-ons API, then leaves a tag, `edge/X.Y.Z`, so the same version is not sent twice. Review still takes up to seven days. It needs two repository secrets from Partner Center's Publish API page. ([#208], [#209], [#210])
+
+### Fixed
+
+- **The screenshots in the README and the store listing are from the current app.** They were from HuskyPilot, before the rename, and showed the `.ics` import that 1.33.0 removed. They are retaken at 1280×800 from made-up data, in both languages, with one new one for the announcements page. ([#204])
+
 ## [1.33.3](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.33.3) — Intervals on the date-finding numbers
 
 *Patch: evaluation scripts, a test and documentation. The app and HuskyCT Helper (1.17.0) are unchanged.*
@@ -1903,3 +1923,13 @@ saying what to work on next.*
 [#193]: https://github.com/NoGod3524/betterhuskyct/pull/193
 [#195]: https://github.com/NoGod3524/betterhuskyct/pull/195
 [#197]: https://github.com/NoGod3524/betterhuskyct/pull/197
+[#200]: https://github.com/NoGod3524/betterhuskyct/pull/200
+[#202]: https://github.com/NoGod3524/betterhuskyct/pull/202
+[#203]: https://github.com/NoGod3524/betterhuskyct/pull/203
+[#204]: https://github.com/NoGod3524/betterhuskyct/pull/204
+[#205]: https://github.com/NoGod3524/betterhuskyct/pull/205
+[#206]: https://github.com/NoGod3524/betterhuskyct/pull/206
+[#207]: https://github.com/NoGod3524/betterhuskyct/pull/207
+[#208]: https://github.com/NoGod3524/betterhuskyct/pull/208
+[#209]: https://github.com/NoGod3524/betterhuskyct/pull/209
+[#210]: https://github.com/NoGod3524/betterhuskyct/pull/210
