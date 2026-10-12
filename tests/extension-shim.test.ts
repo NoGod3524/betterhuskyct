@@ -74,3 +74,8 @@ test("the manifest names icons that exist, at the sizes the stores ask for", () 
     assert.equal(png.readUInt32BE(20), Number(size), `${path} is not ${size} tall`);
   }
 });
+
+test("the manifest's description fits the stores' 132 characters", () => {
+  const manifest = JSON.parse(readFileSync(join(HERE, "..", "tools", "extension", "manifest.json"), "utf8")) as { description: string };
+  assert.ok(manifest.description.length <= 132, `${manifest.description.length} characters`);
+});
