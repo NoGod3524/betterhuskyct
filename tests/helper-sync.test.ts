@@ -194,6 +194,23 @@ test("a sync reads the term's due dates from the calendar's data: only what is d
   assert.equal(moved(), 0, "a page was opened for them");
 });
 
+test("two assignments of one course with one title are two deadlines, the first under the uid the view gave", async () => {
+  const twin = (itemSourceId: string, endDate: string) => ({ ...gradable("Weekly Reading", endDate, MATH, MATH_NAME), itemSourceId });
+  const twins = [twin("_501_1", "2026-11-15T04:59:00.000Z"), twin("_502_1", "2026-11-22T04:59:00.000Z")];
+  const base = data();
+  const { window, helper } = openPage(async (path: string) =>
+    path.startsWith("/learn/api/v1/calendars/calendarItems") ? json({ paging: { nextPage: "" }, results: twins }) : base(path),
+  );
+
+  await helper.syncLight();
+
+  const held = plain(helper.readBasket(window.localStorage)).dueDates ?? [];
+  assert.deepEqual(held.map((item) => [item.uid, item.start]), [
+    ["huskyct-due-_203765_1-Weekly-Reading", "2026-11-15T04:59:00.000Z"],
+    ["huskyct-due-_203765_1-Weekly-Reading-_502_1", "2026-11-22T04:59:00.000Z"],
+  ]);
+});
+
 test("a sync reads the To Do list from HuskyCT's data, overdue work included, under the id the page gave, and a list that will not answer fails nothing", async () => {
   const { window, helper, moved } = openPage(data());
   const out = plain(await helper.syncLight());
