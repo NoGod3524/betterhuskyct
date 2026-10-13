@@ -117,6 +117,7 @@ src/
 │  ├─ grades/page.tsx                            # /grades        各项成绩和目前得分
 │  ├─ helper/page.tsx                            # /helper        安装浏览器助手
 │  ├─ privacy/page.tsx                            # /privacy       助手读什么、绝不做什么
+│  ├─ backup/page.tsx                            # /backup        把全部数据存成一个文件，再读回来
 │  ├─ globals.css, icon.tsx                      # 样式；应用图标
 ├─ components/
 │  ├─ calendar-provider.tsx                      # 整个应用的状态，放在根布局里
@@ -129,6 +130,7 @@ src/
 │  ├─ helper-sync-button.tsx                     # 同步按钮：打开 HuskyCT 并跟随助手的进度
 │  ├─ helper-section.tsx                         # 怎么安装浏览器助手
 │  ├─ privacy-section.tsx                         # 助手的隐私政策，商店页面会链接到它
+│  ├─ backup-section.tsx                         # 下载备份；读入备份，合并或替换
 │  ├─ helper-deliveries.tsx                      # 接收助手发来的资料和成绩
 │  ├─ sync-banner.tsx                            # 收到 #sync= 链接时的提示条
 │  ├─ connect-section.tsx                        # 已连接的日历、课程列表、怎么连接
@@ -167,6 +169,7 @@ src/
    ├─ task-status.ts                             # 成绩册说哪些 deadline 已经完成，以及原因
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# 快到期检测；添加表单；搜索；「新」标记
    ├─ export.ts                                  # CSV 导出
+   ├─ backup.ts                                  # 所有存储内容的备份：生成、检查、汇总、合并、恢复
    ├─ announcements.ts                           # 课程公告：推导的 id、上限、存储
    ├─ announcement-actions.ts, announcement-dates.ts, announcement-sentences.ts# 规则：切句子、找日期、给出待办建议
    ├─ announcement-decisions.ts, announcement-versions.ts, announcement-todo.ts, announcement-text.ts, announcement-filters.ts# 学生的决定；公告每次保存时的内容；添加表单；文本展示；筛选
