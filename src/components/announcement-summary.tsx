@@ -110,7 +110,8 @@ export function AnnouncementSummary({
     return <p className="text-xs text-[var(--muted)]">{t(locale, "summary.pickCourse")}</p>;
   }
 
-  const signature = `${course.modelLabel}\n${summarySignature(announcements, locale)}`;
+  // The model chosen is part of what was asked, so choosing another offers a new summary.
+  const signature = `${choice}\n${course.modelLabel}\n${summarySignature(announcements, locale)}`;
   // Pending state for a different set of announcements, or a different
   // language, is not this panel's any more.
   const pending = status.kind !== "idle" && status.signature === signature ? status : null;

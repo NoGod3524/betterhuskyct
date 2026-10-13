@@ -313,7 +313,10 @@ test("a request reads HuskyCT's data, moves no page, says so in the panel, and k
   assert.deepEqual(page.basket().courses.find((course) => course.id === "_203765_1")?.announcements.map((a) => a.title), ["Exam 1 is NEXT Tuesday!"]);
   const state = plain(page.helper.readSyncState(page.window.localStorage));
   assert.equal(state.pending, false);
-  assert.ok(state.at && state.grades, "the reading was not kept");
+  assert.ok(state.grades, "the reading was not kept");
+  // This stand-in answers no calendar, to-do list or files, so the sync is not counted as done: it tries again at the next opening.
+  assert.equal(state.at, null);
+  assert.match(page.text('[data-role="sync"]'), /Not read this time: due dates; the to-do list; some files/);
   assert.ok(page.button("sync"), "the panel has no Sync now button");
 });
 

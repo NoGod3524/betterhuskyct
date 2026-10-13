@@ -137,6 +137,13 @@ test("contact details are taken out before anything is sent", () => {
   assert.equal((redacted.match(/\[link\]/g) ?? []).length, 2);
 });
 
+test("phones without a gap, and links without a scheme, are taken out too", () => {
+  const redacted = redactContactDetails("Call (860)486-0000 or 8604860000 or +1 860 486 0000. Join uconn-cmr.zoom.us/j/123?pwd=abc or zoom.us.");
+  assert.ok(!/\d{3}[\s.-]?\d{4}/.test(redacted), redacted);
+  assert.ok(!redacted.includes("zoom.us") && !redacted.includes("pwd="), redacted);
+  assert.equal((redacted.match(/\[phone\]/g) ?? []).length, 3);
+});
+
 test("what a summary is for survives redaction: dates, times, rooms, sections, codes", () => {
   const text =
     "Midterm 2 is Tue Oct 14 at 11:59 PM in MSB 411 (sections 3.1-4.2). " +

@@ -112,6 +112,11 @@
       syncingCourse: "Syncing {course} ({index} of {total})…",
       syncDone: "Synced {courses} course(s): {announcements} announcement(s), {items} grade item(s).",
       syncSkipped: " Could not read: {courses}.",
+      syncMissing: " Not read this time: {what}. It tries again the next time HuskyCT opens.",
+      missDue: "due dates",
+      missTodo: "the to-do list",
+      missGrades: "some grades",
+      missFiles: "some files",
       syncNotSent: " Not sent yet. Press Sync on BetterHuskyCT to bring it over.",
       syncAutoReady: " Read on its own. Press Sync to send it to BetterHuskyCT.",
       syncNoData: "Nothing could be read from HuskyCT. Try again once you are signed in.",
@@ -141,6 +146,11 @@
       syncingCourse: "正在同步 {course}（第 {index} / {total} 门）……",
       syncDone: "已同步 {courses} 门课：{announcements} 条公告、{items} 项成绩。",
       syncSkipped: " 没能读取：{courses}。",
+      syncMissing: " 这次没读到：{what}。下次打开 HuskyCT 时会再试。",
+      missDue: "截止日期",
+      missTodo: "待办列表",
+      missGrades: "部分成绩",
+      missFiles: "部分文件",
       syncNotSent: " 还没发送，在 BetterHuskyCT 上按「同步」就会送过去。",
       syncAutoReady: " 已自动读取，按「同步」发给 BetterHuskyCT。",
       syncNoData: "没能从 HuskyCT 读到任何内容，登录后再试一次。",
@@ -1532,7 +1542,7 @@
       options,
     );
     const storage = window.localStorage;
-    const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, dueDates: 0, skipped: [], stopped: false, grades: null, materials: null, reason: null, detail: null };
+    const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, dueDates: 0, skipped: [], missing: [], stopped: false, grades: null, materials: null, reason: null, detail: null };
     // When nothing is read, which step it stopped at and what HuskyCT said. A 401 is HuskyCT
     // saying the student is signed out, whatever page the tab shows.
     const fail = (step) => {
@@ -1563,11 +1573,12 @@
     if (dueDates) {
       out.dueDates = dueDates.length;
       save(rememberDueDates(readBasket(storage), todosToRecords(dueDates), new Date()));
-    }
+    } else out.missing.push("missDue");
 
     const todos = await readTodosApi(opts, new Map(queue.map((course) => [course.id, course.code])));
     lastApiFailure = failedBefore;
     if (todos) save(rememberTodos(readBasket(storage), todosToRecords(todos), new Date()));
+    else out.missing.push("missTodo");
 
     const userId = await readUserId(opts);
     const manifest = { term: walkTerm(found), courses: [], stopped: false, signedOut: false, problems: [] };
@@ -1616,6 +1627,10 @@
     out.grades = manifest.courses.some((course) => !course.skipped) ? manifest : null;
     materials.stopped = out.stopped;
     out.materials = materials.courses.some((course) => !course.skipped) ? materials : null;
+    if (!out.stopped) {
+      if (manifest.courses.some((course) => course.skipped)) out.missing.push("missGrades");
+      if (materials.courses.some((course) => course.skipped)) out.missing.push("missFiles");
+    }
     out.ok = readAny || out.grades !== null;
     return out.ok || out.stopped ? out : fail("read");
   }
@@ -2206,11 +2221,14 @@
           return;
         }
         if (out.grades) grades = out.grades;
-        syncState = Object.assign({}, syncState, { at: new Date().toISOString(), pending: true, grades });
+        // A sync that missed something is not counted as a sync: the next opening tries again.
+        syncState = Object.assign({}, syncState, { at: out.missing.length ? syncState.at : new Date().toISOString(), pending: true, grades });
         writeSyncState(window.localStorage, syncState);
 
         const readText = t("syncDone", { courses: out.courses, announcements: out.announcements, items: out.gradeItems });
-        const skipped = out.skipped.length ? t("syncSkipped", { courses: out.skipped.join(", ") }) : "";
+        const skipped =
+          (out.skipped.length ? t("syncSkipped", { courses: out.skipped.join(", ") }) : "") +
+          (out.missing.length ? t("syncMissing", { what: out.missing.map((key) => t(key)).join(t("sentPartsJoin")) }) : "");
         const read = { courses: out.courses, announcements: out.announcements, gradeItems: out.gradeItems, skipped: out.skipped };
         if (!tab) {
           syncLine.className = "note warn";

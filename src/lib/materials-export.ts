@@ -181,7 +181,7 @@ export function linksPageHtml(index: MaterialsIndex, locale: "en" | "zh-CN"): st
 /** The parts of the File System Access API this writes with; declared so tests can fake them. */
 export type WritableFile = {
   kind: "file";
-  getFile(): Promise<{ size: number }>;
+  getFile(): Promise<{ size: number; arrayBuffer(): Promise<ArrayBuffer> }>;
   createWritable(): Promise<{ write(data: Blob | string): Promise<void>; close(): Promise<void> }>;
 };
 export type WritableDirectory = {
@@ -193,9 +193,17 @@ export type WritableDirectory = {
 
 export type SaveResult = { saved: number; skipped: number; failed: number; stopped: boolean; folder: string };
 
+/** Whether a file on disk holds exactly the bytes about to be written. Sizes are checked first by the caller. */
+async function sameBytes(a: { arrayBuffer(): Promise<ArrayBuffer> }, b: Blob): Promise<boolean> {
+  const [left, right] = await Promise.all([a.arrayBuffer(), b.arrayBuffer()]);
+  const x = new Uint8Array(left);
+  const y = new Uint8Array(right);
+  return x.length === y.length && x.every((byte, index) => byte === y[index]);
+}
+
 /**
  * Writes the plan into a folder the student picked: a `HuskyCT <term>` folder
- * inside it, then the courses. A file that is already there with the same size
+ * inside it, then the courses. A file that is already there with the same bytes
  * is left alone, so a second export writes only what is new. One file failing
  * (a name the disk refuses, a full disk) is counted and the rest go on.
  */
@@ -224,7 +232,8 @@ export async function saveToDirectory(
         (handle) => handle.getFile(),
         () => null,
       );
-      if (existing && existing.size === entry.blob.size) {
+      // The same size is not the same file: a new version of a file often keeps its size.
+      if (existing && existing.size === entry.blob.size && (await sameBytes(existing, entry.blob))) {
         result.skipped++;
         continue;
       }
