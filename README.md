@@ -123,6 +123,7 @@ src/
 │  ├─ grades/page.tsx                            # /grades        gradebook rows and the points so far
 │  ├─ helper/page.tsx                            # /helper        install the browser helper
 │  ├─ privacy/page.tsx                            # /privacy       what the helper reads and never does
+│  ├─ backup/page.tsx                            # /backup        save everything as one file, and load it back
 │  ├─ globals.css, icon.tsx                      # Styles; the app icon
 ├─ components/
 │  ├─ calendar-provider.tsx                      # Every piece of app state, in the root layout
@@ -135,6 +136,7 @@ src/
 │  ├─ helper-sync-button.tsx                     # The Sync button: opens HuskyCT and follows the helper's progress
 │  ├─ helper-section.tsx                         # How to install the browser helper
 │  ├─ privacy-section.tsx                         # The helper's privacy policy, which the stores link to
+│  ├─ backup-section.tsx                         # Download a backup; load one, merged or replacing
 │  ├─ helper-deliveries.tsx                      # Receives what the helper sends: materials and grades
 │  ├─ sync-banner.tsx                            # The banner for an incoming #sync= link
 │  ├─ connect-section.tsx                        # Connected calendars, course list, how to connect
@@ -173,6 +175,7 @@ src/
    ├─ task-status.ts                             # Which deadlines the gradebook says are done, and why
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# Due-soon detection; the add form; search; what is new
    ├─ export.ts                                  # CSV export
+   ├─ backup.ts                                  # A backup of every stored value: make, check, sum up, merge, restore
    ├─ announcements.ts                           # Course announcements: derived ids, caps, storage
    ├─ announcement-actions.ts, announcement-dates.ts, announcement-sentences.ts# The rules: sentences, the dates in them, the to-dos they suggest
    ├─ announcement-decisions.ts, announcement-versions.ts, announcement-todo.ts, announcement-text.ts, announcement-filters.ts# What the student decided; what each announcement said when saved; the add form; showing the text; filters

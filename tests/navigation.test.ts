@@ -34,7 +34,7 @@ function pageRoutes(): string[] {
 }
 
 /** Pages that are not for the sidebar, and are linked from the page they belong to: the helper's privacy policy. */
-const LINKED_FROM = { "/privacy": "components/helper-section.tsx" } as const;
+const LINKED_FROM = { "/privacy": "components/helper-section.tsx", "/backup": "components/app-footer.tsx" } as const;
 
 test("every page can be reached from the navigation, and nothing in it goes nowhere", () => {
   const routes = pageRoutes();

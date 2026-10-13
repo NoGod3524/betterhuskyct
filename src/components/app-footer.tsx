@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useCalendar } from "@/components/calendar-provider";
 import { t } from "@/lib/i18n";
 
@@ -20,6 +22,10 @@ export function AppFooter({ version }: { version: string }) {
         {t(locale, "footer.version", { version })}
         {" · "}
         {t(locale, "footer.disclaimer")}
+        {" · "}
+        <Link href="/backup" className="underline-offset-2 hover:underline">
+          {t(locale, "footer.backup")}
+        </Link>
       </span>
       <span>
         {t(locale, "footer.madeBy")}{" "}
