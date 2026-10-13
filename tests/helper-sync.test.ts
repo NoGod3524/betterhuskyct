@@ -194,6 +194,18 @@ test("a sync reads the term's due dates from the calendar's data: only what is d
   assert.equal(moved(), 0, "a page was opened for them");
 });
 
+test("what a sync could not read is named, and a sync that missed something is not counted as done", async () => {
+  const { helper } = openPage(data({ calendar: true, todo: true, grades: [ECON] }));
+
+  const out = plain(await helper.syncLight()) as unknown as { ok: boolean; missing: string[] };
+
+  assert.equal(out.ok, true);
+  // The stand-in has no files either.
+  assert.deepEqual(out.missing, ["missDue", "missTodo", "missGrades", "missFiles"]);
+  const whole = plain(await openPage(data()).helper.syncLight()) as unknown as { missing: string[] };
+  assert.deepEqual(whole.missing, ["missFiles"], "only the files the stand-in does not have");
+});
+
 test("two assignments of one course with one title are two deadlines, the first under the uid the view gave", async () => {
   const twin = (itemSourceId: string, endDate: string) => ({ ...gradable("Weekly Reading", endDate, MATH, MATH_NAME), itemSourceId });
   const twins = [twin("_501_1", "2026-11-15T04:59:00.000Z"), twin("_502_1", "2026-11-22T04:59:00.000Z")];

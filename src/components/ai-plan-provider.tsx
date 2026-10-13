@@ -210,6 +210,8 @@ export function AiPlanProvider({
         }
 
         await pause();
+        // The switch may have been turned off while the file was read: nothing leaves after that.
+        if (!stateRef.current.enabled || !mounted.current) return null;
         const outcome = await ask({
           kind: "syllabus",
           courseLabel: label,
@@ -245,6 +247,7 @@ export function AiPlanProvider({
       const label = (batch.course ?? "Course").slice(0, 80);
       setStatus({ phase: "reading", what: "announcements", course: label });
       await pause();
+      if (!stateRef.current.enabled || !mounted.current) return null;
       const outcome = await ask({ kind: "announcements", courseLabel: label, term: null, today, text: "", announcements: batch.announcements });
       if ("stop" in outcome) return { problem: outcome.stop, retry: outcome.retry };
       if ("failed" in outcome) {

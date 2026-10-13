@@ -55,6 +55,7 @@ import {
 } from "@/lib/event-overlay";
 import {
   buildCustomEvent,
+  MAX_CUSTOM_EVENTS,
   editCustomEvent as applyCustomEventEdit,
   isCustomEventId,
   removeCustomEvent as dropCustomEvent,
@@ -337,8 +338,11 @@ export function CalendarProvider({
   }
 
   function commitCustomEvents(next: CustomCalendarEvent[]) {
-    setCustomEvents(next);
-    saveCustomEvents(window.localStorage, next);
+    // What is shown is what is saved: past the limit the newest are refused out loud, not lost on reload.
+    const kept = next.slice(0, MAX_CUSTOM_EVENTS);
+    if (kept.length < next.length) setError(t(locale, "events.full", { max: MAX_CUSTOM_EVENTS }));
+    setCustomEvents(kept);
+    saveCustomEvents(window.localStorage, kept);
   }
 
   /**

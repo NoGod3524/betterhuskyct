@@ -150,7 +150,7 @@ class MemoryDirectory {
       kind: "file" as const,
       async getFile() {
         const text = files.get(name) ?? "";
-        return { size: text.length };
+        return { size: text.length, arrayBuffer: async () => new TextEncoder().encode(text).buffer };
       },
       async createWritable() {
         let written: Blob | string = "";
@@ -205,6 +205,19 @@ test("exporting again writes only what is new", async () => {
   const third = await saveToDirectory(root as unknown as WritableDirectory, planExport(index, changed));
   assert.equal(third.saved, 1);
   assert.equal(third.skipped, 3);
+});
+
+test("a file whose new version keeps its size is still written again", async () => {
+  const root = new MemoryDirectory();
+  await saveToDirectory(root as unknown as WritableDirectory, planExport(index, stored));
+
+  const revised = new Map(stored).set(key(3), file(3, "Syllabus.pdf", "SYLLABUS"));
+  const again = await saveToDirectory(root as unknown as WritableDirectory, planExport(index, revised));
+
+  assert.equal(again.saved, 1);
+  assert.equal(again.skipped, 3);
+  const math = (await root.getDirectoryHandle("HuskyCT Fall 2026")).dirs.get("MATH 1070Q")!;
+  assert.equal(math.files.get("Syllabus.pdf"), "SYLLABUS");
 });
 
 test("one file the disk refuses is counted and the rest still go", async () => {

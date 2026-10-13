@@ -138,7 +138,10 @@ export function redactContactDetails(text: string): string {
   return text
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[email]")
     .replace(/\b(?:https?:\/\/|www\.)[^\s<>()]+/gi, "[link]")
-    .replace(/(?<!\d)(?:\+?1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]\d{3}[\s.-]\d{4}(?!\d)/g, "[phone]");
+    // A link written without its scheme: a host ending in a common suffix, and any path after it.
+    .replace(/\b(?:[a-z0-9-]+\.)+(?:com|edu|org|net|gov|io|us|cn|co|me|app)\b(?:\/[^\s<>()]*)?/gi, "[link]")
+    // 860-486-0000, (860) 486-0000, (860)486-0000 and 8604860000, with or without +1.
+    .replace(/(?<!\d)(?:\+?1[\s.-]?)?(?:\(\d{3}\)|\d{3})[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)/g, "[phone]");
 }
 
 export function redactRequest(request: SummaryRequest): SummaryRequest {
