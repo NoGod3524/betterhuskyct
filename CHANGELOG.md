@@ -14,6 +14,15 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.35.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.35.0) — Back up everything, and send it to your phone
+
+*Minor: a backup of everything in one file, and the way to the phone. The helper is unchanged at 2.0.1.*
+
+### Added
+
+- **Back up and restore**, on a new page, `/backup`, linked from the footer of every page. **Download backup** saves everything BetterHuskyCT keeps in this browser as one file: ticks, calendars and your own events, corrections, to-dos, reminders, announcements and your decisions on them, grades, courses and colours, the AI plan, language and theme. Loading one shows what is in it before anything changes, then merges (what is here stays, what is missing is added) or replaces. A restore that fails part-way puts back what was there. Course files are not in it: Sync brings them back, and the Materials page saves them as a ZIP. Nothing is sent anywhere. ([#216])
+- **Send to phone**, beside it: the backup goes to the system's share sheet as a file, to Phone Link, Nearby Share, AirDrop, a chat app or mail, and the page says how to load it on the phone. A browser that cannot share a file downloads it to be sent by hand. The file has no length limit, which the old sync link had. ([#217])
+
 ## [1.34.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.34.1) — Sync says what it missed, and two ways to lose data are closed
 
 *Patch: fixes from an audit of 1.34.0, and the security updates. HuskyCT Helper goes from 2.0.0 to 2.0.1.*
@@ -1956,3 +1965,5 @@ saying what to work on next.*
 [#212]: https://github.com/NoGod3524/betterhuskyct/pull/212
 [#213]: https://github.com/NoGod3524/betterhuskyct/pull/213
 [#214]: https://github.com/NoGod3524/betterhuskyct/pull/214
+[#216]: https://github.com/NoGod3524/betterhuskyct/pull/216
+[#217]: https://github.com/NoGod3524/betterhuskyct/pull/217
