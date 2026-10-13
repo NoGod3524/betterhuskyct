@@ -276,8 +276,12 @@ export function mergeMaterialsIndex(current: MaterialsIndex | null, incoming: Ma
   };
 }
 
-/** A course is the same course by its code when it has one, else by its id. */
+/**
+ * A course is the same course by HuskyCT's id when it has one, so a lecture and a lab that share a
+ * code stay two courses. Without a real id (a folder import names the course by its code), the code.
+ */
 function courseKey(course: MaterialsCourse): string {
+  if (/^_\d+_\d+$/.test(course.id)) return "id:" + course.id;
   return course.code ? "code:" + course.code.toUpperCase() : "id:" + course.id;
 }
 

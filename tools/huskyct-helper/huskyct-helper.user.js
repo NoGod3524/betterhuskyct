@@ -352,7 +352,9 @@
         if (!title || Number.isNaN(due.valueOf())) continue;
         const courseId = typeof item.calendarId === "string" ? item.calendarId : null;
         const name = item.calendarNameLocalizable && item.calendarNameLocalizable.rawValue;
-        const uid = "huskyct-due-" + ((courseId || "course") + "-" + title).replace(/[^\w.-]+/g, "-");
+        let uid = "huskyct-due-" + ((courseId || "course") + "-" + title).replace(/[^\w.-]+/g, "-");
+        // Two assignments can share a title in one course; the first keeps the id an earlier helper gave.
+        if (seen.has(uid)) uid += "-" + String(item.itemSourceId || item.id || due.toISOString()).replace(/[^\w.-]+/g, "-");
         if (seen.has(uid)) continue;
         seen.add(uid);
         records.push({ uid, title, course: courseCodeFromDisplay(name), courseId, dueText: "", due });

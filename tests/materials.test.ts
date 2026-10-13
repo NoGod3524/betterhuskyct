@@ -224,6 +224,15 @@ test("a newer delivery replaces its own courses and keeps the rest", () => {
   ]);
 });
 
+test("a lecture and a lab sharing a code stay two courses, and a lab alone does not drop the lecture", () => {
+  const lecture = index([FILE_URL], "STAT 1000Q", "_111_1");
+  const lab = index([OTHER_URL], "STAT 1000Q", "_222_1");
+  const both = mergeMaterialsIndex(lecture, lab);
+  assert.deepEqual(both.courses.map((course) => course.id).sort(), ["_111_1", "_222_1"]);
+  const labAgain = mergeMaterialsIndex(both, index([], "STAT 1000Q", "_222_1"));
+  assert.deepEqual(labAgain.courses.map((course) => [course.id, course.files.length]).sort(), [["_111_1", 1], ["_222_1", 0]]);
+});
+
 // --- showing ----------------------------------------------------------------------------------
 
 test("a course's outline on HuskyCT is linked only for a real course id", () => {
