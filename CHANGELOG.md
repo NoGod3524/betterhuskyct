@@ -14,6 +14,26 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.34.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.34.1) — Sync says what it missed, and two ways to lose data are closed
+
+*Patch: fixes from an audit of 1.34.0, and the security updates. HuskyCT Helper goes from 2.0.0 to 2.0.1.*
+
+### Fixed
+
+- **Two assignments with one title in a course are two deadlines.** The helper kept the first and dropped the second; the first keeps the id it had, so a ticked box stays ticked. (helper 2.0.1, [#212])
+- **A lab delivered alone no longer removes its lecture's files.** Materials were merged by course code, so a lecture and a lab that share one replaced each other, and the cleanup after a complete delivery then deleted the lecture's files. They now merge by HuskyCT's course id. ([#212])
+- **A sync says what it could not read.** When the calendar, the to-do list, some gradebooks or some files would not answer, it still said it had succeeded and moved its time forward. Now the panel names what was missed and the sync is not counted as done, so the next time HuskyCT opens it tries again. (helper 2.0.1, [#213])
+- **Marking grades as seen no longer undoes a newer sync** from another tab. ([#213])
+- **A folder export rewrites a file whose new version has the same size**; it compared sizes only. ([#213])
+- **Turning AI off stops what was about to be sent**, including a file that was being read at that moment. ([#213])
+- **After choosing another model, the summary can be made again.** ([#213])
+- **Phone numbers written without a gap, like `(860)486-0000`, and links without `https://`** are taken out before the announcements go to a model. ([#213])
+- **Your own events past the limit of 500 say so**, instead of showing and then vanishing on reload. ([#213])
+
+### Security
+
+- **Next.js 16.4.0, and updated `sharp` and `source-map-js`.** The audit listed one critical and two high advisories in what ships; there are none now. The app does not use the part the critical one is in, so this is keeping current rather than closing a known hole. ([#214])
+
 ## [1.34.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.34.0) — The helper reads no page, and Edge installs it from the store
 
 *Minor: a rebuilt helper, a privacy page, and the extension in Microsoft Edge Add-ons. HuskyCT Helper goes from 1.17.0 to 2.0.0.*
@@ -1933,3 +1953,6 @@ saying what to work on next.*
 [#208]: https://github.com/NoGod3524/betterhuskyct/pull/208
 [#209]: https://github.com/NoGod3524/betterhuskyct/pull/209
 [#210]: https://github.com/NoGod3524/betterhuskyct/pull/210
+[#212]: https://github.com/NoGod3524/betterhuskyct/pull/212
+[#213]: https://github.com/NoGod3524/betterhuskyct/pull/213
+[#214]: https://github.com/NoGod3524/betterhuskyct/pull/214

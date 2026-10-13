@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      2.0.0
+// @version      2.0.1
 // @description  Reads your HuskyCT deadlines, announcements, grades and course files through HuskyCT's own data, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       Yinuo (NoGod3524)
 // @homepageURL  https://github.com/NoGod3524/betterhuskyct
@@ -52,7 +52,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "2.0.0";
+  const VERSION = "2.0.1";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
