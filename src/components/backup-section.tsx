@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { Download, Upload } from "lucide-react";
+import { Download, Send, Upload } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import {
@@ -30,19 +30,47 @@ export function BackupSection({ version }: { version: string }) {
   const [message, setMessage] = useState<{ text: string; bad: boolean } | null>(null);
   const picker = useRef<HTMLInputElement>(null);
 
-  function exportBackup() {
+  function backupFile(): File {
     const now = new Date();
     const backup = createBackup(window.localStorage, now, version);
-    const blob = new Blob([JSON.stringify(backup)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
+    return new File([JSON.stringify(backup)], backupFileName(now), { type: "application/json" });
+  }
+
+  function download(file: File) {
+    const url = URL.createObjectURL(file);
     const link = document.createElement("a");
     link.href = url;
-    link.download = backupFileName(now);
+    link.download = file.name;
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    setMessage({ text: t(locale, "backup.exported", { name: backupFileName(now) }), bad: false });
+  }
+
+  function exportBackup() {
+    const file = backupFile();
+    download(file);
+    setMessage({ text: t(locale, "backup.exported", { name: file.name }), bad: false });
+  }
+
+  /**
+   * The way to a phone: the system's share sheet carries the file itself (Phone Link, Nearby Share,
+   * AirDrop, a chat app, mail), so there is no link to be too long. Where a browser cannot share a
+   * file, it is downloaded instead, to be sent by hand.
+   */
+  async function sendToPhone() {
+    const file = backupFile();
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: file.name });
+        setMessage({ text: t(locale, "backup.shared"), bad: false });
+      } catch (error) {
+        if ((error as Error).name !== "AbortError") setMessage({ text: t(locale, "backup.shareFailed"), bad: true });
+      }
+      return;
+    }
+    download(file);
+    setMessage({ text: t(locale, "backup.shareFallback", { name: file.name }), bad: false });
   }
 
   async function choose(file: File | undefined) {
@@ -88,10 +116,17 @@ export function BackupSection({ version }: { version: string }) {
       <div className="card mt-6 p-4 sm:p-5">
         <h3 className="font-display text-base font-semibold">{t(locale, "backup.exportTitle")}</h3>
         <p className="mt-1 text-sm leading-6 text-[var(--muted)]">{t(locale, "backup.exportBody")}</p>
-        <button type="button" className="btn btn-primary mt-3" onClick={exportBackup}>
-          <Download className="h-4 w-4" aria-hidden="true" />
-          {t(locale, "backup.exportButton")}
-        </button>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" className="btn btn-primary" onClick={exportBackup}>
+            <Download className="h-4 w-4" aria-hidden="true" />
+            {t(locale, "backup.exportButton")}
+          </button>
+          <button type="button" className="btn" onClick={() => void sendToPhone()}>
+            <Send className="h-4 w-4" aria-hidden="true" />
+            {t(locale, "backup.shareButton")}
+          </button>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-[var(--muted)]">{t(locale, "backup.phoneSteps")}</p>
       </div>
 
       <div className="card mt-4 p-4 sm:p-5">
