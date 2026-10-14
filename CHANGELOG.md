@@ -14,6 +14,14 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.37.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.37.0) — See what each sync read
+
+*Minor: a sync status, course by course. HuskyCT Helper goes from 2.0.1 to 2.0.2.*
+
+### Added
+
+- **Sync status.** A course with no work in it looked the same as a course the helper could not read this time. A sync started from BetterHuskyCT now reports which parts it read, and the Helper page shows, for the due dates, the to-do list and each course's announcements, grades and files, when each was last read, with what the latest sync missed in amber. The overview says under the Sync button when the last sync was and what it did not read, linked to the table. Press Sync again to retry. The status is in the backup. (helper 2.0.2, [#225])
+
 ## [1.36.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.36.1) — Fallbacks in time, dates that keep up, plain-text spreadsheets
 
 *Patch: the last items from the audit of 1.34.0. The helper is unchanged at 2.0.1.*
@@ -1990,3 +1998,4 @@ saying what to work on next.*
 [#220]: https://github.com/NoGod3524/betterhuskyct/pull/220
 [#221]: https://github.com/NoGod3524/betterhuskyct/pull/221
 [#223]: https://github.com/NoGod3524/betterhuskyct/pull/223
+[#225]: https://github.com/NoGod3524/betterhuskyct/pull/225
