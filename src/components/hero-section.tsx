@@ -4,6 +4,7 @@ import { Clock3 } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import { HelperSyncButton } from "@/components/helper-sync-button";
+import { SyncStatusLine } from "@/components/sync-status-view";
 import { formatTaskTime, summarizeDays } from "@/lib/calendar-view";
 import { t } from "@/lib/i18n";
 import { useInBrowser } from "@/lib/use-in-browser";
@@ -41,7 +42,10 @@ export function HeroSection() {
           </p>
         )}
       </div>
-      <HelperSyncButton variant="big" />
+      <div className="sm:max-w-sm sm:text-right">
+        <HelperSyncButton variant="big" />
+        <SyncStatusLine />
+      </div>
     </div>
   );
 }

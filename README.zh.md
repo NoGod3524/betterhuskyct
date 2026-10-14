@@ -132,6 +132,7 @@ src/
 │  ├─ privacy-section.tsx                         # 助手的隐私政策，商店页面会链接到它
 │  ├─ backup-section.tsx                         # 下载备份；读入备份，合并或替换
 │  ├─ helper-deliveries.tsx                      # 接收助手发来的资料和成绩
+│  ├─ sync-status-view.tsx                       # 同步状态：总览页的一行提示，助手页的状态表
 │  ├─ sync-banner.tsx                            # 收到 #sync= 链接时的提示条
 │  ├─ connect-section.tsx                        # 已连接的日历、课程列表、怎么连接
 │  ├─ tasks-section.tsx                          # 总览的 今天 / 明天 / 本周 看板
@@ -169,6 +170,7 @@ src/
    ├─ task-status.ts                             # 成绩册说哪些 deadline 已经完成，以及原因
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# 快到期检测；添加表单；搜索；「新」标记
    ├─ export.ts                                  # CSV 导出
+   ├─ sync-status.ts                             # 每次同步每门课读到了什么，以及各部分最后一次读到的时间
    ├─ ics.ts                                     # 把未完成的截止项导出成带提醒的 .ics 日历文件
    ├─ backup.ts                                  # 所有存储内容的备份：生成、检查、汇总、合并、恢复
    ├─ announcements.ts                           # 课程公告：推导的 id、上限、存储

@@ -204,6 +204,10 @@ test("what a sync could not read is named, and a sync that missed something is n
   assert.deepEqual(out.missing, ["missDue", "missTodo", "missGrades", "missFiles"]);
   const whole = plain(await openPage(data()).helper.syncLight()) as unknown as { missing: string[] };
   assert.deepEqual(whole.missing, ["missFiles"], "only the files the stand-in does not have");
+  const report = (out as unknown as { status: { dueDates: boolean; todo: boolean; courses: Array<{ code: string; announcements: boolean; grades: boolean; files: boolean }> } }).status;
+  assert.equal(report.dueDates, false);
+  assert.equal(report.todo, false);
+  assert.deepEqual(report.courses.map((c) => [c.code, c.announcements, c.grades, c.files]), [["MATH 1070Q", true, true, false], ["ECON 1201", true, false, false]]);
 });
 
 test("two assignments of one course with one title are two deadlines, the first under the uid the view gave", async () => {

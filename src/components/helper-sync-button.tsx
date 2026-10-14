@@ -15,6 +15,7 @@ import {
   type SyncDeps,
 } from "@/lib/helper-sync";
 import { t, type Locale } from "@/lib/i18n";
+import { recordReadReport, SYNC_STATUS_CHANGED } from "@/lib/sync-status";
 
 /** Opens the HuskyCT tab, or finds the one already open, from the press that is in progress. */
 function openHuskyctTab(): HuskyctTab | null {
@@ -65,7 +66,14 @@ export function HelperSyncProvider({ children, deps }: { children: ReactNode; de
         return () => window.clearTimeout(id);
       }),
       now: deps?.now ?? (() => Date.now()),
-      onChange: setState,
+      onChange: (next) => {
+        // What the sync read, course by course, is kept for the status on the Helper page.
+        if (next.phase === "done" && next.status) {
+          recordReadReport(window.localStorage, next.status, new Date());
+          window.dispatchEvent(new Event(SYNC_STATUS_CHANGED));
+        }
+        setState(next);
+      },
     });
   }
 

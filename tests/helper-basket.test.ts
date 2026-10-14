@@ -146,6 +146,16 @@ async function until(check: () => boolean, ms = 3000) {
 
 // --- collecting ------------------------------------------------------------------
 
+/** What the stand-in lets a sync read: no calendar, to-do list or files, and both courses' announcements and grades. */
+const READ_REPORT = {
+  dueDates: false,
+  todo: false,
+  courses: [
+    { id: "_203765_1", code: "MATH 1070Q", announcements: true, grades: true, files: false },
+    { id: "_198430_1", code: "ECON 1201", announcements: true, grades: true, files: false },
+  ],
+};
+
 test("a revisit replaces a course's announcements, and an unchanged one writes nothing", () => {
   const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
   const course = { id: "_1_1", code: "MATH 1070Q" };
@@ -276,7 +286,7 @@ test("BetterHuskyCT's request is answered, reported on as it goes, and what is r
   assert.deepEqual(ofSync[0], { protocol: SYNC_PROTOCOL, kind: "ack", state: "started" });
   assert.deepEqual(ofSync.filter((message) => message.kind === "progress").map((message) => [message.course, message.index, message.total]), [["MATH 1070Q", 1, 2], ["ECON 1201", 2, 2]]);
   const done = ofSync[ofSync.length - 1];
-  assert.deepEqual(done, { protocol: SYNC_PROTOCOL, kind: "done", ok: true, courses: 2, announcements: 1, gradeItems: 1, skipped: [], sent: true, files: 0 });
+  assert.deepEqual(done, { protocol: SYNC_PROTOCOL, kind: "done", ok: true, courses: 2, announcements: 1, gradeItems: 1, skipped: [], sent: true, files: 0, status: READ_REPORT });
   // The announcements and the gradebooks went to the window that asked, nowhere else.
   assert.deepEqual(heard.filter((message) => message.kind === "sync" || message.kind === "grades").map((message) => message.protocol), ["betterhuskyct/tasks@1", "betterhuskyct/grades@1"]);
   assert.equal(page.opened.length, 0, "a tab was opened for a request that came from one");
@@ -592,7 +602,7 @@ test("BetterHuskyCT's Sync reaches a HuskyCT tab it did not open, through the us
   assert.equal(manager.tabs.length, 0, "a second HuskyCT tab was opened");
   const ofSync = plain(bhc.heard.filter((message) => message.protocol === SYNC_PROTOCOL));
   assert.deepEqual(ofSync[0], { protocol: SYNC_PROTOCOL, kind: "ack", state: "started" });
-  assert.deepEqual(ofSync[ofSync.length - 1], { protocol: SYNC_PROTOCOL, kind: "done", ok: true, courses: 2, announcements: 1, gradeItems: 1, skipped: [], sent: true, files: 0 });
+  assert.deepEqual(ofSync[ofSync.length - 1], { protocol: SYNC_PROTOCOL, kind: "done", ok: true, courses: 2, announcements: 1, gradeItems: 1, skipped: [], sent: true, files: 0, status: READ_REPORT });
   assert.deepEqual(
     bhc.heard.filter((message) => message.kind === "sync" || message.kind === "grades").map((message) => message.protocol),
     ["betterhuskyct/tasks@1", "betterhuskyct/grades@1"],

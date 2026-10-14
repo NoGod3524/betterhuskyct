@@ -1,5 +1,6 @@
 import { HUSKYCT_ORIGINS } from "./materials.ts";
 import { isRecord } from "./is-record.ts";
+import { parseReadReport, type ReadReport } from "./sync-status.ts";
 
 /**
  * BetterHuskyCT's Sync button, which asks the helper in a HuskyCT tab to read HuskyCT in the
@@ -39,6 +40,8 @@ export type SyncSummary = {
   sent: boolean;
   /** Course files sent here that were not here before. */
   files: number;
+  /** Which parts the helper read, course by course; null from a helper before 2.0.2. */
+  status?: ReadReport | null;
 };
 
 export type HelperSyncState =
@@ -98,6 +101,8 @@ export function parseSyncMessage(data: unknown): SyncMessage | null {
     if (typeof data.ok !== "boolean" || courses === null || announcements === null || gradeItems === null) return null;
     const skipped = Array.isArray(data.skipped) ? data.skipped.filter((code): code is string => typeof code === "string").slice(0, 20).map((code) => code.slice(0, 40)) : [];
     const done: SyncMessage = { kind: "done", ok: data.ok, courses, announcements, gradeItems, skipped, sent: data.sent === true, files: count(data.files) ?? 0 };
+    const status = parseReadReport(data.status);
+    if (status) done.status = status;
     if (!data.ok && typeof data.reason === "string" && NO_DATA_STEPS.has(data.reason)) {
       done.reason = data.reason as NoDataStep | "signedout";
       done.detail = detailOf(data.detail);
@@ -210,7 +215,7 @@ export function createHelperSync(deps: SyncDeps) {
       } else {
         stopTimer();
         if (message.ok) {
-          set({ phase: "done", courses: message.courses, announcements: message.announcements, gradeItems: message.gradeItems, skipped: message.skipped, sent: message.sent, files: message.files });
+          set({ phase: "done", courses: message.courses, announcements: message.announcements, gradeItems: message.gradeItems, skipped: message.skipped, sent: message.sent, files: message.files, ...(message.status ? { status: message.status } : {}) });
         } else if (message.reason === "signedout") {
           set({ phase: "failed", reason: "signedout" });
         } else {

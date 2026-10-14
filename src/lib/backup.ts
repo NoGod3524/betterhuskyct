@@ -23,7 +23,7 @@ export const BACKUP_GROUPS = [
   { id: "grades", keys: ["huskypilot.grades.v1"] },
   { id: "courses", keys: ["huskypilot.courses.v1", "huskypilot.courseLabel.v1", "huskypilot.courseColors.v1"] },
   { id: "ai", keys: ["huskypilot.aiPlan.v1", "huskypilot.summaryModel.v1"] },
-  { id: "settings", keys: ["huskypilot.locale.v1", "huskypilot.theme.v1", "huskypilot.materials.open.v1"] },
+  { id: "settings", keys: ["huskypilot.locale.v1", "huskypilot.theme.v1", "huskypilot.materials.open.v1", "huskypilot.syncStatus.v1"] },
 ] as const;
 
 export type BackupGroupId = (typeof BACKUP_GROUPS)[number]["id"];
