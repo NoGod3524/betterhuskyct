@@ -334,8 +334,8 @@ export async function chatOnce(
   return content;
 }
 
-async function callOnce(provider: ModelProvider, request: SummaryRequest, fetchImpl: FetchLike): Promise<string> {
-  const content = await chatOnce(provider, summaryMessages(request), fetchImpl);
+async function callOnce(provider: ModelProvider, request: SummaryRequest, fetchImpl: FetchLike, timeLeftMs: number): Promise<string> {
+  const content = await chatOnce(provider, summaryMessages(request), fetchImpl, { timeoutMs: Math.min(TIMEOUT_MS, timeLeftMs) });
   // A summary in the wrong language is not shown: the next provider gets a
   // turn, and if none writes in the page's language the reader is told it
   // failed rather than handed one they asked not to read.
@@ -355,7 +355,16 @@ export type FallbackOptions = {
   country?: string | null;
   wait?: (ms: number) => Promise<void>;
   onError?: (error: ModelError) => void;
+  /**
+   * The whole chain's time, in milliseconds: the route's own limit less a margin. Each provider
+   * gets what is left of it, so a slow first one cannot use up the time a fallback needed.
+   */
+  budgetMs?: number;
+  now?: () => number;
 };
+
+/** Less than this left, and another provider is not tried: it could not answer in time. */
+const MIN_ATTEMPT_MS = 5_000;
 
 /**
  * The first answer any provider gives, trying them in order.
@@ -366,9 +375,11 @@ export type FallbackOptions = {
  */
 export async function firstAnswer<T>(
   options: FallbackOptions,
-  ask: (provider: ModelProvider) => Promise<T>,
+  ask: (provider: ModelProvider, timeLeftMs: number) => Promise<T>,
 ): Promise<{ value: T; provider: ProviderId }> {
   const wait = options.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const now = options.now ?? Date.now;
+  const deadline = now() + (options.budgetMs ?? Infinity);
   const usable = options.providers.filter((provider) => provider.servesCountry(options.country ?? null));
   if (usable.length === 0) throw new ModelError("failed");
 
@@ -376,8 +387,10 @@ export async function firstAnswer<T>(
   for (const [index, provider] of usable.entries()) {
     const isLast = index === usable.length - 1;
     for (let attempt = 0; attempt < (isLast ? 2 : 1); attempt += 1) {
+      const timeLeft = deadline - now();
+      if (timeLeft < MIN_ATTEMPT_MS) throw new ModelError(errors.length ? combinedProblem(errors) : "failed");
       try {
-        return { value: await ask(provider), provider: provider.id };
+        return { value: await ask(provider, timeLeft), provider: provider.id };
       } catch (caught) {
         const error = caught instanceof ModelError ? caught : new ModelError("failed", provider.id);
         errors.push(error);
@@ -402,6 +415,6 @@ export async function summarizeAnnouncements(
 ): Promise<{ text: string; provider: ProviderId }> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const safe = redactRequest(request);
-  const { value, provider } = await firstAnswer(options, (provider) => callOnce(provider, safe, fetchImpl));
+  const { value, provider } = await firstAnswer(options, (provider, timeLeft) => callOnce(provider, safe, fetchImpl, timeLeft));
   return { text: value, provider };
 }

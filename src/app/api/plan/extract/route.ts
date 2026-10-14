@@ -80,10 +80,11 @@ export async function POST(request: Request) {
   const geminiAllowed = providers.some((provider) => provider.id === "gemini" && provider.servesCountry(country));
 
   const { provider: choice = "auto", ...content } = parsed.data;
-  // "Today" moves every day but rarely changes what a source says; it is left
-  // out of the key so a syllabus read yesterday is not read again today.
+  // "Today" moves every day but rarely changes what a syllabus says; it is left out of a
+  // syllabus's key so one read yesterday is not read again today. Announcements say "next
+  // Tuesday" and "tomorrow", which only today pins down, so for them it is part of the key.
   const key = createHash("sha256")
-    .update(`plan\u0000${JSON.stringify({ ...content, today: undefined })}` + (choice === "auto" ? "" : `\u0000${choice}`))
+    .update(`plan\u0000${JSON.stringify({ ...content, today: content.kind === "syllabus" ? undefined : content.today })}` + (choice === "auto" ? "" : `\u0000${choice}`))
     .digest("hex");
 
   let allowed = providers;
@@ -107,11 +108,14 @@ export async function POST(request: Request) {
     const { items, summary, provider } = await extractPlan(content, {
       providers: allowed,
       country,
+      // The whole fallback chain within maxDuration, with room to answer.
+      budgetMs: (maxDuration - 10) * 1000,
       onError: (error) =>
         console.error("Plan model failed", { provider: error.provider, problem: error.problem, status: error.status }),
     });
     const kept = items.slice(0, MAX_PLAN_ITEMS);
-    await cache.set(key, JSON.stringify({ items: kept, summary }), provider);
+    // Nothing found is not kept: it may be the model's miss, and the next try should ask again.
+    if (kept.length > 0 || summary) await cache.set(key, JSON.stringify({ items: kept, summary }), provider);
     return json({ items: kept, summary, provider });
   } catch (error) {
     const problem = error instanceof ModelError ? error.problem : "failed";

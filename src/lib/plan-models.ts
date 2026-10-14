@@ -296,12 +296,12 @@ export async function extractPlan(
   const fetchImpl = options.fetchImpl ?? fetch;
   const safe = redactPlanRequest(request);
   const messages = planMessages(safe);
-  const { value, provider } = await firstAnswer(options, async (provider) => {
+  const { value, provider } = await firstAnswer(options, async (provider, timeLeft) => {
     const content = await chatOnce(provider, messages, fetchImpl, {
       temperature: 0.1,
       maxTokens: 4096,
       json: true,
-      timeoutMs: PLAN_TIMEOUT_MS,
+      timeoutMs: Math.min(PLAN_TIMEOUT_MS, timeLeft),
       // Fewer than this and a long list would be cut off mid-answer.
       minTokens: 1_500,
     });

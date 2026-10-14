@@ -260,3 +260,16 @@ test("no usable provider is a failure, not a hang", async () => {
     (e) => e instanceof ModelError && e.problem === "failed",
   );
 });
+
+test("the providers share one time budget: each gets what is left, and none is tried with too little", async () => {
+  const { firstAnswer, ModelError: Problem } = await import("../src/lib/summary-models.ts");
+  let clock = 0;
+  const given: Array<[string, number]> = [];
+  const result = firstAnswer({ providers: BOTH, budgetMs: 50_000, now: () => clock, wait: async () => undefined }, async (provider, timeLeft) => {
+    given.push([provider.id, timeLeft]);
+    clock += 47_000; // the first provider times out late
+    throw new Problem("failed", provider.id);
+  });
+  await assert.rejects(result);
+  assert.deepEqual(given, [["glm", 50_000]], "the fallback was tried with 3 seconds left");
+});

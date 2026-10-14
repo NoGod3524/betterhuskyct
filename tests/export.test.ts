@@ -93,3 +93,13 @@ test("exportFileName is zero-padded and sortable", () => {
 test("CSV_BOM is a real byte-order mark so Excel reads UTF-8", () => {
   assert.equal(CSV_BOM.codePointAt(0), 0xfeff);
 });
+
+test("a cell that starts like a formula is kept as text", async () => {
+  const { csvCell } = await import("../src/lib/export.ts");
+  assert.equal(csvCell("=1+1"), "'=1+1");
+  assert.equal(csvCell("+SUM(A1)"), "'+SUM(A1)");
+  assert.equal(csvCell("@cmd"), "'@cmd");
+  assert.equal(csvCell("-2+3"), "'-2+3");
+  assert.equal(csvCell('=HYPERLINK("x","y")'), `"'=HYPERLINK(""x"",""y"")"`);
+  assert.equal(csvCell("Quiz 1 = easy"), "Quiz 1 = easy");
+});
