@@ -14,6 +14,16 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.36.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.36.1) — Fallbacks in time, dates that keep up, plain-text spreadsheets
+
+*Patch: the last items from the audit of 1.34.0. The helper is unchanged at 2.0.1.*
+
+### Fixed
+
+- **A fallback model gets its turn in time.** Each model in the chain had its full timeout, so two slow ones could use up the request's time before a fallback answered. The chain now shares one budget, and each model gets what is left. ([#223])
+- **AI dates from announcements follow the day.** Announcements say "next Tuesday", so what was found in them is no longer reused on another day; a syllabus still is. An answer that found nothing is not kept, so the next try asks again. ([#223])
+- **Exported spreadsheets cannot run a formula.** A title that starts like one (`=`, `+`, `-`, `@`) is written as text in the to-do and grades CSVs. ([#223])
+
 ## [1.36.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.36.0) — Deadlines in your phone's own calendar
 
 *Minor: the open deadlines go to the phone's or computer's calendar, which reminds with the app closed. The helper is unchanged at 2.0.1.*
@@ -1979,3 +1989,4 @@ saying what to work on next.*
 [#219]: https://github.com/NoGod3524/betterhuskyct/pull/219
 [#220]: https://github.com/NoGod3524/betterhuskyct/pull/220
 [#221]: https://github.com/NoGod3524/betterhuskyct/pull/221
+[#223]: https://github.com/NoGod3524/betterhuskyct/pull/223
