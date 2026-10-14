@@ -16,8 +16,15 @@ const CSV_HEADERS = [
  */
 export const CSV_BOM = "\uFEFF";
 
-/** Quote a cell when it contains a delimiter, a quote, or a line break. */
+/**
+ * Quote a cell when it contains a delimiter, a quote, or a line break.
+ *
+ * A cell that starts like a formula (`=`, `+`, `-`, `@`, a tab or a carriage return) is
+ * prefixed with an apostrophe, so a spreadsheet shows it as text instead of running it: titles
+ * and announcements are written by whoever posts to a course.
+ */
 export function csvCell(value: string): string {
+  if (/^[=+\-@\t\r]/.test(value)) value = "'" + value;
   if (/[",\r\n]/.test(value)) {
     return `"${value.replaceAll('"', '""')}"`;
   }

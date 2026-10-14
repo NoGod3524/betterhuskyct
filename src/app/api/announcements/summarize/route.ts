@@ -108,6 +108,8 @@ export async function POST(request: Request) {
     const { text, provider } = await summarizeAnnouncements(content, {
       providers: allowed,
       country,
+      // The whole fallback chain within maxDuration, with room to answer.
+      budgetMs: (maxDuration - 8) * 1000,
       // The provider and status only: the announcements themselves are never logged.
       onError: (error) =>
         console.error("Summary model failed", {

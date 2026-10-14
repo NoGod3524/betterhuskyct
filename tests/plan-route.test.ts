@@ -144,3 +144,23 @@ test("a syllabus comes back with its summary, which is cached with it, separatel
   await call(syllabus({ locale: "en" }));
   assert.equal(calls.length, 2, "an English page was handed the Chinese summary");
 });
+
+test("announcements read on another day are asked again, since 'next Tuesday' moves with the day", async () => {
+  const calls = stubUpstream(says('{"items":[]}'.replace("[]", '[{"title":"Quiz 4","date":"2026-09-08","time":null,"kind":"quiz","evidence":"Quiz 4 is next Tuesday","source":1}]')));
+  const news = (today: string) => syllabus({ kind: "announcements", text: "", today, announcements: [{ title: "Quiz moved", body: "Quiz 4 is next Tuesday.", posted: null }] });
+
+  await call(news("2026-09-01"));
+  await call(news("2026-09-01"));
+  await call(news("2026-09-03"));
+
+  assert.equal(calls.length, 2, "the same day should come from the cache, another day should not");
+});
+
+test("nothing found is not cached, so the next try asks again", async () => {
+  const calls = stubUpstream(says('{"items":[]}'));
+
+  await call(syllabus());
+  await call(syllabus());
+
+  assert.equal(calls.length, 2);
+});
