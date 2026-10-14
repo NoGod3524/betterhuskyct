@@ -4,7 +4,8 @@ import test from "node:test";
 import type { CalendarTask } from "../src/lib/calendar-types.ts";
 import { deadlinesToRemind, foldLine, icsFileName, icsText, tasksToIcs } from "../src/lib/ics.ts";
 
-const NOW = new Date("2026-10-13T16:00:00.000Z");
+// Local noon, so "today" is the 13th in every time zone the tests run in.
+const NOW = new Date(2026, 9, 13, 12, 0, 0);
 const task = (over: Partial<CalendarTask>): CalendarTask => ({
   id: "t1",
   title: "Homework 5",
