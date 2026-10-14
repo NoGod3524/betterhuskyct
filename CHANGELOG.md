@@ -14,6 +14,14 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.37.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.37.1) — The sync status, however the sync started
+
+*Patch: HuskyCT Helper goes from 2.0.2 to 2.0.3.*
+
+### Fixed
+
+- **The sync status follows every sync.** It only changed after a Sync pressed in BetterHuskyCT; a press of Sync now in the helper's panel, or the sync as HuskyCT opens, left it as it was. The helper now sends what it read with the deadlines and announcements, and the status is updated once they arrive. (helper 2.0.3, [#227])
+
 ## [1.37.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.37.0) — See what each sync read
 
 *Minor: a sync status, course by course. HuskyCT Helper goes from 2.0.1 to 2.0.2.*
@@ -1999,3 +2007,4 @@ saying what to work on next.*
 [#221]: https://github.com/NoGod3524/betterhuskyct/pull/221
 [#223]: https://github.com/NoGod3524/betterhuskyct/pull/223
 [#225]: https://github.com/NoGod3524/betterhuskyct/pull/225
+[#227]: https://github.com/NoGod3524/betterhuskyct/pull/227
