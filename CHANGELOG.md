@@ -14,6 +14,15 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.36.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.36.0) — Deadlines in your phone's own calendar
+
+*Minor: the open deadlines go to the phone's or computer's calendar, which reminds with the app closed. The helper is unchanged at 2.0.1.*
+
+### Added
+
+- **Add to calendar app**, beside Export CSV on the overview. It downloads the open deadlines (no classes, nothing ticked off, nothing past) as an `.ics` file. Each is a short event ending at the due time, reminded a day and two hours before; an all-day one is reminded at 9:00 the day before. Importing a newer file updates the events instead of doubling them, in calendar apps that keep an event's id (Apple Calendar, Outlook); Google Calendar's import uses its own default notifications. Nothing is sent anywhere. ([#220], [#221])
+- **Store screenshots of the grades and materials pages**, so the Chrome listing has the five it takes. ([#219])
+
 ## [1.35.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.35.0) — Back up everything, and send it to your phone
 
 *Minor: a backup of everything in one file, and the way to the phone. The helper is unchanged at 2.0.1.*
@@ -1967,3 +1976,6 @@ saying what to work on next.*
 [#214]: https://github.com/NoGod3524/betterhuskyct/pull/214
 [#216]: https://github.com/NoGod3524/betterhuskyct/pull/216
 [#217]: https://github.com/NoGod3524/betterhuskyct/pull/217
+[#219]: https://github.com/NoGod3524/betterhuskyct/pull/219
+[#220]: https://github.com/NoGod3524/betterhuskyct/pull/220
+[#221]: https://github.com/NoGod3524/betterhuskyct/pull/221
