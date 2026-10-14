@@ -175,6 +175,7 @@ src/
    ├─ task-status.ts                             # Which deadlines the gradebook says are done, and why
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# Due-soon detection; the add form; search; what is new
    ├─ export.ts                                  # CSV export
+   ├─ ics.ts                                     # Open deadlines as an .ics file, with reminders, for a calendar app
    ├─ backup.ts                                  # A backup of every stored value: make, check, sum up, merge, restore
    ├─ announcements.ts                           # Course announcements: derived ids, caps, storage
    ├─ announcement-actions.ts, announcement-dates.ts, announcement-sentences.ts# The rules: sentences, the dates in them, the to-dos they suggest

@@ -112,6 +112,7 @@ import {
   type ReminderState,
 } from "@/lib/reminders";
 import { CSV_BOM, exportFileName, tasksToCsv } from "@/lib/export";
+import { deadlinesToRemind, icsFileName, tasksToIcs } from "@/lib/ics";
 import { courseColor, mergeCourseColors, restoreCourseColors, saveCourseColors, type CourseColors } from "@/lib/course-colors";
 import { helperMessage } from "@/lib/helper-bridge";
 import {
@@ -174,6 +175,7 @@ type CalendarContextValue = {
   restoreSavedImport: () => void;
   clearSavedData: () => void;
   exportTasks: () => void;
+  exportCalendar: () => void;
 
   remindersEnabled: boolean;
   toggleReminders: () => Promise<void>;
@@ -904,6 +906,27 @@ export function CalendarProvider({
     URL.revokeObjectURL(url);
   }
 
+  /** The open deadlines as an .ics file, so the phone's own calendar reminds with this app closed. */
+  function exportCalendar() {
+    const due = deadlinesToRemind(tasks, doneIds, now);
+    if (due.length === 0) {
+      setError(null);
+      setNotice(t(locale, "notices.icsNothing"));
+      return;
+    }
+    const blob = new Blob([tasksToIcs(due, now)], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = icsFileName(now);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setError(null);
+    setNotice(t(locale, "notices.icsExported", { count: due.length }));
+  }
+
   function restoreSavedImport() {
     if (!hasSubscriptions) {
       setNotice(null);
@@ -959,6 +982,7 @@ export function CalendarProvider({
     restoreSavedImport,
     clearSavedData,
     exportTasks,
+    exportCalendar,
     remindersEnabled,
     toggleReminders,
     pendingSync,
