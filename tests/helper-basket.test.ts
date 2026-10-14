@@ -345,7 +345,10 @@ test("the panel's Sync now reads HuskyCT's data and sends it to BetterHuskyCT, w
   // A press may open BetterHuskyCT: nothing is read from a page, so HuskyCT can go behind it.
   assert.deepEqual(page.opened.map((open) => open.target), ["betterhuskyct"]);
   assert.equal(moved, 0, "a page was opened");
-  assert.ok(asking.heard.some((message) => message.protocol === "betterhuskyct/tasks@1" && message.kind === "sync"), "the deadlines and announcements were not sent");
+  const tasks = asking.heard.find((message) => message.protocol === "betterhuskyct/tasks@1" && message.kind === "sync");
+  assert.ok(tasks, "the deadlines and announcements were not sent");
+  // What the sync read goes with them, so the status is right with no BetterHuskyCT press behind it.
+  assert.deepEqual(plain(tasks.status), READ_REPORT);
   assert.equal(page.button("sync").disabled, false, "the button stays off after the sync");
 });
 

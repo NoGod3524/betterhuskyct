@@ -10,6 +10,7 @@
  */
 import { HUSKYCT_ORIGINS } from "@/lib/materials";
 import { parseSyncPayloadValue, type SyncPayload } from "@/lib/sync";
+import { parseReadReport, type ReadReport } from "@/lib/sync-status";
 import { isRecord } from "./is-record.ts";
 
 /** Bumped only if the messages change shape; both sides check it. */
@@ -17,7 +18,8 @@ export const TASKS_PROTOCOL = "betterhuskyct/tasks@1";
 
 export type IncomingTasksMessage =
   | { kind: "hello" }
-  | { kind: "sync"; payload: SyncPayload };
+  /** `status`: which parts the sync read, from a helper since 2.0.3, however the sync was started. */
+  | { kind: "sync"; payload: SyncPayload; status?: ReadReport };
 
 /** A message from the helper, or null. Anything but exactly one of the two kinds is ignored. */
 export function parseTasksMessage(data: unknown): IncomingTasksMessage | null {
@@ -25,7 +27,9 @@ export function parseTasksMessage(data: unknown): IncomingTasksMessage | null {
   if (data.kind === "hello") return { kind: "hello" };
   if (data.kind === "sync") {
     const payload = parseSyncPayloadValue(data.payload);
-    return payload ? { kind: "sync", payload } : null;
+    if (!payload) return null;
+    const status = parseReadReport(data.status);
+    return status ? { kind: "sync", payload, status } : { kind: "sync", payload };
   }
   return null;
 }
@@ -43,7 +47,7 @@ export type TasksEvent = { origin: string; data: unknown; source: Source | null 
  * banner on this route, unlike the `#sync=` link, because the student already
  * pressed Sync and does not need to be asked twice.
  */
-export function createTasksReceiver(options: { onSync: (payload: SyncPayload) => boolean }) {
+export function createTasksReceiver(options: { onSync: (payload: SyncPayload) => boolean; onStatus?: (report: ReadReport) => void }) {
   return function receive(event: TasksEvent): void {
     if (!HUSKYCT_ORIGINS.has(event.origin) || !event.source) return;
     const message = parseTasksMessage(event.data);
@@ -62,6 +66,7 @@ export function createTasksReceiver(options: { onSync: (payload: SyncPayload) =>
     } catch {
       ok = false;
     }
+    if (ok && message.status) options.onStatus?.(message.status);
     reply({ kind: "stored", ok });
   };
 }

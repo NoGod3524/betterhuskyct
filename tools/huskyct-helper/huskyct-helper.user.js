@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      2.0.2
+// @version      2.0.3
 // @description  Reads your HuskyCT deadlines, announcements, grades and course files through HuskyCT's own data, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       Yinuo (NoGod3524)
 // @homepageURL  https://github.com/NoGod3524/betterhuskyct
@@ -52,7 +52,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "2.0.2";
+  const VERSION = "2.0.3";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1392,7 +1392,7 @@
    */
   const TASKS_PROTOCOL = "betterhuskyct/tasks@1";
 
-  async function sendTasksToBhc(target, basket, opts) {
+  async function sendTasksToBhc(target, basket, opts, status) {
     const options = Object.assign({ helloEvery: 500, connectTimeout: 30000, storedTimeout: 15000 }, opts);
     const origin = bhcOrigin();
     const post = (message) => target.postMessage(Object.assign({ protocol: TASKS_PROTOCOL }, message), origin);
@@ -1416,7 +1416,8 @@
     const { records, announcements } = basketContents(basket);
     const payload = syncPayload(records, new Date(), announcements, colorsByCode(window.localStorage, basket));
     const stored = nextFromApp("stored", null, options.storedTimeout, TASKS_PROTOCOL);
-    post({ kind: "sync", payload });
+    // Which parts this sync read, so BetterHuskyCT's sync status is right however the sync started.
+    post(status ? { kind: "sync", payload, status } : { kind: "sync", payload });
     const ack = await stored;
     result.stored = Boolean(ack && ack.ok);
     result.deadlines = records.length;
@@ -1644,7 +1645,7 @@
    * whatever deadlines it holds), then the gradebooks, then the course files BetterHuskyCT does
    * not have yet. Returns the parts that arrived, whether any did not, and how many files went.
    */
-  async function deliverSync(tab, basket, grades, timing, materials, onFile) {
+  async function deliverSync(tab, basket, grades, timing, materials, onFile, status) {
     const parts = [];
     let failed = false;
     let files = 0;
@@ -1652,7 +1653,7 @@
     const waits = Object.assign({ connectTimeout: 15000 }, timing);
     const summary = basketSummary(basket);
     if (summary.deadlines > 0 || summary.announcements > 0) {
-      const result = await sendTasksToBhc(tab, basket, waits);
+      const result = await sendTasksToBhc(tab, basket, waits, status);
       if (result.connected && result.stored) parts.push(t("sentPartTasks", result));
       else failed = true;
     }
@@ -2246,7 +2247,7 @@
           syncLine.textContent = readText + t("sendingMaterial", step);
           say({ kind: "progress", step: "files", course: step.name, index: step.index, total: step.total });
         };
-        const sent = await deliverSync(tab, readBasket(window.localStorage), grades, undefined, out.materials, onFile);
+        const sent = await deliverSync(tab, readBasket(window.localStorage), grades, undefined, out.materials, onFile, out.status);
         read.files = sent.files;
         if (sent.parts.length > 0 && !sent.failed) {
           syncState = Object.assign({}, syncState, { pending: false });

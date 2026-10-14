@@ -145,3 +145,22 @@ test("a malformed payload never reaches onSync", () => {
   assert.equal(calls, 0);
   assert.equal(helper.replies.length, 0);
 });
+
+test("what the sync read rides beside the payload, and is passed on once the payload is stored", () => {
+  const reports: unknown[] = [];
+  let apply = true;
+  const receive = createTasksReceiver({ onSync: () => apply, onStatus: (report) => reports.push(report) });
+  const helper = helperWindow();
+  const status = { dueDates: true, todo: false, courses: [{ id: "_1_1", code: "MATH 1070Q", announcements: true, grades: false, files: true }] };
+
+  receive({ origin: "https://lms.uconn.edu", data: message({ kind: "sync", payload: payload(), status }), source: helper.source });
+  assert.deepEqual(reports, [status]);
+
+  // A payload that is not stored passes nothing on; a damaged report leaves the payload alone.
+  apply = false;
+  receive({ origin: "https://lms.uconn.edu", data: message({ kind: "sync", payload: payload(), status }), source: helper.source });
+  apply = true;
+  receive({ origin: "https://lms.uconn.edu", data: message({ kind: "sync", payload: payload(), status: { dueDates: "yes" } }), source: helper.source });
+  assert.equal(reports.length, 1);
+  assert.deepEqual(helper.replies.map((reply) => reply.message.ok), [true, false, true]);
+});

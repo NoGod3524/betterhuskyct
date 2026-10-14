@@ -41,6 +41,7 @@ import {
 } from "@/lib/sync";
 import { planSyncApply } from "@/lib/sync-apply";
 import { createTasksReceiver } from "@/lib/tasks-sync";
+import { recordReadReport, SYNC_STATUS_CHANGED } from "@/lib/sync-status";
 import {
   applyOverlay,
   deleteEvent as deleteOverlayEvent,
@@ -795,6 +796,12 @@ export function CalendarProvider({
         } catch {
           return false;
         }
+      },
+      // What the sync read, course by course, for the sync status: this route carries it however
+      // the sync was started, the helper's own panel included.
+      onStatus: (report) => {
+        recordReadReport(window.localStorage, report, new Date());
+        window.dispatchEvent(new Event(SYNC_STATUS_CHANGED));
       },
     });
     const listener = (event: MessageEvent) => {
