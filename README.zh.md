@@ -169,6 +169,7 @@ src/
    ├─ task-status.ts                             # 成绩册说哪些 deadline 已经完成，以及原因
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# 快到期检测；添加表单；搜索；「新」标记
    ├─ export.ts                                  # CSV 导出
+   ├─ ics.ts                                     # 把未完成的截止项导出成带提醒的 .ics 日历文件
    ├─ backup.ts                                  # 所有存储内容的备份：生成、检查、汇总、合并、恢复
    ├─ announcements.ts                           # 课程公告：推导的 id、上限、存储
    ├─ announcement-actions.ts, announcement-dates.ts, announcement-sentences.ts# 规则：切句子、找日期、给出待办建议

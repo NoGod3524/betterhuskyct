@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Check, Download, RefreshCw } from "lucide-react";
+import { Bell, CalendarPlus, Check, Download, RefreshCw } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import { QuickAdd } from "@/components/quick-add";
@@ -19,6 +19,7 @@ export function TasksSection() {
     groups,
     dueSoon,
     exportTasks,
+    exportCalendar,
     isImported,
     restoreDemo,
     hasSavedImport,
@@ -54,6 +55,15 @@ export function TasksSection() {
               className="btn btn-quiet h-7 px-2.5 text-xs"
             >
               <Download size={13} />{t(locale, "actions.exportCsv")}
+            </button>
+          )}
+          {tasks.length > 0 && (
+            <button
+              type="button"
+              onClick={exportCalendar}
+              className="btn btn-quiet h-7 px-2.5 text-xs"
+            >
+              <CalendarPlus size={13} />{t(locale, "actions.exportIcs")}
             </button>
           )}
           {isImported && (
