@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Download, ShieldCheck, Sparkles } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
+import { SyncStatusTable } from "@/components/sync-status-view";
 import {
   EDGE_ADDONS_URL,
   HELPER_SCRIPT_URL,
@@ -226,6 +227,7 @@ export function HelperSection() {
           </Link>
         </article>
       </div>
+      <SyncStatusTable />
     </section>
   );
 }

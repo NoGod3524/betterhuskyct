@@ -94,6 +94,19 @@ test("a press opens HuskyCT, asks the helper, and follows it through to the resu
   await view.unmount();
 });
 
+test("what the helper says it read, course by course, is kept for the sync status", async () => {
+  const { tab } = fakeTab();
+  const view = await render({ open: () => tab, schedule: noTimers });
+  window.localStorage.removeItem("huskypilot.syncStatus.v1");
+  view.buttons()[0].click();
+  const status = { dueDates: false, todo: true, courses: [{ id: "_1_1", code: "ECON 1201", announcements: true, grades: false, files: true }] };
+  await view.hear(tab, say({ kind: "done", ok: true, courses: 1, announcements: 3, gradeItems: 0, skipped: [], sent: true, status }));
+  const stored = JSON.parse(window.localStorage.getItem("huskypilot.syncStatus.v1") || "null");
+  assert.equal(stored?.dueDates.missed, true);
+  assert.deepEqual(stored?.courses.map((c: { code: string; grades: { missed: boolean } }) => [c.code, c.grades.missed]), [["ECON 1201", true]]);
+  await view.unmount();
+});
+
 test("the header's button and the overview's are one sync: pressing either shows it on both", async () => {
   const { tab, posted } = fakeTab();
   const view = await render({ open: () => tab, schedule: noTimers }, ["big", "compact"]);

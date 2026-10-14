@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      2.0.1
+// @version      2.0.2
 // @description  Reads your HuskyCT deadlines, announcements, grades and course files through HuskyCT's own data, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       Yinuo (NoGod3524)
 // @homepageURL  https://github.com/NoGod3524/betterhuskyct
@@ -52,7 +52,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "2.0.1";
+  const VERSION = "2.0.2";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -1542,7 +1542,7 @@
       options,
     );
     const storage = window.localStorage;
-    const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, dueDates: 0, skipped: [], missing: [], stopped: false, grades: null, materials: null, reason: null, detail: null };
+    const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, dueDates: 0, skipped: [], missing: [], status: null, stopped: false, grades: null, materials: null, reason: null, detail: null };
     // When nothing is read, which step it stopped at and what HuskyCT said. A 401 is HuskyCT
     // saying the student is signed out, whatever page the tab shows.
     const fail = (step) => {
@@ -1574,11 +1574,14 @@
       out.dueDates = dueDates.length;
       save(rememberDueDates(readBasket(storage), todosToRecords(dueDates), new Date()));
     } else out.missing.push("missDue");
+    // Which parts were read, course by course, for BetterHuskyCT's sync status.
+    out.status = { dueDates: Boolean(dueDates), todo: false, courses: [] };
 
     const todos = await readTodosApi(opts, new Map(queue.map((course) => [course.id, course.code])));
     lastApiFailure = failedBefore;
     if (todos) save(rememberTodos(readBasket(storage), todosToRecords(todos), new Date()));
     else out.missing.push("missTodo");
+    out.status.todo = Boolean(todos);
 
     const userId = await readUserId(opts);
     const manifest = { term: walkTerm(found), courses: [], stopped: false, signedOut: false, problems: [] };
@@ -1621,6 +1624,7 @@
         activities: content ? content.activities : 0,
         skipped: !content,
       });
+      out.status.courses.push({ id: course.id, code: course.code || null, announcements: rows !== null, grades: items !== null, files: Boolean(content) });
       await pause(opts.gap);
     }
 
@@ -2229,7 +2233,7 @@
         const skipped =
           (out.skipped.length ? t("syncSkipped", { courses: out.skipped.join(", ") }) : "") +
           (out.missing.length ? t("syncMissing", { what: out.missing.map((key) => t(key)).join(t("sentPartsJoin")) }) : "");
-        const read = { courses: out.courses, announcements: out.announcements, gradeItems: out.gradeItems, skipped: out.skipped };
+        const read = { courses: out.courses, announcements: out.announcements, gradeItems: out.gradeItems, skipped: out.skipped, status: out.status };
         if (!tab) {
           syncLine.className = "note warn";
           syncLine.textContent = readText + skipped + t(automatic ? "syncAutoReady" : "syncNotSent");

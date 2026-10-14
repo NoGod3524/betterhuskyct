@@ -138,6 +138,7 @@ src/
 │  ├─ privacy-section.tsx                         # The helper's privacy policy, which the stores link to
 │  ├─ backup-section.tsx                         # Download a backup; load one, merged or replacing
 │  ├─ helper-deliveries.tsx                      # Receives what the helper sends: materials and grades
+│  ├─ sync-status-view.tsx                       # The sync status: a line on the overview, a table on the Helper page
 │  ├─ sync-banner.tsx                            # The banner for an incoming #sync= link
 │  ├─ connect-section.tsx                        # Connected calendars, course list, how to connect
 │  ├─ tasks-section.tsx                          # The overview's Today / Tomorrow / This week board
@@ -175,6 +176,7 @@ src/
    ├─ task-status.ts                             # Which deadlines the gradebook says are done, and why
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# Due-soon detection; the add form; search; what is new
    ├─ export.ts                                  # CSV export
+   ├─ sync-status.ts                             # What each sync read, course by course, and when each part was last read
    ├─ ics.ts                                     # Open deadlines as an .ics file, with reminders, for a calendar app
    ├─ backup.ts                                  # A backup of every stored value: make, check, sum up, merge, restore
    ├─ announcements.ts                           # Course announcements: derived ids, caps, storage
