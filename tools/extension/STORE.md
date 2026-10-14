@@ -3,7 +3,7 @@
 What the Chrome Web Store and Microsoft Edge Add-ons ask for, ready to paste. The package is the same for both: `public/betterhuskyct-extension.zip`, made by `npm run build` (or `node scripts/build-extension.mjs`).
 
 - Icons are in `icons/` (16, 48, 128) and in the manifest.
-- Screenshots are in `store/`: the overview, to-do and announcements pages, 1280×800 and 24-bit, English and 简体中文. They show made-up data (no real student's), loaded through a `#sync=` link into a local `npm run dev`; retake them whenever the pages change enough to look different.
+- Screenshots are in `store/`: the overview, to-do, announcements, grades and materials pages (five, the most Chrome takes), 1280×800 and 24-bit, English and 简体中文. They show made-up data (no real student's), loaded through a `#sync=` link into a local `npm run dev`; retake them whenever the pages change enough to look different.
 - The privacy policy is the site's `/privacy` page, `https://betterhuskyct.vercel.app/privacy` (the same text as `PRIVACY.md` at the repository root). GitHub's own page for that file answers 503 to a checker when it is rate limited, which a store reads as an invalid address; `https://raw.githubusercontent.com/NoGod3524/betterhuskyct/main/PRIVACY.md` works as a fallback.
 - A new version is the helper's `@version` raised, then the build, then **Upload new package** in each dashboard.
 
