@@ -95,3 +95,14 @@ test("the extension package is the same bytes whenever and wherever it is built"
   assert.equal(build("Pacific/Auckland", "b"), a, "another time zone gave another package");
   assert.equal(build("America/New_York", "c"), a, "another time zone gave another package");
 });
+
+test("the package holds LF text only, so a Windows checkout builds the same package as GitHub", async () => {
+  const { unzipSync } = await import("fflate");
+  const out = join(tmpdir(), `betterhuskyct-ext-${process.pid}-lf.zip`);
+  execFileSync(process.execPath, [fileURLToPath(new URL("../scripts/build-extension.mjs", import.meta.url)), out], { stdio: "pipe" });
+  const entries = unzipSync(new Uint8Array(readFileSync(out)));
+  rmSync(out);
+  const text = Object.entries(entries).filter(([name]) => /\.(js|json)$/.test(name));
+  assert.ok(text.length >= 5, "the package lost its scripts");
+  for (const [name, bytes] of text) assert.ok(!bytes.includes(13), `${name} has a carriage return`);
+});

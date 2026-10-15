@@ -14,7 +14,7 @@ It passes only if GitHub's own record says that exact file was built by this rep
 
 ## 2. Build it yourself and compare
 
-The build is deterministic: the same source gives the same bytes, whatever the machine or time zone. So you can rebuild and compare checksums with `SHA256SUMS`. You need Node 24 and Git.
+The build is deterministic: the same source gives the same bytes, whatever the machine, operating system or time zone (the package holds its text with LF line endings whichever way Git checked the files out). So you can rebuild and compare checksums with `SHA256SUMS`. You need Node 24 and Git.
 
 ```bash
 git clone https://github.com/NoGod3524/betterhuskyct.git
@@ -27,11 +27,14 @@ sha256sum my-build.zip       # shasum -a 256 on macOS; Get-FileHash on Windows
 
 The line must match the one for `betterhuskyct-helper-X.Y.Z.zip` in `SHA256SUMS`. (The helper's version `X.Y.Z` in the file name is the helper's own, which is in `tools/huskyct-helper/huskyct-helper.user.js` as `@version`, and is not always the same as the site's.)
 
+Two older cases, where the rebuild's bytes can differ though the files are the same:
+
+- **Release v1.39.0 on Windows.** Its build script did not yet normalise line endings, so a Windows checkout (Git turns LF into CRLF there) builds a different zip. Clone with `git -c core.autocrlf=false clone ...` and it matches, or compare the files as in section 3. From the next release on, it matches anywhere.
+- **Packages in the stores up to helper 2.0.4** were uploaded before the build was deterministic. Their **files** are identical to the release's, but the zip's bytes may differ, so compare files for those, not the zip's checksum.
+
 ## 3. Compare what is installed with the release
 
 A browser installs the store's copy, which you can compare file by file with the release. In Edge or Chrome, open `edge://extensions` or `chrome://extensions`, turn on Developer mode, and note the extension's ID. Its files are in your browser profile, under `Extensions/<id>/<version>_0/`. Unzip the release's package beside it and compare each file: `manifest.json`, `huskyct-helper.js`, `background.js`, `relay.js`, `shim.js` and `icons/`. Ignore a `_metadata/` folder, which the browser adds itself.
-
-Packages before the one that introduced this page (helper 2.0.4 and earlier) were built before the build was made deterministic. Their **files** are identical to the release's, but the zip's bytes may differ, so compare files for those, not the zip's checksum.
 
 ## What there is to check
 
