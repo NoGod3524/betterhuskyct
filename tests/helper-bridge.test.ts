@@ -312,7 +312,7 @@ test("a sync carries the course files BetterHuskyCT does not have across the bri
     if (path.includes("/contents/ROOT/children")) {
       return json({
         paging: { nextPage: "" },
-        results: [1, 2].map((n) => ({
+        results: [1, 2, 3].map((n) => ({
           id: `_${n}_9`,
           title: `Notes ${n}.pdf`,
           contentHandler: "resource/x-bb-file",
@@ -322,6 +322,7 @@ test("a sync carries the course files BetterHuskyCT does not have across the bri
       });
     }
     if (path === file(2)) return new Response(bytes, { status: 200, headers: { "content-type": "application/pdf" } });
+    if (path === file(3)) return new Response(new Uint8Array(0), { status: 200, headers: { "content-type": "application/pdf" } });
     if (path.startsWith("/bbcswebdav/")) throw new Error("a file BetterHuskyCT already had was fetched: " + path);
     return huskyctData(path);
   };
@@ -350,9 +351,13 @@ test("a sync carries the course files BetterHuskyCT does not have across the bri
   await until(() => sync.state.phase === "done", 20000);
 
   const done = sync.state as Extract<HelperSyncState, { phase: "done" }>;
-  assert.equal(done.files, 1, "the new file was not counted");
+  assert.equal(done.files, 2, "the new files, including an empty file, were not counted");
   assert.equal(done.sent, true);
-  assert.deepEqual(stored.map((entry) => [entry.key, entry.name, entry.type]), [[`https://lms.uconn.edu${file(2)}`, "Notes 2.pdf", "application/pdf"]]);
+  assert.deepEqual(stored.map((entry) => [entry.key, entry.name, entry.type]), [
+    [`https://lms.uconn.edu${file(2)}`, "Notes 2.pdf", "application/pdf"],
+    [`https://lms.uconn.edu${file(3)}`, "Notes 3.pdf", "application/pdf"],
+  ]);
+  assert.equal(stored[1].blob.size, 0);
   const arrived = new Uint8Array(await stored[0].blob.arrayBuffer());
   assert.equal(arrived.length, bytes.length);
   assert.ok(arrived.every((value, index) => value === bytes[index]), "the file did not arrive as it was sent");

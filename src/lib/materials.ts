@@ -263,17 +263,33 @@ export type MaterialsStore = {
 /**
  * A newer walk's courses replace the same courses in the stored index; courses
  * it did not reach are kept. A walk stopped halfway, or a folder holding one
- * course, never empties the others.
+ * course, never empties the others. Until a delivery is complete, `replace: false`
+ * also keeps entries missing from the incoming courses.
  */
-export function mergeMaterialsIndex(current: MaterialsIndex | null, incoming: MaterialsIndex): MaterialsIndex {
+export function mergeMaterialsIndex(current: MaterialsIndex | null, incoming: MaterialsIndex, replace = true): MaterialsIndex {
   const incomingKeys = new Set(incoming.courses.map(courseKey));
   const kept = (current?.courses ?? []).filter((course) => !incomingKeys.has(courseKey(course)));
+  const courses = incoming.courses.map((course) => {
+    const previous = current?.courses.find((saved) => courseKey(saved) === courseKey(course));
+    if (replace || !previous) return course;
+    return {
+      ...course,
+      files: keepMissing(previous.files, course.files, (file) => file.key),
+      links: keepMissing(previous.links, course.links, (link) => JSON.stringify([link.path, link.url, link.kind])),
+      tools: keepMissing(previous.tools, course.tools, (tool) => JSON.stringify([tool.path, tool.title, tool.url])),
+    };
+  });
   return {
     version: 1,
     term: incoming.term ?? current?.term ?? null,
     updatedAt: incoming.updatedAt,
-    courses: [...incoming.courses, ...kept].sort((a, b) => (a.code ?? a.id).localeCompare(b.code ?? b.id)),
+    courses: [...courses, ...kept].sort((a, b) => (a.code ?? a.id).localeCompare(b.code ?? b.id)),
   };
+}
+
+function keepMissing<T>(previous: T[], incoming: T[], key: (item: T) => string): T[] {
+  const received = new Set(incoming.map(key));
+  return [...incoming, ...previous.filter((item) => !received.has(key(item)))];
 }
 
 /**
@@ -326,15 +342,27 @@ export function createMaterialsReceiver(options: {
 }) {
   const now = options.now ?? (() => new Date());
   let state: ReceiveState = { phase: "idle", expected: 0, stored: 0, failed: 0 };
+  type Delivery = { index: MaterialsIndex; revision: number; expected: number; stored: number; failed: number };
+  const deliveries = new WeakMap<Source, Delivery>();
+  const courseRevisions = new Map<string, number>();
+  let revision = 0;
+  let queue = Promise.resolve();
   const update = (patch: Partial<ReceiveState>) => {
     state = { ...state, ...patch };
     options.onChange?.(state);
   };
 
-  return async function receive(event: MaterialsEvent): Promise<void> {
+  async function receive(event: MaterialsEvent): Promise<void> {
     if (!HUSKYCT_ORIGINS.has(event.origin) || !event.source) return;
     const message = parseMaterialsMessage(event.data);
     const source = event.source;
+    const delivery = deliveries.get(source);
+    const count = (field: "stored" | "failed") => {
+      if (delivery) delivery[field]++;
+      update(delivery
+        ? { expected: delivery.expected, stored: delivery.stored, failed: delivery.failed }
+        : { [field]: state[field] + 1 });
+    };
     const reply = (payload: Record<string, unknown>) =>
       source.postMessage({ protocol: MATERIALS_PROTOCOL, ...payload }, event.origin);
     if (!message) {
@@ -343,7 +371,7 @@ export function createMaterialsReceiver(options: {
       const data = event.data as { protocol?: unknown; kind?: unknown; key?: unknown } | null;
       if (data && data.protocol === MATERIALS_PROTOCOL && data.kind === "file" && typeof data.key === "string" && data.key.length <= 1000) {
         reply({ kind: "stored", key: data.key, ok: false });
-        update({ failed: state.failed + 1 });
+        count("failed");
       }
       return;
     }
@@ -353,10 +381,16 @@ export function createMaterialsReceiver(options: {
         reply({ kind: "ready", have: await options.store.keys() });
         if (state.phase === "idle" || state.phase === "done") update({ phase: "connected", expected: 0, stored: 0, failed: 0 });
         return;
-      case "index":
-        await options.store.putIndex(mergeMaterialsIndex(await options.store.getIndex(), message.index));
+      case "index": {
+        // A tab can close before `done`. Keep old entries visible until the whole delivery succeeds.
+        deliveries.delete(source);
+        await options.store.putIndex(mergeMaterialsIndex(await options.store.getIndex(), message.index, false));
+        const next = { index: message.index, revision: ++revision, expected: message.sending, stored: 0, failed: 0 };
+        deliveries.set(source, next);
+        for (const course of message.index.courses) courseRevisions.set(courseKey(course), next.revision);
         update({ phase: "receiving", expected: message.sending, stored: 0, failed: 0 });
         return;
+      }
       case "file":
         try {
           await options.store.putFile({
@@ -368,17 +402,36 @@ export function createMaterialsReceiver(options: {
             savedAt: now().toISOString(),
           });
           reply({ kind: "stored", key: message.key, ok: true });
-          update({ stored: state.stored + 1 });
+          count("stored");
         } catch {
           reply({ kind: "stored", key: message.key, ok: false });
-          update({ failed: state.failed + 1 });
+          count("failed");
         }
         return;
       case "done":
-        if (message.complete) await pruneMaterials(options.store);
+        if (!delivery) return;
+        if (message.complete && delivery.failed === 0 && delivery.stored === delivery.expected) {
+          // Another helper may have sent a newer partial index for the same course in the meantime.
+          const courses = delivery.index.courses.filter((course) => courseRevisions.get(courseKey(course)) === delivery.revision);
+          const have = new Set(await options.store.keys());
+          if (courses.length && courses.every((course) => course.files.every((file) => have.has(file.key)))) {
+            await options.store.putIndex(mergeMaterialsIndex(await options.store.getIndex(), { ...delivery.index, courses }));
+            await pruneMaterials(options.store);
+          }
+        }
+        deliveries.delete(source);
         update({ phase: "done" });
         return;
     }
+  }
+
+  return (event: MaterialsEvent): Promise<void> => {
+    // Message events do not await their listeners; index/done can arrive back to back with no files.
+    queue = queue.then(() => receive(event)).catch(() => {
+      if (event.source) deliveries.delete(event.source);
+      update({ phase: "done", failed: state.failed + 1 });
+    });
+    return queue;
   };
 }
 

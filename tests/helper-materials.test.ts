@@ -19,6 +19,7 @@ const SOURCE = readFileSync(new URL("../tools/huskyct-helper/huskyct-helper.user
 type Link = { path: string[]; title: string; url: string; kind: string };
 type Manifest = {
   term: string | null;
+  complete: boolean;
   stopped: boolean;
   problems: Array<{ key: string; params?: Record<string, unknown> }>;
   courses: Array<{
@@ -235,21 +236,23 @@ function appTab(window: Window) {
   const store = memoryMaterialsStore();
   const receive = createMaterialsReceiver({ store });
   const posted: Array<{ kind: unknown; origin: string }> = [];
+  let delivered = Promise.resolve();
+  const source = {
+    postMessage(reply: unknown) {
+      window.dispatchEvent(new window.MessageEvent("message", { data: reply, origin: "https://betterhuskyct.vercel.app" }));
+    },
+  };
   const target = {
     postMessage(message: unknown, origin: string) {
       posted.push({ kind: (message as { kind?: unknown }).kind, origin });
-      void receive({
+      delivered = receive({
         origin: "https://lms.uconn.edu",
         data: message,
-        source: {
-          postMessage(reply: unknown) {
-            window.dispatchEvent(new window.MessageEvent("message", { data: reply, origin: "https://betterhuskyct.vercel.app" }));
-          },
-        },
+        source,
       });
     },
   };
-  return { store, target, posted };
+  return { store, target, posted, flush: () => delivered };
 }
 
 const SEND = { helloEvery: 20, connectTimeout: 1000, fileTimeout: 1000 };
@@ -282,6 +285,36 @@ test("an app that never answers is reported, not waited on forever", async () =>
   const result = plain(await helper.sendMaterialsToBhc(silent, manifest, { ...SEND, connectTimeout: 200 }));
 
   assert.deepEqual(result, { connected: false, sent: 0, skipped: 0, failed: 0, tooBig: 0 });
+});
+
+test("a partial material scan keeps old entries through later complete syncs of another course", async () => {
+  const { window, helper } = openPage();
+  const original = await readMaterials(helper);
+  const app = appTab(window);
+  await helper.sendMaterialsToBhc(app.target, original, SEND);
+  await app.flush();
+
+  const partial = plain(original);
+  partial.complete = false;
+  const math = partial.courses.find((course) => course.id === MATH)!;
+  math.files = math.files.slice(0, 1);
+  math.links = [];
+  math.tools = [];
+  await helper.sendMaterialsToBhc(app.target, partial, SEND);
+  await app.flush();
+
+  await helper.sendMaterialsToBhc(app.target, { ...original, courses: original.courses.filter((course) => course.id === ECON) }, SEND);
+  await app.flush();
+  const saved = (await app.store.getIndex())!.courses.find((course) => course.id === MATH)!;
+  assert.equal(saved.files.length, 3);
+  assert.equal(saved.links.length, 1);
+  assert.equal(saved.tools.length, 1);
+  assert.equal((await app.store.keys()).length, 4);
+
+  await helper.sendMaterialsToBhc(app.target, { ...partial, complete: true }, SEND);
+  await app.flush();
+  assert.equal((await app.store.getIndex())!.courses.find((course) => course.id === MATH)!.files.length, 1);
+  assert.equal((await app.store.keys()).length, 2);
 });
 
 test("a reply from any other page is ignored", async () => {
