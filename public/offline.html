@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Offline · BetterHuskyCT</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #f8fafc; --ink: #0f172a; --muted: #475569; --blue: #2563eb; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0b1220; --ink: #e5e7eb; --muted: #94a3b8; --blue: #60a5fa; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; }
+    main { max-width: 30rem; }
+    h1 { margin: 0 0 8px; font-size: 1.5rem; letter-spacing: -0.02em; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    a { color: var(--blue); font-weight: 600; }
+    .zh { margin-top: 20px; padding-top: 20px; border-top: 1px solid color-mix(in srgb, var(--muted) 30%, transparent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>You are offline</h1>
+    <p>This page was not opened while you were online, so there is no copy of it here. The pages you have opened before still work offline.</p>
+    <p><a href="/">Go to the home page</a></p>
+    <div class="zh" lang="zh-CN">
+      <h1>你现在没有网络</h1>
+      <p>这个页面没有在联网时打开过，所以这里没有它的副本。之前打开过的页面，离线时仍然可以使用。</p>
+      <p><a href="/">回到首页</a></p>
+    </div>
+  </main>
+</body>
+</html>
