@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock3, MapPin } from "lucide-react";
+import { CalendarClock, Clock3, MapPin, X } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import { CoursePicker } from "@/components/course-picker";
@@ -27,6 +27,13 @@ function styleForCourse(course: string) {
   return courseStyles[hash % courseStyles.length];
 }
 
+/** "10/17 11:59 PM", or "10/17 23:59" in Chinese: short, since it sits beside a time already. */
+function movedTime(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale, { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })
+    .format(new Date(iso))
+    .replace(",", "");
+}
+
 export function TaskCard({
   task,
   group,
@@ -50,7 +57,8 @@ export function TaskCard({
   onToggleComplete: (taskId: string) => void;
   locale: Locale;
 }) {
-  const { courseLabelFor, courseColorFor } = useCalendar();
+  const { courseLabelFor, courseColorFor, moveNotices, dismissMoveNotice } = useCalendar();
+  const moved = moveNotices[task.id];
   const inBrowser = useInBrowser();
   // Blackboard exports no course name on graded items. Rather than invent one,
   // fall back to the user's pick, then the feed, then the default course — and
@@ -127,6 +135,23 @@ export function TaskCard({
               </span>
             )}
           </div>
+          {moved && inBrowser ? (
+            <p className="mt-2 flex items-start gap-1.5 text-xs leading-5 text-[var(--warning)]" role="status">
+              <CalendarClock size={13} className="mt-[3px] shrink-0" />
+              <span className="min-w-0 flex-1">
+                {t(locale, "task.moved", { from: movedTime(moved.from, locale), to: movedTime(moved.to, locale) })}
+              </span>
+              <button
+                type="button"
+                onClick={() => dismissMoveNotice(task.id)}
+                aria-label={t(locale, "task.movedDismiss")}
+                title={t(locale, "task.movedDismiss")}
+                className="-mr-1 mt-px shrink-0 rounded p-1 hover:bg-[var(--canvas)]"
+              >
+                <X size={12} />
+              </button>
+            </p>
+          ) : null}
           <CoursePicker taskId={task.id} className="mt-2.5" />
         </div>
       </div>

@@ -103,7 +103,7 @@ export function restoreEventOverlay(storage: Storage): EventOverlay {
   }
 }
 
-export function saveEventOverlay(storage: Storage, overlay: EventOverlay): void {
+export function saveEventOverlay(storage: Pick<Storage, "setItem">, overlay: EventOverlay): void {
   storage.setItem(STORAGE_KEY, JSON.stringify(overlay));
 }
 

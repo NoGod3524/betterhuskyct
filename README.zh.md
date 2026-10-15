@@ -184,6 +184,7 @@ src/
    ├─ grades.ts, grades-store.ts, grades-export.ts# 成绩：助手的消息、合计、合并；存储；导出
    ├─ helper.ts, helper-bridge.ts, helper-sync.ts, tasks-sync.ts# 去哪儿拿助手；助手的桥；同步按钮的协议；标签页之间送达的 deadline 和公告
    ├─ sync.ts, sync-merge.ts, sync-apply.ts      # #sync= 载荷：打包、校验、与已有的合并
+   ├─ moved-deadlines.ts                         # 老师改期的截止项：勾选、备注和课程选择跟着走，并给出提示
    ├─ academic-calendar.ts                       # 来自教务处页面的 UConn 校历
    ├─ content-hash.ts, is-record.ts              # 文字短指纹；「是不是普通对象」
    ├─ theme.ts, i18n.ts                          # 浅色、深色或跟随设备；中英文字典和查表
