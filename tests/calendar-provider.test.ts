@@ -828,3 +828,68 @@ test("an older sync decode cannot reopen an offer after a newer link was cleared
     await app.unmount();
   }
 });
+
+test("a deadline the teacher moves keeps its tick, its note and its notice, with the helper's second delivery", async () => {
+  const FRIDAY = "2026-10-16T03:59:00.000Z";
+  const SUNDAY = "2026-10-18T03:59:00.000Z";
+  const hw = (start: string) => ({
+    id: `hw5:${start}`,
+    title: "Homework 5",
+    course: "MATH 1131Q",
+    start,
+    dateKey: null,
+    end: null,
+    allDay: false,
+    location: null,
+    kind: "assignment" as const,
+  });
+  const deliver = async (start: string) => {
+    const payload = JSON.parse(
+      serialiseSyncPayload(
+        buildSyncPayload({
+          feeds: [{ name: "HuskyCT to-do", courseId: null, importedAt: new RealDate().toISOString(), events: [hw(start)] }],
+          completedIds: [],
+          courses: EMPTY_COURSE_BOOK,
+        }),
+      ),
+    );
+    const replies: unknown[] = [];
+    await act(async () => {
+      window.dispatchEvent(
+        new window.MessageEvent("message", {
+          data: { protocol: TASKS_PROTOCOL, kind: "sync", payload },
+          origin: "https://lms.uconn.edu",
+          source: { postMessage: (reply: unknown) => replies.push(reply) } as never,
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    assert.deepEqual(replies, [{ protocol: TASKS_PROTOCOL, kind: "stored", ok: true }]);
+  };
+
+  const app = await mount();
+  await deliver(FRIDAY);
+  const oldId = `hw5:${FRIDAY}`;
+  const newId = `hw5:${SUNDAY}`;
+  await act(async () => app.calendar.toggleTaskCompletion(oldId));
+  await act(async () => app.calendar.editEvent(oldId, { note: "ask for an extension" }));
+  assert.ok(app.calendar.doneIds.has(oldId));
+  assert.equal(app.calendar.eventNoteFor(oldId), "ask for an extension");
+
+  await deliver(SUNDAY);
+
+  assert.deepEqual(app.calendar.tasks.map((task) => task.id), [newId], "the old instance is shown beside the new one");
+  assert.ok(app.calendar.doneIds.has(newId), "the tick did not follow the deadline");
+  assert.equal(app.calendar.doneIds.has(oldId), false);
+  assert.equal(app.calendar.eventNoteFor(newId), "ask for an extension");
+  assert.deepEqual(Object.keys(app.calendar.moveNotices), [newId]);
+  assert.equal(app.calendar.moveNotices[newId].from, FRIDAY);
+  assert.equal(app.calendar.moveNotices[newId].to, SUNDAY);
+  const saved = JSON.parse(window.localStorage.getItem("huskypilot.completedTasks.imported.v1") ?? "{}");
+  assert.ok(JSON.stringify(saved).includes(newId) && !JSON.stringify(saved).includes(oldId), "the saved ticks still name the old id");
+
+  await act(async () => app.calendar.dismissMoveNotice(newId));
+  assert.deepEqual(app.calendar.moveNotices, {});
+  assert.equal(window.localStorage.getItem("huskypilot.moves.v1"), null);
+  await app.unmount();
+});

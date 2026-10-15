@@ -44,6 +44,17 @@ import { planSyncApply } from "@/lib/sync-apply";
 import { createTasksReceiver } from "@/lib/tasks-sync";
 import { recordReadReport, SYNC_STATUS_CHANGED } from "@/lib/sync-status";
 import {
+  activeNotices,
+  dismissNotice,
+  moveMap,
+  moveOverlay,
+  moveSet,
+  recordMoves,
+  restoreMoveLog,
+  saveMoveLog,
+  type MoveLog,
+} from "@/lib/moved-deadlines";
+import {
   applyOverlay,
   deleteEvent as deleteOverlayEvent,
   EMPTY_OVERLAY,
@@ -182,6 +193,9 @@ type CalendarContextValue = {
   clearSavedData: () => void;
   exportTasks: () => void;
   exportCalendar: () => void;
+  /** Deadlines the teacher moved recently, by task id, until dismissed or a week old. */
+  moveNotices: MoveLog;
+  dismissMoveNotice: (taskId: string) => void;
 
   remindersEnabled: boolean;
   toggleReminders: () => Promise<void>;
@@ -295,6 +309,7 @@ export function CalendarProvider({
   // Corrections to imported events, and events the student added themselves;
   // see `event-overlay.ts` and `custom-events.ts` for why they are kept apart.
   const [eventOverlay, setEventOverlay] = useState<EventOverlay>(EMPTY_OVERLAY);
+  const [moveLog, setMoveLog] = useState<MoveLog>({});
   const [customEvents, setCustomEvents] = useState<CustomCalendarEvent[]>([]);
   const [courseColors, setCourseColors] = useState<CourseColors>({});
   // A link from another device is offered, never applied on its own.
@@ -463,6 +478,7 @@ export function CalendarProvider({
       setAnnouncements(restoredAnnouncements.announcements);
 
       setEventOverlay(restoreEventOverlay(window.localStorage));
+      setMoveLog(restoreMoveLog(window.localStorage));
       setCustomEvents(restoreCustomEvents(window.localStorage));
       setCourseColors(restoreCourseColors(window.localStorage));
 
@@ -649,6 +665,12 @@ export function CalendarProvider({
     }
   }
 
+  function dismissMoveNotice(taskId: string) {
+    const next = dismissNotice(restoreMoveLog(window.localStorage), taskId);
+    if (!saveChange(() => saveMoveLog(window.localStorage, next))) return;
+    setMoveLog(next);
+  }
+
   function setReminderEnabled(enabled: boolean) {
     setRemindersEnabled(enabled);
     saveReminderState(window.localStorage, { enabled, ...reminderLog.current });
@@ -768,9 +790,13 @@ export function CalendarProvider({
     );
     const { merged } = plan;
 
-    const nextSynced = mergeDone(restoreSyncedDone(window.localStorage), Object.entries(payload.doneByHuskyct));
+    // A deadline the teacher moved is the same task: what is kept under its id moves with it.
+    const { moves } = merged;
+    const nextSynced = moveMap(mergeDone(restoreSyncedDone(window.localStorage), Object.entries(payload.doneByHuskyct)), moves);
     const nextColors = mergeCourseColors(restoreCourseColors(window.localStorage), payload.courseColors);
-    const nextReopened = new Set([...restoreReopened(window.localStorage), ...payload.reopened]);
+    const nextReopened = moveSet(new Set([...restoreReopened(window.localStorage), ...payload.reopened]), moves);
+    const nextOverlay = moves.length > 0 ? moveOverlay(restoreEventOverlay(window.localStorage), moves) : null;
+    const nextMoveLog = moves.length > 0 ? recordMoves(restoreMoveLog(window.localStorage), moves, new Date()) : null;
     const ordered = sortAnnouncements(merged.announcements);
     writeStorageBatch(window.localStorage, (staged) => {
       saveSubscriptions(staged, merged.subscriptions);
@@ -780,7 +806,11 @@ export function CalendarProvider({
       if (!saveSyncedDone(staged, nextSynced) || !saveCourseColors(staged, nextColors) || !saveReopened(staged, nextReopened)) {
         throw new Error(t(locale, "errors.saveFailed"));
       }
+      if (nextOverlay) saveEventOverlay(staged, nextOverlay);
+      if (nextMoveLog) saveMoveLog(staged, nextMoveLog);
     });
+    if (nextOverlay) setEventOverlay(nextOverlay);
+    if (nextMoveLog) setMoveLog(nextMoveLog);
     subscriptionsRef.current = merged.subscriptions;
     announcementsRef.current = ordered;
     setSubscriptions(merged.subscriptions);
@@ -1043,6 +1073,8 @@ export function CalendarProvider({
     clearSavedData,
     exportTasks,
     exportCalendar,
+    moveNotices: activeNotices(moveLog, now),
+    dismissMoveNotice,
     remindersEnabled,
     toggleReminders,
     pendingSync,

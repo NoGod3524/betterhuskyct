@@ -190,6 +190,7 @@ src/
    ├─ grades.ts, grades-store.ts, grades-export.ts# Grades: the helper's messages, totals, merging; storage; export
    ├─ helper.ts, helper-bridge.ts, helper-sync.ts, tasks-sync.ts# Where to get the helper; its bridge; the Sync button's protocol; deadlines and announcements delivered tab to tab
    ├─ sync.ts, sync-merge.ts, sync-apply.ts      # The #sync= payload: pack, check, merge what is already here
+   ├─ moved-deadlines.ts                         # A deadline the teacher moved: ticks, notes and course choices follow it, and a notice says so
    ├─ academic-calendar.ts                       # UConn's academic calendar from the Registrar's page
    ├─ content-hash.ts, is-record.ts              # A short text fingerprint; "is this a plain object"
    ├─ theme.ts, i18n.ts                          # Light, dark or the device's; English / 简体中文 dictionaries and lookup

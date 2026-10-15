@@ -16,6 +16,7 @@ import {
   type Subscription,
 } from "./subscriptions.ts";
 import type { SyncFeed, SyncPayload } from "./sync.ts";
+import { moveRecord, moveSet, type Move } from "./moved-deadlines.ts";
 
 export type LocalState = {
   courses: CourseBook;
@@ -46,6 +47,11 @@ export type MergedState = {
   announcements: Announcement[];
   /** How many announcements the link actually added. */
   addedAnnouncements: number;
+  /**
+   * Deadlines the link moved. The ticks and course choices in this state already follow them;
+   * what the caller keeps under task ids (a note, a reopening) is moved by the same list.
+   */
+  moves: Move[];
 };
 
 /**
@@ -75,10 +81,13 @@ export function mergeSyncPayload(
   local: LocalState,
   payload: SyncPayload,
 ): MergedState {
-  const { courses, idMap } = mergeCourses(local.courses, payload.courses);
+  const merged = mergeCourses(local.courses, payload.courses);
+  const { idMap } = merged;
+  let courses = merged.courses;
 
   const completedIds = new Set(local.completedIds);
   for (const id of payload.completedIds) completedIds.add(id);
+  const moves: Move[] = [];
 
   const subscriptions = [...local.subscriptions];
   let addedFeeds = 0;
@@ -107,6 +116,7 @@ export function mergeSyncPayload(
       };
       addedEvents += merged.added;
       updatedEvents += merged.updated;
+      moves.push(...merged.moves);
       continue;
     }
 
@@ -122,6 +132,12 @@ export function mergeSyncPayload(
     addedFeeds += 1;
     addedEvents += new Set(feed.events.map(eventUid)).size;
   }
+
+  // A moved deadline is still the one that was ticked, and still the course it was filed under.
+  const movedTicks = moveSet(completedIds, moves);
+  completedIds.clear();
+  for (const id of movedTicks) completedIds.add(id);
+  courses = { ...courses, assignments: moveRecord(courses.assignments, moves) };
 
   const { announcements, addedAnnouncements } = mergeAnnouncements(
     local.announcements ?? [],
@@ -139,6 +155,7 @@ export function mergeSyncPayload(
     updatedEvents,
     announcements,
     addedAnnouncements,
+    moves,
   };
 }
 
@@ -280,7 +297,7 @@ function findReceivingSubscription(
 function mergeFeedEvents(
   existing: CalendarTask[],
   incoming: CalendarTask[],
-): { events: CalendarTask[]; added: number; updated: number } {
+): { events: CalendarTask[]; added: number; updated: number; moves: Move[] } {
   const incomingUids = new Set(incoming.map(eventUid));
   const existingById = new Map(existing.map((event) => [event.id, event]));
   const existingUids = new Set(existing.map(eventUid));
@@ -308,7 +325,33 @@ function mergeFeedEvents(
   const byId = new Map(kept.map((event) => [event.id, event]));
   for (const event of incoming) byId.set(event.id, event);
 
-  return { events: [...byId.values()], added, updated };
+  return { events: [...byId.values()], added, updated, moves: detectMoves(existing, incoming) };
+}
+
+/**
+ * The deadlines this feed moved: a UID that was here once, at one start, and arrives once, at
+ * another. A UID with several instances is a repeating event, where a different set of instances
+ * is not a move.
+ */
+export function detectMoves(existing: CalendarTask[], incoming: CalendarTask[]): Move[] {
+  const byUid = (events: CalendarTask[]) => {
+    const groups = new Map<string, CalendarTask[]>();
+    for (const event of events) {
+      const uid = eventUid(event);
+      groups.set(uid, [...(groups.get(uid) ?? []), event]);
+    }
+    return groups;
+  };
+  const before = byUid(existing);
+  const moves: Move[] = [];
+  for (const [uid, arriving] of byUid(incoming)) {
+    const here = before.get(uid);
+    if (!here || here.length !== 1 || arriving.length !== 1) continue;
+    const [was] = here;
+    const [now] = arriving;
+    if (was.id !== now.id) moves.push({ uid, from: was.id, to: now.id, fromStart: was.start, toStart: now.start });
+  }
+  return moves;
 }
 
 /** Whether two copies of one event say the same thing, for counting updates. */
