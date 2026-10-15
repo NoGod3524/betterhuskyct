@@ -6,9 +6,29 @@
 
 [**Live demo**](https://betterhuskyct.vercel.app/) · [Changelog](./CHANGELOG.md) · [Report an issue](https://github.com/NoGod3524/betterhuskyct/issues)
 
-[![CI](https://github.com/NoGod3524/betterhuskyct/actions/workflows/ci.yml/badge.svg)](https://github.com/NoGod3524/betterhuskyct/actions/workflows/ci.yml)
+[![CI](https://github.com/NoGod3524/betterhuskyct/actions/workflows/ci.yml/badge.svg)](https://github.com/NoGod3524/betterhuskyct/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE) ![Price: free](https://img.shields.io/badge/price-free-brightgreen) ![No ads or tracking](https://img.shields.io/badge/ads%20%26%20tracking-none-brightgreen)
 
 ![BetterHuskyCT](./public/og.png)
+
+## The promise
+
+BetterHuskyCT is a free, open-source student project, and these are the things it promises.
+
+- **Free.** No price, no paid tier, no ads, no sign-up. Nothing in it will be put behind payment.
+- **Open source.** The code is [MIT-licensed](./LICENSE). A version released under it stays open for everyone to use, change and run, whatever happens to this project afterwards.
+- **Yours.** What you collect stays in your browser. The helper sends it nowhere but your own BetterHuskyCT tab, and **Back up and restore** takes all of it with you, so there is no account to lose and nothing to be locked into.
+- **No tracking, no selling.** The app adds no analytics, advertising or tracking, and nothing it holds is sold or shared. The one time text leaves your browser is when you press **Summarize** or turn on the AI dates; the [privacy page](./PRIVACY.md) says what goes where.
+
+What this does **not** promise, so it is not mistaken for more:
+
+- The AI features run on the free tiers of third-party services. Their limits, terms or availability can change, and the AI features are what would be limited first. Nothing else depends on them.
+- HuskyCT changes. When it does, the helper can stop working until it is fixed.
+- One student maintains this in spare time. There is no support promise and no timetable.
+- The site's address is `betterhuskyct.vercel.app`. If it ever moves, [run your own copy](#getting-started), and download a backup first: browser storage belongs to an address, and **Back up and restore** brings it to the new one.
+
+It runs on free plans: the site on Vercel's free hosting, summaries on the free tiers of Z.ai, Google Gemini and Groq. If it ever cost real money, the AI summaries would be what scales back; everything else runs in your browser and costs nothing to serve. If donations are ever accepted, they will be optional and unlock nothing.
+
+Don't take this on trust: the extension's package is built from this repository by GitHub, and every release carries a checksum and a build attestation anyone can check. See [tools/extension/VERIFY.md](./tools/extension/VERIFY.md). Written October 2026; the history of this section is in git.
 
 ## Screenshots
 
@@ -124,6 +144,7 @@ src/
 │  ├─ helper/page.tsx                            # /helper        install the browser helper
 │  ├─ privacy/page.tsx                            # /privacy       what the helper reads and never does
 │  ├─ backup/page.tsx                            # /backup        save everything as one file, and load it back
+│  ├─ about/page.tsx                             # /about         what the project promises and does not, and where to check
 │  ├─ globals.css, icon.tsx                      # Styles; the app icon
 ├─ components/
 │  ├─ calendar-provider.tsx                      # Every piece of app state, in the root layout
@@ -137,6 +158,7 @@ src/
 │  ├─ helper-section.tsx                         # How to install the browser helper
 │  ├─ privacy-section.tsx                         # The helper's privacy policy, which the stores link to
 │  ├─ backup-section.tsx                         # Download a backup; load one, merged or replacing
+│  ├─ about-section.tsx                          # The about page: the promise, what it does not promise, costs, where to check
 │  ├─ helper-deliveries.tsx                      # Receives what the helper sends: materials and grades
 │  ├─ sync-status-view.tsx                       # The sync status: a line on the overview, a table on the Helper page
 │  ├─ sync-banner.tsx                            # The banner for an incoming #sync= link

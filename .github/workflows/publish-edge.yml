@@ -61,6 +61,11 @@ jobs:
         if: steps.moved.outputs.send == 'true'
         run: node scripts/build-extension.mjs
 
+      - name: Show the package's checksum
+        if: steps.moved.outputs.send == 'true'
+        # The same bytes as the release's package for this tag: they can be matched by this line.
+        run: sha256sum public/betterhuskyct-extension.zip
+
       - name: Upload and submit
         if: steps.moved.outputs.send == 'true'
         run: node scripts/publish-edge.ts

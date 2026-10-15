@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -78,4 +81,17 @@ test("the manifest names icons that exist, at the sizes the stores ask for", () 
 test("the manifest's description fits the stores' 132 characters", () => {
   const manifest = JSON.parse(readFileSync(join(HERE, "..", "tools", "extension", "manifest.json"), "utf8")) as { description: string };
   assert.ok(manifest.description.length <= 132, `${manifest.description.length} characters`);
+});
+
+test("the extension package is the same bytes whenever and wherever it is built", () => {
+  const build = (zone: string, name: string) => {
+    const out = join(tmpdir(), `betterhuskyct-ext-${process.pid}-${name}.zip`);
+    execFileSync(process.execPath, [fileURLToPath(new URL("../scripts/build-extension.mjs", import.meta.url)), out], { env: { ...process.env, TZ: zone }, stdio: "pipe" });
+    const bytes = readFileSync(out);
+    rmSync(out);
+    return createHash("sha256").update(bytes).digest("hex");
+  };
+  const a = build("UTC", "a");
+  assert.equal(build("Pacific/Auckland", "b"), a, "another time zone gave another package");
+  assert.equal(build("America/New_York", "c"), a, "another time zone gave another package");
 });

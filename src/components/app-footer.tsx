@@ -26,6 +26,10 @@ export function AppFooter({ version }: { version: string }) {
         <Link href="/backup" className="underline-offset-2 hover:underline">
           {t(locale, "footer.backup")}
         </Link>
+        {" · "}
+        <Link href="/about" className="underline-offset-2 hover:underline">
+          {t(locale, "footer.about")}
+        </Link>
       </span>
       <span>
         {t(locale, "footer.madeBy")}{" "}
