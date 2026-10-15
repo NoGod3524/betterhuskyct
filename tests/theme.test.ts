@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 import { THEME_BOOT_SCRIPT, THEME_STORAGE_KEY, applyTheme, nextTheme, readTheme, saveTheme } from "../src/lib/theme.ts";
@@ -12,7 +13,7 @@ import { THEME_BOOT_SCRIPT, THEME_STORAGE_KEY, applyTheme, nextTheme, readTheme,
  * a dark page — so these checks read the source rather than trust it.
  */
 const CSS = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
-const SRC = new URL("../src/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+const SRC = fileURLToPath(new URL("../src/", import.meta.url));
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
