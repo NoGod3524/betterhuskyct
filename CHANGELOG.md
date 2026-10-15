@@ -14,6 +14,14 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.39.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.39.1) — The package rebuilds the same on Windows
+
+*Patch: the helper is unchanged at 2.0.4.*
+
+### Fixed
+
+- **The extension package builds to the same bytes from a Windows checkout as on GitHub.** Rebuilding the first release (v1.39.0) on Windows gave a different zip from the one GitHub built, though the contents were the same: Git on Windows checks files out with CRLF line endings, and they went into the package as they were. The build now writes the package's text with LF line endings, and `.gitattributes` makes those files LF on every machine, so a rebuild anywhere matches the release's checksum. A test fails if the package holds a carriage return. ([#236])
+
 ## [1.39.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.39.0) — The promise, written down, and a package anyone can check
 
 *Minor: what the project promises, and a way to verify the extension is what the repository says. The helper is unchanged at 2.0.4.*
@@ -2054,3 +2062,4 @@ saying what to work on next.*
 [#231]: https://github.com/NoGod3524/betterhuskyct/pull/231
 [#232]: https://github.com/NoGod3524/betterhuskyct/pull/232
 [#234]: https://github.com/NoGod3524/betterhuskyct/pull/234
+[#236]: https://github.com/NoGod3524/betterhuskyct/pull/236
