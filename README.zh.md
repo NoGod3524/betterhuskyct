@@ -6,9 +6,29 @@
 
 [**在线演示**](https://betterhuskyct.vercel.app/) · [更新日志](./CHANGELOG.md) · [反馈问题](https://github.com/NoGod3524/betterhuskyct/issues)
 
-[![CI](https://github.com/NoGod3524/betterhuskyct/actions/workflows/ci.yml/badge.svg)](https://github.com/NoGod3524/betterhuskyct/actions/workflows/ci.yml)
+[![CI](https://github.com/NoGod3524/betterhuskyct/actions/workflows/ci.yml/badge.svg)](https://github.com/NoGod3524/betterhuskyct/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](./LICENSE) ![Price: free](https://img.shields.io/badge/price-free-brightgreen) ![No ads or tracking](https://img.shields.io/badge/ads%20%26%20tracking-none-brightgreen)
 
 ![BetterHuskyCT](./public/og.png)
+
+## 承诺
+
+BetterHuskyCT 是一个免费、开源的学生项目，它做出下面这些承诺。
+
+- **免费。** 没有价格、没有付费版本、没有广告、不需要注册。任何功能都不会被放到付费墙后面。
+- **开源。** 代码采用 [MIT 许可证](./LICENSE)。按它发布过的版本，不论这个项目以后怎样，都永远对所有人开放：任何人都可以使用、修改和自己运行。
+- **数据是你的。** 你收集的内容只留在你的浏览器里。助手只会把它交给你自己打开的 BetterHuskyCT 标签页，不会发到别的任何地方。「备份与恢复」能把全部数据带走，所以没有账号可丢，也不会被锁在这里。
+- **不追踪，不出售。** 应用本身没有统计、广告和追踪，它持有的任何内容都不会被出售或共享。文字只有在你按下**总结**、或打开 AI 找日期时才会离开浏览器，什么内容发给谁，见[隐私页](./PRIVACY.md)。
+
+下面这些**不是**承诺，写出来免得被当成更多的东西：
+
+- AI 功能用的是第三方服务的免费额度。它们的额度、条款或可用性可能变，到时候最先受限的就是 AI 功能；别的功能都不依赖它们。
+- HuskyCT 会改版。改版后助手可能暂时失效，直到修好。
+- 这个项目由一个学生在业余时间维护，不承诺技术支持，也不承诺时间表。
+- 站点地址是 `betterhuskyct.vercel.app`。如果将来换地址，可以[自己运行一份](#本地运行)，并且先下载一份备份：浏览器的存储是跟着地址走的，用「备份与恢复」就能把数据带到新地址。
+
+它靠免费方案运行：站点用 Vercel 的免费托管，总结用 Z.ai、Google Gemini 和 Groq 的免费额度。万一真要花钱，收缩的会是 AI 总结；其他功能都在你的浏览器里运行，不花服务器的钱。如果以后接受捐助，也是自愿的，并且不会解锁任何东西。
+
+别只听我说：扩展的安装包是由 GitHub 从这个仓库自动构建的，每个发布版本都带校验码和构建证明，任何人都能自己核对。见 [tools/extension/VERIFY.md](./tools/extension/VERIFY.md)。写于 2026 年 10 月，这一节的修改历史都在 git 里。
 
 ## 界面截图
 
@@ -118,6 +138,7 @@ src/
 │  ├─ helper/page.tsx                            # /helper        安装浏览器助手
 │  ├─ privacy/page.tsx                            # /privacy       助手读什么、绝不做什么
 │  ├─ backup/page.tsx                            # /backup        把全部数据存成一个文件，再读回来
+│  ├─ about/page.tsx                             # /about         项目承诺什么、不承诺什么，以及去哪里核对
 │  ├─ globals.css, icon.tsx                      # 样式；应用图标
 ├─ components/
 │  ├─ calendar-provider.tsx                      # 整个应用的状态，放在根布局里
@@ -131,6 +152,7 @@ src/
 │  ├─ helper-section.tsx                         # 怎么安装浏览器助手
 │  ├─ privacy-section.tsx                         # 助手的隐私政策，商店页面会链接到它
 │  ├─ backup-section.tsx                         # 下载备份；读入备份，合并或替换
+│  ├─ about-section.tsx                          # 关于页：承诺、不承诺的事、费用，以及去哪里核对
 │  ├─ helper-deliveries.tsx                      # 接收助手发来的资料和成绩
 │  ├─ sync-status-view.tsx                       # 同步状态：总览页的一行提示，助手页的状态表
 │  ├─ sync-banner.tsx                            # 收到 #sync= 链接时的提示条

@@ -1,0 +1,83 @@
+name: Release packages
+
+# Every release tag (vX.Y.Z) gets a GitHub Release holding the helper as GitHub built it from the
+# tagged source: the Chrome/Edge extension and the userscript, a checksum file, and a signed build
+# attestation for each file. Anyone can then check a package is what this repository says it is
+# (tools/extension/VERIFY.md). Run by hand with an existing tag to make or refresh a release's files.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: An existing release tag, such as v1.38.0
+        required: true
+
+permissions:
+  contents: write # the release
+  id-token: write # the attestation's signature
+  attestations: write # keeping it
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    name: build, attest, release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - name: Checkout the tag
+        uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ github.event.inputs.tag || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the packages
+        id: build
+        run: |
+          version=$(grep -m1 '^// @version' tools/huskyct-helper/huskyct-helper.user.js | awk '{print $3}')
+          mkdir dist
+          node scripts/build-extension.mjs "dist/betterhuskyct-helper-$version.zip"
+          cp tools/huskyct-helper/huskyct-helper.user.js "dist/huskyct-helper-$version.user.js"
+          (cd dist && sha256sum "betterhuskyct-helper-$version.zip" "huskyct-helper-$version.user.js" > SHA256SUMS && cat SHA256SUMS)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Attest where they came from
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/betterhuskyct-helper-*.zip
+            dist/huskyct-helper-*.user.js
+
+      - name: Create or refresh the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          subject=$(git tag -l --format='%(contents:subject)' "$TAG")
+          [ -n "$subject" ] || subject="$TAG"
+          # This version's entry in the changelog, if it has one.
+          awk -v heading="## [${TAG#v}]" 'index($0, heading) == 1 { found = 1; next } found && /^## \[/ { exit } found' CHANGELOG.md > notes.md
+          [ -s notes.md ] || echo "See the [changelog](https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md)." > notes.md
+          {
+            echo
+            echo "---"
+            echo "**Check these files.** \`SHA256SUMS\` has their checksums, and each has a build attestation: \`gh attestation verify <file> --repo ${GITHUB_REPOSITORY}\`. To rebuild and compare, or compare with what is installed, see [VERIFY.md](https://github.com/${GITHUB_REPOSITORY}/blob/main/tools/extension/VERIFY.md)."
+          } >> notes.md
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$subject" --notes-file notes.md --verify-tag
+          fi
