@@ -14,6 +14,16 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.38.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.38.0) — A moved deadline keeps what you did to it
+
+*Minor: the helper is unchanged at 2.0.4. The app reads a moved deadline as the same task.*
+
+### Fixed
+
+- **A deadline that is moved keeps its tick, its note and its course.** A task's id is its source UID and its start, so a deadline moved to another day got a new id and lost everything kept under the old one: its tick came back undone, its note and corrections were orphaned. The merge now recognises a deadline that arrives once at another start as the same task, and the tick, the course choice, a reopening, the gradebook's word, and the note, title and deletion follow it. A correction of its time does not: it named the old deadline's time, and the new one is the right one. A repeating event is never taken for a move. ([#232])
+- **The page says when a deadline moved.** The task card shows "Deadline moved: 10/16 11:59 PM → 10/18 11:59 PM" for a week, until it is dismissed, and across a reload. Moved again, it says from the latest time to the new one. The notice is in the backup. ([#232])
+- **A page opened offline for the first time gets a page of its own.** It was given the home page's HTML at the other address and threw React error 418; it now gets a plain offline page, in English and Chinese, with a link home. Pages opened before still open offline. ([#231])
+
 ## [1.37.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.37.2) — Saved work survives partial syncs, full disks and other tabs
 
 *Patch: a reliability pass. Nothing here loses saved work or says it succeeded when it did not. HuskyCT Helper goes from 2.0.3 to 2.0.4.*
@@ -2027,3 +2037,5 @@ saying what to work on next.*
 [#225]: https://github.com/NoGod3524/betterhuskyct/pull/225
 [#227]: https://github.com/NoGod3524/betterhuskyct/pull/227
 [#229]: https://github.com/NoGod3524/betterhuskyct/pull/229
+[#231]: https://github.com/NoGod3524/betterhuskyct/pull/231
+[#232]: https://github.com/NoGod3524/betterhuskyct/pull/232
