@@ -66,6 +66,9 @@ import {
   type CustomEventInput,
 } from "@/lib/custom-events";
 import {
+  COMPLETION_STORAGE_KEY_CUSTOM,
+  COMPLETION_STORAGE_KEY_DEMO,
+  COMPLETION_STORAGE_KEY_IMPORTED,
   clearCompletedTaskIds,
   restoreCompletedTaskIds,
   saveCompletedTaskIds,
@@ -76,6 +79,8 @@ import { isCourseCatalogueLoaded, loadCourseCatalogue } from "@/lib/course-catal
 import type { GradesSnapshot } from "@/lib/grades";
 import { GRADES_CHANGED, openGradesStore } from "@/lib/grades-store";
 import {
+  REOPENED_STORAGE_KEY,
+  SYNCED_DONE_STORAGE_KEY,
   autoDoneTasks,
   doneLabels,
   mergeDone,
@@ -554,17 +559,32 @@ export function CalendarProvider({
 
   // What HuskyCT said on another device (a phone has no gradebook of its own), added
   // to what this device reads from its own. Only ever adds: see `mergeDone`.
-  const autoDone = useMemo(
-    () => mergeDone(autoDoneTasks(tasks, grades, (task) => labelFor(task)?.code ?? null), syncedDone),
+  const doneFromGrades = useMemo(
+    () => autoDoneTasks(tasks, grades, (task) => labelFor(task)?.code ?? null),
     // The catalogue arriving can change which course a task shows, though `labelFor` does not
     // change with it, so it is a dependency here on its own account.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, grades, labelFor, catalogueReady, syncedDone],
+    [tasks, grades, labelFor, catalogueReady],
   );
+  const autoDone = useMemo(() => mergeDone(doneFromGrades, syncedDone), [doneFromGrades, syncedDone]);
   const doneLabelMap = useMemo(() => doneLabels(completedIds, autoDone, reopened), [completedIds, autoDone, reopened]);
   const doneIds = useMemo(() => new Set(doneLabelMap.keys()), [doneLabelMap]);
 
-  const completionSource: CompletionSource = isImported ? "imported" : "demo";
+  const completionSource = isImported ? "imported" : "demo";
+
+  useEffect(() => {
+    function readCompletion(event: StorageEvent) {
+      if (event.storageArea && event.storageArea !== window.localStorage) return;
+      const key = event.key;
+      if (key === null || [COMPLETION_STORAGE_KEY_DEMO, COMPLETION_STORAGE_KEY_IMPORTED, COMPLETION_STORAGE_KEY_CUSTOM].includes(key)) {
+        setCompletedIds(restoreTicks(completionSource, completionSource === "imported" ? subscriptionsRef.current : null));
+      }
+      if (key === null || key === REOPENED_STORAGE_KEY) setReopened(restoreReopened(window.localStorage));
+      if (key === null || key === SYNCED_DONE_STORAGE_KEY) setSyncedDone(restoreSyncedDone(window.localStorage));
+    }
+    window.addEventListener("storage", readCompletion);
+    return () => window.removeEventListener("storage", readCompletion);
+  }, [completionSource]);
 
   /** The ticks on screen are saved in two places: the source's own, and the student's own events'. */
   function saveTicks(source: CompletionSource, ticks: Set<string>) {
@@ -573,37 +593,30 @@ export function CalendarProvider({
   }
 
   function toggleTaskCompletion(taskId: string) {
+    // Another tab may have saved a choice before its storage event reaches this one.
+    const ticks = restoreTicks(completionSource, isImported ? subscriptionsRef.current : null);
+    const latestReopened = restoreReopened(window.localStorage);
+    const latestSynced = restoreSyncedDone(window.localStorage);
+    setSyncedDone(latestSynced);
     // Done because HuskyCT says so: pressing it reopens the task (the gradebook can be
     // wrong about which task it is), and pressing a reopened one lets HuskyCT's word stand.
-    const doneByHuskyct = autoDone.has(taskId) && !reopened.has(taskId);
-    if (doneByHuskyct || (autoDone.has(taskId) && reopened.has(taskId))) {
-      setReopened((previous) => {
-        const next = new Set(previous);
-        if (doneByHuskyct) next.add(taskId);
-        else next.delete(taskId);
-        saveReopened(window.localStorage, next);
-        return next;
-      });
-      if (doneByHuskyct && completedIds.has(taskId)) {
-        setCompletedIds((previous) => {
-          const next = new Set(previous);
-          next.delete(taskId);
-          saveTicks(completionSource, next);
-          return next;
-        });
+    if (doneFromGrades.has(taskId) || latestSynced.has(taskId)) {
+      const wasReopened = latestReopened.has(taskId);
+      if (wasReopened) latestReopened.delete(taskId);
+      else latestReopened.add(taskId);
+      saveReopened(window.localStorage, latestReopened);
+      setReopened(latestReopened);
+      if (!wasReopened && ticks.has(taskId)) {
+        ticks.delete(taskId);
+        saveTicks(completionSource, ticks);
       }
+      setCompletedIds(ticks);
       return;
     }
-    setCompletedIds((previous) => {
-      const next = new Set(previous);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-      } else {
-        next.add(taskId);
-      }
-      saveTicks(completionSource, next);
-      return next;
-    });
+    if (ticks.has(taskId)) ticks.delete(taskId);
+    else ticks.add(taskId);
+    saveTicks(completionSource, ticks);
+    setCompletedIds(ticks);
   }
 
   function setReminderEnabled(enabled: boolean) {
@@ -709,14 +722,15 @@ export function CalendarProvider({
   // `#sync=` link, which asks first, and the helper's direct `postMessage`,
   // which does not.
   function applyPayload(payload: SyncPayload) {
+    const savedTicks = new Set([...restoreCompletedTaskIds(window.localStorage, "imported")].filter((id) => !isCustomEventId(id)));
     const plan = planSyncApply(
       {
         courses: courseBook,
         subscriptions: subscriptionsRef.current,
         announcements: announcementsRef.current,
         showingImported: isImported,
-        ticksOnScreen: completedIds,
-        savedTicks: restoreCompletedTaskIds(window.localStorage, "imported"),
+        ticksOnScreen: savedTicks,
+        savedTicks,
       },
       payload,
     );
@@ -730,7 +744,7 @@ export function CalendarProvider({
     saveCompletedTaskIds(window.localStorage, "imported", plan.ticksToSave);
     // HuskyCT's word and the student's reopenings from the other device join what
     // this one has. Neither is ever taken away by a sync.
-    const nextSynced = mergeDone(syncedDone, Object.entries(payload.doneByHuskyct));
+    const nextSynced = mergeDone(restoreSyncedDone(window.localStorage), Object.entries(payload.doneByHuskyct));
     saveSyncedDone(window.localStorage, nextSynced);
     setSyncedDone(nextSynced);
     if (Object.keys(payload.courseColors).length > 0) {
@@ -738,7 +752,7 @@ export function CalendarProvider({
       saveCourseColors(window.localStorage, nextColors);
       setCourseColors(nextColors);
     }
-    const nextReopened = new Set([...reopened, ...payload.reopened]);
+    const nextReopened = new Set([...restoreReopened(window.localStorage), ...payload.reopened]);
     saveReopened(window.localStorage, nextReopened);
     setReopened(nextReopened);
 

@@ -6,6 +6,12 @@ import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { SUBSCRIPTIONS_STORAGE_KEY, type Subscription } from "../src/lib/subscriptions.ts";
 import { buildSyncPayload, encodeSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
 import { TASKS_PROTOCOL } from "../src/lib/tasks-sync.ts";
+import {
+  COMPLETION_STORAGE_KEY_CUSTOM,
+  COMPLETION_STORAGE_KEY_DEMO,
+  COMPLETION_STORAGE_KEY_IMPORTED,
+} from "../src/lib/completion-storage.ts";
+import { REOPENED_STORAGE_KEY, SYNCED_DONE_STORAGE_KEY } from "../src/lib/task-status.ts";
 import { installDom } from "./support/dom.ts";
 
 /**
@@ -550,4 +556,120 @@ test("a tick on an imported task and one on the student's own task are kept apar
   assert.equal(again.calendar.doneIds.has(imported), true);
   assert.equal(again.calendar.doneIds.has(own), true);
   await again.unmount();
+});
+
+async function storageChanged(key: string | null) {
+  await act(async () => window.dispatchEvent(new window.StorageEvent("storage", {
+    key: key ?? undefined,
+    storageArea: window.localStorage,
+  })));
+}
+
+function storeTicks(key: string, ids: string[]) {
+  window.localStorage.setItem(key, JSON.stringify({ version: 1, completedIds: ids }));
+}
+
+test("ticks changed in another tab appear here, including unticks and custom events", async () => {
+  const app = await mount();
+  const imported = await importOneTask(app);
+  const own = await addOwn(app);
+
+  storeTicks(COMPLETION_STORAGE_KEY_IMPORTED, [imported]);
+  await storageChanged(COMPLETION_STORAGE_KEY_IMPORTED);
+  assert.equal(app.calendar.doneIds.has(imported), true);
+
+  storeTicks(COMPLETION_STORAGE_KEY_CUSTOM, [own]);
+  await storageChanged(COMPLETION_STORAGE_KEY_CUSTOM);
+  assert.equal(app.calendar.doneIds.has(own), true);
+  assert.equal(app.calendar.doneIds.has(imported), true);
+
+  storeTicks(COMPLETION_STORAGE_KEY_IMPORTED, []);
+  await storageChanged(COMPLETION_STORAGE_KEY_IMPORTED);
+  assert.equal(app.calendar.doneIds.has(imported), false);
+  assert.equal(app.calendar.doneIds.has(own), true);
+
+  window.localStorage.removeItem(COMPLETION_STORAGE_KEY_CUSTOM);
+  await storageChanged(null);
+  assert.equal(app.calendar.doneIds.has(own), false);
+  await app.unmount();
+});
+
+test("ticking before another tab's storage event arrives preserves its ticks and source separation", async () => {
+  const app = await mount();
+  const imported = await importOneTask(app);
+  const own = await addOwn(app);
+  const demo = "demo-cse-problem-set";
+  storeTicks(COMPLETION_STORAGE_KEY_DEMO, [demo]);
+  storeTicks(COMPLETION_STORAGE_KEY_IMPORTED, [imported]);
+
+  await act(async () => app.calendar.toggleTaskCompletion(own));
+  assert.equal(app.calendar.doneIds.has(imported), true);
+  assert.equal(app.calendar.doneIds.has(own), true);
+  assert.deepEqual(JSON.parse(window.localStorage.getItem(COMPLETION_STORAGE_KEY_IMPORTED)!).completedIds, [imported]);
+  assert.deepEqual(JSON.parse(window.localStorage.getItem(COMPLETION_STORAGE_KEY_CUSTOM)!).completedIds, [own]);
+  assert.deepEqual(JSON.parse(window.localStorage.getItem(COMPLETION_STORAGE_KEY_DEMO)!).completedIds, [demo]);
+
+  await act(async () => app.calendar.restoreDemo());
+  storeTicks(COMPLETION_STORAGE_KEY_DEMO, []);
+  await storageChanged(COMPLETION_STORAGE_KEY_DEMO);
+  assert.equal(app.calendar.doneIds.has(demo), false);
+  assert.equal(app.calendar.doneIds.has(own), true);
+  assert.equal(app.calendar.doneIds.has(imported), false);
+  await app.unmount();
+});
+
+test("another tab's HuskyCT status and reopenings are reflected and toggled from the latest saved choice", async () => {
+  const app = await mount();
+  const imported = await importOneTask(app);
+
+  window.localStorage.setItem(SYNCED_DONE_STORAGE_KEY, JSON.stringify({ [imported]: "graded" }));
+  await storageChanged(SYNCED_DONE_STORAGE_KEY);
+  assert.equal(app.calendar.doneLabelFor(imported), "graded");
+
+  window.localStorage.setItem(REOPENED_STORAGE_KEY, JSON.stringify([imported]));
+  await storageChanged(REOPENED_STORAGE_KEY);
+  assert.equal(app.calendar.doneIds.has(imported), false);
+
+  // A second tab closed it again, but its event has not reached this tab yet.
+  window.localStorage.removeItem(REOPENED_STORAGE_KEY);
+  await act(async () => app.calendar.toggleTaskCompletion(imported));
+  assert.equal(app.calendar.doneIds.has(imported), false, "the latest saved choice was not reopened");
+  assert.deepEqual(JSON.parse(window.localStorage.getItem(REOPENED_STORAGE_KEY)!), [imported]);
+
+  window.localStorage.removeItem(SYNCED_DONE_STORAGE_KEY);
+  await storageChanged(SYNCED_DONE_STORAGE_KEY);
+  assert.equal(app.calendar.doneLabelFor(imported), null);
+  await app.unmount();
+});
+
+test("a helper sync preserves another tab's latest completion choices and keeps custom ticks separate", async () => {
+  const app = await mount();
+  const imported = await importOneTask(app);
+  const own = await addOwn(app);
+  await act(async () => app.calendar.toggleTaskCompletion(own));
+
+  storeTicks(COMPLETION_STORAGE_KEY_IMPORTED, [imported]);
+  window.localStorage.setItem(SYNCED_DONE_STORAGE_KEY, JSON.stringify({ [imported]: "graded" }));
+  window.localStorage.setItem(REOPENED_STORAGE_KEY, JSON.stringify([imported]));
+  const payload = JSON.parse(serialiseSyncPayload(buildSyncPayload({
+    feeds: [savedFeed()],
+    completedIds: [],
+    courses: EMPTY_COURSE_BOOK,
+  })));
+  const replies: unknown[] = [];
+
+  await act(async () => window.dispatchEvent(new window.MessageEvent("message", {
+    data: { protocol: TASKS_PROTOCOL, kind: "sync", payload },
+    origin: "https://lms.uconn.edu",
+    source: { postMessage: (reply: unknown) => replies.push(reply) } as never,
+  })));
+
+  assert.deepEqual(replies, [{ protocol: TASKS_PROTOCOL, kind: "stored", ok: true }]);
+  assert.deepEqual(JSON.parse(window.localStorage.getItem(COMPLETION_STORAGE_KEY_IMPORTED)!).completedIds, [imported]);
+  assert.deepEqual(JSON.parse(window.localStorage.getItem(COMPLETION_STORAGE_KEY_CUSTOM)!).completedIds, [own]);
+  assert.deepEqual(JSON.parse(window.localStorage.getItem(SYNCED_DONE_STORAGE_KEY)!), { [imported]: "graded" });
+  assert.deepEqual(JSON.parse(window.localStorage.getItem(REOPENED_STORAGE_KEY)!), [imported]);
+  assert.equal(app.calendar.doneIds.has(imported), true);
+  assert.equal(app.calendar.doneIds.has(own), true);
+  await app.unmount();
 });
