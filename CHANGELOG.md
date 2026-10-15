@@ -14,6 +14,20 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.39.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.39.0) — The promise, written down, and a package anyone can check
+
+*Minor: what the project promises, and a way to verify the extension is what the repository says. The helper is unchanged at 2.0.4.*
+
+### Added
+
+- **The promise, and what it does not promise.** BetterHuskyCT is free and open source, and now says exactly what that means, in both READMEs, on a new **About** page linked from every footer, and in the store listing text. Promised: no price, paid tier, ads or sign-up; MIT, so a released version stays open to everyone whatever happens to the project; your data stays in your browser and the backup takes all of it; no analytics, tracking or selling. Not promised, said plainly: the AI rides on third-party free tiers, HuskyCT changes can break the helper, one student maintains it, and the address may move. What it costs and who pays is stated too. ([#234])
+- **The extension can be checked.** Every release now has a GitHub Release with the extension package and the userscript as GitHub built them from the tagged source, a `SHA256SUMS` file, and a signed build attestation for each file. `tools/extension/VERIFY.md` says how to check an attestation, rebuild and compare checksums, or compare what is installed with the release. ([#234])
+- **`SECURITY.md`** (private reporting through GitHub is switched on), **`CONTRIBUTING.md`**, and badges in both READMEs. ([#234])
+
+### Changed
+
+- **The extension package is the same bytes whenever and wherever it is built.** It used to keep the time of the build, so two builds seconds apart differed and no checksum could be compared. It now has a fixed time, and a test builds it in three time zones and compares. The Edge publish run prints its package's checksum. ([#234])
+
 ## [1.38.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.38.0) — A moved deadline keeps what you did to it
 
 *Minor: the helper is unchanged at 2.0.4. The app reads a moved deadline as the same task.*
@@ -2039,3 +2053,4 @@ saying what to work on next.*
 [#229]: https://github.com/NoGod3524/betterhuskyct/pull/229
 [#231]: https://github.com/NoGod3524/betterhuskyct/pull/231
 [#232]: https://github.com/NoGod3524/betterhuskyct/pull/232
+[#234]: https://github.com/NoGod3524/betterhuskyct/pull/234
