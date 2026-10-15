@@ -133,16 +133,25 @@ test("an error page is never kept as the offline copy", async () => {
   worker.network.online = false;
 
   assert.equal(await worker.navigate("/"), "/ page", "a 500 page replaced the shell");
-  assert.equal(await worker.navigate("/broken"), "/ page");
+  assert.equal(await worker.navigate("/broken"), "/offline.html page");
 });
 
-test("a route never visited falls back to the home page offline", async () => {
+test("a route never visited gets the offline page, not the home page's HTML", async () => {
   const worker = loadWorker({ "/": 200 });
   await worker.fire("install");
   await worker.fire("activate");
   worker.network.online = false;
 
-  assert.equal(await worker.navigate("/tasks"), "/ page");
+  // The home page's HTML at another address does not hydrate (React #418).
+  assert.equal(await worker.navigate("/tasks"), "/offline.html page");
+  assert.equal(await worker.navigate("/"), "/ page", "the home page is its own copy");
+});
+
+test("the offline page is a plain page: no script, and a way back to the home page", () => {
+  const page = readFileSync(new URL("../public/offline.html", import.meta.url), "utf8");
+  assert.doesNotMatch(page, /<script/i);
+  assert.ok(page.includes('href="/"'), "no way back to the home page");
+  assert.match(page, /<html lang="en">/);
 });
 
 test("activating clears the old cache, whose shell may be another route's page", async () => {

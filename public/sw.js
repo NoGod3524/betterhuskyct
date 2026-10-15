@@ -8,12 +8,16 @@
 // another route's page or an error page.
 const CACHE_VERSION = "huskypilot-v2";
 const APP_SHELL = "/";
+// A static page with no scripts, for a route that was never opened online. The home page's HTML
+// cannot stand in for another route: the app hydrates it for the route in the address bar, and
+// the two do not match.
+const OFFLINE_PAGE = "/offline.html";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_VERSION)
-      .then((cache) => cache.addAll([APP_SHELL]))
+      .then((cache) => cache.addAll([APP_SHELL, OFFLINE_PAGE]))
       .then(() => self.skipWaiting()),
   );
 });
@@ -45,7 +49,7 @@ self.addEventListener("fetch", (event) => {
   // Each route is cached under its own path. They all used to be written to "/",
   // so offline, every route served whichever page was visited last — /plan's
   // HTML at /tasks — and a 500 page could become the shell. Only a real page is
-  // kept; offline falls back to the route's own copy, then to the home page.
+  // kept; offline falls back to the route's own copy, then to the offline page.
   if (request.mode === "navigate") {
     const key = url.pathname;
     event.respondWith(
@@ -62,7 +66,7 @@ self.addEventListener("fetch", (event) => {
         .catch(() =>
           caches
             .match(key)
-            .then((cached) => cached || caches.match(APP_SHELL)),
+            .then((cached) => cached || caches.match(OFFLINE_PAGE)),
         ),
     );
     return;
