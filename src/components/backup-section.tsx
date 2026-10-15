@@ -29,6 +29,7 @@ export function BackupSection({ version }: { version: string }) {
   const [mode, setMode] = useState<RestoreMode>("merge");
   const [message, setMessage] = useState<{ text: string; bad: boolean } | null>(null);
   const picker = useRef<HTMLInputElement>(null);
+  const selection = useRef(0);
 
   function backupFile(): File {
     const now = new Date();
@@ -48,9 +49,13 @@ export function BackupSection({ version }: { version: string }) {
   }
 
   function exportBackup() {
-    const file = backupFile();
-    download(file);
-    setMessage({ text: t(locale, "backup.exported", { name: file.name }), bad: false });
+    try {
+      const file = backupFile();
+      download(file);
+      setMessage({ text: t(locale, "backup.exported", { name: file.name }), bad: false });
+    } catch {
+      setMessage({ text: t(locale, "backup.exportFailed"), bad: true });
+    }
   }
 
   /**
@@ -59,40 +64,57 @@ export function BackupSection({ version }: { version: string }) {
    * file, it is downloaded instead, to be sent by hand.
    */
   async function sendToPhone() {
-    const file = backupFile();
-    if (navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: file.name });
-        setMessage({ text: t(locale, "backup.shared"), bad: false });
-      } catch (error) {
-        if ((error as Error).name !== "AbortError") setMessage({ text: t(locale, "backup.shareFailed"), bad: true });
+    try {
+      const file = backupFile();
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: file.name });
+          setMessage({ text: t(locale, "backup.shared"), bad: false });
+        } catch (error) {
+          if ((error as Error).name !== "AbortError") setMessage({ text: t(locale, "backup.shareFailed"), bad: true });
+        }
+        return;
       }
-      return;
+      download(file);
+      setMessage({ text: t(locale, "backup.shareFallback", { name: file.name }), bad: false });
+    } catch {
+      setMessage({ text: t(locale, "backup.exportFailed"), bad: true });
     }
-    download(file);
-    setMessage({ text: t(locale, "backup.shareFallback", { name: file.name }), bad: false });
   }
 
   async function choose(file: File | undefined) {
     if (!file) return;
+    const current = ++selection.current;
     setMessage(null);
     setStep({ phase: "idle" });
     if (file.size > BACKUP_MAX_BYTES) {
       setMessage({ text: t(locale, "backup.reason.tooBig"), bad: true });
       return;
     }
-    const parsed = parseBackup(await file.text());
-    if (!parsed.ok) {
-      setMessage({ text: t(locale, `backup.reason.${parsed.reason}` as TranslationKey), bad: true });
-      return;
+    try {
+      const parsed = parseBackup(await file.text());
+      if (current !== selection.current) return;
+      if (!parsed.ok) {
+        setMessage({ text: t(locale, `backup.reason.${parsed.reason}` as TranslationKey), bad: true });
+        return;
+      }
+      setStep({ phase: "chosen", backup: parsed.backup, name: file.name });
+    } catch {
+      if (current === selection.current) {
+        setMessage({ text: t(locale, "backup.reason.unreadable"), bad: true });
+      }
     }
-    setStep({ phase: "chosen", backup: parsed.backup, name: file.name });
   }
 
   function apply() {
     if (step.phase !== "chosen") return;
     if (mode === "replace" && !window.confirm(t(locale, "backup.replaceConfirm"))) return;
-    const result = restoreBackup(window.localStorage, step.backup, mode);
+    let result;
+    try {
+      result = restoreBackup(window.localStorage, step.backup, mode);
+    } catch {
+      result = { ok: false };
+    }
     if (!result.ok) {
       setMessage({ text: t(locale, "backup.failed"), bad: true });
       return;

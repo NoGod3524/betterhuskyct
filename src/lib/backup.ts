@@ -133,8 +133,20 @@ export function mergeValues(here: unknown, there: unknown): unknown {
       const id = isRecord(item) ? (item.id ?? item.uid) : undefined;
       return typeof id === "string" ? "id:" + id : JSON.stringify(item);
     };
-    const seen = new Set(here.map(identity));
-    return [...here, ...there.filter((item) => !seen.has(identity(item)))];
+    const merged = [...here];
+    const positions = new Map(here.map((item, index) => [identity(item), index]));
+    for (const item of there) {
+      const key = identity(item);
+      const index = positions.get(key);
+      if (index === undefined) {
+        positions.set(key, merged.length);
+        merged.push(item);
+      } else {
+        // A calendar or gradebook can already exist while some of its rows are missing.
+        merged[index] = mergeValues(merged[index], item);
+      }
+    }
+    return merged;
   }
   if (isRecord(here) && isRecord(there)) {
     const merged: Record<string, unknown> = { ...here };
@@ -154,19 +166,27 @@ export type RestoreMode = "merge" | "replace";
  * there before is put back, so a restore is all of it or none of it.
  */
 export function restoreBackup(storage: Writer, backup: Backup, mode: RestoreMode): { ok: true } | { ok: false } {
-  const before = new Map<string, string | null>(BACKUP_KEYS.map((key) => [key, storage.getItem(key)]));
+  let before: Map<string, string | null>;
+  try {
+    before = new Map(BACKUP_KEYS.map((key) => [key, storage.getItem(key)]));
+  } catch {
+    return { ok: false };
+  }
+  const written: string[] = [];
   try {
     for (const key of BACKUP_KEYS) {
       const incoming = backup.data[key];
       if (mode === "replace") {
         if (incoming === undefined) storage.removeItem(key);
         else storage.setItem(key, incoming);
+        written.push(key);
         continue;
       }
       if (incoming === undefined) continue;
       const current = before.get(key);
       if (current === null || current === undefined) {
         storage.setItem(key, incoming);
+        written.push(key);
         continue;
       }
       let merged: unknown;
@@ -176,10 +196,17 @@ export function restoreBackup(storage: Writer, backup: Backup, mode: RestoreMode
         continue; // a plain word, or a value that cannot be read: the one here stays
       }
       storage.setItem(key, JSON.stringify(merged));
+      written.push(key);
     }
     return { ok: true };
   } catch {
-    for (const [key, value] of before) {
+    // Free the space occupied by successful writes before restoring the old values. Otherwise
+    // a larger replacement can block rollback of a key that was shortened earlier.
+    for (const key of written) {
+      try { storage.removeItem(key); } catch { /* storage may have become unavailable */ }
+    }
+    for (const key of written) {
+      const value = before.get(key)!;
       try {
         if (value === null) storage.removeItem(key);
         else storage.setItem(key, value);
