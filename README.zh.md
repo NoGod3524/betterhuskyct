@@ -178,7 +178,7 @@ src/
    ├─ announcement-decisions.ts, announcement-versions.ts, announcement-todo.ts, announcement-text.ts, announcement-filters.ts# 学生的决定；公告每次保存时的内容；添加表单；文本展示；筛选
    ├─ announcement-summary.ts, summary-models.ts, summary-cache.ts, summary-choice.ts# 总结：页面一侧、托管模型（回退链）、缓存、模型选择
    ├─ ai-plan.ts, plan-models.ts                 # 用模型找日期：状态和提议；请求和校验过的答案
-   ├─ rate-limit.ts                              # 给接口用的小型固定窗口限流
+   ├─ rate-limit.ts, request-body.ts             # 接口限流与有大小、时间上限的请求体读取
    ├─ materials.ts, materials-store.ts, materials-export.ts# 资料：助手的消息（校验、合并）；IndexedDB；导出到文件夹或 ZIP
    ├─ syllabus.ts                                # 在文件里找课程大纲并读出文字
    ├─ grades.ts, grades-store.ts, grades-export.ts# 成绩：助手的消息、合计、合并；存储；导出

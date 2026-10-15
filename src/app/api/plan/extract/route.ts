@@ -5,6 +5,7 @@ import { z } from "zod";
 import { MAX_ANNOUNCEMENT_BODY } from "@/lib/announcements";
 import { extractPlan, isIsoDay, MAX_PLAN_ITEMS, MAX_PLAN_TEXT, parsePlanResult } from "@/lib/plan-models";
 import { clientKey, createRateLimiter } from "@/lib/rate-limit";
+import { readRequestText, RequestBodyError } from "@/lib/request-body";
 import { createSummaryCache } from "@/lib/summary-cache";
 import { ModelError, providersFromEnv } from "@/lib/summary-models";
 
@@ -65,14 +66,14 @@ export async function POST(request: Request) {
   const providers = providersFromEnv(process.env);
   if (providers.length === 0) return json({ problem: "not-configured" }, 503);
 
-  const raw = await request.text();
-  if (raw.length > MAX_BODY_LENGTH) return json({ problem: "invalid" }, 413);
-
   let parsed;
   try {
+    // UTF-8 needs at most three bytes per JS character, including Chinese text.
+    const raw = await readRequestText(request, MAX_BODY_LENGTH * 3);
+    if (raw.length > MAX_BODY_LENGTH) return json({ problem: "invalid" }, 413);
     parsed = requestSchema.safeParse(JSON.parse(raw));
-  } catch {
-    return json({ problem: "invalid" }, 400);
+  } catch (error) {
+    return json({ problem: "invalid" }, error instanceof RequestBodyError ? error.status : 400);
   }
   if (!parsed.success) return json({ problem: "invalid" }, 400);
 

@@ -184,7 +184,7 @@ src/
    ├─ announcement-decisions.ts, announcement-versions.ts, announcement-todo.ts, announcement-text.ts, announcement-filters.ts# What the student decided; what each announcement said when saved; the add form; showing the text; filters
    ├─ announcement-summary.ts, summary-models.ts, summary-cache.ts, summary-choice.ts# Summaries: the page's side, the hosted models (fallback chain), the cache, the model choice
    ├─ ai-plan.ts, plan-models.ts                 # Finding dates with a model: state, what is offered; the request and the checked answer
-   ├─ rate-limit.ts                              # A small fixed-window rate limiter for the routes
+   ├─ rate-limit.ts, request-body.ts             # Route rate limits and bounded request body reads
    ├─ materials.ts, materials-store.ts, materials-export.ts# Materials: the helper's messages, checked and merged; IndexedDB; out to a folder or a ZIP
    ├─ syllabus.ts                                # Finding a course's syllabus among the files and reading its text
    ├─ grades.ts, grades-store.ts, grades-export.ts# Grades: the helper's messages, totals, merging; storage; export
