@@ -53,7 +53,9 @@ self.addEventListener("fetch", (event) => {
         .then((response) => {
           if (response.ok && !response.redirected) {
             const copy = response.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put(key, copy));
+            event.waitUntil(
+              caches.open(CACHE_VERSION).then((cache) => cache.put(key, copy)).catch(() => undefined),
+            );
           }
           return response;
         })
@@ -78,9 +80,9 @@ self.addEventListener("fetch", (event) => {
             // Cache-first means a stored error would be served for good.
             if (response.ok) {
               const copy = response.clone();
-              caches
-                .open(CACHE_VERSION)
-                .then((cache) => cache.put(request, copy));
+              event.waitUntil(
+                caches.open(CACHE_VERSION).then((cache) => cache.put(request, copy)).catch(() => undefined),
+              );
             }
             return response;
           }),

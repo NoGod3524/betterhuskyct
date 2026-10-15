@@ -16,7 +16,7 @@ const SOURCE = readFileSync(new URL("../public/sw.js", import.meta.url), "utf8")
 
 type Listener = (event: Record<string, unknown>) => void;
 
-function loadWorker(pages: Record<string, number>) {
+function loadWorker(pages: Record<string, number>, writes = { delayMs: 0, fail: false }) {
   const store = new Map<string, Map<string, string>>();
   const keyOf = (key: string | { url: string }) =>
     new URL(typeof key === "string" ? key : key.url, ORIGIN).pathname;
@@ -26,6 +26,8 @@ function loadWorker(pages: Record<string, number>) {
     const entries = store.get(name)!;
     return {
       put: async (key: string, response: Response) => {
+        if (writes.delayMs) await new Promise((resolve) => setTimeout(resolve, writes.delayMs));
+        if (writes.fail) throw new Error("QuotaExceededError");
         entries.set(keyOf(key), await response.text());
       },
       match: async (key: string) =>
@@ -66,21 +68,22 @@ function loadWorker(pages: Record<string, number>) {
   vm.runInNewContext(SOURCE, { self, caches, fetch, URL, Promise, Response });
 
   async function fire(type: string, extra: Record<string, unknown> = {}) {
-    let pending: Promise<unknown> | undefined;
+    let response: Promise<unknown> | undefined;
+    const lifetime: Promise<unknown>[] = [];
     listeners[type]({
       ...extra,
-      waitUntil: (value: Promise<unknown>) => (pending = value),
-      respondWith: (value: Promise<unknown>) => (pending = value),
+      waitUntil: (value: Promise<unknown>) => lifetime.push(value),
+      respondWith: (value: Promise<unknown>) => (response = value),
     });
-    return pending;
+    const result = await response;
+    await Promise.all(lifetime);
+    return result;
   }
 
   async function navigate(path: string): Promise<string> {
     const response = (await fire("fetch", {
       request: { method: "GET", mode: "navigate", url: ORIGIN + path },
     })) as Response;
-    // The cache write is deliberately not awaited by the worker; let it land.
-    await new Promise((resolve) => setTimeout(resolve, 5));
     return response.text();
   }
 
@@ -100,6 +103,24 @@ test("offline, each route gets its own page back", async () => {
   assert.equal(await worker.navigate("/calendar"), "/calendar page");
   assert.equal(await worker.navigate("/tasks"), "/tasks page");
   assert.equal(await worker.navigate("/"), "/ page");
+});
+
+test("the fetch event stays alive until slow page and asset cache writes finish", async () => {
+  const worker = loadWorker({ "/": 200, "/tasks": 200, "/_next/static/app.js": 200 }, { delayMs: 20, fail: false });
+  await worker.fire("install");
+  await worker.navigate("/tasks");
+  await worker.fire("fetch", { request: { method: "GET", mode: "cors", url: ORIGIN + "/_next/static/app.js" } });
+  worker.network.online = false;
+  assert.equal(await worker.navigate("/tasks"), "/tasks page");
+  const asset = await worker.fire("fetch", { request: { method: "GET", mode: "cors", url: ORIGIN + "/_next/static/app.js" } }) as Response;
+  assert.equal(await asset.text(), "/_next/static/app.js page");
+});
+
+test("a full cache does not discard a successful network response", async () => {
+  const worker = loadWorker({ "/tasks": 200, "/_next/static/app.js": 200 }, { delayMs: 0, fail: true });
+  assert.equal(await worker.navigate("/tasks"), "/tasks page");
+  const asset = await worker.fire("fetch", { request: { method: "GET", mode: "cors", url: ORIGIN + "/_next/static/app.js" } }) as Response;
+  assert.equal(await asset.text(), "/_next/static/app.js page");
 });
 
 test("an error page is never kept as the offline copy", async () => {
