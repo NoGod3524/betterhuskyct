@@ -41,11 +41,12 @@ export function restoreCourseColors(storage: Pick<Storage, "getItem">): CourseCo
   }
 }
 
-export function saveCourseColors(storage: Pick<Storage, "setItem">, colors: CourseColors): void {
+export function saveCourseColors(storage: Pick<Storage, "setItem">, colors: CourseColors): boolean {
   try {
     storage.setItem(COURSE_COLORS_KEY, JSON.stringify(colors));
+    return true;
   } catch {
-    /* kept for this visit */
+    return false;
   }
 }
 

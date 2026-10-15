@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { CalendarTask } from "../src/lib/calendar-types.ts";
-import { groupTasks } from "../src/lib/calendar-view.ts";
+import { formatTaskTime, groupTasks } from "../src/lib/calendar-view.ts";
 
 function at(now: Date, days: number, hour: number) {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, hour);
@@ -64,4 +64,14 @@ test("hides timed events earlier today but keeps all-day events for today", () =
   );
   assert.equal(groups[0].tasks.some((event) => event.id === "timed-earlier-today"), false);
   assert.equal(groups[0].tasks.some((event) => event.id === "all-day-today"), true);
+});
+
+test("an all-day weekday follows its calendar date instead of the stored timestamp", () => {
+  const event = task("all-day", new Date(2026, 8, 2, 23), "BIO 1000", {
+    allDay: true,
+    dateKey: "2026-09-03",
+  });
+
+  assert.equal(formatTaskTime(event, "week", "en"), "Thu · All day");
+  assert.equal(formatTaskTime(event, "today", "en"), "All day");
 });

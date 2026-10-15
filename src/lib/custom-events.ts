@@ -63,7 +63,7 @@ export function restoreCustomEvents(storage: Storage): CustomEvent[] {
   }
 }
 
-export function saveCustomEvents(storage: Storage, events: CustomEvent[]): void {
+export function saveCustomEvents(storage: Pick<Storage, "setItem">, events: CustomEvent[]): void {
   storage.setItem(STORAGE_KEY, JSON.stringify(events.slice(0, MAX_CUSTOM_EVENTS)));
 }
 
@@ -72,6 +72,8 @@ export function createCustomEventId(): string {
 }
 
 export type CustomEventInput = {
+  /** Stable identity for an automated addition that may be retried. */
+  id?: string;
   title: string;
   course: string | null;
   start: string;
@@ -89,8 +91,11 @@ export type CustomEventInput = {
 const localDateKey = (start: string) => localDay(new Date(start));
 
 export function buildCustomEvent(input: CustomEventInput): CustomEvent {
+  if (input.id !== undefined && (!isCustomEventId(input.id) || input.id.length <= ID_PREFIX.length)) {
+    throw new Error("Invalid custom event id.");
+  }
   return {
-    id: createCustomEventId(),
+    id: input.id ?? createCustomEventId(),
     title: input.title,
     course: input.course,
     start: input.start,

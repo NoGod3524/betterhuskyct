@@ -209,10 +209,26 @@ export function savePlanState(storage: Pick<Storage, "setItem">, state: PlanStat
     pending: state.pending.slice(0, MAX_PENDING),
     decided: Object.fromEntries(decided.slice(Math.max(0, decided.length - MAX_DECIDED))),
   };
+  storage.setItem(PLAN_STORAGE_KEY, JSON.stringify(trimmed));
+}
+
+/**
+ * Turns the switch off in storage, whatever it takes. If the whole state cannot be written (the
+ * browser is out of room), the stored state is removed: an empty state is "off", so a reload
+ * cannot switch the AI back on and send text the student just stopped. Returns false only if
+ * storage refuses even that.
+ */
+export function saveSwitchedOff(storage: Pick<Storage, "setItem" | "removeItem">, state: PlanState): boolean {
   try {
-    storage.setItem(PLAN_STORAGE_KEY, JSON.stringify(trimmed));
+    savePlanState(storage, { ...state, enabled: false });
+    return true;
   } catch {
-    /* kept for this visit */
+    try {
+      storage.removeItem(PLAN_STORAGE_KEY);
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -355,7 +371,17 @@ export function supersede(state: PlanState, announcementIds: string[]): PlanStat
   if (announcementIds.length === 0) return state;
   const gone = new Set(announcementIds);
   const pending = state.pending.filter((suggestion) => !(suggestion.announcementId && gone.has(suggestion.announcementId)));
-  return pending.length === state.pending.length ? state : { ...state, pending };
+  if (pending.length === state.pending.length) return state;
+  const removed = state.pending.filter((suggestion) => !pending.includes(suggestion));
+  const matches = (suggestion: Suggestion, item: OfferedItem) =>
+    suggestion.id === suggestionId(item.course, item.title, item.date) ||
+    (suggestion.kind === item.kind && suggestion.title === item.title && suggestion.date === item.date && suggestion.course === item.course);
+  const offered = state.offered.filter((item) =>
+    state.decided[suggestionId(item.course, item.title, item.date)] ||
+    pending.some((suggestion) => matches(suggestion, item)) ||
+    !removed.some((suggestion) => matches(suggestion, item)),
+  );
+  return { ...state, pending, offered };
 }
 
 export function markRead(state: PlanState, key: string, signature: string): PlanState {
@@ -544,6 +570,7 @@ function noteFor(suggestion: Suggestion): string {
 export function suggestionToEvent(suggestion: Suggestion, day: string): CustomEventInput {
   const time = day === suggestion.date ? suggestion.time : null;
   return {
+    id: `custom-${suggestion.id}`,
     title: suggestion.title,
     course: suggestion.course,
     start: localInstant(day, time),
@@ -586,6 +613,7 @@ export async function requestPlan(
   request: PlanRequest,
   fetchImpl: FetchLike = fetch,
   choice: SummaryChoice = "auto",
+  signal?: AbortSignal,
 ): Promise<{ items: PlanItem[]; summary: string | null; provider: ProviderId | null }> {
   const sources = request.announcements.length;
   let response: Response;
@@ -595,6 +623,7 @@ export async function requestPlan(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(choice === "auto" ? request : { ...request, provider: choice }),
+      signal,
     });
     body = await response.json();
   } catch {

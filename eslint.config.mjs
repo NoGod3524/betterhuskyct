@@ -31,6 +31,7 @@ const eslintConfig = defineConfig([
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([
+    ".probe/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

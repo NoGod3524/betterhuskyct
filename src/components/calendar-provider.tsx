@@ -34,6 +34,7 @@ import {
   type Subscription,
 } from "@/lib/subscriptions";
 import { watchClock } from "@/lib/clock";
+import { writeStorageBatch, type StorageWriter } from "@/lib/storage-batch";
 import {
   decodeSyncPayload,
   readSyncFragment,
@@ -66,16 +67,20 @@ import {
   type CustomEventInput,
 } from "@/lib/custom-events";
 import {
+  COMPLETION_STORAGE_KEY_CUSTOM,
+  COMPLETION_STORAGE_KEY_DEMO,
+  COMPLETION_STORAGE_KEY_IMPORTED,
   clearCompletedTaskIds,
   restoreCompletedTaskIds,
   saveCompletedTaskIds,
-  type CompletionSource,
 } from "@/lib/completion-storage";
 import { createDemoTasks, groupTasks } from "@/lib/calendar-view";
 import { isCourseCatalogueLoaded, loadCourseCatalogue } from "@/lib/course-catalogue";
 import type { GradesSnapshot } from "@/lib/grades";
 import { GRADES_CHANGED, openGradesStore } from "@/lib/grades-store";
 import {
+  REOPENED_STORAGE_KEY,
+  SYNCED_DONE_STORAGE_KEY,
   autoDoneTasks,
   doneLabels,
   mergeDone,
@@ -204,7 +209,7 @@ type CalendarContextValue = {
   /** Returns the new event's id, so what made it can be remembered. */
   addCustomEvent: (input: CustomEventInput) => string;
   /** Several at once, as one save: the AI list adds what was ticked in one press. */
-  addCustomEvents: (inputs: CustomEventInput[]) => void;
+  addCustomEvents: (inputs: CustomEventInput[], saveRelated?: (staged: StorageWriter) => void) => void;
 };
 
 const CalendarContext = createContext<CalendarContextValue | null>(null);
@@ -294,6 +299,7 @@ export function CalendarProvider({
   const [courseColors, setCourseColors] = useState<CourseColors>({});
   // A link from another device is offered, never applied on its own.
   const [pendingSync, setPendingSync] = useState<SyncPayload | null>(null);
+  const syncReadGeneration = useRef(0);
 
   const hasSubscriptions = subscriptions.length > 0;
   const isImported = hasSubscriptions && !demoMode;
@@ -307,19 +313,32 @@ export function CalendarProvider({
     saveLocale(window.localStorage, nextLocale);
   }
 
-  function commitSubscriptions(next: Subscription[]) {
+  function saveChange(write: () => void): boolean {
+    try {
+      write();
+      setError(null);
+      return true;
+    } catch {
+      setError(t(locale, "errors.saveFailed"));
+      return false;
+    }
+  }
+
+  function commitSubscriptions(next: Subscription[]): boolean {
+    if (!saveChange(() => saveSubscriptions(window.localStorage, next))) return false;
     subscriptionsRef.current = next;
     setSubscriptions(next);
-    saveSubscriptions(window.localStorage, next);
+    return true;
   }
 
   function commitAnnouncements(next: Announcement[]) {
     // Sorted once, here, so every consumer sees the same order without each of
     // them having to remember to sort.
     const ordered = sortAnnouncements(next);
+    if (!saveChange(() => saveAnnouncements(window.localStorage, ordered))) return false;
     announcementsRef.current = ordered;
     setAnnouncements(ordered);
-    saveAnnouncements(window.localStorage, ordered);
+    return true;
   }
 
   /**
@@ -330,22 +349,27 @@ export function CalendarProvider({
    * would sit on the page until storage was cleared wholesale.
    */
   function dropAnnouncements() {
-    commitAnnouncements([]);
+    if (!commitAnnouncements([])) return;
     setNotice(t(locale, "announcements.cleared"));
     setError(null);
   }
 
   function commitEventOverlay(next: EventOverlay) {
+    if (!saveChange(() => saveEventOverlay(window.localStorage, next))) throw new Error(t(locale, "errors.saveFailed"));
     setEventOverlay(next);
-    saveEventOverlay(window.localStorage, next);
   }
 
-  function commitCustomEvents(next: CustomCalendarEvent[]) {
-    // What is shown is what is saved: past the limit the newest are refused out loud, not lost on reload.
-    const kept = next.slice(0, MAX_CUSTOM_EVENTS);
-    if (kept.length < next.length) setError(t(locale, "events.full", { max: MAX_CUSTOM_EVENTS }));
-    setCustomEvents(kept);
-    saveCustomEvents(window.localStorage, kept);
+  function commitCustomEvents(next: CustomCalendarEvent[], saveRelated?: (staged: StorageWriter) => void) {
+    if (next.length > MAX_CUSTOM_EVENTS) {
+      const message = t(locale, "events.full", { max: MAX_CUSTOM_EVENTS });
+      setError(message);
+      throw new Error(message);
+    }
+    if (!saveChange(() => writeStorageBatch(window.localStorage, (staged) => {
+      saveCustomEvents(staged, next);
+      saveRelated?.(staged);
+    }))) throw new Error(t(locale, "errors.saveFailed"));
+    setCustomEvents(next);
   }
 
   /**
@@ -356,14 +380,14 @@ export function CalendarProvider({
    */
   function editEvent(taskId: string, edit: EventEdit) {
     if (isCustomEventId(taskId)) {
-      commitCustomEvents(applyCustomEventEdit(customEvents, taskId, edit));
+      commitCustomEvents(applyCustomEventEdit(restoreCustomEvents(window.localStorage), taskId, edit));
     } else {
       commitEventOverlay(setEventEdit(eventOverlay, taskId, edit));
     }
   }
 
   function deleteEvent(taskId: string) {
-    if (isCustomEventId(taskId)) commitCustomEvents(dropCustomEvent(customEvents, taskId));
+    if (isCustomEventId(taskId)) commitCustomEvents(dropCustomEvent(restoreCustomEvents(window.localStorage), taskId));
     else commitEventOverlay(deleteOverlayEvent(eventOverlay, taskId));
   }
 
@@ -387,12 +411,18 @@ export function CalendarProvider({
 
   function addCustomEvent(input: CustomEventInput): string {
     const event = buildCustomEvent(input);
-    commitCustomEvents([...customEvents, event]);
+    addCustomEvents([{ ...input, id: event.id }]);
     return event.id;
   }
 
-  function addCustomEvents(inputs: CustomEventInput[]) {
-    if (inputs.length > 0) commitCustomEvents([...customEvents, ...inputs.map(buildCustomEvent)]);
+  function addCustomEvents(inputs: CustomEventInput[], saveRelated?: (staged: StorageWriter) => void) {
+    if (inputs.length === 0 && !saveRelated) return;
+    const events = new Map(restoreCustomEvents(window.localStorage).map((event) => [event.id, event]));
+    for (const input of inputs) {
+      const event = buildCustomEvent(input);
+      if (!events.has(event.id)) events.set(event.id, event);
+    }
+    commitCustomEvents([...events.values()], saveRelated);
   }
 
   useEffect(() => {
@@ -455,12 +485,17 @@ export function CalendarProvider({
    * only ever offered; nothing is written until the user accepts it.
    */
   useEffect(() => {
+    let alive = true;
     function offerSyncLink() {
-      const packed = readSyncFragment(window.location.hash);
+      const generation = ++syncReadGeneration.current;
+      const hash = window.location.hash;
+      const packed = readSyncFragment(hash);
+      setPendingSync(null);
       if (!packed) return;
 
       const activeLocale = restoreLocale(window.localStorage);
       void decodeSyncPayload(packed).then((payload) => {
+        if (!alive || generation !== syncReadGeneration.current || window.location.hash !== hash) return;
         if (payload) setPendingSync(payload);
         else setError(t(activeLocale, "sync.unreadable"));
       });
@@ -468,7 +503,10 @@ export function CalendarProvider({
 
     offerSyncLink();
     window.addEventListener("hashchange", offerSyncLink);
-    return () => window.removeEventListener("hashchange", offerSyncLink);
+    return () => {
+      alive = false;
+      window.removeEventListener("hashchange", offerSyncLink);
+    };
   }, []);
 
   // Keeps `now` moving while the app is open; see `watchClock` for why. The
@@ -554,56 +592,61 @@ export function CalendarProvider({
 
   // What HuskyCT said on another device (a phone has no gradebook of its own), added
   // to what this device reads from its own. Only ever adds: see `mergeDone`.
-  const autoDone = useMemo(
-    () => mergeDone(autoDoneTasks(tasks, grades, (task) => labelFor(task)?.code ?? null), syncedDone),
+  const doneFromGrades = useMemo(
+    () => autoDoneTasks(tasks, grades, (task) => labelFor(task)?.code ?? null),
     // The catalogue arriving can change which course a task shows, though `labelFor` does not
     // change with it, so it is a dependency here on its own account.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, grades, labelFor, catalogueReady, syncedDone],
+    [tasks, grades, labelFor, catalogueReady],
   );
+  const autoDone = useMemo(() => mergeDone(doneFromGrades, syncedDone), [doneFromGrades, syncedDone]);
   const doneLabelMap = useMemo(() => doneLabels(completedIds, autoDone, reopened), [completedIds, autoDone, reopened]);
   const doneIds = useMemo(() => new Set(doneLabelMap.keys()), [doneLabelMap]);
 
-  const completionSource: CompletionSource = isImported ? "imported" : "demo";
+  const completionSource = isImported ? "imported" : "demo";
+
+  useEffect(() => {
+    function readCompletion(event: StorageEvent) {
+      if (event.storageArea && event.storageArea !== window.localStorage) return;
+      const key = event.key;
+      if (key === null || [COMPLETION_STORAGE_KEY_DEMO, COMPLETION_STORAGE_KEY_IMPORTED, COMPLETION_STORAGE_KEY_CUSTOM].includes(key)) {
+        setCompletedIds(restoreTicks(completionSource, completionSource === "imported" ? subscriptionsRef.current : null));
+      }
+      if (key === null || key === REOPENED_STORAGE_KEY) setReopened(restoreReopened(window.localStorage));
+      if (key === null || key === SYNCED_DONE_STORAGE_KEY) setSyncedDone(restoreSyncedDone(window.localStorage));
+    }
+    window.addEventListener("storage", readCompletion);
+    return () => window.removeEventListener("storage", readCompletion);
+  }, [completionSource]);
 
   /** The ticks on screen are saved in two places: the source's own, and the student's own events'. */
-  function saveTicks(source: CompletionSource, ticks: Set<string>) {
-    saveCompletedTaskIds(window.localStorage, source, new Set([...ticks].filter((id) => !isCustomEventId(id))));
-    saveCompletedTaskIds(window.localStorage, "custom", new Set([...ticks].filter(isCustomEventId)));
-  }
-
   function toggleTaskCompletion(taskId: string) {
-    // Done because HuskyCT says so: pressing it reopens the task (the gradebook can be
-    // wrong about which task it is), and pressing a reopened one lets HuskyCT's word stand.
-    const doneByHuskyct = autoDone.has(taskId) && !reopened.has(taskId);
-    if (doneByHuskyct || (autoDone.has(taskId) && reopened.has(taskId))) {
-      setReopened((previous) => {
-        const next = new Set(previous);
-        if (doneByHuskyct) next.add(taskId);
-        else next.delete(taskId);
-        saveReopened(window.localStorage, next);
-        return next;
+    try {
+      // Another tab may have saved a choice before its storage event reaches this one.
+      const ticks = restoreTicks(completionSource, isImported ? subscriptionsRef.current : null);
+      const latestReopened = restoreReopened(window.localStorage);
+      const latestSynced = restoreSyncedDone(window.localStorage);
+      const fromHuskyct = doneFromGrades.has(taskId) || latestSynced.has(taskId);
+      if (fromHuskyct) {
+        if (latestReopened.has(taskId)) latestReopened.delete(taskId);
+        else {
+          latestReopened.add(taskId);
+          ticks.delete(taskId);
+        }
+      } else if (ticks.has(taskId)) ticks.delete(taskId);
+      else ticks.add(taskId);
+      writeStorageBatch(window.localStorage, (staged) => {
+        saveCompletedTaskIds(staged, completionSource, new Set([...ticks].filter((id) => !isCustomEventId(id))));
+        saveCompletedTaskIds(staged, "custom", new Set([...ticks].filter(isCustomEventId)));
+        if (fromHuskyct && !saveReopened(staged, latestReopened)) throw new Error("Could not save task status.");
       });
-      if (doneByHuskyct && completedIds.has(taskId)) {
-        setCompletedIds((previous) => {
-          const next = new Set(previous);
-          next.delete(taskId);
-          saveTicks(completionSource, next);
-          return next;
-        });
-      }
-      return;
+      setSyncedDone(latestSynced);
+      setReopened(latestReopened);
+      setCompletedIds(ticks);
+      setError(null);
+    } catch {
+      setError(t(locale, "errors.saveFailed"));
     }
-    setCompletedIds((previous) => {
-      const next = new Set(previous);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-      } else {
-        next.add(taskId);
-      }
-      saveTicks(completionSource, next);
-      return next;
-    });
   }
 
   function setReminderEnabled(enabled: boolean) {
@@ -646,8 +689,8 @@ export function CalendarProvider({
    * typed — trimming here would swallow the space in "NRE 1000E".
    */
   function commitCourseBook(next: CourseBook) {
+    if (!saveChange(() => saveCourseBook(window.localStorage, next))) return;
     setCourseBook(next);
-    saveCourseBook(window.localStorage, next);
   }
 
   function addCourse(code: string, component: CourseComponent | null) {
@@ -689,7 +732,7 @@ export function CalendarProvider({
       subscriptionsRef.current,
       subscriptionId,
     );
-    commitSubscriptions(next);
+    if (!commitSubscriptions(next)) return;
 
     if (next.length === 0) {
       setDemoMode(true);
@@ -700,6 +743,8 @@ export function CalendarProvider({
 
   /** Drops the `#sync=…` fragment without reloading or navigating. */
   function clearSyncFragment() {
+    syncReadGeneration.current++;
+    setPendingSync(null);
     const { pathname, search } = window.location;
     window.history.replaceState(null, "", `${pathname}${search}`);
   }
@@ -709,37 +754,40 @@ export function CalendarProvider({
   // `#sync=` link, which asks first, and the helper's direct `postMessage`,
   // which does not.
   function applyPayload(payload: SyncPayload) {
+    const savedTicks = new Set([...restoreCompletedTaskIds(window.localStorage, "imported")].filter((id) => !isCustomEventId(id)));
     const plan = planSyncApply(
       {
         courses: courseBook,
         subscriptions: subscriptionsRef.current,
         announcements: announcementsRef.current,
         showingImported: isImported,
-        ticksOnScreen: completedIds,
-        savedTicks: restoreCompletedTaskIds(window.localStorage, "imported"),
+        ticksOnScreen: savedTicks,
+        savedTicks,
       },
       payload,
     );
     const { merged } = plan;
 
-    commitSubscriptions(merged.subscriptions);
-    commitCourseBook(merged.courses);
-    // After `commitCourseBook`, so the resolution the merge just did against the
-    // merged book is what gets stored rather than a resolution against the old one.
-    commitAnnouncements(merged.announcements);
-    saveCompletedTaskIds(window.localStorage, "imported", plan.ticksToSave);
-    // HuskyCT's word and the student's reopenings from the other device join what
-    // this one has. Neither is ever taken away by a sync.
-    const nextSynced = mergeDone(syncedDone, Object.entries(payload.doneByHuskyct));
-    saveSyncedDone(window.localStorage, nextSynced);
+    const nextSynced = mergeDone(restoreSyncedDone(window.localStorage), Object.entries(payload.doneByHuskyct));
+    const nextColors = mergeCourseColors(restoreCourseColors(window.localStorage), payload.courseColors);
+    const nextReopened = new Set([...restoreReopened(window.localStorage), ...payload.reopened]);
+    const ordered = sortAnnouncements(merged.announcements);
+    writeStorageBatch(window.localStorage, (staged) => {
+      saveSubscriptions(staged, merged.subscriptions);
+      saveCourseBook(staged, merged.courses);
+      saveAnnouncements(staged, ordered);
+      saveCompletedTaskIds(staged, "imported", plan.ticksToSave);
+      if (!saveSyncedDone(staged, nextSynced) || !saveCourseColors(staged, nextColors) || !saveReopened(staged, nextReopened)) {
+        throw new Error(t(locale, "errors.saveFailed"));
+      }
+    });
+    subscriptionsRef.current = merged.subscriptions;
+    announcementsRef.current = ordered;
+    setSubscriptions(merged.subscriptions);
+    setCourseBook(merged.courses);
+    setAnnouncements(ordered);
     setSyncedDone(nextSynced);
-    if (Object.keys(payload.courseColors).length > 0) {
-      const nextColors = mergeCourseColors(courseColors, payload.courseColors);
-      saveCourseColors(window.localStorage, nextColors);
-      setCourseColors(nextColors);
-    }
-    const nextReopened = new Set([...reopened, ...payload.reopened]);
-    saveReopened(window.localStorage, nextReopened);
+    setCourseColors(nextColors);
     setReopened(nextReopened);
 
     if (plan.showImported) setDemoMode(false);
@@ -750,7 +798,9 @@ export function CalendarProvider({
 
   function applyPendingSync() {
     if (!pendingSync) return;
-    const merged = applyPayload(pendingSync);
+    let merged;
+    try { merged = applyPayload(pendingSync); }
+    catch { setError(t(locale, "errors.saveFailed")); return; }
     setPendingSync(null);
     clearSyncFragment();
     setError(null);
@@ -773,7 +823,9 @@ export function CalendarProvider({
   const applyFromHelperRef = useRef<(payload: SyncPayload) => void>(() => {});
   useEffect(() => {
     applyFromHelperRef.current = (payload: SyncPayload) => {
-      const merged = applyPayload(payload);
+      let merged;
+      try { merged = applyPayload(payload); }
+      catch (error) { setError(t(locale, "errors.saveFailed")); throw error; }
       setError(null);
       setNotice(
         t(locale, "sync.appliedFromHelper", {
@@ -882,6 +934,7 @@ export function CalendarProvider({
   }
 
   function clearSavedData() {
+    clearSyncFragment();
     clearSubscriptions(window.localStorage);
     clearCompletedTaskIds(window.localStorage, "imported");
     clearCourseBook(window.localStorage);

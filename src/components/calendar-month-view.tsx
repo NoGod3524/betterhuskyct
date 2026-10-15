@@ -196,6 +196,11 @@ export function CalendarMonthView({
     setFormError(null);
   }
 
+  function saveDraftChange(change: () => void) {
+    try { change(); closeDraft(); }
+    catch (error) { setFormError(error instanceof Error ? error.message : t(locale, "errors.saveFailed")); }
+  }
+
   function saveDraft() {
     if (!draft || !draftFor) return;
     if (!draft.title.trim()) {
@@ -224,11 +229,10 @@ export function CalendarMonthView({
         location: fields.location,
         note: fields.note ?? "",
       };
-      editEvent(draftFor.taskId, edit);
+      saveDraftChange(() => editEvent(draftFor.taskId, edit));
     } else {
-      addCustomEvent(fields);
+      saveDraftChange(() => { addCustomEvent(fields); });
     }
-    closeDraft();
   }
 
   const editingTaskId = draftFor?.mode === "edit" ? draftFor.taskId : null;
@@ -267,7 +271,13 @@ export function CalendarMonthView({
         <button
           type="button"
           onClick={() => {
-            if (window.confirm(t(locale, "calendar.restoreAllConfirm"))) restoreAllEvents();
+            if (!window.confirm(t(locale, "calendar.restoreAllConfirm"))) return;
+            try {
+              restoreAllEvents();
+              setFormError(null);
+            } catch (error) {
+              setFormError(error instanceof Error ? error.message : t(locale, "errors.saveFailed"));
+            }
           }}
           className="btn btn-quiet text-xs text-[var(--muted)]"
         >
@@ -275,6 +285,8 @@ export function CalendarMonthView({
           {t(locale, "calendar.restoreAll")}
         </button>
       </div>
+
+      {formError && !draftFor ? <p role="alert" className="px-4 py-2 text-sm text-[var(--warning)]">{formError}</p> : null}
 
       <div className="grid grid-cols-7 border-b border-[var(--line)] bg-[var(--canvas)] text-[11px] font-medium text-[var(--muted)]">
         {weekdayLabels.map((label) => (
@@ -597,7 +609,7 @@ export function CalendarMonthView({
                 />
               </label>
 
-              {formError && <p className="text-xs text-[var(--danger)]">{formError}</p>}
+              {formError && <p role="alert" className="text-xs text-[var(--danger)]">{formError}</p>}
             </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
@@ -622,8 +634,7 @@ export function CalendarMonthView({
                     <button
                       type="button"
                       onClick={() => {
-                        restoreEvent(editingTaskId);
-                        closeDraft();
+                        saveDraftChange(() => restoreEvent(editingTaskId));
                       }}
                       className="btn btn-quiet h-9 text-xs"
                     >
@@ -634,8 +645,7 @@ export function CalendarMonthView({
                   <button
                     type="button"
                     onClick={() => {
-                      deleteEvent(editingTaskId);
-                      closeDraft();
+                      saveDraftChange(() => deleteEvent(editingTaskId));
                     }}
                     className="btn btn-quiet h-9 text-xs text-[var(--danger)] hover:!bg-[var(--danger-soft)]"
                   >

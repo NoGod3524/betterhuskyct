@@ -98,13 +98,19 @@ export function mergeSyncPayload(
 
     if (target) {
       const merged = mergeFeedEvents(target.events, feed.events);
-      subscriptions[subscriptions.indexOf(target)] = { ...target, events: merged.events };
+      subscriptions[subscriptions.indexOf(target)] = {
+        ...target,
+        events: merged.events,
+        importedAt: Date.parse(feed.importedAt) > Date.parse(target.importedAt)
+          ? feed.importedAt
+          : target.importedAt,
+      };
       addedEvents += merged.added;
       updatedEvents += merged.updated;
       continue;
     }
 
-    if (subscriptions.length >= MAX_SUBSCRIPTIONS) break;
+    if (subscriptions.length >= MAX_SUBSCRIPTIONS) continue;
 
     subscriptions.push({
       id: createSubscriptionId(),
@@ -310,6 +316,7 @@ function sameEvent(left: CalendarTask, right: CalendarTask): boolean {
   return (
     left.title === right.title &&
     left.start === right.start &&
+    left.dateKey === right.dateKey &&
     left.end === right.end &&
     left.course === right.course &&
     left.location === right.location &&

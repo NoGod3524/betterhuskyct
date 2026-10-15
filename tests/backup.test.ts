@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import test from "node:test";
+import { parseStoredSubscriptions } from "../src/lib/subscriptions.ts";
 
 import {
   BACKUP_KEYS,
@@ -122,6 +123,68 @@ test("merging objects goes key by key, keeps lists free of repeats, and cannot b
   const merged = mergeValues({ a: 1, list: [{ id: "x", n: 1 }], deep: { p: 1 } }, JSON.parse('{"a":2,"b":3,"list":[{"id":"x","n":9},{"id":"y"}],"deep":{"q":2},"__proto__":{"polluted":true}}'));
   assert.deepEqual(merged, { a: 1, b: 3, list: [{ id: "x", n: 1 }, { id: "y" }], deep: { p: 1, q: 2 } });
   assert.equal(({} as Record<string, unknown>).polluted, undefined);
+});
+
+test("merging a backup restores missing deadlines inside an existing calendar without overwriting edits", () => {
+  const event = (id: string, title: string) => ({
+    id, title, course: "STAT 1000Q", start: "2026-10-16T18:00:00.000Z",
+    end: null, dateKey: null, allDay: false, location: null, kind: "deadline",
+  });
+  const key = "huskypilot.subscriptions.v1";
+  const stored = (events: ReturnType<typeof event>[]) => JSON.stringify({
+    version: 1,
+    subscriptions: [{ id: "course-1", name: "Statistics", courseId: null, importedAt: NOW.toISOString(), events }],
+  });
+  const source = new MemoryStorage();
+  source.setItem(key, stored([event("a", "Old title"), event("b", "Final exam")]));
+  const target = new MemoryStorage();
+  target.setItem(key, stored([event("a", "My corrected title")]));
+
+  assert.deepEqual(restoreBackup(target, createBackup(source, NOW, "1.37.1"), "merge"), { ok: true });
+  const restored = parseStoredSubscriptions(target.getItem(key)!);
+  assert.deepEqual(restored?.[0].events.map(({ id, title }) => ({ id, title })), [
+    { id: "a", title: "My corrected title" }, { id: "b", title: "Final exam" },
+  ]);
+});
+
+test("merging lists adds each backup item once and keeps missing grade rows within the same course", () => {
+  assert.deepEqual(mergeValues(["a"], ["b", "b", "a"]), ["a", "b"]);
+  assert.deepEqual(
+    mergeValues(
+      [{ id: "course", items: [{ id: "quiz", earned: 9, possible: 10 }] }],
+      [{ id: "course", items: [{ id: "quiz", earned: 8, possible: 10 }, { id: "exam", earned: 90, possible: 100 }] }],
+    ),
+    [{ id: "course", items: [{ id: "quiz", earned: 9, possible: 10 }, { id: "exam", earned: 90, possible: 100 }] }],
+  );
+});
+
+test("a failed restore frees its new values before rolling back on a full disk", () => {
+  const target = new MemoryStorage();
+  const first = BACKUP_KEYS[0];
+  const second = BACKUP_KEYS[1];
+  const failKey = BACKUP_KEYS[2];
+  target.setItem(first, "x".repeat(80));
+  target.setItem(second, "y".repeat(20));
+  const before = new Map(target.map);
+  target.setItem = (key, value) => {
+    const otherSize = [...target.map].reduce((sum, [k, v]) => sum + (k === key ? 0 : v.length), 0);
+    if (key === failKey || otherSize + value.length > 100) throw new Error("QuotaExceededError");
+    target.map.set(key, value);
+  };
+  const source = new MemoryStorage();
+  source.setItem(first, "a".repeat(20));
+  source.setItem(second, "b".repeat(80));
+  source.setItem(failKey, "fail");
+
+  assert.deepEqual(restoreBackup(target, createBackup(source, NOW, "1.37.1"), "replace"), { ok: false });
+  assert.deepEqual(target.map, before);
+});
+
+test("blocked storage returns a restore failure without writing anything", () => {
+  const target = new MemoryStorage();
+  target.getItem = () => { throw new Error("SecurityError"); };
+  assert.deepEqual(restoreBackup(target, createBackup(filled(), NOW, "1.37.1"), "merge"), { ok: false });
+  assert.equal(target.map.size, 0);
 });
 
 test("a restore that fails part-way puts everything back", () => {

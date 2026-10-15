@@ -62,7 +62,7 @@ export function restoreCompletedTaskIds(
 }
 
 export function saveCompletedTaskIds(
-  storage: Storage,
+  storage: Pick<Storage, "setItem">,
   source: CompletionSource,
   completedIds: Set<string>,
 ) {

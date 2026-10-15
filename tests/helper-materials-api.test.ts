@@ -14,6 +14,7 @@ import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
 const SOURCE = readFileSync(new URL("../tools/huskyct-helper/huskyct-helper.user.js", import.meta.url), "utf8");
 
 type Outline = {
+  complete: boolean;
   files: Array<{ path: string[]; title: string; url: string }>;
   links: Array<{ path: string[]; title: string; url: string; kind: string }>;
   tools: Array<{ path: string[]; title: string }>;
@@ -26,7 +27,7 @@ type Helper = {
   readCoursesApi: () => Promise<unknown>;
   readColors: (storage: Storage) => Record<string, string>;
   cardColorFromIndex: (index: unknown) => string | null;
-  syncLight: (options?: Record<string, unknown>) => Promise<{ materials: { courses: Array<{ id: string; files: unknown[]; skipped: boolean }> } }>;
+  syncLight: (options?: Record<string, unknown>) => Promise<{ missing: string[]; materials: { complete: boolean; courses: Array<{ id: string; files: unknown[]; skipped: boolean }> } }>;
   COLORS_KEY: string;
 };
 
@@ -122,6 +123,7 @@ test("a course's files, links and tools come from HuskyCT's content data, in the
   assert.deepEqual(outline.tools, [{ path: [], title: "Pearson eText" }]);
   assert.equal(outline.activities, 1);
   assert.equal(outline.unaddressed, 1, "a file with no address was not counted");
+  assert.equal(outline.complete, false, "missing file addresses cannot prove old files were removed");
   assert.deepEqual(outline.documents, [], "a document was left to open");
   assert.equal(moved(), 0);
 });
@@ -134,7 +136,17 @@ test("content that is refused, or a next address outside HuskyCT's content, give
   );
   const outline = plain(await helper.readMaterialsApi(COURSE));
   assert.equal(outline?.files.length, 1);
+  assert.equal(outline?.complete, false);
   assert.ok(!asked.some((path) => path.includes("evil.example")), "followed an address outside HuskyCT");
+});
+
+test("a content traversal stopped at its size or depth limit is marked partial", async () => {
+  const large = openPage(() => page(Array.from({ length: 5001 }, (_, n) => item(`_${n}_1`, "resource/x-bb-file", `${n}.pdf`, { file: { permanentUrl: webdav(n) } }))));
+  assert.equal((await large.helper.readMaterialsApi(COURSE))?.complete, false);
+
+  let depth = 0;
+  const deep = openPage(() => page([item(`_${depth++}_1`, "resource/x-bb-folder", "Nested")]));
+  assert.equal((await deep.helper.readMaterialsApi(COURSE))?.complete, false);
 });
 
 test("a sync reads materials from HuskyCT's data when it answers, and opens no outline", async () => {
@@ -150,9 +162,12 @@ test("a sync reads materials from HuskyCT's data when it answers, and opens no o
   const visited: string[] = [];
   window.addEventListener("popstate", () => visited.push(window.location.pathname));
 
-  const manifest = plain((await helper.syncLight({ gap: 0 })).materials);
+  const result = await helper.syncLight({ gap: 0 });
+  const manifest = plain(result.materials);
 
   assert.deepEqual(manifest.courses.map((course) => [course.id, course.skipped, course.files.length]), [[COURSE, false, 3]]);
+  assert.equal(manifest.complete, false, "the partial course scan must remain partial when sent");
+  assert.ok(result.missing.includes("missFiles"), "the partial scan should be reported to the student");
   assert.ok(!visited.some((path) => path.includes("/outline")), "opened an outline: " + visited.join(", "));
 });
 

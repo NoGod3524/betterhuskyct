@@ -84,7 +84,7 @@ export function parseStoredSubscriptions(rawValue: string): Subscription[] | nul
   return subscriptions;
 }
 
-export function saveSubscriptions(storage: Storage, subscriptions: Subscription[]) {
+export function saveSubscriptions(storage: Pick<Storage, "setItem">, subscriptions: Subscription[]) {
   storage.setItem(
     SUBSCRIPTIONS_STORAGE_KEY,
     JSON.stringify({

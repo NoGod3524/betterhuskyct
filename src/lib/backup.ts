@@ -1,4 +1,5 @@
 import { isRecord } from "./is-record.ts";
+import { writeStorageBatch } from "./storage-batch.ts";
 
 /**
  * A backup is every `huskypilot.*` value this browser holds, as the text each module saved, in one
@@ -133,8 +134,20 @@ export function mergeValues(here: unknown, there: unknown): unknown {
       const id = isRecord(item) ? (item.id ?? item.uid) : undefined;
       return typeof id === "string" ? "id:" + id : JSON.stringify(item);
     };
-    const seen = new Set(here.map(identity));
-    return [...here, ...there.filter((item) => !seen.has(identity(item)))];
+    const merged = [...here];
+    const positions = new Map(here.map((item, index) => [identity(item), index]));
+    for (const item of there) {
+      const key = identity(item);
+      const index = positions.get(key);
+      if (index === undefined) {
+        positions.set(key, merged.length);
+        merged.push(item);
+      } else {
+        // A calendar or gradebook can already exist while some of its rows are missing.
+        merged[index] = mergeValues(merged[index], item);
+      }
+    }
+    return merged;
   }
   if (isRecord(here) && isRecord(there)) {
     const merged: Record<string, unknown> = { ...here };
@@ -154,39 +167,32 @@ export type RestoreMode = "merge" | "replace";
  * there before is put back, so a restore is all of it or none of it.
  */
 export function restoreBackup(storage: Writer, backup: Backup, mode: RestoreMode): { ok: true } | { ok: false } {
-  const before = new Map<string, string | null>(BACKUP_KEYS.map((key) => [key, storage.getItem(key)]));
   try {
-    for (const key of BACKUP_KEYS) {
-      const incoming = backup.data[key];
-      if (mode === "replace") {
-        if (incoming === undefined) storage.removeItem(key);
-        else storage.setItem(key, incoming);
-        continue;
+    writeStorageBatch(storage, (staged) => {
+      for (const key of BACKUP_KEYS) {
+        const incoming = backup.data[key];
+        if (mode === "replace") {
+          if (incoming === undefined) staged.removeItem(key);
+          else staged.setItem(key, incoming);
+          continue;
+        }
+        if (incoming === undefined) continue;
+        const current = storage.getItem(key);
+        if (current === null) {
+          staged.setItem(key, incoming);
+          continue;
+        }
+        let merged: unknown;
+        try {
+          merged = mergeValues(JSON.parse(current), JSON.parse(incoming));
+        } catch {
+          continue; // a plain word, or a value that cannot be read: the one here stays
+        }
+        staged.setItem(key, JSON.stringify(merged));
       }
-      if (incoming === undefined) continue;
-      const current = before.get(key);
-      if (current === null || current === undefined) {
-        storage.setItem(key, incoming);
-        continue;
-      }
-      let merged: unknown;
-      try {
-        merged = mergeValues(JSON.parse(current), JSON.parse(incoming));
-      } catch {
-        continue; // a plain word, or a value that cannot be read: the one here stays
-      }
-      storage.setItem(key, JSON.stringify(merged));
-    }
+    });
     return { ok: true };
   } catch {
-    for (const [key, value] of before) {
-      try {
-        if (value === null) storage.removeItem(key);
-        else storage.setItem(key, value);
-      } catch {
-        /* nothing more can be done for this key */
-      }
-    }
     return { ok: false };
   }
 }

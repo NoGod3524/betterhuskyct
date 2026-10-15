@@ -19,6 +19,7 @@ import {
   requestPlan,
   restorePlanState,
   savePlanState,
+  saveSwitchedOff,
   setSummary,
   suggestionToEvent,
   suggestionToUndated,
@@ -35,6 +36,7 @@ import { openMaterialsStore } from "@/lib/materials-store";
 import type { PlanItem, PlanRequest } from "@/lib/plan-models";
 import { restoreSummaryChoice } from "@/lib/summary-choice";
 import type { ProviderId } from "@/lib/summary-models";
+import { writeStorageBatch } from "@/lib/storage-batch";
 import { pickSyllabusFiles, readFileText } from "@/lib/syllabus";
 import { restoreUndatedTodos, saveUndatedTodos, type UndatedTodo } from "@/lib/undated-todos";
 
@@ -52,12 +54,13 @@ export type AiPlanValue = {
   /** Each course's syllabus summary, by HuskyCT course id. */
   summaries: Record<string, SyllabusSummary>;
   undated: UndatedTodo[];
+  saveProblem: boolean;
   enable: () => void;
   disable: () => void;
   /** Read again now, including sources given up on. */
   checkNow: () => void;
   /** Adds the ticked rows and lets the others go. */
-  resolve: (added: PlanChoice[], dismissed: string[]) => void;
+  resolve: (added: PlanChoice[], dismissed: string[]) => boolean;
   toggleUndated: (id: string) => void;
   removeUndated: (id: string) => void;
   /** Adds a to-do with no day, from the announcements page; returns its id. It needs no AI. */
@@ -106,8 +109,12 @@ export function AiPlanProvider({
   const [state, setState] = useState<PlanState>(EMPTY_PLAN_STATE);
   const [undated, setUndated] = useState<UndatedTodo[]>([]);
   const [status, setStatus] = useState<PlanStatus>({ phase: "idle", problem: null });
+  const [saveProblem, setSaveProblem] = useState(false);
 
   const stateRef = useRef(state);
+  const undatedRef = useRef(undated);
+  const generation = useRef(0);
+  const activeRequest = useRef<AbortController | null>(null);
   const announcementsRef = useRef(announcements);
   const running = useRef(false);
   const again = useRef(false);
@@ -116,43 +123,60 @@ export function AiPlanProvider({
   const runRef = useRef<() => Promise<void>>(async () => undefined);
 
   const localeRef = useRef(locale);
+  const invalidateReading = useCallback(() => {
+    generation.current++;
+    activeRequest.current?.abort();
+  }, []);
 
   useEffect(() => {
     announcementsRef.current = announcements;
   }, [announcements]);
 
   useEffect(() => {
+    if (localeRef.current !== locale) {
+      invalidateReading();
+    }
     localeRef.current = locale;
-  }, [locale]);
+  }, [locale, invalidateReading]);
 
   const commit = useCallback((change: (current: PlanState) => PlanState) => {
     const next = change(stateRef.current);
-    if (next === stateRef.current) return;
+    if (next === stateRef.current) return true;
+    try {
+      savePlanState(window.localStorage, next);
+    } catch {
+      setSaveProblem(true);
+      return false;
+    }
     stateRef.current = next;
     setState(next);
-    savePlanState(window.localStorage, next);
+    return true;
   }, []);
 
   // Restored after the first paint, as the calendar is, so the server render and the first client render agree.
   useEffect(() => {
     mounted.current = true;
     const timer = setTimeout(() => {
-      const restored = restorePlanState(window.localStorage);
-      stateRef.current = restored;
-      setState(restored);
-      setUndated(restoreUndatedTodos(window.localStorage));
+      try {
+        const restored = restorePlanState(window.localStorage);
+        stateRef.current = restored;
+        setState(restored);
+        undatedRef.current = restoreUndatedTodos(window.localStorage);
+        setUndated(undatedRef.current);
+      } catch { setSaveProblem(true); }
     }, 0);
     return () => {
       clearTimeout(timer);
       mounted.current = false;
+      invalidateReading();
       if (retryTimer.current) clearTimeout(retryTimer.current);
     };
-  }, []);
+  }, [invalidateReading]);
 
   const ask = useCallback(
-    async (request: PlanRequest): Promise<Outcome> => {
+    async (request: PlanRequest, signal: AbortSignal): Promise<Outcome> => {
       try {
-        return await requestPlan(request, fetchImpl, restoreSummaryChoice(window.localStorage));
+        return await requestPlan(request, fetchImpl, restoreSummaryChoice(window.localStorage), signal);
       } catch (error) {
         const problem = error instanceof SummaryError ? error.problem : "failed";
         if (problem === "busy" || problem === "rate-limited") return { stop: problem, retry: true };
@@ -167,6 +191,10 @@ export function AiPlanProvider({
 
   /** One pass over everything there is to read. Returns the problem that stopped it, if one did. */
   const readAll = useCallback(async (): Promise<{ problem: SummaryProblem; retry: boolean } | null> => {
+    const started = generation.current;
+    const active = () => mounted.current && stateRef.current.enabled && started === generation.current;
+    const controller = new AbortController();
+    activeRequest.current = controller;
     const today = localDay(new Date());
     let first = true;
     const pause = async () => {
@@ -185,7 +213,7 @@ export function AiPlanProvider({
       const files: StoredFile[] = await store.files().catch(() => []);
       const byKey = new Map(files.map((file) => [file.key, file]));
       for (const course of index.courses) {
-        if (!stateRef.current.enabled || !mounted.current) return null;
+        if (!active()) return null;
         const picks = pickSyllabusFiles(course, byKey);
         if (picks.length === 0) continue;
         const key = syllabusKey(course.id);
@@ -195,6 +223,16 @@ export function AiPlanProvider({
           language,
         );
         if (!needsReading(stateRef.current, key, signature)) continue;
+        const stillCurrent = async () => {
+          const currentIndex = await store!.getIndex();
+          const currentCourse = currentIndex?.courses.find((entry) => entry.id === course.id);
+          if (!currentCourse || !active()) return false;
+          const currentFiles = new Map((await store!.files()).map((file) => [file.key, file]));
+          const currentPicks = pickSyllabusFiles(currentCourse, currentFiles);
+          return active() && currentPicks.length > 0 && signature === syllabusSignature(
+            currentPicks.map((pick) => ({ key: pick.key, savedAt: currentFiles.get(pick.key)!.savedAt })), localeRef.current,
+          );
+        };
 
         const label = (course.code ?? course.id).slice(0, 80);
         setStatus({ phase: "reading", what: "syllabus", course: label });
@@ -203,6 +241,7 @@ export function AiPlanProvider({
           const text = await readFileText(byKey.get(pick.key)!);
           if (text) texts.push({ name: pick.name, text });
         }
+        if (!(await stillCurrent())) continue;
         // A scan has no text to send. It is marked read, so it is not opened again every visit.
         if (texts.length === 0) {
           commit((current) => markRead(current, key, signature));
@@ -211,7 +250,7 @@ export function AiPlanProvider({
 
         await pause();
         // The switch may have been turned off while the file was read: nothing leaves after that.
-        if (!stateRef.current.enabled || !mounted.current) return null;
+        if (!active()) return null;
         const outcome = await ask({
           kind: "syllabus",
           courseLabel: label,
@@ -220,7 +259,9 @@ export function AiPlanProvider({
           text: joinSyllabusTexts(texts),
           announcements: [],
           locale: language,
-        });
+        }, controller.signal);
+        if (!active()) return null;
+        if (!(await stillCurrent())) continue;
         if ("stop" in outcome) return { problem: outcome.stop, retry: outcome.retry };
         if ("failed" in outcome) {
           commit((current) => markFailed(current, key, signature));
@@ -243,12 +284,20 @@ export function AiPlanProvider({
     }
 
     for (const batch of announcementBatches(announcementsRef.current, stateRef.current)) {
-      if (!stateRef.current.enabled || !mounted.current) return null;
+      if (!active()) return null;
+      const stillCurrent = () => batch.ids.every((id, index) => {
+        const current = announcementsRef.current.find((announcement) => announcement.id === id);
+        return current && announcementSignature(current) === batch.signatures[index];
+      });
+      if (!stillCurrent()) continue;
       const label = (batch.course ?? "Course").slice(0, 80);
       setStatus({ phase: "reading", what: "announcements", course: label });
       await pause();
-      if (!stateRef.current.enabled || !mounted.current) return null;
-      const outcome = await ask({ kind: "announcements", courseLabel: label, term: null, today, text: "", announcements: batch.announcements });
+      if (!active()) return null;
+      if (!stillCurrent()) continue;
+      const outcome = await ask({ kind: "announcements", courseLabel: label, term: null, today, text: "", announcements: batch.announcements }, controller.signal);
+      if (!active()) return null;
+      if (!stillCurrent()) continue;
       if ("stop" in outcome) return { problem: outcome.stop, retry: outcome.retry };
       if ("failed" in outcome) {
         commit((current) => batch.ids.reduce((next, id, index) => markFailed(next, announcementKey(id), batch.signatures[index]), current));
@@ -289,7 +338,7 @@ export function AiPlanProvider({
     } finally {
       running.current = false;
     }
-    if (!mounted.current) return;
+    if (!mounted.current || !stateRef.current.enabled) return;
     setStatus({ phase: "idle", problem: stopped?.problem ?? null });
     if (stopped?.retry) retryTimer.current = setTimeout(() => void runRef.current(), RETRY_MS);
   }, [readAll]);
@@ -324,11 +373,15 @@ export function AiPlanProvider({
   }, [announcementIds, state.enabled]);
 
   const commitUndated = useCallback((change: (current: UndatedTodo[]) => UndatedTodo[]) => {
-    setUndated((current) => {
-      const next = change(current);
+    try {
+      const next = change(undatedRef.current);
       saveUndatedTodos(window.localStorage, next);
-      return next;
-    });
+      undatedRef.current = next;
+      setUndated(next);
+    } catch (error) {
+      setSaveProblem(true);
+      throw error;
+    }
   }, []);
 
   const value: AiPlanValue = {
@@ -337,10 +390,17 @@ export function AiPlanProvider({
     pending: state.pending,
     summaries: state.summaries,
     undated,
+    saveProblem,
     enable: () => commit((current) => ({ ...current, enabled: true, enabledAt: current.enabledAt ?? new Date().toISOString() })),
     disable: () => {
+      invalidateReading();
       if (retryTimer.current) clearTimeout(retryTimer.current);
-      commit((current) => ({ ...current, enabled: false }));
+      // Off on screen whatever happens to storage, and off in storage too, by whatever means.
+      const next = { ...stateRef.current, enabled: false };
+      const saved = saveSwitchedOff(window.localStorage, next);
+      stateRef.current = next;
+      setState(next);
+      setSaveProblem(!saved);
       setStatus({ phase: "idle", problem: null });
     },
     checkNow: () => {
@@ -349,27 +409,56 @@ export function AiPlanProvider({
       void run();
     },
     resolve: (added, dismissed) => {
+      setSaveProblem(false);
       const byId = new Map(stateRef.current.pending.map((suggestion) => [suggestion.id, suggestion]));
       const now = new Date().toISOString();
       const events = [];
+      const eventIds: string[] = [];
       const todos: UndatedTodo[] = [];
-      const verdicts: Record<string, "added" | "dismissed"> = {};
       for (const { id, day } of added) {
         const suggestion = byId.get(id);
         if (!suggestion) continue;
-        if (day) events.push(suggestionToEvent(suggestion, day));
+        if (day) {
+          events.push(suggestionToEvent(suggestion, day));
+          eventIds.push(id);
+        }
         else todos.push(suggestionToUndated(suggestion, now));
-        verdicts[id] = "added";
       }
-      for (const id of dismissed) if (byId.has(id)) verdicts[id] = "dismissed";
-      addCustomEvents(events);
+      let saved = true;
+      if (events.length > 0) {
+        try {
+          const next = decide(stateRef.current, Object.fromEntries(eventIds.map((id) => [id, "added" as const])));
+          addCustomEvents(events, (staged) => savePlanState(staged, next));
+          stateRef.current = next;
+          setState(next);
+        } catch { saved = false; }
+      }
       if (todos.length > 0) {
-        commitUndated((current) => [...current.filter((todo) => !todos.some((added) => added.id === todo.id)), ...todos]);
+        try {
+          const nextTodos = [...undatedRef.current, ...todos.filter((todo) => !undatedRef.current.some((existing) => existing.id === todo.id))];
+          const next = decide(stateRef.current, Object.fromEntries(todos.map((todo) => [todo.id, "added" as const])));
+          writeStorageBatch(window.localStorage, (staged) => {
+            saveUndatedTodos(staged, nextTodos);
+            savePlanState(staged, next);
+          });
+          undatedRef.current = nextTodos;
+          setUndated(nextTodos);
+          stateRef.current = next;
+          setState(next);
+        } catch { saved = false; }
       }
-      commit((current) => decide(current, verdicts));
+      const verdicts: Record<string, "dismissed"> = {};
+      for (const id of dismissed) if (stateRef.current.pending.some((suggestion) => suggestion.id === id)) verdicts[id] = "dismissed";
+      if (Object.keys(verdicts).length > 0 && !commit((current) => decide(current, verdicts))) saved = false;
+      setSaveProblem(!saved);
+      return saved;
     },
-    toggleUndated: (id) => commitUndated((current) => current.map((todo) => (todo.id === id ? { ...todo, done: !todo.done } : todo))),
-    removeUndated: (id) => commitUndated((current) => current.filter((todo) => todo.id !== id)),
+    toggleUndated: (id) => {
+      try { commitUndated((current) => current.map((todo) => (todo.id === id ? { ...todo, done: !todo.done } : todo))); } catch { /* shown beside the list */ }
+    },
+    removeUndated: (id) => {
+      try { commitUndated((current) => current.filter((todo) => todo.id !== id)); } catch { /* shown beside the list */ }
+    },
     addUndated: ({ title, course, note }) => {
       const id = `announcement-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
       commitUndated((current) => [...current, { id, title, course, note, done: false, addedAt: new Date().toISOString() }]);

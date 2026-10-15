@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type { CalendarTask } from "../src/lib/calendar-types.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
-import type { Subscription } from "../src/lib/subscriptions.ts";
+import { MAX_SUBSCRIPTIONS, latestImportAt, type Subscription } from "../src/lib/subscriptions.ts";
 import { buildSyncPayload } from "../src/lib/sync.ts";
 import { eventUid, mergeSyncPayload, type LocalState } from "../src/lib/sync-merge.ts";
 
@@ -164,4 +164,49 @@ test("re-sending an unchanged recurring feed reports no changes", () => {
   assert.equal(idsOnDevice(localOf(second)).length, 2);
   assert.equal(second.addedEvents, 0);
   assert.equal(second.updatedEvents, 0);
+});
+
+test("a full subscription list still updates known calendars after skipping a new one", () => {
+  const subscriptions = Array.from({ length: MAX_SUBSCRIPTIONS }, (_, index) => ({
+    id: `local-${index}`,
+    ...send([task(`task-${index}`)]).feeds[0],
+  }));
+  const moved = task("task-0", "2026-10-02T03:59:00.000Z");
+  const incoming = send([task("new-calendar")]);
+  incoming.feeds.push(send([moved, task("new-deadline")]).feeds[0]);
+
+  const merged = mergeSyncPayload({ ...EMPTY, subscriptions }, incoming);
+
+  assert.equal(merged.subscriptions.length, MAX_SUBSCRIPTIONS);
+  assert.equal(merged.addedFeeds, 0);
+  assert.equal(merged.addedEvents, 1);
+  assert.equal(merged.updatedEvents, 1);
+  assert.deepEqual(merged.subscriptions[0].events, [moved, task("new-deadline")]);
+  assert.deepEqual(subscriptions[0].events, [task("task-0")], "the local input was mutated");
+});
+
+test("changing only an all-day calendar date counts as an update", () => {
+  const original = { ...task("all-day"), allDay: true, dateKey: "2026-09-25" };
+  const first = mergeSyncPayload(EMPTY, send([original]));
+  const changed = { ...original, dateKey: "2026-09-26" };
+
+  const second = mergeSyncPayload(localOf(first), send([changed]));
+
+  assert.deepEqual(second.subscriptions[0].events, [changed]);
+  assert.equal(second.updatedEvents, 1);
+  assert.equal(mergeSyncPayload(localOf(second), send([changed])).updatedEvents, 0);
+});
+
+test("re-syncing a calendar advances its import time without older payloads rolling it back", () => {
+  const first = mergeSyncPayload(EMPTY, send([task("A")]));
+  const newer = send([task("A")]);
+  const later = "2026-09-24T12:00:00.000Z";
+  newer.feeds[0].importedAt = later;
+
+  const second = mergeSyncPayload(localOf(first), newer);
+  assert.equal(latestImportAt(second.subscriptions), later);
+  assert.equal(second.updatedEvents, 0);
+
+  const third = mergeSyncPayload(localOf(second), send([task("A")]));
+  assert.equal(latestImportAt(third.subscriptions), later);
 });

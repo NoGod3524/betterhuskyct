@@ -199,15 +199,146 @@ test("a complete delivery drops files no course lists any more; a partial one ke
   await from(message({ kind: "index", index: index([FILE_URL, OTHER_URL]), sending: 2 }));
   await from(message({ kind: "file", key: FILE_URL, name: "a.pdf", type: "", blob }));
   await from(message({ kind: "file", key: OTHER_URL, name: "b.pdf", type: "", blob }));
+  await from(message({ kind: "done", complete: true }));
 
   // The instructor removed one. A stopped walk says nothing about what is gone...
   await from(message({ kind: "index", index: index([FILE_URL]), sending: 0 }));
   await from(message({ kind: "done", complete: false }));
   assert.equal((await store.keys()).length, 2);
+  assert.deepEqual((await store.getIndex())?.courses[0].files.map((file) => file.key), [FILE_URL, OTHER_URL]);
 
   // ...a complete one does.
+  await from(message({ kind: "index", index: index([FILE_URL]), sending: 0 }));
   await from(message({ kind: "done", complete: true }));
   assert.deepEqual(await store.keys(), [FILE_URL]);
+});
+
+test("an interrupted delivery keeps old references while exposing new files, links and tools", async () => {
+  const store = memoryMaterialsStore();
+  await store.putIndex(index([FILE_URL]));
+  const receive = createMaterialsReceiver({ store });
+  const helper = helperWindow();
+  const incoming = index([OTHER_URL]);
+  incoming.courses[0].links = [];
+  incoming.courses[0].tools = [];
+
+  await receive({ origin: "https://lms.uconn.edu", data: message({ kind: "index", index: incoming, sending: 1 }), source: helper.source });
+
+  const saved = (await store.getIndex())!.courses[0];
+  assert.deepEqual(saved.files.map((file) => file.key), [OTHER_URL, FILE_URL]);
+  assert.equal(saved.links.length, 1);
+  assert.equal(saved.tools.length, 1);
+});
+
+test("an incomplete transfer cannot prune even if the sender calls it complete", async () => {
+  const store = memoryMaterialsStore();
+  await store.putIndex(index([FILE_URL, OTHER_URL]));
+  const receive = createMaterialsReceiver({ store });
+  const helper = helperWindow();
+  const from = (data: unknown) => receive({ origin: "https://lms.uconn.edu", data, source: helper.source });
+
+  await from(message({ kind: "index", index: index([FILE_URL]), sending: 1 }));
+  await from(message({ kind: "done", complete: true }));
+
+  assert.equal((await store.getIndex())!.courses[0].files.length, 2);
+});
+
+test("index and done messages are processed in order even when the store is slow", async () => {
+  const store = memoryMaterialsStore();
+  await store.putIndex(index([FILE_URL, OTHER_URL]));
+  const delayed = { ...store, putIndex: async (value: MaterialsIndex) => {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await store.putIndex(value);
+  } };
+  const states: string[] = [];
+  const receive = createMaterialsReceiver({ store: delayed, onChange: (state) => states.push(state.phase) });
+  const helper = helperWindow();
+  const from = (data: unknown) => receive({ origin: "https://lms.uconn.edu", data, source: helper.source });
+
+  await Promise.all([
+    from(message({ kind: "index", index: index([FILE_URL]), sending: 0 })),
+    from(message({ kind: "done", complete: false })),
+  ]);
+  assert.equal((await store.getIndex())!.courses[0].files.length, 2);
+  assert.equal(states.at(-1), "done");
+});
+
+test("a message that never finishes does not hold up the ones behind it", async () => {
+  const store = memoryMaterialsStore();
+  let calls = 0;
+  // The first look at the store never returns; the next ones do.
+  const stuck = { ...store, keys: async () => (++calls === 1 ? new Promise<string[]>(() => undefined) : store.keys()) };
+  const states: string[] = [];
+  const receive = createMaterialsReceiver({ store: stuck, messageTimeoutMs: 30, onChange: (state) => states.push(state.phase) });
+  const helper = helperWindow();
+  const from = (data: unknown) => receive({ origin: "https://lms.uconn.edu", data, source: helper.source });
+
+  const first = from(message({ kind: "hello" }));
+  const second = from(message({ kind: "hello" }));
+  await Promise.all([first, second]);
+
+  assert.deepEqual(helper.replies.map((reply) => reply.message.kind), ["ready"], "the second message was never answered");
+  assert.ok(states.includes("done"), "the stuck message was not given up on");
+});
+
+test("one helper's complete delivery cannot commit another helper's partial course", async () => {
+  const store = memoryMaterialsStore();
+  await store.putIndex(mergeMaterialsIndex(index([FILE_URL]), index([OTHER_URL], "ECON 1201", "_2_1")));
+  await store.putFile({ key: OTHER_URL, name: "old.pdf", type: "", size: 1, blob: new Blob(["x"]), savedAt: new Date().toISOString() });
+  const receive = createMaterialsReceiver({ store });
+  const a = helperWindow();
+  const b = helperWindow();
+  const from = (source: typeof a.source, data: unknown) => receive({ origin: "https://lms.uconn.edu", data: message(data as Record<string, unknown>), source });
+
+  await from(a.source, { kind: "index", index: index([]), sending: 0 });
+  await from(b.source, { kind: "index", index: index([], "ECON 1201", "_2_1"), sending: 0 });
+  await from(a.source, { kind: "done", complete: true });
+  await from(b.source, { kind: "done", complete: false });
+
+  const saved = await store.getIndex();
+  assert.equal(saved!.courses.find((course) => course.id === "_203765_1")!.files.length, 0);
+  assert.equal(saved!.courses.find((course) => course.id === "_2_1")!.files.length, 1);
+  assert.ok(await store.getFile(OTHER_URL), "the other helper's old file was deleted");
+});
+
+test("an older helper's completion cannot remove a newer partial course's additions", async () => {
+  const store = memoryMaterialsStore();
+  const receive = createMaterialsReceiver({ store });
+  const a = helperWindow();
+  const b = helperWindow();
+  const from = (source: typeof a.source, data: unknown) => receive({ origin: "https://lms.uconn.edu", data: message(data as Record<string, unknown>), source });
+
+  await from(a.source, { kind: "index", index: index([]), sending: 0 });
+  await from(b.source, { kind: "index", index: index([OTHER_URL]), sending: 1 });
+  await from(b.source, { kind: "file", key: OTHER_URL, name: "new.pdf", type: "", blob: new Blob(["x"]) });
+  await from(b.source, { kind: "done", complete: false });
+  await from(a.source, { kind: "done", complete: true });
+
+  assert.equal((await store.getIndex())!.courses[0].files[0].key, OTHER_URL);
+  assert.ok(await store.getFile(OTHER_URL));
+  assert.equal(b.replies.at(-1)!.message.ok, true, "the second helper's file was not acknowledged");
+});
+
+test("simultaneous helpers count their own files and can both finish", async () => {
+  const store = memoryMaterialsStore();
+  await store.putIndex(mergeMaterialsIndex(index(["folder:old-a.pdf"]), index(["folder:old-b.pdf"], "ECON 1201", "_2_1")));
+  const receive = createMaterialsReceiver({ store });
+  const a = helperWindow();
+  const b = helperWindow();
+  const from = (source: typeof a.source, data: unknown) => receive({ origin: "https://lms.uconn.edu", data: message(data as Record<string, unknown>), source });
+
+  await from(a.source, { kind: "index", index: index([FILE_URL]), sending: 1 });
+  await from(b.source, { kind: "index", index: index([OTHER_URL], "ECON 1201", "_2_1"), sending: 1 });
+  await from(a.source, { kind: "file", key: FILE_URL, name: "a.pdf", type: "", blob: new Blob(["a"]) });
+  await from(b.source, { kind: "file", key: OTHER_URL, name: "b.pdf", type: "", blob: new Blob(["b"]) });
+  await from(a.source, { kind: "done", complete: true });
+  await from(b.source, { kind: "done", complete: true });
+
+  assert.equal((await store.getIndex())!.courses.length, 2);
+  assert.ok((await store.getIndex())!.courses.every((course) => course.files.length === 1), "both completed courses should remove their old entries");
+  assert.equal((await store.keys()).length, 2);
+  assert.equal(a.replies.at(-1)!.message.ok, true);
+  assert.equal(b.replies.at(-1)!.message.ok, true);
 });
 
 test("a newer delivery replaces its own courses and keeps the rest", () => {

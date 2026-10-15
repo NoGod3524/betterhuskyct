@@ -19,7 +19,7 @@ export function QuickAdd() {
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Read when it is opened, not when the page renders: the server does not know the reader's day.
   function show() {
@@ -30,22 +30,27 @@ export function QuickAdd() {
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!title.trim()) {
-      setError(true);
+      setError(t(locale, "calendar.emptyTitleError"));
       return;
     }
     const allDay = time === "";
-    addCustomEvent({
-      title: title.trim(),
-      course: null,
-      start: dueInstant(date, time),
-      end: null,
-      allDay,
-      location: null,
-      note: null,
-    });
+    try {
+      addCustomEvent({
+        title: title.trim(),
+        course: null,
+        start: dueInstant(date, time),
+        end: null,
+        allDay,
+        location: null,
+        note: null,
+      });
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : t(locale, "errors.saveFailed"));
+      return;
+    }
     setTitle("");
     setTime("");
-    setError(false);
+    setError(null);
     setOpen(false);
   }
 
@@ -67,9 +72,9 @@ export function QuickAdd() {
           value={title}
           onChange={(event) => {
             setTitle(event.target.value);
-            setError(false);
+            setError(null);
           }}
-          aria-invalid={error}
+          aria-invalid={Boolean(error)}
           className="h-9 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-2.5"
         />
       </label>
@@ -89,7 +94,7 @@ export function QuickAdd() {
       </button>
       {error ? (
         <p role="alert" className="w-full text-xs text-[var(--warning)]">
-          {t(locale, "calendar.emptyTitleError")}
+          {error}
         </p>
       ) : null}
     </form>

@@ -62,9 +62,10 @@ function Panel({ plan }: { plan: AiPlanValue }) {
   function addPicked() {
     const added = rows.filter(isPicked).map((row) => ({ id: row.suggestion.id, day: dayOf(row) || null }));
     const dismissed = rows.filter((row) => !isPicked(row)).map((row) => row.suggestion.id);
-    resolve(added, dismissed);
-    setPicked({});
-    setDays({});
+    if (resolve(added, dismissed)) {
+      setPicked({});
+      setDays({});
+    }
   }
 
   if (!enabled) {
@@ -78,6 +79,7 @@ function Panel({ plan }: { plan: AiPlanValue }) {
         <button type="button" onClick={enable} className={`${PRIMARY} mt-4`}>
           {t(locale, "aiPlan.enable")}
         </button>
+        {plan.saveProblem ? <p role="alert" className="mt-2 text-sm text-[var(--danger)]">{t(locale, "aiPlan.saveFailed")}</p> : null}
       </div>
     );
   }
@@ -115,6 +117,7 @@ function Panel({ plan }: { plan: AiPlanValue }) {
       <p className="mt-2 text-sm text-[var(--muted)]" role="status">
         {statusText}
       </p>
+      {plan.saveProblem ? <p role="alert" className="mt-2 text-sm text-[var(--danger)]">{t(locale, "aiPlan.saveFailed")}</p> : null}
 
       {rows.length > 0 ? (
         <>
@@ -192,9 +195,10 @@ function Panel({ plan }: { plan: AiPlanValue }) {
             <button
               type="button"
               onClick={() => {
-                resolve([], rows.map((row) => row.suggestion.id));
-                setPicked({});
-                setDays({});
+                if (resolve([], rows.map((row) => row.suggestion.id))) {
+                  setPicked({});
+                  setDays({});
+                }
               }}
               className={BUTTON}
             >

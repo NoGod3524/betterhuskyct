@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { after, test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { t } from "../src/lib/i18n.ts";
 import { installDom } from "./support/dom.ts";
@@ -21,7 +22,7 @@ const { MORE_NAV, NAV_ITEMS, PRIMARY_NAV } = await import("../src/components/nav
 const { window } = dom;
 after(() => dom.uninstall());
 
-const APP = new URL("../src/app/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+const APP = fileURLToPath(new URL("../src/app/", import.meta.url));
 
 /** The routes that are pages: a folder under src/app holding a page.tsx, plus the home page. */
 function pageRoutes(): string[] {

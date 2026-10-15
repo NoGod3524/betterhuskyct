@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      2.0.3
+// @version      2.0.4
 // @description  Reads your HuskyCT deadlines, announcements, grades and course files through HuskyCT's own data, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       Yinuo (NoGod3524)
 // @homepageURL  https://github.com/NoGod3524/betterhuskyct
@@ -52,7 +52,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "2.0.3";
+  const VERSION = "2.0.4";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -873,15 +873,15 @@
    * - `resource/x-bb-externallink` carries its address in its detail; `resource/x-bb-blti-link`
    *   is a tool launched from HuskyCT.
    *
-   * { files, links, tools, activities, unaddressed, documents: [] }, or null if it could not be
-   * read this way.
+   * { files, links, tools, activities, unaddressed, documents: [], complete }, or null if it could
+   * not be read this way. Only a complete reading can remove previously saved materials.
    */
   const CONTENT_ITEMS_MAX = 5000;
   const CONTENT_DEPTH_MAX = 12;
 
   async function readMaterialsApi(courseId, opts) {
     const timeout = (opts && opts.apiTimeout) || 8000;
-    const out = { files: [], links: [], tools: [], activities: 0, unaddressed: 0, documents: [] };
+    const out = { files: [], links: [], tools: [], activities: 0, unaddressed: 0, documents: [], complete: true };
     const seenFiles = new Set();
     let items = 0;
     const addFile = (path, title, href) => {
@@ -901,13 +901,19 @@
         const answer = await fetchJson(next, timeout);
         if (!answer || !Array.isArray(answer.results)) return false;
         for (const item of answer.results) {
-          if (++items > CONTENT_ITEMS_MAX) return true;
+          if (++items > CONTENT_ITEMS_MAX) {
+            out.complete = false;
+            return true;
+          }
           if (!item || typeof item.id !== "string" || (item.visibility && item.visibility !== "VISIBLE")) continue;
           const handler = String(item.contentHandler || "");
           const detail = (item.contentDetail && item.contentDetail[handler]) || {};
           const title = textOf({ textContent: item.title });
           if (handler === "resource/x-bb-lesson" || handler === "resource/x-bb-folder") {
-            if (depth >= CONTENT_DEPTH_MAX) continue;
+            if (depth >= CONTENT_DEPTH_MAX) {
+              out.complete = false;
+              continue;
+            }
             const inside = detail.isBbPage ? path : path.concat(title || "Untitled");
             if (!(await walk(item.id, inside, depth + 1))) return false;
           } else if (handler === "resource/x-bb-file") {
@@ -916,7 +922,9 @@
           } else if (handler === "resource/x-bb-document") {
             const html = item.body && typeof item.body === "object" ? item.body.rawText : item.body;
             const found = documentContents(html, title);
-            for (const file of found.files) addFile(path, file.title, file.href);
+            for (const file of found.files) {
+              if (!addFile(path, file.title, file.href)) out.unaddressed += 1;
+            }
             for (const link of found.links) out.links.push({ path, ...link });
           } else if (handler === "resource/x-bb-externallink") {
             const url = unwrapLink(detail.url);
@@ -930,10 +938,13 @@
         // Only HuskyCT's own content address is followed, never one the answer names elsewhere.
         const following = answer.paging && answer.paging.nextPage ? String(answer.paging.nextPage) : "";
         next = /^\/learn\/api\/v1\/courses\//.test(following) && answer.results.length > 0 ? following : null;
+        if (following && !next) out.complete = false;
       }
       return true;
     };
-    return (await walk("ROOT", [], 0)) ? out : null;
+    if (!(await walk("ROOT", [], 0))) return null;
+    if (out.unaddressed) out.complete = false;
+    return out;
   }
 
   /** A document's attachments ({ title, href }) and links, from its HTML, read in a document of its own so nothing in it runs. */
@@ -1235,7 +1246,7 @@
         result.failed++;
       }
     }
-    post({ kind: "done", complete: !manifest.stopped && !options.shouldStop() && result.failed === 0 });
+    post({ kind: "done", complete: manifest.complete !== false && !manifest.stopped && !options.shouldStop() && result.failed === 0 && result.tooBig === 0 });
     return result;
   }
 
@@ -1588,7 +1599,7 @@
     const manifest = { term: walkTerm(found), courses: [], stopped: false, signedOut: false, problems: [] };
     // Each course's files, links and tools, so one send carries them and BetterHuskyCT is sent
     // only the files it does not have.
-    const materials = { term: manifest.term, courses: [], stopped: false, reused: 0, problems: [] };
+    const materials = { term: manifest.term, courses: [], stopped: false, reused: 0, problems: [], complete: true };
     let readAny = false;
     for (let index = 0; index < queue.length; index++) {
       if (opts.shouldStop()) {
@@ -1616,6 +1627,7 @@
       const failure = lastApiFailure;
       const content = await readMaterialsApi(course.id, opts);
       lastApiFailure = failure;
+      if (!content || !content.complete) materials.complete = false;
       materials.courses.push({
         id: course.id,
         code: course.code,
@@ -1625,7 +1637,7 @@
         activities: content ? content.activities : 0,
         skipped: !content,
       });
-      out.status.courses.push({ id: course.id, code: course.code || null, announcements: rows !== null, grades: items !== null, files: Boolean(content) });
+      out.status.courses.push({ id: course.id, code: course.code || null, announcements: rows !== null, grades: items !== null, files: Boolean(content && content.complete) });
       await pause(opts.gap);
     }
 
@@ -1634,7 +1646,7 @@
     out.materials = materials.courses.some((course) => !course.skipped) ? materials : null;
     if (!out.stopped) {
       if (manifest.courses.some((course) => course.skipped)) out.missing.push("missGrades");
-      if (materials.courses.some((course) => course.skipped)) out.missing.push("missFiles");
+      if (!materials.complete) out.missing.push("missFiles");
     }
     out.ok = readAny || out.grades !== null;
     return out.ok || out.stopped ? out : fail("read");
@@ -1801,7 +1813,7 @@
       const key = "bridge.blob." + note.id + "." + index;
       const piece = store.get(key, null);
       store.set(key, "");
-      if (typeof piece !== "string" || !piece) return null;
+      if (typeof piece !== "string") return null;
       parts.push(base64ToBytes(piece));
     }
     const blob = new window.Blob(parts, { type: String(note.type || "").slice(0, 200) });

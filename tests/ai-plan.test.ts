@@ -199,6 +199,16 @@ test("which announcement a find came from is kept when the state is saved and re
   assert.equal(parsePlanState(JSON.stringify(addFound(EMPTY_PLAN_STATE, [item()], meta))).pending[0].announcementId, undefined);
 });
 
+test("an edited no-class announcement keeps its pending offer while decided breaks stay decided", () => {
+  const from = { ...meta, from: "announcement" as const, announcementId: () => "a" };
+  const dayOff = item({ title: "No class", kind: "no-class", date: "2026-10-21" });
+  const initial = addFound(EMPTY_PLAN_STATE, [dayOff], from);
+  const revised = addFound(supersede(initial, ["a"]), [dayOff], from);
+  assert.equal(revised.pending.length, 1);
+  const decided = decide(initial, { [initial.pending[0].id]: "dismissed" });
+  assert.equal(addFound(supersede(decided, ["a"]), [dayOff], from).pending.length, 0);
+});
+
 test("a weekday in the source that the date does not fall on is caught: last year's syllabus", () => {
   // 14 October 2026 is a Wednesday.
   assert.equal(weekdayMismatch({ date: "2026-10-14", evidence: "Midterm 1: Wednesday, October 14" }), false);
@@ -433,4 +443,35 @@ test("office hours saved in a list from before are cleared when it is read back"
     ],
   });
   assert.deepEqual(parsePlanState(saved).pending.map((s) => s.title), ["Midterm 1"]);
+});
+
+test("turning the AI off sticks even when the browser has no room to write the state", async () => {
+  const { PLAN_STORAGE_KEY, restorePlanState, saveSwitchedOff, savePlanState, EMPTY_PLAN_STATE } = await import("../src/lib/ai-plan.ts");
+  const map = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => map.get(key) ?? null,
+    // Full: a write is refused whatever its size, as at the end of the quota.
+    setItem: () => {
+      throw new DOMException("full", "QuotaExceededError");
+    },
+    removeItem: (key: string) => void map.delete(key),
+  };
+  const on = { ...EMPTY_PLAN_STATE, enabled: true, enabledAt: "2026-10-01T00:00:00.000Z" };
+  // It was on, and stored that way, before the browser filled up.
+  map.set(PLAN_STORAGE_KEY, JSON.stringify(on));
+  assert.equal(restorePlanState(storage).enabled, true);
+
+  assert.equal(saveSwitchedOff(storage, on), true);
+
+  assert.equal(restorePlanState(storage).enabled, false, "a reload would switch the AI back on");
+  // With room, the state is kept as it was, only switched off.
+  const roomy = new Map<string, string>();
+  const withRoom = { getItem: (k: string) => roomy.get(k) ?? null, setItem: (k: string, v: string) => void roomy.set(k, v), removeItem: (k: string) => void roomy.delete(k) };
+  savePlanState(withRoom, on);
+  assert.equal(saveSwitchedOff(withRoom, on), true);
+  assert.equal(restorePlanState(withRoom).enabled, false);
+  assert.equal(restorePlanState(withRoom).enabledAt, on.enabledAt);
+  // Storage that refuses everything cannot be helped, and says so.
+  const blocked = { setItem: () => { throw new Error("blocked"); }, removeItem: () => { throw new Error("blocked"); } };
+  assert.equal(saveSwitchedOff(blocked, on), false);
 });

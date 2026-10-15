@@ -167,7 +167,7 @@ export function formatTaskTime(
 ) {
   if (task.allDay) {
     return group === "week"
-      ? `${new Intl.DateTimeFormat(intlLocale(locale), { weekday: "short" }).format(new Date(task.start))} · ${t(locale, "time.allDay")}`
+      ? `${new Intl.DateTimeFormat(intlLocale(locale), { weekday: "short" }).format(taskDate(task))} · ${t(locale, "time.allDay")}`
       : t(locale, "time.allDay");
   }
 

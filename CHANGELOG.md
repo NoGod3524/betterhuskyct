@@ -14,6 +14,20 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## Unreleased
+
+### Fixed
+
+- **An interrupted materials sync keeps the previous file list.** Old files, links and tools remain available until the full replacement arrives. Simultaneous HuskyCT tabs keep separate transfers, and an older transfer cannot remove a newer one's files. Truncated readings and files too large for the bridge are reported as partial; empty files cross the bridge correctly. (helper 2.0.4)
+- **Merging a backup adds missing work inside calendars and gradebooks already here.** Local edits stay, repeated incoming items are kept once, and a failed restore frees its replacement values before putting the originals back. Unreadable files and unavailable browser storage show an error; a slow earlier file cannot replace a newer selection.
+- **Task completion follows changes in other tabs.** A tick, untick or reopening appears across tabs, and a new tick or helper sync preserves the latest saved choices, including ticks on custom events.
+- **A full calendar list still updates its existing calendars.** Their latest sync time advances, and an all-day date change counts as an update. All-day weekday labels use the calendar day instead of a timestamp in another time zone.
+- **AI endpoints bound request bodies while reading them.** Oversized, failed and slow streams are cancelled and return a JSON error, while Chinese text keeps its existing capacity.
+- **A failed save keeps the calendar and its stored data together.** Helper and device syncs save their related values before showing success, and roll back earlier writes if a later one fails. Failed task edits keep their drafts; a full calendar refuses additions instead of silently dropping them. Dismissing or clearing a sync link also cancels an older decode still in progress.
+- **AI suggestions stay pending until their tasks are saved.** Full lists and failed writes show an error, partial success keeps the unsaved suggestions, and retrying after a failed decision save does not duplicate tasks. Late AI answers are ignored after disabling AI or removing or replacing their source. An edited announcement can offer its revised, undecided suggestion again.
+- **Offline cache writes finish after the response is returned.** The service worker keeps background cache updates alive and handles a full cache without an unhandled rejection.
+- **Local checks handle Windows paths and scratch files.** Navigation and theme tests decode file URLs correctly; local `.probe` scripts are excluded from lint and TypeScript checks.
+
 ## [1.37.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.37.1) — The sync status, however the sync started
 
 *Patch: HuskyCT Helper goes from 2.0.2 to 2.0.3.*

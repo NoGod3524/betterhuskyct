@@ -129,6 +129,45 @@ test("a malformed request is refused before anything is sent", async () => {
   assert.equal(calls.length, 0);
 });
 
+test("oversized and failed request streams return JSON without calling a provider", async () => {
+  const calls = stubUpstream({ glm: [says("- unused")] });
+  for (const failure of ["oversized", "failed"] as const) {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        if (failure === "failed") controller.error(new Error(SECRET_BODY));
+        else controller.enqueue(new Uint8Array(300_001));
+      },
+      cancel() { cancelled = true; },
+    });
+    const response = await POST(new Request("http://localhost/api/announcements/summarize", {
+      method: "POST", body, duplex: "half",
+    } as RequestInit));
+    assert.equal(response.status, failure === "oversized" ? 413 : 400);
+    assert.deepEqual(await response.json(), { problem: "invalid" });
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    if (failure === "oversized") assert.equal(cancelled, true);
+  }
+  assert.equal(calls.length, 0);
+  assert.equal(serverLog.mock.calls.length, 0);
+});
+
+test("a request body that never finishes returns a JSON timeout", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const calls = stubUpstream({ glm: [says("- unused")] });
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({ cancel() { cancelled = true; } });
+  const result = POST(new Request("http://localhost/api/announcements/summarize", {
+    method: "POST", body, duplex: "half",
+  } as RequestInit));
+  t.mock.timers.tick(5_000);
+  const response = await result;
+  assert.equal(response.status, 408);
+  assert.deepEqual(await response.json(), { problem: "invalid" });
+  assert.equal(cancelled, true);
+  assert.equal(calls.length, 0);
+});
+
 test("GLM's summary comes back named as GLM's, and no key comes back with it", async () => {
   const calls = stubUpstream({ glm: [says("- Midterm 2 moves to Tue Oct 14.")] });
 
