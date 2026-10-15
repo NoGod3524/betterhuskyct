@@ -1,0 +1,4 @@
+# These go into the release packages byte for byte, so they are LF on every machine.
+tools/huskyct-helper/huskyct-helper.user.js text eol=lf
+tools/extension/*.js text eol=lf
+tools/extension/manifest.json text eol=lf

@@ -13,15 +13,18 @@ import { fileURLToPath } from "node:url";
 import { zipSync, strToU8 } from "fflate";
 
 const here = (path) => new URL(path, import.meta.url);
-const helper = readFileSync(here("../tools/huskyct-helper/huskyct-helper.user.js"), "utf8");
+// Text goes into the package with LF line endings, so a checkout that turned them into CRLF (git on
+// Windows does) still builds the same package as GitHub's.
+const text = (path) => readFileSync(here(path), "utf8").replace(/\r\n/g, "\n");
+const helper = text("../tools/huskyct-helper/huskyct-helper.user.js");
 const version = /^\/\/ @version\s+(\S+)/m.exec(helper)?.[1];
 if (!version) throw new Error("no @version in the helper");
 
-const manifest = JSON.parse(readFileSync(here("../tools/extension/manifest.json"), "utf8"));
+const manifest = JSON.parse(text("../tools/extension/manifest.json"));
 manifest.version = version;
 
 const files = { "manifest.json": strToU8(JSON.stringify(manifest, null, 2) + "\n"), "huskyct-helper.js": strToU8(helper) };
-for (const name of ["background.js", "relay.js", "shim.js"]) files[name] = readFileSync(here(`../tools/extension/${name}`));
+for (const name of ["background.js", "relay.js", "shim.js"]) files[name] = strToU8(text(`../tools/extension/${name}`));
 
 for (const size of [16, 48, 128]) files[`icons/icon-${size}.png`] = readFileSync(here(`../tools/extension/icons/icon-${size}.png`));
 
