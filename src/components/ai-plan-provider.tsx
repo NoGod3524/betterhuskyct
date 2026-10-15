@@ -19,6 +19,7 @@ import {
   requestPlan,
   restorePlanState,
   savePlanState,
+  saveSwitchedOff,
   setSummary,
   suggestionToEvent,
   suggestionToUndated,
@@ -394,10 +395,12 @@ export function AiPlanProvider({
     disable: () => {
       invalidateReading();
       if (retryTimer.current) clearTimeout(retryTimer.current);
-      if (!commit((current) => ({ ...current, enabled: false }))) {
-        stateRef.current = { ...stateRef.current, enabled: false };
-        setState(stateRef.current);
-      }
+      // Off on screen whatever happens to storage, and off in storage too, by whatever means.
+      const next = { ...stateRef.current, enabled: false };
+      const saved = saveSwitchedOff(window.localStorage, next);
+      stateRef.current = next;
+      setState(next);
+      setSaveProblem(!saved);
       setStatus({ phase: "idle", problem: null });
     },
     checkNow: () => {

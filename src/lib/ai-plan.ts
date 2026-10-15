@@ -212,6 +212,26 @@ export function savePlanState(storage: Pick<Storage, "setItem">, state: PlanStat
   storage.setItem(PLAN_STORAGE_KEY, JSON.stringify(trimmed));
 }
 
+/**
+ * Turns the switch off in storage, whatever it takes. If the whole state cannot be written (the
+ * browser is out of room), the stored state is removed: an empty state is "off", so a reload
+ * cannot switch the AI back on and send text the student just stopped. Returns false only if
+ * storage refuses even that.
+ */
+export function saveSwitchedOff(storage: Pick<Storage, "setItem" | "removeItem">, state: PlanState): boolean {
+  try {
+    savePlanState(storage, { ...state, enabled: false });
+    return true;
+  } catch {
+    try {
+      storage.removeItem(PLAN_STORAGE_KEY);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 /** Letters and digits only, lower case: "Mid-term 1 " and "midterm 1" are the same thing. */
 function normalTitle(title: string): string {
   return title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");

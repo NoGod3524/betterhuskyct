@@ -263,6 +263,24 @@ test("index and done messages are processed in order even when the store is slow
   assert.equal(states.at(-1), "done");
 });
 
+test("a message that never finishes does not hold up the ones behind it", async () => {
+  const store = memoryMaterialsStore();
+  let calls = 0;
+  // The first look at the store never returns; the next ones do.
+  const stuck = { ...store, keys: async () => (++calls === 1 ? new Promise<string[]>(() => undefined) : store.keys()) };
+  const states: string[] = [];
+  const receive = createMaterialsReceiver({ store: stuck, messageTimeoutMs: 30, onChange: (state) => states.push(state.phase) });
+  const helper = helperWindow();
+  const from = (data: unknown) => receive({ origin: "https://lms.uconn.edu", data, source: helper.source });
+
+  const first = from(message({ kind: "hello" }));
+  const second = from(message({ kind: "hello" }));
+  await Promise.all([first, second]);
+
+  assert.deepEqual(helper.replies.map((reply) => reply.message.kind), ["ready"], "the second message was never answered");
+  assert.ok(states.includes("done"), "the stuck message was not given up on");
+});
+
 test("one helper's complete delivery cannot commit another helper's partial course", async () => {
   const store = memoryMaterialsStore();
   await store.putIndex(mergeMaterialsIndex(index([FILE_URL]), index([OTHER_URL], "ECON 1201", "_2_1")));

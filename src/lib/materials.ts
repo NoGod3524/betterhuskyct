@@ -339,6 +339,8 @@ export function createMaterialsReceiver(options: {
   store: MaterialsStore;
   now?: () => Date;
   onChange?: (state: ReceiveState) => void;
+  /** How long one message may take before the ones behind it are let through. */
+  messageTimeoutMs?: number;
 }) {
   const now = options.now ?? (() => new Date());
   let state: ReceiveState = { phase: "idle", expected: 0, stored: 0, failed: 0 };
@@ -425,9 +427,19 @@ export function createMaterialsReceiver(options: {
     }
   }
 
+  const limit = options.messageTimeoutMs ?? 60_000;
+  /** One message that never finishes (a store call that hangs) must not hold up every later one. */
+  const within = (work: Promise<void>): Promise<void> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("a materials message took too long")), limit);
+    });
+    return Promise.race([work, late]).finally(() => clearTimeout(timer));
+  };
+
   return (event: MaterialsEvent): Promise<void> => {
     // Message events do not await their listeners; index/done can arrive back to back with no files.
-    queue = queue.then(() => receive(event)).catch(() => {
+    queue = queue.then(() => within(receive(event))).catch(() => {
       if (event.source) deliveries.delete(event.source);
       update({ phase: "done", failed: state.failed + 1 });
     });
