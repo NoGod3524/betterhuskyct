@@ -46,7 +46,7 @@ function CandidateRow({ announcement, candidate, locale, versionAt }: { announce
   const plan = useAiPlan();
   const decisions = useDecisions();
   const [draft, setDraft] = useState<TodoDraft>(() => draftFrom(candidate));
-  const [problem, setProblem] = useState<"title" | "date" | "time" | null>(null);
+  const [problem, setProblem] = useState<"title" | "date" | "time" | "save" | null>(null);
   const added = decisions.added[candidate.id];
   const addable = isAddable(candidate);
 
@@ -57,11 +57,16 @@ function CandidateRow({ announcement, candidate, locale, versionAt }: { announce
       return;
     }
     let taskId: string;
-    if (made.kind === "event") {
-      taskId = addCustomEvent(made.input);
-    } else if (plan) {
-      taskId = plan.addUndated(made.todo);
-    } else {
+    try {
+      if (made.kind === "event") {
+        taskId = addCustomEvent(made.input);
+      } else if (plan) {
+        taskId = plan.addUndated(made.todo);
+      } else {
+        return;
+      }
+    } catch {
+      setProblem("save");
       return;
     }
     setProblem(null);
@@ -159,7 +164,7 @@ function CandidateRow({ announcement, candidate, locale, versionAt }: { announce
           {draft.date === "" ? <p className="text-xs text-[var(--muted)]">{t(locale, "ann.noDayHint")}</p> : null}
           {problem ? (
             <p role="alert" className="text-xs text-[var(--warning)]">
-              {t(locale, `ann.err.${problem}` as TranslationKey)}
+              {t(locale, problem === "save" ? "errors.saveFailed" : `ann.err.${problem}` as TranslationKey)}
             </p>
           ) : null}
           <div className="flex flex-wrap gap-2">

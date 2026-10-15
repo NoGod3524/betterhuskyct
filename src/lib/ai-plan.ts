@@ -209,11 +209,7 @@ export function savePlanState(storage: Pick<Storage, "setItem">, state: PlanStat
     pending: state.pending.slice(0, MAX_PENDING),
     decided: Object.fromEntries(decided.slice(Math.max(0, decided.length - MAX_DECIDED))),
   };
-  try {
-    storage.setItem(PLAN_STORAGE_KEY, JSON.stringify(trimmed));
-  } catch {
-    /* kept for this visit */
-  }
+  storage.setItem(PLAN_STORAGE_KEY, JSON.stringify(trimmed));
 }
 
 /** Letters and digits only, lower case: "Mid-term 1 " and "midterm 1" are the same thing. */
@@ -355,7 +351,17 @@ export function supersede(state: PlanState, announcementIds: string[]): PlanStat
   if (announcementIds.length === 0) return state;
   const gone = new Set(announcementIds);
   const pending = state.pending.filter((suggestion) => !(suggestion.announcementId && gone.has(suggestion.announcementId)));
-  return pending.length === state.pending.length ? state : { ...state, pending };
+  if (pending.length === state.pending.length) return state;
+  const removed = state.pending.filter((suggestion) => !pending.includes(suggestion));
+  const matches = (suggestion: Suggestion, item: OfferedItem) =>
+    suggestion.id === suggestionId(item.course, item.title, item.date) ||
+    (suggestion.kind === item.kind && suggestion.title === item.title && suggestion.date === item.date && suggestion.course === item.course);
+  const offered = state.offered.filter((item) =>
+    state.decided[suggestionId(item.course, item.title, item.date)] ||
+    pending.some((suggestion) => matches(suggestion, item)) ||
+    !removed.some((suggestion) => matches(suggestion, item)),
+  );
+  return { ...state, pending, offered };
 }
 
 export function markRead(state: PlanState, key: string, signature: string): PlanState {
@@ -544,6 +550,7 @@ function noteFor(suggestion: Suggestion): string {
 export function suggestionToEvent(suggestion: Suggestion, day: string): CustomEventInput {
   const time = day === suggestion.date ? suggestion.time : null;
   return {
+    id: `custom-${suggestion.id}`,
     title: suggestion.title,
     course: suggestion.course,
     start: localInstant(day, time),
@@ -586,6 +593,7 @@ export async function requestPlan(
   request: PlanRequest,
   fetchImpl: FetchLike = fetch,
   choice: SummaryChoice = "auto",
+  signal?: AbortSignal,
 ): Promise<{ items: PlanItem[]; summary: string | null; provider: ProviderId | null }> {
   const sources = request.announcements.length;
   let response: Response;
@@ -595,6 +603,7 @@ export async function requestPlan(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(choice === "auto" ? request : { ...request, provider: choice }),
+      signal,
     });
     body = await response.json();
   } catch {

@@ -198,7 +198,7 @@ export function restoreAnnouncements(storage: Storage): {
   return { announcements: parsed, recoveredFromCorruptData: false };
 }
 
-export function saveAnnouncements(storage: Storage, announcements: Announcement[]) {
+export function saveAnnouncements(storage: Pick<Storage, "setItem">, announcements: Announcement[]) {
   storage.setItem(ANNOUNCEMENTS_STORAGE_KEY, serializeAnnouncements(announcements));
 }
 

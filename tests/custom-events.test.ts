@@ -31,6 +31,12 @@ test("a built event gets a stable, recognisable id and the fields given", () => 
   assert.equal(event.kind, "assignment");
 });
 
+test("an automated addition can reuse its custom ID but cannot claim an imported task ID", () => {
+  assert.equal(buildCustomEvent(input({ id: "custom-ai-a" })).id, "custom-ai-a");
+  assert.throws(() => buildCustomEvent(input({ id: "imported-a" })), /Invalid custom event id/);
+  assert.throws(() => buildCustomEvent(input({ id: "custom-" })), /Invalid custom event id/);
+});
+
 test("an all-day event's date key comes from its own start, not today", () => {
   const event = buildCustomEvent(input({ allDay: true, start: new Date(2026, 8, 22).toISOString() }));
   assert.equal(event.dateKey, "2026-09-22");

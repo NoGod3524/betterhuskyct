@@ -52,11 +52,8 @@ export function restoreUndatedTodos(storage: Pick<Storage, "getItem">): UndatedT
 }
 
 export function saveUndatedTodos(storage: Pick<Storage, "setItem">, todos: UndatedTodo[]): void {
-  try {
-    storage.setItem(UNDATED_TODOS_KEY, JSON.stringify(todos.slice(0, MAX_UNDATED_TODOS)));
-  } catch {
-    /* kept for this visit */
-  }
+  if (todos.length > MAX_UNDATED_TODOS) throw new Error("The undated to-do list is full.");
+  storage.setItem(UNDATED_TODOS_KEY, JSON.stringify(todos));
 }
 
 /** Open ones first, in the order they were added; done ones after. */

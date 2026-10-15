@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 
 import { isCourseCatalogueLoaded } from "../src/lib/course-catalogue.ts";
-import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
+import { COURSES_STORAGE_KEY, EMPTY_COURSE_BOOK, addCourse } from "../src/lib/courses.ts";
+import { ANNOUNCEMENTS_STORAGE_KEY, parseAnnouncementCandidates } from "../src/lib/announcements.ts";
+import { COURSE_COLORS_KEY } from "../src/lib/course-colors.ts";
+import { MAX_CUSTOM_EVENTS, buildCustomEvent, saveCustomEvents } from "../src/lib/custom-events.ts";
 import { SUBSCRIPTIONS_STORAGE_KEY, type Subscription } from "../src/lib/subscriptions.ts";
 import { buildSyncPayload, encodeSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
 import { TASKS_PROTOCOL } from "../src/lib/tasks-sync.ts";
@@ -672,4 +675,156 @@ test("a helper sync preserves another tab's latest completion choices and keeps 
   assert.equal(app.calendar.doneIds.has(imported), true);
   assert.equal(app.calendar.doneIds.has(own), true);
   await app.unmount();
+});
+
+function refuseStorageWrite(key: string) {
+  const storage = window.localStorage;
+  const descriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+  Object.defineProperty(window, "localStorage", { configurable: true, value: {
+    getItem: storage.getItem.bind(storage),
+    removeItem: storage.removeItem.bind(storage),
+    setItem: (name: string, value: string) => {
+      if (name === key) throw new DOMException("Full", "QuotaExceededError");
+      storage.setItem(name, value);
+    },
+  } });
+  return () => {
+    if (descriptor) Object.defineProperty(window, "localStorage", descriptor);
+    else Reflect.deleteProperty(window, "localStorage");
+  };
+}
+
+test("failed event saves leave the visible calendar unchanged and report the failure", async () => {
+  const app = await mount();
+  const imported = await importOneTask(app);
+  for (const key of ["huskypilot.customEvents.v1", "huskypilot.eventOverlay.v1"]) {
+    const restore = refuseStorageWrite(key);
+    try {
+      await act(async () => {
+        assert.throws(() => key.includes("customEvents")
+          ? app.calendar.addCustomEvent(OWN_EVENT)
+          : app.calendar.editEvent(imported, { title: "Unsaved edit" }));
+      });
+      assert.ok(app.calendar.error?.includes("could not be saved"));
+      assert.equal(app.calendar.tasks.some((task) => task.title === OWN_EVENT.title || task.title === "Unsaved edit"), false);
+      assert.equal(app.calendar.isEventEdited(imported), false);
+    } finally { restore(); }
+  }
+  await app.unmount();
+});
+
+test("custom event batches are all or nothing at capacity, and stable IDs preserve an earlier edit", async () => {
+  const initial = Array.from({ length: MAX_CUSTOM_EVENTS - 1 }, (_, index) => buildCustomEvent({ ...OWN_EVENT, id: `custom-existing-${index}` }));
+  saveCustomEvents(window.localStorage as unknown as Storage, initial);
+  const app = await mount();
+  await act(async () => {
+    assert.throws(() => app.calendar.addCustomEvents([{ ...OWN_EVENT, id: "custom-new-1" }, { ...OWN_EVENT, id: "custom-new-2" }]));
+  });
+  assert.equal(app.calendar.tasks.filter((task) => task.id.startsWith("custom-")).length, MAX_CUSTOM_EVENTS - 1);
+  assert.equal(app.calendar.tasks.some((task) => task.id === "custom-new-1"), false);
+
+  await act(async () => app.calendar.addCustomEvents([{ ...OWN_EVENT, id: "custom-new-1" }]));
+  await act(async () => app.calendar.editEvent("custom-new-1", { title: "Edited here" }));
+  await act(async () => app.calendar.addCustomEvents([{ ...OWN_EVENT, id: "custom-new-1" }, { ...OWN_EVENT, id: "custom-new-1" }]));
+  assert.equal(app.calendar.tasks.filter((task) => task.id === "custom-new-1").length, 1);
+  assert.equal(app.calendar.tasks.find((task) => task.id === "custom-new-1")?.title, "Edited here");
+  await act(async () => { assert.throws(() => app.calendar.addCustomEvent(OWN_EVENT)); });
+  assert.equal(app.calendar.tasks.filter((task) => task.id.startsWith("custom-")).length, MAX_CUSTOM_EVENTS);
+  await app.unmount();
+});
+
+test("custom events and their related records commit together, including retries with no new IDs", async () => {
+  const app = await mount();
+  const storage = window.localStorage;
+  const before = storage.getItem("huskypilot.customEvents.v1");
+  const restore = refuseStorageWrite("related-decision");
+  try {
+    await act(async () => {
+      assert.throws(() => app.calendar.addCustomEvents([{ ...OWN_EVENT, id: "custom-related" }], (staged) => {
+        staged.setItem("related-decision", "accepted");
+      }));
+    });
+    assert.equal(storage.getItem("huskypilot.customEvents.v1"), before);
+    assert.equal(app.calendar.tasks.some((task) => task.id === "custom-related"), false);
+  } finally { restore(); }
+  await act(async () => app.calendar.addCustomEvents([{ ...OWN_EVENT, id: "custom-related" }], (staged) => staged.setItem("related-decision", "accepted")));
+  assert.equal(storage.getItem("related-decision"), "accepted");
+  assert.equal(app.calendar.tasks.filter((task) => task.id === "custom-related").length, 1);
+  await act(async () => app.calendar.addCustomEvents([{ ...OWN_EVENT, id: "custom-related" }], (staged) => staged.setItem("related-decision", "retried")));
+  assert.equal(storage.getItem("related-decision"), "retried");
+  await act(async () => app.calendar.addCustomEvents([], (staged) => staged.removeItem("related-decision")));
+  assert.equal(storage.getItem("related-decision"), null);
+  await app.unmount();
+});
+
+test("a failed helper sync rolls every changed key back and never publishes a partial calendar", async () => {
+  const keys = [SUBSCRIPTIONS_STORAGE_KEY, COURSES_STORAGE_KEY, ANNOUNCEMENTS_STORAGE_KEY, COMPLETION_STORAGE_KEY_IMPORTED, SYNCED_DONE_STORAGE_KEY, COURSE_COLORS_KEY, REOPENED_STORAGE_KEY];
+  for (const key of keys) {
+    window.localStorage.clear();
+    const existing = savedFeed();
+    window.localStorage.setItem(SUBSCRIPTIONS_STORAGE_KEY, JSON.stringify({ version: 1, subscriptions: [existing] }));
+    const app = await mount();
+    const storage = window.localStorage;
+    const before = keys.map((name) => storage.getItem(name));
+    const payload = JSON.parse(serialiseSyncPayload(buildSyncPayload({
+      feeds: [{ ...existing, events: [...existing.events, { ...existing.events[0], id: "new-task", title: "New task" }] }],
+      completedIds: [existing.events[0].id],
+      courses: addCourse(EMPTY_COURSE_BOOK, "MATH 1070Q", "LEC"),
+      announcements: parseAnnouncementCandidates([{ title: "New announcement" }]),
+      doneByHuskyct: [["new-task", "graded"]],
+      reopened: ["new-task"],
+      courseColors: { MATH1070Q: "#123456" },
+    })));
+    const replies: unknown[] = [];
+    const restore = refuseStorageWrite(key);
+    try {
+      await act(async () => window.dispatchEvent(new window.MessageEvent("message", {
+        data: { protocol: TASKS_PROTOCOL, kind: "sync", payload },
+        origin: "https://lms.uconn.edu",
+        source: { postMessage: (reply: unknown) => replies.push(reply) } as never,
+      })));
+      assert.deepEqual(replies, [{ protocol: TASKS_PROTOCOL, kind: "stored", ok: false }], key);
+      assert.deepEqual(keys.map((name) => storage.getItem(name)), before, key);
+      assert.deepEqual(app.calendar.subscriptions, [existing], key);
+      assert.deepEqual(app.calendar.courses, [], key);
+      assert.deepEqual(app.calendar.announcements, [], key);
+      assert.equal(app.calendar.doneIds.size, 0, key);
+      assert.ok(app.calendar.error?.includes("could not be saved"), key);
+    } finally { restore(); await app.unmount(); }
+  }
+});
+
+test("an older sync decode cannot reopen an offer after a newer link was cleared", async () => {
+  const app = await mount();
+  const packed = await encodeSyncPayload(buildSyncPayload({ feeds: [savedFeed()], completedIds: [], courses: EMPTY_COURSE_BOOK }));
+  const NativeDecompressionStream = globalThis.DecompressionStream;
+  const gates: Array<() => void> = [];
+  globalThis.DecompressionStream = class {
+    readable: ReadableStream<Uint8Array>;
+    writable: WritableStream<BufferSource>;
+    constructor(format: CompressionFormat) {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      gates.push(release);
+      const delayed = new TransformStream<BufferSource, BufferSource>({ async transform(chunk, controller) { await gate; controller.enqueue(chunk); } });
+      this.writable = delayed.writable;
+      this.readable = delayed.readable.pipeThrough(new NativeDecompressionStream(format));
+    }
+  } as typeof DecompressionStream;
+  try {
+    await act(async () => {
+      window.location.hash = `#sync=${packed}`;
+      window.dispatchEvent(new window.Event("hashchange"));
+    });
+    assert.ok(gates.length > 0);
+    await act(async () => app.calendar.clearSavedData());
+    await act(async () => { gates.forEach((release) => release()); });
+    await settle(50);
+    assert.equal(app.calendar.pendingSync, null);
+    assert.equal(window.location.hash, "");
+  } finally {
+    gates.forEach((release) => release());
+    globalThis.DecompressionStream = NativeDecompressionStream;
+    await app.unmount();
+  }
 });

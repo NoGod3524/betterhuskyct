@@ -199,6 +199,16 @@ test("which announcement a find came from is kept when the state is saved and re
   assert.equal(parsePlanState(JSON.stringify(addFound(EMPTY_PLAN_STATE, [item()], meta))).pending[0].announcementId, undefined);
 });
 
+test("an edited no-class announcement keeps its pending offer while decided breaks stay decided", () => {
+  const from = { ...meta, from: "announcement" as const, announcementId: () => "a" };
+  const dayOff = item({ title: "No class", kind: "no-class", date: "2026-10-21" });
+  const initial = addFound(EMPTY_PLAN_STATE, [dayOff], from);
+  const revised = addFound(supersede(initial, ["a"]), [dayOff], from);
+  assert.equal(revised.pending.length, 1);
+  const decided = decide(initial, { [initial.pending[0].id]: "dismissed" });
+  assert.equal(addFound(supersede(decided, ["a"]), [dayOff], from).pending.length, 0);
+});
+
 test("a weekday in the source that the date does not fall on is caught: last year's syllabus", () => {
   // 14 October 2026 is a Wednesday.
   assert.equal(weekdayMismatch({ date: "2026-10-14", evidence: "Midterm 1: Wednesday, October 14" }), false);

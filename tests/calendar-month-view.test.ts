@@ -204,6 +204,30 @@ test("saving with no title refuses, rather than adding a blank event", async () 
   await view.unmount();
 });
 
+test("a failed event save keeps the form and its input open for retry", async () => {
+  const view = await render();
+  await view.clickButton(t("en", "calendar.addEvent"));
+  await view.setValue(view.field(t("en", "calendar.fieldTitle"))!, "Keep my draft");
+  const storage = window.localStorage;
+  const descriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+  Object.defineProperty(window, "localStorage", { configurable: true, value: {
+    getItem: storage.getItem.bind(storage),
+    setItem() { throw new DOMException("Full", "QuotaExceededError"); },
+  } });
+  try {
+    await view.clickButton(t("en", "calendar.save"));
+    assert.equal(view.field(t("en", "calendar.fieldTitle"))?.value, "Keep my draft");
+    assert.ok(view.text().includes(t("en", "errors.saveFailed")));
+    assert.equal(view.calendar.tasks.some((task) => task.title === "Keep my draft"), false);
+  } finally {
+    if (descriptor) Object.defineProperty(window, "localStorage", descriptor);
+    else Reflect.deleteProperty(window, "localStorage");
+  }
+  await view.clickButton(t("en", "calendar.save"));
+  assert.equal(view.calendar.tasks.filter((task) => task.title === "Keep my draft").length, 1);
+  await view.unmount();
+});
+
 test("editing a custom event's title changes the pill, and deleting removes it", async () => {
   const view = await render();
   await view.clickButton(t("en", "calendar.addEvent"));
@@ -239,6 +263,37 @@ test("editing an imported event corrects it, and restoring brings back HuskyCT's
   assert.ok(!view.text().includes("Renamed by hand"));
   await view.unmount();
 });
+
+for (const action of ["calendar.delete", "calendar.restoreOriginal", "calendar.restoreAll"] as const) {
+  test(`${action} keeps the event unchanged and shows a failed-save error`, async () => {
+    const view = await render();
+    await importOneTask(view);
+    await view.clickPill("Section 4.1 Homework");
+    await view.setValue(view.field(t("en", "calendar.fieldTitle"))!, "My correction");
+    await view.clickButton(t("en", "calendar.save"));
+    if (action !== "calendar.restoreAll") await view.clickPill("My correction");
+    const before = view.calendar.tasks;
+    const storage = window.localStorage;
+    const descriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+    Object.defineProperty(window, "localStorage", { configurable: true, value: {
+      getItem: storage.getItem.bind(storage),
+      setItem() { throw new DOMException("Full", "QuotaExceededError"); },
+    } });
+    try {
+      await view.clickButton(t("en", action));
+      assert.deepEqual(view.calendar.tasks, before);
+      assert.equal(view.container.querySelector('[role="alert"]')?.textContent, t("en", "errors.saveFailed"));
+      if (action !== "calendar.restoreAll") assert.equal(view.field(t("en", "calendar.fieldTitle"))?.value, "My correction");
+    } finally {
+      if (descriptor) Object.defineProperty(window, "localStorage", descriptor);
+      else Reflect.deleteProperty(window, "localStorage");
+    }
+    await view.clickButton(t("en", action));
+    assert.equal(view.container.querySelector('[role="alert"]'), null);
+    assert.equal(view.calendar.tasks.some((task) => task.title === "My correction"), false);
+    await view.unmount();
+  });
+}
 
 test("editing an all-day imported event shows its own day and keeps it, in any zone", async () => {
   const realZone = process.env.TZ;

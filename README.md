@@ -178,7 +178,7 @@ src/
    ├─ export.ts                                  # CSV export
    ├─ sync-status.ts                             # What each sync read, course by course, and when each part was last read
    ├─ ics.ts                                     # Open deadlines as an .ics file, with reminders, for a calendar app
-   ├─ backup.ts                                  # A backup of every stored value: make, check, sum up, merge, restore
+   ├─ backup.ts, storage-batch.ts                # Backup and grouped storage writes with rollback on failure
    ├─ announcements.ts                           # Course announcements: derived ids, caps, storage
    ├─ announcement-actions.ts, announcement-dates.ts, announcement-sentences.ts# The rules: sentences, the dates in them, the to-dos they suggest
    ├─ announcement-decisions.ts, announcement-versions.ts, announcement-todo.ts, announcement-text.ts, announcement-filters.ts# What the student decided; what each announcement said when saved; the add form; showing the text; filters

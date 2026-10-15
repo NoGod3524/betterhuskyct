@@ -33,6 +33,7 @@ export function ChangePanel({ announcement, locale }: { announcement: Announceme
   const { tasks, editEvent } = useCalendar();
   const plan = useAiPlan();
   const [showDiff, setShowDiff] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const change = useMemo(() => latestChange(announcement.id, versions[announcement.id], announcement.posted), [announcement, versions]);
   const notices = useMemo(() => linkNotices(decisions, [announcement], versions), [decisions, announcement, versions]);
@@ -47,7 +48,13 @@ export function ChangePanel({ announcement, locale }: { announcement: Announceme
     if (!task) return;
     const start = new Date(task.start);
     const time = task.allDay ? "" : `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`;
-    editEvent(task.id, { start: dueInstant(day, time), allDay: task.allDay });
+    try {
+      editEvent(task.id, { start: dueInstant(day, time), allDay: task.allDay });
+      setSaveError(null);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : t(locale, "errors.saveFailed"));
+      return;
+    }
     // The sentence that now names that day is what a later change is compared with.
     const sentence = extractCandidates(announcement).find((candidate) => candidate.date && dayKey(candidate.date) === day)?.sentence ?? notice.added.sentence;
     updateDecisions((current) => markLinkMoved(current, notice.candidateId, { day, sentence, versionAt: change!.after.at }));
@@ -66,6 +73,8 @@ export function ChangePanel({ announcement, locale }: { announcement: Announceme
           {t(locale, "ann.changedWhen", { first: when.format(new Date(change.before.at)), then: when.format(new Date(change.after.at)) })}
         </span>
       </h4>
+
+      {saveError ? <p role="alert" className="text-xs text-[var(--warning)]">{saveError}</p> : null}
 
       <ul className="grid gap-0.5 text-sm">
         {change.datesRemoved.length > 0 ? (

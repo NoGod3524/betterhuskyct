@@ -172,7 +172,7 @@ src/
    ├─ export.ts                                  # CSV 导出
    ├─ sync-status.ts                             # 每次同步每门课读到了什么，以及各部分最后一次读到的时间
    ├─ ics.ts                                     # 把未完成的截止项导出成带提醒的 .ics 日历文件
-   ├─ backup.ts                                  # 所有存储内容的备份：生成、检查、汇总、合并、恢复
+   ├─ backup.ts, storage-batch.ts                # 备份与成组存储写入，失败时回滚
    ├─ announcements.ts                           # 课程公告：推导的 id、上限、存储
    ├─ announcement-actions.ts, announcement-dates.ts, announcement-sentences.ts# 规则：切句子、找日期、给出待办建议
    ├─ announcement-decisions.ts, announcement-versions.ts, announcement-todo.ts, announcement-text.ts, announcement-filters.ts# 学生的决定；公告每次保存时的内容；添加表单；文本展示；筛选

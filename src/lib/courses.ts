@@ -175,7 +175,7 @@ export function serialiseCourseBook(book: CourseBook): {
   };
 }
 
-export function saveCourseBook(storage: Storage, book: CourseBook) {
+export function saveCourseBook(storage: Pick<Storage, "setItem">, book: CourseBook) {
   storage.setItem(
     COURSES_STORAGE_KEY,
     JSON.stringify({

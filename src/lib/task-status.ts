@@ -132,12 +132,13 @@ export function restoreReopened(storage: Pick<Storage, "getItem">): Set<string> 
   }
 }
 
-export function saveReopened(storage: Pick<Storage, "setItem" | "removeItem">, ids: Set<string>): void {
+export function saveReopened(storage: Pick<Storage, "setItem" | "removeItem">, ids: Set<string>): boolean {
   try {
     if (ids.size === 0) storage.removeItem(REOPENED_STORAGE_KEY);
     else storage.setItem(REOPENED_STORAGE_KEY, JSON.stringify([...ids]));
+    return true;
   } catch {
-    /* the choice holds for this visit and is forgotten after */
+    return false;
   }
 }
 
@@ -182,12 +183,13 @@ export function restoreSyncedDone(storage: Pick<Storage, "getItem">): Map<string
   }
 }
 
-export function saveSyncedDone(storage: Pick<Storage, "setItem" | "removeItem">, done: Map<string, DoneReason>): void {
+export function saveSyncedDone(storage: Pick<Storage, "setItem" | "removeItem">, done: Map<string, DoneReason>): boolean {
   try {
     if (done.size === 0) storage.removeItem(SYNCED_DONE_STORAGE_KEY);
     else storage.setItem(SYNCED_DONE_STORAGE_KEY, JSON.stringify(Object.fromEntries(done)));
+    return true;
   } catch {
-    /* forgotten after this visit; the next sync brings it back */
+    return false;
   }
 }
 
