@@ -14,6 +14,20 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.40.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.40.0) — See what changed across your courses
+
+*Minor: a course-update inbox. The helper is unchanged at 2.0.5.*
+
+### Added
+
+- **A Changes page for course updates.** New and edited announcements, new and moved deadlines, grade changes, newly listed course files, and work marked done by HuskyCT appear together, newest first and grouped by day. Unread dots, course labels, page links and read controls work in both languages. Changes has a place in the phone's bottom bar. ([#240])
+- **A bounded, portable history.** The first course reading establishes a baseline; later changes are deduplicated and kept for 30 days, up to 500 entries. Backups include history and keep either device's read decisions when merged. Clearing a source clears its related history and baseline. File entries mean the directory lists a new file; its download may still be pending. ([#240])
+
+### Fixed
+
+- **Simultaneous tabs keep each other's changes.** Native browser locks serialize source and history writes. Source data and its change record save together; file-directory notices wait in an IndexedDB outbox if local storage is full and are replayed on the next visit. ([#240])
+- **Marking grades seen preserves a newer reading.** Grade receiving and marking seen read and update the latest saved gradebooks in one operation, preserving concurrent course deliveries and avoiding false score reversals in the history. All-day deadline changes keep their calendar dates across time zones. ([#240])
+
 ## [1.39.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.39.2) — Task identity and saved choices survive sync
 
 *Patch: audit fixes for sync, saved work, AI consent and offline use. HuskyCT Helper goes from 2.0.4 to 2.0.5.*
@@ -2082,3 +2096,4 @@ saying what to work on next.*
 [#234]: https://github.com/NoGod3524/betterhuskyct/pull/234
 [#236]: https://github.com/NoGod3524/betterhuskyct/pull/236
 [#238]: https://github.com/NoGod3524/betterhuskyct/pull/238
+[#240]: https://github.com/NoGod3524/betterhuskyct/pull/240
