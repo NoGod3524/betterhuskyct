@@ -14,6 +14,26 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [2.0.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v2.0.0) — Your course inbox, with optional background checks
+
+*Major: a course inbox that can receive updates while the app is closed. HuskyCT Helper goes from 2.0.5 to 2.1.0.*
+
+### Added
+
+- **A course inbox on the homepage.** The five newest unread course changes appear above Today / Tomorrow / This week. Read one, read them all, or open the complete Changes history. The header shows background-sync status and the last successful check in either language. ([#242])
+- **Optional background checks in the desktop extension.** While the browser runs, the helper can read course metadata about every six hours without opening a HuskyCT tab. It uses the existing session, pauses on 401, keeps the last successful result, and can resume after the student signs in or retries. Background sync starts off; userscript and phone sync remain manual. Course-file listings are refreshed, while file contents still require a manual sync. ([#242])
+- **Separately optional system notifications.** The extension asks for notification permission only when enabled, and each of the seven change kinds can be switched off. Notification previews may show course names and item titles. Both background and notification settings are available from the toolbar popup, with a settings entry on the Helper page. ([#242])
+
+### Fixed
+
+- **Reliable delivery from the extension to the app.** Cached metadata and up to 500 changes / 30 days wait in trusted extension storage. One app tab leases a delivery; acknowledgement follows successful storage of every source. Failed writes can replay without dropping pending changes, duplicating history, losing read choices, or inventing an aggregate score change between the real intermediate changes. File-directory notices use the recoverable IndexedDB outbox. ([#242])
+- **Newer saved data wins over stale caches.** A late or partially failed background reading cannot roll grades, file listings, announcements or known task dates back over a newer manual sync. Partial task reads preserve known tasks until both deadline sources succeed. Background status retains the actual source-reading time. ([#242])
+- **Background controls survive concurrent work.** Turning a feature off cancels stale work and prevents a delayed permission check from showing a notification afterward. Existing alarms are kept when a worker wakes; alarm operations share the state queue so an older setting cannot clear a newer schedule. Completed readings notify an already-open app immediately. ([#242])
+
+### Changed
+
+- **Documented permissions and storage.** The extension adds alarms and offscreen permissions, with notifications optional. Private background storage is inaccessible to HuskyCT content scripts; the existing GM bridge can access only its own prefixed values. Site backups include delivered app data and history, while the extension's pending cache and settings stay separate. The package compiles the app's existing history and announcement identity code without adding dependencies. ([#242])
+
 ## [1.40.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.40.0) — See what changed across your courses
 
 *Minor: a course-update inbox. The helper is unchanged at 2.0.5.*
@@ -2097,3 +2117,5 @@ saying what to work on next.*
 [#236]: https://github.com/NoGod3524/betterhuskyct/pull/236
 [#238]: https://github.com/NoGod3524/betterhuskyct/pull/238
 [#240]: https://github.com/NoGod3524/betterhuskyct/pull/240
+
+[#242]: https://github.com/NoGod3524/betterhuskyct/pull/242
