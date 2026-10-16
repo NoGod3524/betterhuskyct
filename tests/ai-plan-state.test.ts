@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 
-import { addFound, EMPTY_PLAN_STATE, PLAN_STORAGE_KEY, savePlanState } from "../src/lib/ai-plan.ts";
+import { addFound, EMPTY_PLAN_STATE, PLAN_DATA_KEY, PLAN_STORAGE_KEY, restorePlanState, savePlanState, saveSwitchedOff, saveSwitchedOn } from "../src/lib/ai-plan.ts";
 import { saveCustomEvents } from "../src/lib/custom-events.ts";
 import { saveAnnouncements, type Announcement } from "../src/lib/announcements.ts";
 import { DECISIONS_KEY } from "../src/lib/announcement-decisions.ts";
@@ -27,7 +27,7 @@ const DAY = "2026-12-01";
 const meta = { course: "TEST 1000", from: "syllabus" as const, fromLabel: () => "Syllabus.txt", foundAt: AT };
 const dated = { title: "Final exam", date: DAY, time: null, kind: "exam" as const, evidence: "Final exam", source: null };
 const undated = { ...dated, title: "Buy book", date: null, kind: "task" as const };
-const savedPlan = () => JSON.parse(window.localStorage.getItem(PLAN_STORAGE_KEY)!);
+const savedPlan = () => restorePlanState(window.localStorage);
 const savedEvents = () => JSON.parse(window.localStorage.getItem("huskypilot.customEvents.v1") ?? "[]");
 
 async function settle() {
@@ -144,7 +144,7 @@ for (const retryDay of ["2026-12-02", null]) {
     savePlanState(window.localStorage, addFound(EMPTY_PLAN_STATE, [dated], meta));
     let view = await mount();
     const id = view.plan.pending[0].id;
-    const restore = failWrites(PLAN_STORAGE_KEY);
+    const restore = failWrites(PLAN_DATA_KEY);
     try {
       await act(async () => { view.plan.resolve([{ id, day: DAY }], []); });
       assert.equal(view.plan.pending.length, 1);
@@ -168,7 +168,7 @@ test("a failed undated decision rolls back before retrying with a date", async (
   savePlanState(window.localStorage, addFound(EMPTY_PLAN_STATE, [undated], meta));
   const view = await mount();
   const id = view.plan.pending[0].id;
-  const restore = failWrites(PLAN_STORAGE_KEY);
+  const restore = failWrites(PLAN_DATA_KEY);
   try {
     await act(async () => { view.plan.resolve([{ id, day: null }], []); });
     assert.equal(view.plan.pending.length, 1);
@@ -249,4 +249,194 @@ test("a replaced syllabus cannot save the old file's suggestions or summary", as
     assert.deepEqual(view.plan.summaries, {});
     assert.deepEqual(savedPlan().read, {});
   } finally { await view.close(); }
+});
+
+function switchOffElsewhere(clear = false) {
+  if (clear) window.localStorage.clear();
+  else assert.equal(saveSwitchedOff(window.localStorage, restorePlanState(window.localStorage)), true);
+}
+
+async function changedElsewhere(clear = false) {
+  await act(async () => window.dispatchEvent(new window.StorageEvent("storage", {
+    key: clear ? undefined : PLAN_STORAGE_KEY,
+    storageArea: window.localStorage,
+  })));
+}
+
+for (const notify of [true, false]) {
+  test(`another tab switches AI off before a syllabus is sent, storage event ${notify ? "delivered" : "delayed"}`, async () => {
+    const store = await syllabus();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const getIndex = store.getIndex.bind(store);
+    store.getIndex = async () => { await gate; return getIndex(); };
+    let calls = 0;
+    const view = await mount({ store, fetchImpl: async () => { calls++; return Response.json({ items: [] }); } });
+    try {
+      await act(async () => view.plan.enable());
+      switchOffElsewhere();
+      if (notify) await changedElsewhere();
+      await act(async () => release());
+      await settle();
+      assert.equal(calls, 0, "a syllabus was sent after another tab switched AI off");
+      assert.equal(view.plan.enabled, false);
+      assert.equal(restorePlanState(window.localStorage).enabled, false);
+    } finally { release(); await view.close(); }
+  });
+}
+
+for (const clear of [false, true]) {
+  for (const notify of [true, false]) {
+    test(`another tab ${clear ? "clears data" : "switches AI off"} during a request, storage event ${notify ? "delivered" : "delayed"}`, async () => {
+      const store = await syllabus();
+      const index = (await store.getIndex())!;
+      await store.putIndex({ ...index, courses: [...index.courses, { ...index.courses[0], id: "_2_1", code: "TEST 2000" }] });
+      let finish!: (response: Response) => void;
+      const answer = new Promise<Response>((resolve) => { finish = resolve; });
+      let calls = 0;
+      let signal: AbortSignal | null | undefined;
+      const view = await mount({ store, fetchImpl: async (_url, init) => { calls++; signal = init.signal; return answer; } });
+      try {
+        await act(async () => view.plan.enable());
+        await settle();
+        assert.equal(calls, 1);
+        switchOffElsewhere(clear);
+        if (notify) {
+          await changedElsewhere(clear);
+          assert.equal(signal?.aborted, true, "the request was not cancelled after receiving the switch-off");
+        }
+        await act(async () => finish(Response.json({ items: [dated], summary: "- Exam on December 1" })));
+        await settle();
+        assert.equal(calls, 1, "another course was sent after switching off");
+        assert.equal(view.plan.enabled, false);
+        assert.equal(view.plan.pending.length, 0);
+        assert.deepEqual(view.plan.summaries, {});
+        const saved = restorePlanState(window.localStorage);
+        assert.equal(saved.enabled, false, "a late answer switched AI back on");
+        assert.deepEqual(saved.read, {});
+      } finally { finish(Response.json({ items: [] })); await view.close(); }
+    });
+  }
+}
+
+for (const action of ["dated", "undated", "dismiss", "check"] as const) {
+  test(`a stale tab's ${action} action cannot switch AI back on`, async () => {
+    savePlanState(window.localStorage, addFound(EMPTY_PLAN_STATE, [dated, undated], meta));
+    const view = await mount();
+    try {
+      await act(async () => view.plan.enable());
+      const stale = view.plan;
+      switchOffElsewhere(); // The storage event has not reached this tab yet.
+      await act(async () => {
+        if (action === "check") stale.checkNow();
+        else if (action === "dismiss") stale.resolve([], stale.pending.map((item) => item.id));
+        else {
+          const item = stale.pending.find((item) => (item.date !== null) === (action === "dated"))!;
+          stale.resolve([{ id: item.id, day: item.date }], []);
+        }
+      });
+      assert.equal(restorePlanState(window.localStorage).enabled, false, "a non-consent action restored enabled:true");
+      assert.equal(view.plan.enabled, false);
+    } finally { await view.close(); }
+  });
+}
+
+test("failed explicit enable does not start a background request", async () => {
+  const restore = failWrites(PLAN_STORAGE_KEY);
+  let calls = 0;
+  const view = await mount({ store: await syllabus(), fetchImpl: async () => { calls++; return Response.json({ items: [] }); } });
+  try {
+    await act(async () => view.plan.enable());
+    assert.equal(view.plan.enabled, false);
+    assert.equal(view.plan.saveProblem, true);
+    await act(async () => view.plan.checkNow());
+    await settle();
+    assert.equal(calls, 0);
+    restore();
+    await act(async () => view.plan.enable());
+    await settle();
+    assert.equal(calls, 1, "an explicit Turn on could not retry after storage recovered");
+  } finally { restore(); await view.close(); }
+});
+
+test("a failed local switch-off stays off even if storage still says on", async () => {
+  const view = await mount();
+  await act(async () => view.plan.enable());
+  const storage = window.localStorage;
+  const descriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+  Object.defineProperty(window, "localStorage", { configurable: true, value: {
+    getItem: storage.getItem.bind(storage),
+    setItem: () => { throw new Error("blocked"); },
+    removeItem: () => { throw new Error("blocked"); },
+  } });
+  try {
+    await act(async () => view.plan.disable());
+    assert.equal(view.plan.enabled, false);
+    assert.equal(view.plan.saveProblem, true);
+    assert.equal(restorePlanState(storage).enabled, true);
+    await act(async () => view.plan.checkNow());
+    assert.equal(view.plan.enabled, false);
+  } finally {
+    if (descriptor) Object.defineProperty(window, "localStorage", descriptor);
+    else Reflect.deleteProperty(window, "localStorage");
+    await view.close();
+  }
+});
+
+test("an external off/on invalidates the old answer and starts a fresh read", async () => {
+  let finish!: (response: Response) => void;
+  const first = new Promise<Response>((resolve) => { finish = resolve; });
+  let calls = 0;
+  const view = await mount({ store: await syllabus(), fetchImpl: async () => {
+    calls++;
+    return calls === 1 ? first : Response.json({ items: [{ ...dated, title: "Fresh exam" }] });
+  } });
+  try {
+    await act(async () => view.plan.enable());
+    await settle();
+    switchOffElsewhere();
+    saveSwitchedOn(window.localStorage, restorePlanState(window.localStorage));
+    // Both changes happened before this tab received either event.
+    await act(async () => {
+      for (const enabled of [false, true]) window.dispatchEvent(new window.StorageEvent("storage", {
+        key: PLAN_STORAGE_KEY, newValue: JSON.stringify({ enabled }), storageArea: window.localStorage,
+      }));
+      finish(Response.json({ items: [{ ...dated, title: "Stale exam" }] }));
+    });
+    await settle();
+    assert.equal(calls, 2);
+    assert.equal(view.plan.enabled, true);
+    assert.deepEqual(view.plan.pending.map((item) => item.title), ["Fresh exam"]);
+  } finally { finish(Response.json({ items: [] })); await view.close(); }
+});
+
+test("loading legacy AI data cannot overwrite a switch-off interleaved with the first read", async () => {
+  const storage = window.localStorage;
+  const legacy = { ...EMPTY_PLAN_STATE, enabled: true };
+  storage.setItem(PLAN_STORAGE_KEY, JSON.stringify(legacy));
+  const descriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+  let revoked = false;
+  Object.defineProperty(window, "localStorage", { configurable: true, value: {
+    getItem: (key: string) => {
+      const raw = storage.getItem(key);
+      if (key === PLAN_STORAGE_KEY && !revoked) {
+        revoked = true;
+        storage.setItem(PLAN_STORAGE_KEY, JSON.stringify({ ...legacy, enabled: false }));
+      }
+      return raw;
+    },
+    setItem: storage.setItem.bind(storage), removeItem: storage.removeItem.bind(storage),
+  } });
+  let calls = 0;
+  const view = await mount({ store: await syllabus(), fetchImpl: async () => { calls++; return Response.json({ items: [] }); } });
+  try {
+    assert.equal(revoked, true);
+    assert.equal(calls, 0);
+    assert.equal(view.plan.enabled, false);
+    assert.equal(restorePlanState(storage).enabled, false);
+  } finally {
+    if (descriptor) Object.defineProperty(window, "localStorage", descriptor);
+    else Reflect.deleteProperty(window, "localStorage");
+    await view.close();
+  }
 });

@@ -263,7 +263,7 @@ export function eventUid(event: CalendarTask): string {
  * their sole helper-only container when every legacy Calendar UID changed;
  * this does not establish identity between any of the individual tasks.
  */
-function findReceivingSubscription(
+export function findReceivingSubscription(
   subscriptions: Subscription[],
   feed: SyncFeed,
 ): Subscription | null {
