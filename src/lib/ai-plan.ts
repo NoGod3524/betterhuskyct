@@ -9,6 +9,7 @@ import type { SummaryChoice } from "./summary-choice.ts";
 import type { ProviderId, SummaryLocale } from "./summary-models.ts";
 import type { UndatedTodo } from "./undated-todos.ts";
 import { isRecord } from "./is-record.ts";
+import { writeStorageBatch } from "./storage-batch.ts";
 
 /**
  * The page's side of finding dates with a model: what has been read, what was
@@ -21,6 +22,8 @@ import { isRecord } from "./is-record.ts";
 
 export const PLAN_ENDPOINT = "/api/plan/extract";
 export const PLAN_STORAGE_KEY = "huskypilot.aiPlan.v1";
+/** Results are separate from the original permission key, so a late answer cannot turn AI on. */
+export const PLAN_DATA_KEY = "huskypilot.aiPlanData.v1";
 
 /** On turning this on, announcements older than this are history, not news to plan around. */
 export const ANNOUNCEMENT_LOOKBACK_DAYS = 30;
@@ -194,7 +197,10 @@ export function parsePlanState(raw: string | null): PlanState {
 
 export function restorePlanState(storage: Pick<Storage, "getItem">): PlanState {
   try {
-    return parsePlanState(storage.getItem(PLAN_STORAGE_KEY));
+    const state = parsePlanState(storage.getItem(PLAN_DATA_KEY) ?? storage.getItem(PLAN_STORAGE_KEY));
+    // Read permission last. Legacy installations keep their choice without a migration write.
+    const permission = parsePlanState(storage.getItem(PLAN_STORAGE_KEY));
+    return { ...state, enabled: permission.enabled, enabledAt: permission.enabledAt ?? state.enabledAt };
   } catch {
     return EMPTY_PLAN_STATE;
   }
@@ -203,24 +209,33 @@ export function restorePlanState(storage: Pick<Storage, "getItem">): PlanState {
 export function savePlanState(storage: Pick<Storage, "setItem">, state: PlanState): void {
   // The oldest verdicts go first when there are too many; they are for sources long since read.
   const decided = Object.entries(state.decided);
-  const trimmed: PlanState = {
-    ...state,
+  const { enabled, ...data } = state;
+  void enabled;
+  const trimmed = {
+    ...data,
     offered: state.offered.slice(-MAX_OFFERED),
     pending: state.pending.slice(0, MAX_PENDING),
     decided: Object.fromEntries(decided.slice(Math.max(0, decided.length - MAX_DECIDED))),
   };
-  storage.setItem(PLAN_STORAGE_KEY, JSON.stringify(trimmed));
+  storage.setItem(PLAN_DATA_KEY, JSON.stringify(trimmed));
+}
+
+/** From the Turn on button, after the choice has actually been saved. */
+export function saveSwitchedOn(storage: Pick<Storage, "getItem" | "setItem" | "removeItem">, state: PlanState): void {
+  writeStorageBatch(storage, (staged) => {
+    savePlanState(staged, state);
+    staged.setItem(PLAN_STORAGE_KEY, JSON.stringify({ enabled: true, enabledAt: state.enabledAt }));
+  });
 }
 
 /**
- * Turns the switch off in storage, whatever it takes. If the whole state cannot be written (the
- * browser is out of room), the stored state is removed: an empty state is "off", so a reload
- * cannot switch the AI back on and send text the student just stopped. Returns false only if
- * storage refuses even that.
+ * Preserve legacy results while switching off. If writing is blocked, remove permission instead.
+ * Returns false only when storage refuses that fallback too; result data cannot grant permission.
  */
 export function saveSwitchedOff(storage: Pick<Storage, "setItem" | "removeItem">, state: PlanState): boolean {
   try {
-    savePlanState(storage, { ...state, enabled: false });
+    storage.setItem(PLAN_STORAGE_KEY, JSON.stringify({ ...state, enabled: false }));
+    try { savePlanState(storage, state); } catch { /* permission is already off, even on a full disk */ }
     return true;
   } catch {
     try {

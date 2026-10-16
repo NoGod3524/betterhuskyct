@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import test from "node:test";
 import { parseStoredSubscriptions } from "../src/lib/subscriptions.ts";
+import { EMPTY_PLAN_STATE, PLAN_DATA_KEY, PLAN_STORAGE_KEY, restorePlanState, saveSwitchedOn } from "../src/lib/ai-plan.ts";
 
 import {
   BACKUP_KEYS,
@@ -157,6 +158,74 @@ test("merging lists adds each backup item once and keeps missing grade rows with
     [{ id: "course", items: [{ id: "quiz", earned: 9, possible: 10 }, { id: "exam", earned: 90, possible: 100 }] }],
   );
 });
+
+test("AI merge preserves local permission and combines old and new backup results", () => {
+  for (const localOn of [false, true]) {
+    for (const backupOn of [false, true]) {
+      for (const oldLocal of [false, true]) {
+        const target = new MemoryStorage();
+        const local = { ...EMPTY_PLAN_STATE, enabled: localOn, read: { local: "saved here", shared: "local wins" } };
+        target.setItem(PLAN_STORAGE_KEY, JSON.stringify(oldLocal ? local : { enabled: localOn }));
+        if (!oldLocal) target.setItem(PLAN_DATA_KEY, JSON.stringify({ ...local, enabled: undefined }));
+        const permission = target.getItem(PLAN_STORAGE_KEY);
+        const source = new MemoryStorage();
+        const incoming = { ...EMPTY_PLAN_STATE, enabled: backupOn, read: { backup: "saved there", shared: "backup loses" } };
+        source.setItem(PLAN_STORAGE_KEY, JSON.stringify(oldLocal ? { enabled: backupOn } : incoming));
+        if (oldLocal) source.setItem(PLAN_DATA_KEY, JSON.stringify({ ...incoming, enabled: undefined }));
+        const backup = createBackup(source, NOW, "1.39.1");
+        assert.deepEqual(restoreBackup(target, backup, "merge"), { ok: true });
+        assert.equal(restorePlanState(target).enabled, localOn);
+        assert.equal(target.getItem(PLAN_STORAGE_KEY), permission, "merge rewrote the local permission key");
+        assert.deepEqual(restorePlanState(target).read, { local: "saved here", shared: "local wins", backup: "saved there" });
+        assert.equal(JSON.parse(target.getItem(PLAN_DATA_KEY)!).enabled, undefined);
+        assert.deepEqual(restoreBackup(target, backup, "replace"), { ok: true });
+        assert.equal(restorePlanState(target).enabled, backupOn);
+        assert.deepEqual(restorePlanState(target).read, incoming.read);
+      }
+    }
+  }
+  const source = new MemoryStorage();
+  saveSwitchedOn(source, { ...EMPTY_PLAN_STATE, enabled: true });
+  const backup = createBackup(source, NOW, "1.39.1");
+  assert.equal(JSON.parse(backup.data[PLAN_STORAGE_KEY]).enabled, true);
+  const target = new MemoryStorage();
+  assert.deepEqual(restoreBackup(target, backup, "merge"), { ok: true });
+  assert.equal(target.getItem(PLAN_STORAGE_KEY), null);
+  assert.equal(restorePlanState(target).enabled, false, "merging into a fresh browser granted permission");
+  assert.deepEqual(restoreBackup(target, backup, "replace"), { ok: true });
+  assert.equal(restorePlanState(target).enabled, true);
+  assert.deepEqual(restoreBackup(target, createBackup(new MemoryStorage(), NOW, "1.39.1"), "replace"), { ok: true });
+  assert.equal(restorePlanState(target).enabled, false);
+});
+
+for (const failLater of [false, true]) {
+  test(`backup merge ${failLater ? "rollback" : "writes"} cannot undo an interleaved AI switch-off`, () => {
+    const target = new MemoryStorage();
+    target.setItem(PLAN_STORAGE_KEY, JSON.stringify({ ...EMPTY_PLAN_STATE, enabled: true }));
+    const source = new MemoryStorage();
+    saveSwitchedOn(source, { ...EMPTY_PLAN_STATE, enabled: true, read: { backup: "incoming" } });
+    source.setItem("huskypilot.summaryModel.v1", "glm");
+    const setItem = target.setItem.bind(target);
+    const removeItem = target.removeItem.bind(target);
+    let revoked = false;
+    target.setItem = (key, value) => {
+      assert.notEqual(key, PLAN_STORAGE_KEY, "merge wrote permission");
+      if (key === PLAN_DATA_KEY) {
+        revoked = true;
+        setItem(PLAN_STORAGE_KEY, JSON.stringify({ enabled: false }));
+      }
+      if (key === "huskypilot.summaryModel.v1" && failLater) throw new Error("full");
+      setItem(key, value);
+    };
+    target.removeItem = (key) => {
+      assert.notEqual(key, PLAN_STORAGE_KEY, "merge rollback removed permission");
+      removeItem(key);
+    };
+    assert.deepEqual(restoreBackup(target, createBackup(source, NOW, "1.39.1"), "merge"), { ok: !failLater });
+    assert.equal(revoked, true);
+    assert.equal(restorePlanState(target).enabled, false);
+  });
+}
 
 test("a failed restore frees its new values before rolling back on a full disk", () => {
   const target = new MemoryStorage();

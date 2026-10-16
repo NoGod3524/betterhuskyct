@@ -61,7 +61,7 @@ const BUSY_RETRY_MS = 1_500;
 
 /**
  * The EEA, Switzerland and the UK: Gemini's terms allow only its paid service
- * for users there, so the free fallback is not offered to them.
+ * for users there, so the free fallback requires a known country outside that group.
  */
 const PAID_ONLY_GEMINI_COUNTRIES = new Set([
   "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
@@ -95,7 +95,7 @@ export function providersFromEnv(env: Record<string, string | undefined>): Model
       model: env.GEMINI_MODEL || "gemini-3.5-flash-lite",
       apiKey: env.GEMINI_API_KEY,
       extra: {},
-      servesCountry: (country) => !country || !PAID_ONLY_GEMINI_COUNTRIES.has(country.toUpperCase()),
+      servesCountry: (country) => !!country && !PAID_ONLY_GEMINI_COUNTRIES.has(country.toUpperCase()),
     });
   }
   if (env.GROQ_API_KEY) {

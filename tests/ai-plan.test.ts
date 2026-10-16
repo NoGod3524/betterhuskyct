@@ -475,3 +475,40 @@ test("turning the AI off sticks even when the browser has no room to write the s
   const blocked = { setItem: () => { throw new Error("blocked"); }, removeItem: () => { throw new Error("blocked"); } };
   assert.equal(saveSwitchedOff(blocked, on), false);
 });
+
+test("legacy permission is read without writes and new results leave it intact", async () => {
+  const { PLAN_DATA_KEY, PLAN_STORAGE_KEY, restorePlanState, savePlanState } = await import("../src/lib/ai-plan.ts");
+  const map = new Map<string, string>();
+  const storage = { getItem: (key: string) => map.get(key) ?? null, setItem: (key: string, value: string) => void map.set(key, value), removeItem: (key: string) => void map.delete(key) };
+  const legacy = { ...EMPTY_PLAN_STATE, enabled: true, enabledAt: "2026-10-01T00:00:00.000Z", read: { old: "legacy" } };
+  const raw = JSON.stringify(legacy);
+  map.set(PLAN_STORAGE_KEY, raw);
+  assert.deepEqual(restorePlanState(storage), legacy);
+  assert.equal(map.size, 1, "reading old state performed a migration write");
+  savePlanState(storage, { ...legacy, read: { fresh: "new answer" } });
+  assert.equal(map.get(PLAN_STORAGE_KEY), raw);
+  assert.equal(JSON.parse(map.get(PLAN_DATA_KEY)!).enabled, undefined);
+  assert.equal(restorePlanState(storage).enabled, true);
+  assert.deepEqual(restorePlanState(storage).read, { fresh: "new answer" });
+});
+
+for (const clear of [false, true]) {
+  test(`a model result cannot restore permission when another tab ${clear ? "clears storage" : "switches off"} during its write`, async () => {
+    const { PLAN_DATA_KEY, PLAN_STORAGE_KEY, restorePlanState, savePlanState } = await import("../src/lib/ai-plan.ts");
+    const stale = { ...EMPTY_PLAN_STATE, enabled: true };
+    const map = new Map([[PLAN_STORAGE_KEY, JSON.stringify(stale)]]);
+    const storage = {
+      getItem: (key: string) => map.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        assert.equal(key, PLAN_DATA_KEY, "background results wrote permission");
+        if (clear) map.clear();
+        else map.set(PLAN_STORAGE_KEY, JSON.stringify({ enabled: false }));
+        map.set(key, value);
+      },
+    };
+    savePlanState(storage, { ...stale, read: { syllabus: "late answer" } });
+    assert.equal(restorePlanState(storage).enabled, false);
+    assert.equal(JSON.parse(map.get(PLAN_DATA_KEY)!).enabled, undefined);
+    if (clear) assert.equal(map.has(PLAN_STORAGE_KEY), false);
+  });
+}

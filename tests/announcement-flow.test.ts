@@ -3,6 +3,7 @@ import { after, beforeEach, test } from "node:test";
 
 import { computeAnnouncementId, type Announcement } from "../src/lib/announcements.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
+import { formatDate } from "../src/lib/format-date.ts";
 import { t } from "../src/lib/i18n.ts";
 import { buildSyncPayload, encodeSyncPayload } from "../src/lib/sync.ts";
 import { installDom } from "./support/dom.ts";
@@ -104,6 +105,18 @@ async function mount(page: "announcements" | "todo" = "announcements") {
 
 const BODY = "Quiz 3 is due Friday, October 9 at 11:59 PM. Homework 5 is due next class. Welcome to the course.";
 const customTitles = (view: Awaited<ReturnType<typeof mount>>) => view.calendar.tasks.filter((task) => task.id.startsWith("custom-")).map((task) => task.title);
+
+test("an API timestamp displays as the reader's normal local date and time", async () => {
+  const view = await mount();
+  const posted = "2026-10-05T20:00:00.000Z";
+  try {
+    await view.sync([{ ...announcement("Welcome to the course."), posted }]);
+    assert.ok(view.text().includes(formatDate(new Date(posted), "en", { time: true })), view.text());
+    assert.ok(!view.text().includes(posted), "the raw API timestamp appeared on the page");
+  } finally {
+    await view.unmount();
+  }
+});
 
 test("what the rules find is shown with its sentence and why, and nothing is added until the student says so", async () => {
   const view = await mount();

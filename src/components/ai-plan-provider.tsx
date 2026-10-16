@@ -14,12 +14,16 @@ import {
   joinSyllabusTexts,
   markFailed,
   markRead,
+  parsePlanState,
+  PLAN_DATA_KEY,
+  PLAN_STORAGE_KEY,
   supersede,
   needsReading,
   requestPlan,
   restorePlanState,
   savePlanState,
   saveSwitchedOff,
+  saveSwitchedOn,
   setSummary,
   suggestionToEvent,
   suggestionToUndated,
@@ -120,6 +124,7 @@ export function AiPlanProvider({
   const again = useRef(false);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mounted = useRef(true);
+  const locallyOff = useRef(false);
   const runRef = useRef<() => Promise<void>>(async () => undefined);
 
   const localeRef = useRef(locale);
@@ -127,6 +132,23 @@ export function AiPlanProvider({
     generation.current++;
     activeRequest.current?.abort();
   }, []);
+
+  const stopReading = useCallback(() => {
+    invalidateReading();
+    if (retryTimer.current) clearTimeout(retryTimer.current);
+    retryTimer.current = null;
+    again.current = false;
+    setStatus({ phase: "idle", problem: null });
+  }, [invalidateReading]);
+
+  const readCurrent = useCallback(() => {
+    const saved = restorePlanState(window.localStorage);
+    const next = locallyOff.current ? { ...saved, enabled: false } : saved;
+    if (!next.enabled && stateRef.current.enabled) stopReading();
+    stateRef.current = next;
+    setState(next);
+    return next;
+  }, [stopReading]);
 
   useEffect(() => {
     announcementsRef.current = announcements;
@@ -139,8 +161,10 @@ export function AiPlanProvider({
     localeRef.current = locale;
   }, [locale, invalidateReading]);
 
-  const commit = useCallback((change: (current: PlanState) => PlanState) => {
-    const next = change(stateRef.current);
+  const commit = useCallback((change: (current: PlanState) => PlanState, whileEnabled = false) => {
+    const current = readCurrent();
+    if (whileEnabled && !current.enabled) return false;
+    const next = change(current);
     if (next === stateRef.current) return true;
     try {
       savePlanState(window.localStorage, next);
@@ -151,19 +175,17 @@ export function AiPlanProvider({
     stateRef.current = next;
     setState(next);
     return true;
-  }, []);
+  }, [readCurrent]);
 
   // Restored after the first paint, as the calendar is, so the server render and the first client render agree.
   useEffect(() => {
     mounted.current = true;
     const timer = setTimeout(() => {
       try {
-        const restored = restorePlanState(window.localStorage);
-        stateRef.current = restored;
-        setState(restored);
+        readCurrent();
         undatedRef.current = restoreUndatedTodos(window.localStorage);
         setUndated(undatedRef.current);
-      } catch { setSaveProblem(true); }
+      } catch { locallyOff.current = true; setSaveProblem(true); }
     }, 0);
     return () => {
       clearTimeout(timer);
@@ -171,7 +193,21 @@ export function AiPlanProvider({
       invalidateReading();
       if (retryTimer.current) clearTimeout(retryTimer.current);
     };
-  }, [invalidateReading]);
+  }, [invalidateReading, readCurrent]);
+
+  useEffect(() => {
+    const listener = (event: StorageEvent) => {
+      if (event.storageArea && event.storageArea !== window.localStorage) return;
+      if (event.key !== null && event.key !== PLAN_STORAGE_KEY && event.key !== PLAN_DATA_KEY) return;
+      // A revoke followed quickly by a new enable still invalidates the old request.
+      const switchedOn = event.key === PLAN_STORAGE_KEY && parsePlanState(event.newValue).enabled;
+      if (event.key === null || (event.key === PLAN_STORAGE_KEY && !switchedOn)) stopReading();
+      const current = readCurrent();
+      if (switchedOn && current.enabled) void runRef.current();
+    };
+    window.addEventListener("storage", listener);
+    return () => window.removeEventListener("storage", listener);
+  }, [readCurrent, stopReading]);
 
   const ask = useCallback(
     async (request: PlanRequest, signal: AbortSignal): Promise<Outcome> => {
@@ -192,7 +228,7 @@ export function AiPlanProvider({
   /** One pass over everything there is to read. Returns the problem that stopped it, if one did. */
   const readAll = useCallback(async (): Promise<{ problem: SummaryProblem; retry: boolean } | null> => {
     const started = generation.current;
-    const active = () => mounted.current && stateRef.current.enabled && started === generation.current;
+    const active = () => mounted.current && started === generation.current && readCurrent().enabled && started === generation.current;
     const controller = new AbortController();
     activeRequest.current = controller;
     const today = localDay(new Date());
@@ -244,7 +280,7 @@ export function AiPlanProvider({
         if (!(await stillCurrent())) continue;
         // A scan has no text to send. It is marked read, so it is not opened again every visit.
         if (texts.length === 0) {
-          commit((current) => markRead(current, key, signature));
+          commit((current) => markRead(current, key, signature), true);
           continue;
         }
 
@@ -264,7 +300,7 @@ export function AiPlanProvider({
         if (!(await stillCurrent())) continue;
         if ("stop" in outcome) return { problem: outcome.stop, retry: outcome.retry };
         if ("failed" in outcome) {
-          commit((current) => markFailed(current, key, signature));
+          commit((current) => markFailed(current, key, signature), true);
           continue;
         }
         const fromLabel = texts.map((entry) => entry.name).join(", ");
@@ -279,6 +315,7 @@ export function AiPlanProvider({
             key,
             signature,
           ),
+          true,
         );
       }
     }
@@ -300,7 +337,7 @@ export function AiPlanProvider({
       if (!stillCurrent()) continue;
       if ("stop" in outcome) return { problem: outcome.stop, retry: outcome.retry };
       if ("failed" in outcome) {
-        commit((current) => batch.ids.reduce((next, id, index) => markFailed(next, announcementKey(id), batch.signatures[index]), current));
+        commit((current) => batch.ids.reduce((next, id, index) => markFailed(next, announcementKey(id), batch.signatures[index]), current), true);
         continue;
       }
       commit((current) =>
@@ -314,13 +351,14 @@ export function AiPlanProvider({
             foundAt: new Date().toISOString(),
           }),
         ),
+        true,
       );
     }
     return null;
-  }, [ask, commit, openMaterials, wait]);
+  }, [ask, commit, openMaterials, readCurrent, wait]);
 
   const run = useCallback(async () => {
-    if (!stateRef.current.enabled) return;
+    if (!readCurrent().enabled) return;
     if (running.current) {
       again.current = true;
       return;
@@ -332,7 +370,7 @@ export function AiPlanProvider({
       do {
         again.current = false;
         stopped = await readAll();
-      } while (again.current && !stopped);
+      } while (again.current && stateRef.current.enabled && !stopped);
     } catch {
       stopped = { problem: "failed", retry: false };
     } finally {
@@ -341,7 +379,7 @@ export function AiPlanProvider({
     if (!mounted.current || !stateRef.current.enabled) return;
     setStatus({ phase: "idle", problem: stopped?.problem ?? null });
     if (stopped?.retry) retryTimer.current = setTimeout(() => void runRef.current(), RETRY_MS);
-  }, [readAll]);
+  }, [readAll, readCurrent]);
 
   useEffect(() => {
     runRef.current = run;
@@ -391,13 +429,23 @@ export function AiPlanProvider({
     summaries: state.summaries,
     undated,
     saveProblem,
-    enable: () => commit((current) => ({ ...current, enabled: true, enabledAt: current.enabledAt ?? new Date().toISOString() })),
+    enable: () => {
+      const current = restorePlanState(window.localStorage);
+      const next = { ...current, enabled: true, enabledAt: current.enabledAt ?? new Date().toISOString() };
+      try {
+        saveSwitchedOn(window.localStorage, next);
+        locallyOff.current = false;
+        stateRef.current = next;
+        setState(next);
+        setSaveProblem(false);
+      } catch { setSaveProblem(true); }
+    },
     disable: () => {
-      invalidateReading();
-      if (retryTimer.current) clearTimeout(retryTimer.current);
+      stopReading();
       // Off on screen whatever happens to storage, and off in storage too, by whatever means.
-      const next = { ...stateRef.current, enabled: false };
+      const next = { ...restorePlanState(window.localStorage), enabled: false };
       const saved = saveSwitchedOff(window.localStorage, next);
+      locallyOff.current = !saved;
       stateRef.current = next;
       setState(next);
       setSaveProblem(!saved);
@@ -410,6 +458,7 @@ export function AiPlanProvider({
     },
     resolve: (added, dismissed) => {
       setSaveProblem(false);
+      readCurrent();
       const byId = new Map(stateRef.current.pending.map((suggestion) => [suggestion.id, suggestion]));
       const now = new Date().toISOString();
       const events = [];

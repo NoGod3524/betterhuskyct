@@ -119,9 +119,9 @@ const GRADE = {
   displayGrade: { score: 90 },
 };
 
-const gradable = (title: string, endDate: string, calendarId: string, name: string) => ({
+const gradable = (title: string, endDate: string, calendarId: string, name: string, itemSourceId = "_32_1") => ({
   itemSourceType: "blackboard.platform.gradebook2.GradableItem",
-  itemSourceId: "_" + title.length + "_1",
+  itemSourceId,
   calendarId,
   calendarNameLocalizable: { rawValue: name },
   title,
@@ -132,7 +132,7 @@ const MATH_NAME = "1268-UCONN-MATH-1070Q-SEC100-1191: MATH-1070Q-Mathematics for
 const DUE = [
   gradable("Section 5.1 Homework", "2026-10-30T03:59:00.000Z", MATH, MATH_NAME),
   { ...gradable("Lecture", "2026-10-30T14:00:00.000Z", MATH, MATH_NAME), itemSourceType: "blackboard.data.calendar.CalendarEntry" },
-  gradable("Final Project", "2026-12-12T04:59:00.000Z", MATH, MATH_NAME),
+  gradable("Final Project", "2026-12-12T04:59:00.000Z", MATH, MATH_NAME, "_33_1"),
 ];
 
 /** The To Do list as HuskyCT answers it: an item is the gradebook column with its title and due date. */
@@ -179,7 +179,7 @@ test("a sync reads the courses, their announcements and their grades, and opens 
   assert.equal(window.location.pathname, "/ultra/stream");
 });
 
-test("a sync reads the term's due dates from the calendar's data: only what is due, under the uid the view gave", async () => {
+test("a sync reads the term's due dates under their gradebook item ids", async () => {
   const { window, helper, moved } = openPage(data());
 
   const out = plain(await helper.syncLight()) as unknown as { ok: boolean; dueDates: number };
@@ -188,8 +188,8 @@ test("a sync reads the term's due dates from the calendar's data: only what is d
   assert.equal(out.dueDates, 2, "the class meeting was counted as a deadline");
   const held = plain(helper.readBasket(window.localStorage)).dueDates ?? [];
   assert.deepEqual(held.map((item) => [item.uid, item.title, item.course, item.start]), [
-    ["huskyct-due-_203765_1-Section-5.1-Homework", "Section 5.1 Homework", "MATH 1070Q", "2026-10-30T03:59:00.000Z"],
-    ["huskyct-due-_203765_1-Final-Project", "Final Project", "MATH 1070Q", "2026-12-12T04:59:00.000Z"],
+    ["huskyct-todo-_32_1", "Section 5.1 Homework", "MATH 1070Q", "2026-10-30T03:59:00.000Z"],
+    ["huskyct-todo-_33_1", "Final Project", "MATH 1070Q", "2026-12-12T04:59:00.000Z"],
   ]);
   assert.equal(moved(), 0, "a page was opened for them");
 });
@@ -210,7 +210,7 @@ test("what a sync could not read is named, and a sync that missed something is n
   assert.deepEqual(report.courses.map((c) => [c.code, c.announcements, c.grades, c.files]), [["MATH 1070Q", true, true, false], ["ECON 1201", true, false, false]]);
 });
 
-test("two assignments of one course with one title are two deadlines, the first under the uid the view gave", async () => {
+test("two assignments of one course with one title keep their own source ids", async () => {
   const twin = (itemSourceId: string, endDate: string) => ({ ...gradable("Weekly Reading", endDate, MATH, MATH_NAME), itemSourceId });
   const twins = [twin("_501_1", "2026-11-15T04:59:00.000Z"), twin("_502_1", "2026-11-22T04:59:00.000Z")];
   const base = data();
@@ -222,8 +222,8 @@ test("two assignments of one course with one title are two deadlines, the first 
 
   const held = plain(helper.readBasket(window.localStorage)).dueDates ?? [];
   assert.deepEqual(held.map((item) => [item.uid, item.start]), [
-    ["huskyct-due-_203765_1-Weekly-Reading", "2026-11-15T04:59:00.000Z"],
-    ["huskyct-due-_203765_1-Weekly-Reading-_502_1", "2026-11-22T04:59:00.000Z"],
+    ["huskyct-todo-_501_1", "2026-11-15T04:59:00.000Z"],
+    ["huskyct-todo-_502_1", "2026-11-22T04:59:00.000Z"],
   ]);
 });
 

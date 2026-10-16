@@ -1,6 +1,6 @@
 # Privacy policy — BetterHuskyCT Helper
 
-*Last updated 2026-10-12.*
+*Last updated 2026-10-16.*
 
 BetterHuskyCT Helper is a browser extension for Chrome and Edge. It reads your own HuskyCT data in your own browser and hands it to BetterHuskyCT (`https://betterhuskyct.vercel.app`), the dashboard you use alongside it.
 
@@ -16,7 +16,7 @@ While you are signed in to HuskyCT (`lms.uconn.edu`), it asks HuskyCT, as you, f
 
 ## Where the data goes
 
-What it reads is passed, inside your browser, from the HuskyCT tab to the BetterHuskyCT tab, and kept in the extension's local storage and in BetterHuskyCT's storage in your browser. It stays on your device. Clearing BetterHuskyCT's site data or removing the extension removes it.
+What it reads is passed, inside your browser, from the HuskyCT tab to the BetterHuskyCT tab, and kept in the extension's local storage and in BetterHuskyCT's storage in your browser. It stays on your device. Clearing BetterHuskyCT's site data removes the website's copy. Removing the extension removes its own copy. To remove both copies, do both.
 
 This policy covers the extension. The BetterHuskyCT website is a separate program and is described in the project's README; in particular, its announcement features that use a language model send the text of announcements to the website's server, which passes it to a model provider to produce a summary or a list of suggested tasks. The extension does not do that, and nothing in the extension's data reaches the website's server except through those features.
 

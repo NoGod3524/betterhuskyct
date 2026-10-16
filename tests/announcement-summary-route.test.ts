@@ -12,7 +12,7 @@ import { POST } from "../src/app/api/announcements/summarize/route.ts";
  * single test, so every test uses its own client address and its own course.
  */
 const realFetch = globalThis.fetch;
-const KEYS = ["ZAI_API_KEY", "GEMINI_API_KEY", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"] as const;
+const KEYS = ["ZAI_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"] as const;
 const realKeys = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
 let address = 0;
 let course = 0;
@@ -21,6 +21,7 @@ let serverLog: ReturnType<typeof mock.method>;
 beforeEach(() => {
   process.env.ZAI_API_KEY = "zai-secret-123";
   process.env.GEMINI_API_KEY = "gemini-secret-456";
+  delete process.env.GROQ_API_KEY;
   delete process.env.UPSTASH_REDIS_REST_URL;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
   serverLog = mock.method(console, "error", () => {});
@@ -46,12 +47,13 @@ function payload() {
   };
 }
 
-function call(body: unknown, options: { ip?: string; country?: string } = {}) {
+function call(body: unknown, options: { ip?: string; country?: string | null } = {}) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "x-real-ip": options.ip ?? `198.51.100.${++address}`,
   };
-  if (options.country) headers["x-vercel-ip-country"] = options.country;
+  const country = options.country === undefined ? "US" : options.country;
+  if (country !== null) headers["x-vercel-ip-country"] = country;
   return POST(
     new Request("http://localhost/api/announcements/summarize", {
       method: "POST",
@@ -229,6 +231,40 @@ test("a cached Gemini summary is not handed to a reader Gemini's terms exclude",
   assert.deepEqual(calls.map((c) => c.provider), ["glm", "gemini", "glm"]);
 });
 
+test("automatic summaries skip Gemini when the country header is missing", async () => {
+  const calls = stubUpstream({ glm: [() => new Response("{}", { status: 500 })], gemini: [says("- Must not be used.")] });
+
+  const response = await call(payload(), { country: null });
+
+  assert.equal(response.status, 502);
+  assert.deepEqual(await response.json(), { problem: "failed" });
+  assert.deepEqual(calls.map((entry) => entry.provider), ["glm"]);
+});
+
+test("a cached automatic Gemini summary is not served without a known country", async () => {
+  const calls = stubUpstream({ glm: [busy, says("- GLM for the unknown country.")], gemini: [says("- From Gemini.")] });
+  const body = payload();
+  assert.deepEqual(await (await call(body)).json(), { summary: "- From Gemini.", provider: "gemini" });
+
+  const response = await call(body, { country: null });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { summary: "- GLM for the unknown country.", provider: "glm" });
+  assert.deepEqual(calls.map((entry) => entry.provider), ["glm", "gemini", "glm"]);
+});
+
+test("explicit Gemini is rejected without a known country even after its answer is cached", async () => {
+  const calls = stubUpstream({ gemini: [says("- From Gemini.")] });
+  const body = { ...payload(), provider: "gemini" };
+  assert.deepEqual(await (await call(body)).json(), { summary: "- From Gemini.", provider: "gemini" });
+
+  const response = await call(body, { country: null });
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { problem: "region" });
+  assert.deepEqual(calls.map((entry) => entry.provider), ["gemini"]);
+});
+
 test("the provider's content filter is reported as refused", async () => {
   stubUpstream({ glm: [says("", "sensitive")], gemini: [says("", "content_filter")] });
 
@@ -312,14 +348,14 @@ test("language and changed announcements get their own shared cache keys", async
 test("a remote Gemini answer cannot bypass region restrictions or a removed Gemini key", async () => {
   const models = stubUpstream({ glm: [says("- GLM instead.")] });
   const redis = stubRedis();
-  for (const country of ["DE", "CH", "GB", "US"]) {
+  for (const country of ["DE", "CH", "GB", null, "US"]) {
     const body = { ...payload(), courseLabel: `${payload().courseLabel} ${country}` };
     redis.entries.set(redisKey(body), JSON.stringify({ summary: "- Gemini must not be shown.", provider: "gemini", at: Date.now() }));
     if (country === "US") delete process.env.GEMINI_API_KEY;
     const response = await call(body, { country });
     assert.deepEqual(await response.json(), { summary: "- GLM instead.", provider: "glm" });
   }
-  assert.deepEqual(models.map((entry) => entry.provider), ["glm", "glm", "glm", "glm"]);
+  assert.deepEqual(models.map((entry) => entry.provider), ["glm", "glm", "glm", "glm", "glm"]);
 });
 
 test("failed Redis reads and writes still return the model answer, then reuse it locally", async () => {

@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { after, test } from "node:test";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
 import { Window } from "happy-dom";
+import { parseAnnouncementCandidates } from "../src/lib/announcements.ts";
 import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
 
 /**
@@ -130,13 +133,50 @@ test("an answer that is refused, or not a list, gives null so the page is read i
   assert.equal(await helper.readAnnouncementsApi("_203765_1"), null);
 });
 
-test("the posted time reads as the Announcements page writes it, so an announcement keeps one id", () => {
+test("API timestamps keep their exact instant without depending on the collecting device's zone", () => {
   const { helper } = openPage(() => null);
   const text = helper.postedText("2026-09-25T20:00:00.000Z");
 
-  // "9/25/26, 4:00 PM" in the viewer's own time, with plain spaces.
-  assert.match(String(text), /^\d{1,2}\/\d{1,2}\/26, \d{1,2}:\d{2} [AP]M$/);
+  assert.equal(text, "2026-09-25T20:00:00.000Z");
+  assert.equal(helper.postedText("2026-09-25T16:00:00-04:00"), text);
   assert.equal(helper.postedText("not a time"), null);
+});
+
+test("API source identity survives the basket in different zones, including a timestamp fallback when no source id exists", () => {
+  const program = `
+    import vm from "node:vm";
+    import { readFileSync } from "node:fs";
+    import { Window } from "happy-dom";
+    const window = new Window({ url: "https://lms.uconn.edu/ultra/stream" });
+    window.localStorage.setItem("huskypilot.helper.sync.v1", JSON.stringify({ auto: false }));
+    window.fetch = async () => Response.json({ results: [
+      { id: "_11_1", title: "Quiz", body: { rawText: "Friday" }, createdDate: "2026-10-01T14:00:00Z" },
+      { title: "Office hours", body: { rawText: "Tuesday" }, createdDate: "2026-10-01T14:00:00Z" }
+    ] });
+    vm.runInNewContext(readFileSync("tools/huskyct-helper/huskyct-helper.user.js", "utf8"), {
+      window, document: window.document, navigator: window.navigator, localStorage: window.localStorage,
+      Blob, CompressionStream, Response, TextEncoder, btoa, URL, console, setTimeout, clearTimeout
+    });
+    const helper = window.__huskyctHelper;
+    const rows = await helper.readAnnouncementsApi("_203765_1");
+    const { basket } = helper.rememberAnnouncements(helper.emptyBasket(), { id: "_203765_1", code: "NRE 1000E" }, rows, new Date("2026-10-02T00:00:00Z"));
+    helper.writeBasket(window.localStorage, basket);
+    process.stdout.write(JSON.stringify(helper.basketContents(helper.readBasket(window.localStorage)).announcements));
+    await window.happyDOM.close();
+  `;
+  const collect = (zone: string) => parseAnnouncementCandidates(JSON.parse(execFileSync(
+    process.execPath, ["--input-type=module", "--eval", program],
+    { cwd: fileURLToPath(new URL("..", import.meta.url)), env: { ...process.env, TZ: zone }, encoding: "utf8" },
+  )));
+  const here = collect("America/New_York");
+  const there = collect("Pacific/Auckland");
+
+  assert.equal(here.length, 2);
+  assert.deepEqual(there.map((row) => row.id), here.map((row) => row.id));
+  assert.deepEqual(here.map((row) => row.posted), ["2026-10-01T14:00:00.000Z", "2026-10-01T14:00:00.000Z"]);
+  assert.equal(here[0].sourceId, "_11_1");
+  assert.equal(here[0].sourceCourseId, "_203765_1");
+  assert.equal(here[1].sourceId, undefined);
 });
 
 test("HTML is read as text in a document of its own, so a script or handler in it never runs", () => {

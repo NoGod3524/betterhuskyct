@@ -35,6 +35,14 @@ type Manifest = {
 
 type Helper = {
   syncLight: (options?: Record<string, unknown>) => Promise<{ materials: Manifest | null }>;
+  deliverSync: (
+    target: { postMessage(message: unknown, origin: string): void; maxBlobBytes?: number },
+    basket: unknown,
+    grades: unknown,
+    options: Record<string, unknown>,
+    materials: Manifest,
+  ) => Promise<{ parts: string[]; failed: boolean; files: number }>;
+  readSyncState: (storage: unknown) => { pending: boolean };
   safeName: (name: string, fallback: string) => string;
   nameFromStoreUrl: (url: string) => string | null;
   termLabel: (code: number) => string | null;
@@ -275,6 +283,82 @@ test("sent to BetterHuskyCT: every file stored there, then only what is new", as
   const second = plain(await helper.sendMaterialsToBhc(app.target, manifest, SEND));
   assert.deepEqual(second, { connected: true, sent: 0, skipped: 4, failed: 0, tooBig: 0 });
   assert.equal(requests.length, fetchedBefore, "files the app already had were fetched again");
+});
+
+test("a file above the bridge limit makes delivery partial while smaller files still arrive", async () => {
+  const { window, helper } = openPage();
+  (window as unknown as { fetch: unknown }).fetch = async (path: string) =>
+    new Response(new Blob([path.includes("xid-1_1") ? "1" : "12"], { type: "application/pdf" }));
+  const manifest: Manifest = {
+    term: "Fall 2026", complete: true, stopped: false, problems: [],
+    courses: [{ id: MATH, code: "MATH 1070Q", skipped: false, activities: 0, links: [], tools: [], files: [
+      { path: [], title: "Small.pdf", url: "https://lms.uconn.edu" + webdav(1) },
+      { path: [], title: "Large.pdf", url: "https://lms.uconn.edu" + webdav(2) },
+    ] }],
+  };
+  const basket = { version: 1, courses: [], todos: [], todosAt: null, dueDates: [], dueDatesAt: null };
+  const app = appTab(window);
+
+  // The same branch as the production 100 MiB limit, without allocating a large file.
+  const partial = plain(await helper.deliverSync({ ...app.target, maxBlobBytes: 1 }, basket, null, SEND, manifest));
+  await app.flush();
+  assert.deepEqual(await app.store.keys(), ["https://lms.uconn.edu" + webdav(1)]);
+  assert.equal(partial.files, 1, "the file that fits still arrived");
+  assert.equal(partial.failed, true, "a skipped oversized file must not qualify as a full delivery");
+
+  // The panel's direct transfer has no bridge cap and can finish the delivery.
+  const complete = plain(await helper.deliverSync(app.target, basket, null, SEND, manifest));
+  await app.flush();
+  assert.equal(complete.failed, false);
+  assert.equal(complete.files, 1, "the already stored file need not be sent again");
+  assert.equal((await app.store.keys()).length, 2);
+});
+
+test("a sync with oversized files reports sent:false, keeps pending, and shows the warning", async () => {
+  const { window, helper } = openPage();
+  const base = huskyctData([], []);
+  (window as unknown as { fetch: unknown }).fetch = async (path: string) => {
+    if (path.includes("/announcements") || path.includes("/gradebook/grades") || path.includes("/calendarItems")) {
+      return new Response(JSON.stringify({ results: [], paging: { count: 0 } }));
+    }
+    if (path.includes("/todo/studentItems")) return new Response(JSON.stringify({ overdueItems: [], dueTodayItems: [], futureDueItems: [] }));
+    if (path === "/learn/api/v1/users/me") return new Response(JSON.stringify({ id: "_1003488_1" }));
+    return base(path);
+  };
+  const app = appTab(window);
+  let finish: (message: Record<string, unknown>) => void = () => undefined;
+  let timer: ReturnType<typeof setTimeout>;
+  const done = new Promise<Record<string, unknown>>((resolve, reject) => {
+    finish = resolve;
+    timer = setTimeout(() => reject(new Error("sync did not finish")), 5000);
+  });
+  const target = {
+    maxBlobBytes: 1,
+    postMessage(message: unknown, origin: string) {
+      const data = message as Record<string, unknown>;
+      if (data.protocol === "betterhuskyct/materials@1") app.target.postMessage(message, origin);
+      else if (data.protocol === "betterhuskyct/grades@1") {
+        const reply = data.kind === "hello" ? { protocol: data.protocol, kind: "ready" } : { protocol: data.protocol, kind: "stored", ok: true };
+        window.dispatchEvent(new window.MessageEvent("message", { data: reply, origin: "https://betterhuskyct.vercel.app" }));
+      } else if (data.protocol === "betterhuskyct/sync@1" && data.kind === "done") finish(data);
+    },
+  };
+  window.dispatchEvent(new window.MessageEvent("message", {
+    data: { protocol: "betterhuskyct/sync@1", kind: "request" },
+    origin: "https://betterhuskyct.vercel.app", source: target as never,
+  }));
+
+  let result: Record<string, unknown>;
+  try { result = await done; } finally { clearTimeout(timer!); }
+  await app.flush();
+  assert.equal((await app.store.keys()).length, 0, "every fixture file exceeds the one-byte bridge cap");
+  assert.equal(result.ok, true, "the API reading and grade delivery succeeded");
+  assert.equal(result.sent, false);
+  assert.equal(helper.readSyncState(window.localStorage).pending, true);
+  const line = window.document.querySelector("#huskypilot-helper")?.shadowRoot?.querySelector('[data-role="sync"]');
+  assert.match(line?.className ?? "", /warn/);
+  assert.match(line?.textContent ?? "", /Only part of it reached/);
+  assert.doesNotMatch(line?.textContent ?? "", /Sent to BetterHuskyCT/);
 });
 
 test("an app that never answers is reported, not waited on forever", async () => {

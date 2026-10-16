@@ -6,7 +6,8 @@
 // Bump CACHE_VERSION when this caching behaviour changes.
 // v2: pages are cached per route. Bumping clears v1, whose "/" entry may hold
 // another route's page or an error page.
-const CACHE_VERSION = "huskypilot-v2";
+// v3: Link navigations fetch RSC, so also save a separate HTML copy for cold offline openings.
+const CACHE_VERSION = "huskypilot-v3";
 const APP_SHELL = "/";
 // A static page with no scripts, for a route that was never opened online. The home page's HTML
 // cannot stand in for another route: the app hydrates it for the route in the address bar, and
@@ -45,6 +46,21 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   // Calendar imports must always hit the network, never the cache.
   if (url.pathname.startsWith("/api/")) return;
+
+  // Next Link visits do not request a document. Fetch HTML without the RSC query or headers;
+  // replaying an RSC response as a document would not hydrate. The original RSC request is untouched.
+  if (request.headers.get("RSC") === "1") {
+    event.waitUntil(
+      fetch(url.origin + url.pathname, { headers: { Accept: "text/html" } })
+        .then((response) => {
+          if (response.ok && !response.redirected && response.headers.get("content-type")?.includes("text/html")) {
+            return caches.open(CACHE_VERSION).then((cache) => cache.put(url.pathname, response));
+          }
+        })
+        .catch(() => undefined),
+    );
+    return;
+  }
 
   // Each route is cached under its own path. They all used to be written to "/",
   // so offline, every route served whichever page was visited last — /plan's

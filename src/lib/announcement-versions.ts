@@ -9,9 +9,9 @@ import { isRecord } from "./is-record.ts";
  *
  * HuskyCT keeps no history that this app can read, so the first reading is the first version and
  * changes are known only from then on: an edit made before the app first saved the announcement
- * cannot be told, and the page says so. An announcement is the same one while its id is (course,
- * title and posting time); a changed title or posting time makes a new announcement, not a new
- * version.
+ * cannot be told, and the page says so. Source ids keep title and body edits in the same history.
+ * Legacy rows without source ids use course, title and posting time as their identity, so a
+ * changed title or posting time starts a separate history for those rows.
  */
 
 export type Version = { at: string; title: string; body: string };

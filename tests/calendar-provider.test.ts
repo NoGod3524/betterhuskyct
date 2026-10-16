@@ -572,6 +572,29 @@ function storeTicks(key: string, ids: string[]) {
   window.localStorage.setItem(key, JSON.stringify({ version: 1, completedIds: ids }));
 }
 
+test("ticking in a stale tab preserves the tick another tab moved to a new deadline", async () => {
+  const essay = savedFeed().events[0];
+  const start = "2026-09-20T23:59:00.000Z";
+  const moved = { ...essay, id: `a:${start}`, start };
+  const quiz = { ...essay, id: "quiz", title: "Quiz" };
+  const subscription = { ...savedFeed(), events: [essay, quiz] };
+  window.localStorage.setItem(SUBSCRIPTIONS_STORAGE_KEY, JSON.stringify({ version: 1, subscriptions: [subscription] }));
+  storeTicks(COMPLETION_STORAGE_KEY_IMPORTED, [essay.id]);
+  const app = await mount();
+
+  window.localStorage.setItem(SUBSCRIPTIONS_STORAGE_KEY, JSON.stringify({ version: 1, subscriptions: [{ ...subscription, events: [moved, quiz] }] }));
+  storeTicks(COMPLETION_STORAGE_KEY_IMPORTED, [moved.id]);
+  await storageChanged(SUBSCRIPTIONS_STORAGE_KEY);
+  await storageChanged(COMPLETION_STORAGE_KEY_IMPORTED);
+  await act(async () => app.calendar.toggleTaskCompletion(quiz.id));
+  assert.deepEqual(new Set(JSON.parse(window.localStorage.getItem(COMPLETION_STORAGE_KEY_IMPORTED)!).completedIds), new Set([moved.id, quiz.id]));
+  await app.unmount();
+
+  const restored = await mount();
+  assert.deepEqual(restored.calendar.doneIds, new Set([moved.id, quiz.id]));
+  await restored.unmount();
+});
+
 test("ticks changed in another tab appear here, including unticks and custom events", async () => {
   const app = await mount();
   const imported = await importOneTask(app);
@@ -829,12 +852,12 @@ test("an older sync decode cannot reopen an offer after a newer link was cleared
   }
 });
 
-test("a deadline the teacher moves keeps its tick, its note and its notice, with the helper's second delivery", async () => {
+test("a source-identified deadline keeps its tick and note through a rename, move and reload", async () => {
   const FRIDAY = "2026-10-16T03:59:00.000Z";
   const SUNDAY = "2026-10-18T03:59:00.000Z";
   const hw = (start: string) => ({
-    id: `hw5:${start}`,
-    title: "Homework 5",
+    id: `huskyct-todo-_101_1:${start}`,
+    title: start === FRIDAY ? "Homework 5" : "Homework 5 (extended)",
     course: "MATH 1131Q",
     start,
     dateKey: null,
@@ -869,8 +892,8 @@ test("a deadline the teacher moves keeps its tick, its note and its notice, with
 
   const app = await mount();
   await deliver(FRIDAY);
-  const oldId = `hw5:${FRIDAY}`;
-  const newId = `hw5:${SUNDAY}`;
+  const oldId = `huskyct-todo-_101_1:${FRIDAY}`;
+  const newId = `huskyct-todo-_101_1:${SUNDAY}`;
   await act(async () => app.calendar.toggleTaskCompletion(oldId));
   await act(async () => app.calendar.editEvent(oldId, { note: "ask for an extension" }));
   assert.ok(app.calendar.doneIds.has(oldId));
@@ -882,14 +905,59 @@ test("a deadline the teacher moves keeps its tick, its note and its notice, with
   assert.ok(app.calendar.doneIds.has(newId), "the tick did not follow the deadline");
   assert.equal(app.calendar.doneIds.has(oldId), false);
   assert.equal(app.calendar.eventNoteFor(newId), "ask for an extension");
+  assert.equal(app.calendar.tasks[0].title, "Homework 5 (extended)");
   assert.deepEqual(Object.keys(app.calendar.moveNotices), [newId]);
   assert.equal(app.calendar.moveNotices[newId].from, FRIDAY);
   assert.equal(app.calendar.moveNotices[newId].to, SUNDAY);
   const saved = JSON.parse(window.localStorage.getItem("huskypilot.completedTasks.imported.v1") ?? "{}");
   assert.ok(JSON.stringify(saved).includes(newId) && !JSON.stringify(saved).includes(oldId), "the saved ticks still name the old id");
-
-  await act(async () => app.calendar.dismissMoveNotice(newId));
-  assert.deepEqual(app.calendar.moveNotices, {});
-  assert.equal(window.localStorage.getItem("huskypilot.moves.v1"), null);
   await app.unmount();
+  const restored = await mount();
+  assert.deepEqual(restored.calendar.tasks.map((task) => task.id), [newId]);
+  assert.ok(restored.calendar.doneIds.has(newId));
+  assert.equal(restored.calendar.eventNoteFor(newId), "ask for an extension");
+
+  await act(async () => restored.calendar.dismissMoveNotice(newId));
+  assert.deepEqual(restored.calendar.moveNotices, {});
+  assert.equal(window.localStorage.getItem("huskypilot.moves.v1"), null);
+  await restored.unmount();
+});
+
+test("legacy Calendar decisions remain on their dated record after old and new helper deliveries", async () => {
+  const firstStart = "2026-10-16T03:59:00.000Z";
+  const laterStart = "2026-10-18T03:59:00.000Z";
+  const legacyUid = "huskyct-due-_203765_1-Weekly-Reading";
+  const event = (uid: string, start: string) => ({
+    id: `${uid}:${start}`, title: "Weekly Reading", course: "MATH 1131Q",
+    start, dateKey: null, end: null, allDay: false, location: null, kind: "assignment" as const,
+  });
+  const original = event(legacyUid, firstStart);
+  const later = event(legacyUid, laterStart);
+  const canonical = event("huskyct-todo-_101_1", laterStart);
+  const app = await mount();
+  for (const task of [original, later, canonical]) {
+    const replies: unknown[] = [];
+    const payload = JSON.parse(serialiseSyncPayload(buildSyncPayload({
+      feeds: [{ name: "HuskyCT to-do", courseId: null, importedAt: new RealDate().toISOString(), events: [task] }],
+      completedIds: [], courses: EMPTY_COURSE_BOOK,
+    })));
+    await act(async () => window.dispatchEvent(new window.MessageEvent("message", {
+      data: { protocol: TASKS_PROTOCOL, kind: "sync", payload }, origin: "https://lms.uconn.edu",
+      source: { postMessage: (reply: unknown) => replies.push(reply) } as never,
+    })));
+    assert.deepEqual(replies, [{ protocol: TASKS_PROTOCOL, kind: "stored", ok: true }]);
+    if (task === original) {
+      await act(async () => app.calendar.toggleTaskCompletion(original.id));
+      await act(async () => app.calendar.editEvent(original.id, { note: "my saved note" }));
+    }
+  }
+  await app.unmount();
+  const restored = await mount();
+  assert.equal(restored.calendar.subscriptions.length, 1);
+  assert.deepEqual(restored.calendar.tasks.map((task) => task.id), [original.id, later.id, canonical.id]);
+  assert.deepEqual(restored.calendar.doneIds, new Set([original.id]));
+  assert.equal(restored.calendar.eventNoteFor(original.id), "my saved note");
+  assert.equal(restored.calendar.eventNoteFor(canonical.id), null);
+  assert.deepEqual(restored.calendar.moveNotices, {});
+  await restored.unmount();
 });

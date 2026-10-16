@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 
-import { PLAN_STORAGE_KEY } from "../src/lib/ai-plan.ts";
+import { PLAN_DATA_KEY } from "../src/lib/ai-plan.ts";
 import { localDay } from "../src/lib/date-utils.ts";
 import type { Announcement } from "../src/lib/announcements.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
@@ -200,7 +200,7 @@ test("a row left unticked is let go, and is not offered again by a later read", 
   await act(async () => view.checkbox("Buy the textbook").click());
   await view.click(view.button(t("en", "aiPlan.add", { count: 1 })));
 
-  const state = JSON.parse(window.localStorage.getItem(PLAN_STORAGE_KEY) ?? "{}");
+  const state = JSON.parse(window.localStorage.getItem(PLAN_DATA_KEY) ?? "{}");
   assert.deepEqual(Object.values(state.decided).sort(), ["added", "dismissed"]);
   assert.equal(JSON.parse(window.localStorage.getItem(UNDATED_TODOS_KEY) ?? "[]").length, 0, "an unticked row was added");
   await view.unmount();
@@ -212,7 +212,7 @@ test("a busy model leaves nothing marked read, so the syllabus is tried again la
   await settle(60);
 
   assert.ok(view.text().includes(t("en", "aiPlan.problem.busy")), view.text().slice(0, 600));
-  const state = JSON.parse(window.localStorage.getItem(PLAN_STORAGE_KEY) ?? "{}");
+  const state = JSON.parse(window.localStorage.getItem(PLAN_DATA_KEY) ?? "{}");
   assert.deepEqual(state.read, {});
   await view.unmount();
 });

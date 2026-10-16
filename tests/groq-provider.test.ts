@@ -51,7 +51,7 @@ test("Groq comes last, on its OpenAI-style endpoint, with gpt-oss's reasoning ke
 test("when GLM and Gemini are both busy, Groq writes the summary with its own key", async () => {
   const { calls, fetchImpl } = upstream({ glm: busy, gemini: busy, groq: says("- Midterm 2 moves to Tuesday Oct 14, MSB 411.") });
 
-  const result = await summarizeAnnouncements(REQUEST, { providers: ALL, fetchImpl, wait: async () => {} });
+  const result = await summarizeAnnouncements(REQUEST, { providers: ALL, country: "US", fetchImpl, wait: async () => {} });
 
   assert.equal(result.provider, "groq");
   assert.deepEqual(calls.map((call) => call.id), ["glm", "gemini", "groq"]);
@@ -82,7 +82,7 @@ test("a syllabus too long for Groq is never sent to it", async () => {
   await assert.rejects(
     extractPlan(
       { kind: "syllabus", courseLabel: "MATH", term: null, today: "2026-09-01", text, announcements: [] },
-      { providers: ALL, fetchImpl, wait: async () => {} },
+      { providers: ALL, country: "US", fetchImpl, wait: async () => {} },
     ),
   );
   assert.ok(!calls.some((call) => call.id === "groq"), "Groq was sent a request it would refuse");
