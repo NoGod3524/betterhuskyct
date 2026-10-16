@@ -14,6 +14,24 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [1.39.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.39.2) — Task identity and saved choices survive sync
+
+*Patch: audit fixes for sync, saved work, AI consent and offline use. HuskyCT Helper goes from 2.0.4 to 2.0.5.*
+
+### Fixed
+
+- **A task keeps its identity between Calendar and ToDo.** Both use the gradebook source ID, so entering the ToDo window, changing title or moving date does not create another task or transfer a tick to a different same-title task. Fresh Calendar dates update retained ToDo copies. Announcements also keep their source IDs across edits and time zones. Older records without reliable source IDs are retained without guessing their identity. ([#238])
+- **Turning AI reading off applies across tabs.** Other tabs cancel their work and check the saved permission before sending or accepting results. Background results cannot switch AI back on. Gemini is skipped when the reader's country is unknown, including cached answers. ([#238])
+- **Saved choices survive stale tabs and backup merges.** Ticking another task preserves a tick already moved in another tab. Backup merge keeps local deadlines, aligns incoming ticks and notes to proven task identities, and rejects custom-task, undated-task or calendar overflow before changing anything. Merge keeps this browser's AI switch; replace restores the backup's choice. Marking grade changes seen cannot restore grades another tab cleared. ([#238])
+- **A route visited through the sidebar opens cold offline.** Link visits now cache the route's HTML separately from the router response, so reopening it offline gets the right page. ([#238])
+- **Partial file delivery is reported as partial.** Files above the bridge limit keep sync pending and show a warning while smaller files still arrive. ([#238])
+- **ICS exports keep a helper task's UID after a date change.** Renamed, rescheduled and locally time-edited deadlines retain their source UID; historical recurring instances remain separate. Existing external calendar entries using the older UID format cannot be migrated automatically. ([#238])
+- **Data deletion instructions distinguish the two copies.** Clearing the website's data removes its copy; removing the extension removes the extension's copy. Both steps are needed to erase both. ([#238])
+
+### Changed
+
+- **Release and Edge publication require CI first.** The shared workflow tests, lints and builds the publication's commit. Release packaging uses the immutable SHA that passed those checks and confirms the tag still names it. ([#238])
+
 ## [1.39.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v1.39.1) — The package rebuilds the same on Windows
 
 *Patch: the helper is unchanged at 2.0.4.*
@@ -2063,3 +2081,4 @@ saying what to work on next.*
 [#232]: https://github.com/NoGod3524/betterhuskyct/pull/232
 [#234]: https://github.com/NoGod3524/betterhuskyct/pull/234
 [#236]: https://github.com/NoGod3524/betterhuskyct/pull/236
+[#238]: https://github.com/NoGod3524/betterhuskyct/pull/238
