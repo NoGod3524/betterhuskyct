@@ -35,7 +35,9 @@ import {
 } from "@/lib/subscriptions";
 import { watchClock } from "@/lib/clock";
 import { writeStorageBatch, type StorageWriter } from "@/lib/storage-batch";
-import { CHANGES_CHANGED, CHANGES_KEY, parseChanges, saveChanges, withChangesLock } from "@/lib/changes";
+import { CHANGES_CHANGED, CHANGES_KEY, mergeChangeStores, parseChanges, saveChanges, withChangesLock, type ChangesStore } from "@/lib/changes";
+import { historyForSource } from "@/lib/background-sync";
+import { eventUid } from "@/lib/sync-merge";
 import { recordSyncChanges } from "@/lib/change-producers";
 import { parseVersions, recordVersions, VERSIONS_CHANGED, VERSIONS_KEY } from "@/lib/announcement-versions";
 import {
@@ -45,7 +47,7 @@ import {
 } from "@/lib/sync";
 import { planSyncApply } from "@/lib/sync-apply";
 import { createTasksReceiver } from "@/lib/tasks-sync";
-import { recordReadReport, SYNC_STATUS_CHANGED, type ReadReport } from "@/lib/sync-status";
+import { applyReadReport, readSyncStatus, recordReadReport, SYNC_STATUS_CHANGED, SYNC_STATUS_KEY, type ReadReport } from "@/lib/sync-status";
 import {
   activeNotices,
   dismissNotice,
@@ -212,6 +214,7 @@ type CalendarContextValue = {
   /** Course announcements, newest first. Empty until a helper sends some. */
   announcements: Announcement[];
   clearAnnouncements: () => void;
+  applyBackgroundPayload: (payload: SyncPayload, history: ChangesStore, report: ReadReport) => Promise<void>;
 
   /** A correction to an imported event, or an edit to one the student added. */
   editEvent: (taskId: string, edit: EventEdit) => void;
@@ -785,7 +788,7 @@ export function CalendarProvider({
   // decided by `planSyncApply`; this only writes the result. Shared by the
   // `#sync=` link, which asks first, and the helper's direct `postMessage`,
   // which does not.
-  function applyPayload(payload: SyncPayload, report?: ReadReport) {
+  function applyPayload(payload: SyncPayload, report?: ReadReport, backgroundHistory?: ChangesStore) {
     const now = new Date();
     const before = {
       courses: restoreCourseBook(window.localStorage),
@@ -793,6 +796,22 @@ export function CalendarProvider({
       announcements: restoreAnnouncements(window.localStorage).announcements,
       doneByHuskyct: restoreSyncedDone(window.localStorage),
     };
+    if (backgroundHistory) {
+      // A cached run can arrive after a newer manual sync, or after an older lease expires.
+      const latest = new Map(before.subscriptions.flatMap(subscription => subscription.events.map(task => [eventUid(task), { task, at: subscription.importedAt }] as const)));
+      const staleIds = new Set<string>();
+      payload = { ...payload, feeds: payload.feeds.map(feed => ({ ...feed, events: feed.events.filter(task => {
+        const saved = latest.get(eventUid(task));
+        // ponytail: partial task reads retain cached rows; refresh known UIDs after both parts succeed.
+        const stale = saved && ((report && !(report.dueDates && report.todo)) || Date.parse(saved.at) > Date.parse(feed.importedAt));
+        if (stale) staleIds.add(task.id);
+        return !stale;
+      }) })).filter(feed => feed.events.length > 0), announcements: payload.announcements.filter(item => {
+        const saved = before.announcements.find(entry => entry.id === item.id);
+        const read = !report || report.courses.some(course => course.announcements && (item.sourceCourseId ? course.id === item.sourceCourseId : course.code === item.courseCode));
+        return !saved || (read && Date.parse(saved.announced) <= Date.parse(item.announced));
+      }), doneByHuskyct: Object.fromEntries(Object.entries(payload.doneByHuskyct).filter(([id]) => !staleIds.has(id))) };
+    }
     const savedTicks = new Set([...restoreCompletedTaskIds(window.localStorage, "imported")].filter((id) => !isCustomEventId(id)));
     const plan = planSyncApply(
       {
@@ -815,14 +834,20 @@ export function CalendarProvider({
     const nextOverlay = moves.length > 0 ? moveOverlay(restoreEventOverlay(window.localStorage), moves) : null;
     const nextMoveLog = moves.length > 0 ? recordMoves(restoreMoveLog(window.localStorage), moves, new Date()) : null;
     const ordered = sortAnnouncements(merged.announcements);
-    const changes = recordSyncChanges(parseChanges(window.localStorage.getItem(CHANGES_KEY)), before, merged, payload, now, report);
+    const currentChanges = parseChanges(window.localStorage.getItem(CHANGES_KEY));
+    const changes = backgroundHistory ? mergeChangeStores(currentChanges, historyForSource(backgroundHistory, "tasks"), now)
+      : recordSyncChanges(currentChanges, before, merged, payload, now, report);
     const versions = recordVersions(recordVersions(parseVersions(window.localStorage.getItem(VERSIONS_KEY)), before.announcements, now), ordered, now);
+    const currentStatus = backgroundHistory ? readSyncStatus(window.localStorage) : null;
+    const backgroundStatus = backgroundHistory && report && (!currentStatus || Date.parse(currentStatus.lastSync) <= Date.parse(payload.exportedAt))
+      ? applyReadReport(currentStatus, report, new Date(payload.exportedAt)) : null;
     writeStorageBatch(window.localStorage, (staged) => {
       saveSubscriptions(staged, merged.subscriptions);
       saveCourseBook(staged, merged.courses);
       saveAnnouncements(staged, ordered);
       staged.setItem(VERSIONS_KEY, JSON.stringify(versions));
       saveChanges(staged, changes);
+      if (backgroundStatus) staged.setItem(SYNC_STATUS_KEY, JSON.stringify(backgroundStatus));
       saveCompletedTaskIds(staged, "imported", plan.ticksToSave);
       if (!saveSyncedDone(staged, nextSynced) || !saveCourseColors(staged, nextColors) || !saveReopened(staged, nextReopened)) {
         throw new Error(t(locale, "errors.saveFailed"));
@@ -867,6 +892,14 @@ export function CalendarProvider({
         announcements: merged.announcements.length,
       }),
     );
+  }
+
+  async function applyBackgroundPayload(payload: SyncPayload, history: ChangesStore, report: ReadReport): Promise<void> {
+    await withChangesLock(() => {
+      applyPayload(payload, report, history);
+      window.dispatchEvent(new window.Event(SYNC_STATUS_CHANGED));
+      setError(null);
+    });
   }
 
   // The helper's direct delivery. Kept current after every render, rather
@@ -1116,6 +1149,7 @@ export function CalendarProvider({
     dismissPendingSync,
     announcements,
     clearAnnouncements: dropAnnouncements,
+    applyBackgroundPayload,
     editEvent,
     deleteEvent,
     restoreEvent,

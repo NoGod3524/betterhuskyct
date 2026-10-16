@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      2.0.5
+// @version      2.1.0
 // @description  Reads your HuskyCT deadlines, announcements, grades and course files through HuskyCT's own data, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       Yinuo (NoGod3524)
 // @homepageURL  https://github.com/NoGod3524/betterhuskyct
@@ -52,8 +52,17 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "2.0.5";
+  const VERSION = "2.1.0";
   const PANEL_WIDTH = 340;
+
+  // Only the packaged offscreen page can select this mode. A website cannot redirect the
+  // authenticated reader or replace its storage by setting a similarly named page global.
+  const configured = window.__bhcHelperRuntime;
+  const runtime = window.location.protocol === "chrome-extension:" && configured && configured.headless === true &&
+    configured.origin === "https://lms.uconn.edu" && configured.credentials === "include" &&
+    configured.storage && typeof configured.storage.getItem === "function" && typeof configured.storage.setItem === "function"
+    ? configured : null;
+  const helperStorage = () => runtime ? runtime.storage : window.localStorage;
 
   // ----------------------------------------------------------------- language
 
@@ -76,7 +85,7 @@
 
   function detectLocale() {
     try {
-      const stored = window.localStorage.getItem(LOCALE_KEY);
+      const stored = helperStorage().getItem(LOCALE_KEY);
       if (LOCALES.indexOf(stored) !== -1) return stored;
     } catch {
       /* a page that blocks storage still gets the browser's own answer */
@@ -92,7 +101,7 @@
   function setLocale(next) {
     locale = LOCALES.indexOf(next) !== -1 ? next : "en";
     try {
-      window.localStorage.setItem(LOCALE_KEY, locale);
+      helperStorage().setItem(LOCALE_KEY, locale);
     } catch {
       /* not being able to remember it is not a reason to refuse to use it */
     }
@@ -227,6 +236,8 @@
    * from afar.
    */
   let lastApiFailure = null;
+  // Optional parts may restore lastApiFailure. A 401 must still stop this entire sync.
+  let sessionExpired = false;
 
   /**
    * Where a HuskyCT path is asked for: HuskyCT's own address, never the page's base. Measured on
@@ -236,11 +247,12 @@
    * 403 the helper ever got from HuskyCT's data.
    */
   function huskyctUrl(path) {
-    return new URL(String(path), window.location.origin).href;
+    return new URL(String(path), runtime ? runtime.origin : window.location.origin).href;
   }
 
   /** A GET of HuskyCT's own data as JSON, or null if it did not answer in time or well. */
   async function fetchJson(path, timeout) {
+    if (sessionExpired) return null;
     if (typeof window.fetch !== "function") {
       lastApiFailure = "no fetch";
       return null;
@@ -250,7 +262,7 @@
     let response;
     try {
       response = await window.fetch(huskyctUrl(path), {
-        credentials: "same-origin",
+        credentials: runtime ? runtime.credentials : "same-origin",
         headers: { Accept: "application/json" },
         signal: controller ? controller.signal : undefined,
       });
@@ -262,6 +274,7 @@
     try {
       if (!response.ok) {
         lastApiFailure = "HTTP " + response.status;
+        if (response.status === 401) sessionExpired = true;
         return null;
       }
       return await response.json();
@@ -768,7 +781,7 @@
     // Short of what HuskyCT says is there, or nothing at all: not a course list to trust.
     if (next || cards.size === 0 || (expected !== null && rows < expected)) return null;
     // The colours HuskyCT gives the courses come with the list, so no card has to be drawn for them.
-    rememberColors(window.localStorage, colors);
+    rememberColors(helperStorage(), colors);
     const list = [...cards.values()];
     return { cards: list, queue: coursesToCollect(list, new Date()) };
   }
@@ -1365,6 +1378,7 @@
       id: record.uid + ":" + record.start,
       title: record.title,
       course: record.course === undefined ? null : record.course,
+      ...(/^_\d+_\d+$/.test(record.courseId || "") ? { sourceCourseId: record.courseId } : {}),
       start: record.start,
       dateKey: record.allDay ? record.start.slice(0, 10) : null,
       end: record.end === undefined ? null : record.end,
@@ -1567,16 +1581,17 @@
       { every: 300, pageTimeout: 15000, apiTimeout: 8000, gap: 100, onProgress() {}, shouldStop: () => false },
       options,
     );
-    const storage = window.localStorage;
+    const storage = helperStorage();
     const out = { ok: false, courses: 0, announcements: 0, gradeItems: 0, dueDates: 0, skipped: [], missing: [], status: null, stopped: false, grades: null, materials: null, reason: null, detail: null };
     // When nothing is read, which step it stopped at and what HuskyCT said. A 401 is HuskyCT
     // saying the student is signed out, whatever page the tab shows.
     const fail = (step) => {
-      out.reason = lastApiFailure === "HTTP 401" ? "signedout" : step;
-      out.detail = lastApiFailure || "unexpected answer";
+      out.reason = sessionExpired || lastApiFailure === "HTTP 401" ? "signedout" : step;
+      out.detail = sessionExpired ? "HTTP 401" : lastApiFailure || "unexpected answer";
       return out;
     };
     lastApiFailure = null;
+    sessionExpired = false;
 
     const found = await readCoursesApi(opts);
     if (!found) return fail("courses");
@@ -1595,6 +1610,7 @@
     // answer leaves them out and does not fail the sync, and what it hit is not what a failure reports.
     const failedBefore = lastApiFailure;
     const dueDates = await readDueDatesApi(opts);
+    if (sessionExpired) return fail("read");
     lastApiFailure = failedBefore;
     if (dueDates) {
       out.dueDates = dueDates.length;
@@ -1604,12 +1620,14 @@
     out.status = { dueDates: Boolean(dueDates), todo: false, courses: [] };
 
     const todos = await readTodosApi(opts, new Map(queue.map((course) => [course.id, course.code])));
+    if (sessionExpired) return fail("read");
     lastApiFailure = failedBefore;
     if (todos) save(rememberTodos(readBasket(storage), todosToRecords(todos), new Date()));
     else out.missing.push("missTodo");
     out.status.todo = Boolean(todos);
 
     const userId = await readUserId(opts);
+    if (sessionExpired) return fail("read");
     const manifest = { term: walkTerm(found), courses: [], stopped: false, signedOut: false, problems: [] };
     // Each course's files, links and tools, so one send carries them and BetterHuskyCT is sent
     // only the files it does not have.
@@ -1625,6 +1643,7 @@
       opts.onProgress({ step: "course", course, index: index + 1, total: queue.length });
 
       const rows = await readAnnouncementsApi(course.id, opts);
+      if (sessionExpired) return fail("read");
       if (rows === null) out.skipped.push(course.code || course.id);
       else {
         readAny = true;
@@ -1634,12 +1653,14 @@
       }
 
       const items = userId ? await readGradesApi(course.id, userId, opts) : null;
+      if (sessionExpired) return fail("read");
       manifest.courses.push({ id: course.id, code: course.code, items: items || [], skipped: items === null, reason: items === null ? "never" : null, at: null });
       if (items) out.gradeItems += items.length;
 
       // The files are extra to what a sync is for: what they hit is not what a failed sync reports.
       const failure = lastApiFailure;
       const content = await readMaterialsApi(course.id, opts);
+      if (sessionExpired) return fail("read");
       lastApiFailure = failure;
       if (!content || !content.complete) materials.complete = false;
       materials.courses.push({
@@ -2438,6 +2459,8 @@
       panelMarkup,
     };
   }
+
+  if (runtime) return;
 
   if (typeof document !== "undefined" && window.location.origin === bhcOrigin()) {
     startBridgeOnBhc();

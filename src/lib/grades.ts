@@ -13,6 +13,8 @@
  */
 import { HUSKYCT_ORIGINS } from "@/lib/materials";
 import { isRecord } from "./is-record.ts";
+import type { ChangesStore } from "./changes.ts";
+import type { ReadReport } from "./sync-status.ts";
 
 /** Bumped only if the messages change shape; both sides check it. */
 export const GRADES_PROTOCOL = "betterhuskyct/grades@1";
@@ -251,6 +253,8 @@ export type GradesStore = {
   clear(): Promise<void>;
   /** Merge against the latest saved reading without yielding between read and write. */
   receive?(incoming: GradesSnapshot): Promise<void>;
+  /** Adopt the extension's own history without inventing an app-side score transition. */
+  receiveBackground?(incoming: GradesSnapshot, history: ChangesStore, report?: ReadReport): Promise<void>;
   /** Clear the latest reading's badges without writing a page's older snapshot back. */
   markSeen?(): Promise<void>;
 };

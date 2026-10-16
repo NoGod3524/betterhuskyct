@@ -11,6 +11,7 @@ export function isCalendarTask(value: unknown): value is CalendarTask {
   return (
     typeof value.id === "string" &&
     typeof value.title === "string" &&
+    (value.sourceCourseId === undefined || (typeof value.sourceCourseId === "string" && /^_\d+_\d+$/.test(value.sourceCourseId) && value.sourceCourseId.length <= 100)) &&
     (typeof value.course === "string" || value.course === null) &&
     isValidDateString(value.start) &&
     (typeof value.dateKey === "string" || value.dateKey === null) &&

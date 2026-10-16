@@ -2,9 +2,13 @@
 
 The same helper as the userscript in `../huskyct-helper`, run by the browser itself instead of Tampermonkey. Manifest V3, Chrome and Edge.
 
-- `manifest.json` — permissions: `storage`, `scripting`, and the three sites the helper already matched.
-- `relay.js` — content script in the extension's world; carries the helper's storage to `chrome.storage.local` and its tab requests to the background.
+- `manifest.json` — storage, scripting, alarms and offscreen permissions, the three supported sites, and optional notifications.
+- `relay.js` — content script in the extension's world; carries GM storage requests to the background and hands cached updates to the app. Private background storage is restricted to trusted extension contexts.
 - `background.js` — when a matching page loads, injects `shim.js` and then the helper into the page's own world; opens and closes the HuskyCT tab a sync asks for.
+- `background-sync.js`, `background-diff.js` — optional six-hour checks, session-expiry pause, local snapshots and pending changes, notification preferences, and acknowledged delivery to the app.
+- `offscreen.html`, `offscreen.js` — run the same bundled helper's API reader with a DOM and the live HuskyCT session, without opening a HuskyCT tab.
+- `popup.html`, `popup.js`, `popup.css` — background and notification controls; both features start off. Notification previews can contain course names and item titles.
+- `changes.js`, `announcements.js`, `content-hash.js`, `is-record.js` in the package — the app's bounded change-history logic and announcement identities, compiled from the public TypeScript sources by the build script.
 - `shim.js` — gives the helper the four `GM_*` functions it uses (`GM_getValue`, `GM_setValue`, `GM_addValueChangeListener`, `GM_openInTab`).
 
 `scripts/build-extension.mjs` zips these with the helper into `public/betterhuskyct-extension.zip` before `dev` and `build`; the version is the helper's. To try it: unzip, `chrome://extensions` → Developer mode → Load unpacked.

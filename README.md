@@ -1,6 +1,6 @@
 # BetterHuskyCT
 
-**Your course deadlines, organized.** Press Sync and your HuskyCT deadlines, announcements, course files and grades arrive in one calm, ordered view of what's due next.
+**Your course inbox.** See what changed across your HuskyCT courses, then what is due next. Sync on demand, or let the browser extension check while the app is closed.
 
 **English** | [简体中文](./README.zh.md)
 
@@ -16,7 +16,7 @@ BetterHuskyCT is a free, open-source student project, and these are the things i
 
 - **Free.** No price, no paid tier, no ads, no sign-up. Nothing in it will be put behind payment.
 - **Open source.** The code is [MIT-licensed](./LICENSE). A version released under it stays open for everyone to use, change and run, whatever happens to this project afterwards.
-- **Yours.** What you collect stays in your browser. The helper sends it nowhere but your own BetterHuskyCT tab, and **Back up and restore** takes all of it with you, so there is no account to lose and nothing to be locked into.
+- **Yours.** What you collect stays in your browser. The helper delivers to your BetterHuskyCT tab; optional background readings wait in the extension until the app receives them. **Back up and restore** exports the app's saved data, so there is no account to lose. It does not export the extension's pending cache or preferences.
 - **No tracking, no selling.** The app adds no analytics, advertising or tracking, and nothing it holds is sold or shared. The one time text leaves your browser is when you press **Summarize** or turn on the AI dates; the [privacy page](./PRIVACY.md) says what goes where.
 
 What this does **not** promise, so it is not mistaken for more:
@@ -60,6 +60,8 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Installable and offline** — add it to a phone's home screen as a PWA and keep reading saved tasks without a connection
 - **Announcements** — the browser helper brings your courses' announcements in on the same press as the deadlines, newest first and grouped by course
 - **Recent changes** — one page for new or edited announcements, new or moved deadlines, grade changes, newly listed course files, and work HuskyCT marks done. The first reading establishes a baseline; later changes have unread dots and can be marked read. History stays in this browser and its backup, for up to 30 days and 500 entries. Course-file entries mean a file appeared in the directory; its download may still be pending
+- **A course inbox at home** — the five newest unread changes appear above Today / Tomorrow / This week, with read controls and a link to the full history
+- **Optional background checks** — the Chrome / Edge extension can read course metadata about every six hours while the browser is running, without opening a HuskyCT tab. It starts off, uses your existing session, pauses when sign-in expires, and saves updates locally until the app acknowledges them. File contents still need a manual sync. Optional system notifications have a separate permission and per-kind controls; previews may show course names and item titles
 - **Course materials** — every course's files, lecture videos, links and tools, sent over by the browser helper and kept in this browser: browse by course and folder, open PDFs in place, download the rest. Nothing is uploaded; a folder the helper saved can be imported too. **Save to a folder** (Chrome, Edge) or **Download as ZIP** puts everything on your computer, by course and folder, so it can be opened in other programs and survives clearing the browser's data
 - **Grades** — each course's gradebook, read by the browser helper and kept in this browser: what every item scored, and the points so far for the graded work. Scores that are new or different since you last looked are badged ("Newly graded", "Was 80 / 100") until you mark them seen. It says plainly that the total is not your course grade, since HuskyCT shows no weights or dropped scores. Nothing is uploaded
 - **Dark mode** — follows the device, or pick light or dark from the top bar; the choice is kept in this browser and applied before the page is drawn
@@ -75,7 +77,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 
 ## Getting your deadlines in
 
-Press **Sync** at the top of the page. The first time, set up the browser helper (the **Helper** page walks through it): a Tampermonkey userscript, or a small extension for Chrome and Edge loaded unpacked. It runs on HuskyCT's own pages in your signed-in session, reads your courses' deadlines, announcements, files and grades, and hands them to this page tab to tab. The page accepts them only from HuskyCT's own origins.
+Press **Sync** at the top of the page. The first time, set up the browser helper (the **Helper** page walks through it): a Tampermonkey userscript, or the Chrome / Edge extension. Manual sync runs on HuskyCT's pages in your signed-in session and hands your courses' deadlines, announcements, files and grades to the app. The extension also offers background checks from its popup or the Helper page. That separate delivery uses a validated same-window relay; it never needs your password.
 
 ## How well does the date finding work?
 
@@ -99,12 +101,15 @@ A static Next.js app that keeps its data in the browser. The server has three sm
 3. The page merges what arrived with what it already has, by stable keys, so syncing again never doubles anything and keeps your ticks, corrections and notes.
 4. Everything is stored in `localStorage` and IndexedDB, versioned and checked on the way back in.
 
+With optional background checks, the extension runs the same API reader in an offscreen document, stores metadata and bounded change history in trusted extension storage, and leases each delivery to one app tab. The app acknowledges only after every source saves successfully; interrupted deliveries can be retried without duplicating history. No background file downloads or automatic AI requests are made.
+
 ## Privacy model
 
 | Data | Where it lives |
 |---|---|
 | Parsed events | `localStorage`, in your browser only |
 | Course announcements | `localStorage`, in your browser only — sent over by the browser helper alongside your deadlines |
+| Background snapshots and pending changes | Trusted extension storage in your browser, separate from the site's data. Background sync starts off. Pending history is limited to 500 entries / 30 days; the latest metadata remains for the next delivery. System notifications are separately optional and may display course names and titles |
 | Course materials | IndexedDB, in your browser only — the files are read on HuskyCT by the helper and handed to this page tab to tab; the app accepts them only from HuskyCT's own pages, and never sends them anywhere |
 | Announcement summaries | Only when you press **Summarize**: that course's announcements (title, text, posted line — none of your details, no feed link), with email addresses, phone numbers and links replaced, go through BetterHuskyCT's own endpoint to an AI service when no reusable summary is cached. First [Z.ai](https://z.ai), which runs GLM from Singapore and states in its API terms that content is not saved. Z.ai is the international brand of Zhipu AI, a Chinese company that the U.S. Commerce Department added to its Entity List in January 2025 ([Federal Register](https://federalregister.gov/d/2025-00704)). That listing concerns export licensing, not what you may use; it is stated here so you can decide whether you are comfortable with that provider. If Z.ai is busy or failing, [Google Gemini's free tier](https://ai.google.dev/gemini-api/terms), whose terms let Google use the content to improve its models and let reviewers read it; it is never used for readers in the EEA, Switzerland or the UK. If both are busy, [Groq](https://console.groq.com/docs/your-data), a U.S. company whose terms say it does not train on what is sent and keeps it only while investigating abuse; it is sent only requests of up to about 8,000 tokens. The endpoint logs no text. Summaries are cached for up to 6 hours in server memory and, if configured, shared across instances through Upstash Redis. The shared cache stores only a SHA-256 hash key, summary, provider and original generation time; it stores no original announcements, IP addresses, request details or credentials |
 | Dates found by AI | Off until you turn it on. Then a syllabus's text is read in your browser and, with each new announcement, sent with email addresses, phone numbers and links replaced through BetterHuskyCT's own endpoint (`src/app/api/plan/extract`) to the same AI services as the summaries, under the same terms described above. The endpoint logs no text, and answers (dates and the syllabus summary) are cached like summaries, keyed by a hash of what was sent, for up to 120 days so a course's students share one read of its syllabus. The list and what you decided are kept in `localStorage`; events you add are kept like the ones you add on the calendar |
@@ -136,7 +141,7 @@ src/
 │  ├─ api/plan/extract/route.ts                  # POST a syllabus or announcements -> dates and to-dos as JSON
 │  ├─ layout.tsx                                 # Metadata, theme setup, provider, persistent shell
 │  ├─ manifest.ts                                # Web app manifest (installable PWA)
-│  ├─ page.tsx                                   # /              overview
+│  ├─ page.tsx                                   # /              unread changes, then the rolling task board
 │  ├─ tasks/page.tsx                             # /tasks         the to-do list
 │  ├─ calendar/page.tsx                          # /calendar      the month, and the connected calendars
 │  ├─ announcements/page.tsx                     # /announcements course announcements
@@ -163,6 +168,8 @@ src/
 │  ├─ changes-section.tsx, use-changes.ts         # Recent changes, unread counts and read decisions
 │  ├─ about-section.tsx                          # The about page: the promise, what it does not promise, costs, where to check
 │  ├─ helper-deliveries.tsx                      # Receives what the helper sends: materials and grades
+│  ├─ background-deliveries.tsx                  # Validates and saves leased extension deliveries before acknowledging
+│  ├─ background-sync-section.tsx               # Background settings and session status in Helper and the home header
 │  ├─ sync-status-view.tsx                       # The sync status: a line on the overview, a table on the Helper page
 │  ├─ sync-banner.tsx                            # The banner for an incoming #sync= link
 │  ├─ connect-section.tsx                        # Connected calendars, course list, how to connect
@@ -202,6 +209,7 @@ src/
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# Due-soon detection; the add form; search; what is new
    ├─ export.ts                                  # CSV export
    ├─ sync-status.ts                             # What each sync read, course by course, and when each part was last read
+   ├─ background-sync.ts                         # Bounded extension messages, snapshots and request/reply bridge
    ├─ ics.ts                                     # Open deadlines as an .ics file, with reminders, for a calendar app
    ├─ backup.ts, storage-batch.ts                # Backup and grouped storage writes with rollback on failure
    ├─ changes.ts, change-producers.ts, materials-changes.ts# Bounded change history, source comparisons and recoverable file-directory delivery
@@ -302,7 +310,7 @@ slowly, so running it once a semester is plenty. Pass a term to limit it:
 - **Completion follows stable source identities.** A deadline with one source UID keeps its tick, note and course choice when it moves. Legacy records without a stable source identity are kept separately rather than guessed to be the same task.
 - **A rolling 7 days, not a calendar week.** The question the app answers is "what's due next", not "what is on this week's grid".
 - **No i18n library.** The string set is bounded and small; two dictionaries plus a lookup function were enough.
-- **Reminders only fire while the app is open.** Real background push would need a push server plus stored subscriptions, which this project deliberately avoids. So reminders are an in-app banner plus opt-in notifications, de-duplicated by a task fingerprint so the same reminder is never repeated.
+- **Background checks use the browser.** Due-soon reminders still run while the app is open. The extension's separate, optional six-hour checks can notify about course changes while the browser runs. They use the existing HuskyCT session, pause on 401, and need no push server or stored account credentials.
 - **Offline means the app shell, not the data.** The service worker serves navigations network-first (so a new deploy lands immediately) and hashed assets cache-first. The tasks themselves already live in `localStorage`.
 
 ## Testing
@@ -320,7 +328,8 @@ BetterHuskyCT started as a personal tool. Deadlines were spread across HuskyCT, 
 - [x] Installable PWA with an offline app shell
 - [x] Due-soon reminders (while the app is open)
 - [x] Export tasks to CSV
-- [ ] Background push reminders (would require a push server)
+- [x] Course inbox with unread change history
+- [x] Optional extension background checks and course-change notifications
 
 ## Author
 

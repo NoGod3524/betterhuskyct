@@ -5,6 +5,7 @@ import "./globals.css";
 import { AppShell } from "@/components/app-shell";
 import { AiPlanProvider } from "@/components/ai-plan-provider";
 import { CalendarProvider } from "@/components/calendar-provider";
+import { BackgroundDeliveries } from "@/components/background-deliveries";
 import { HelperDeliveries } from "@/components/helper-deliveries";
 import { HelperSyncProvider } from "@/components/helper-sync-button";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
@@ -74,6 +75,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             and reminder settings without re-mounting or flashing demo data. */}
         <CalendarProvider initialNow={new Date().toISOString()}>
           <HelperDeliveries />
+          <BackgroundDeliveries />
           <HelperSyncProvider>
             <AiPlanProvider>
               <AppShell version={packageJson.version}>{children}</AppShell>

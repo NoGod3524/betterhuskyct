@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { dirname, join, resolve, sep } from "node:path";
 import test from "node:test";
 import vm from "node:vm";
 
@@ -105,4 +105,27 @@ test("the package holds LF text only, so a Windows checkout builds the same pack
   const text = Object.entries(entries).filter(([name]) => /\.(js|json)$/.test(name));
   assert.ok(text.length >= 5, "the package lost its scripts");
   for (const [name, bytes] of text) assert.ok(!bytes.includes(13), `${name} has a carriage return`);
+});
+
+test("the packaged background modules load with native imports and include the offscreen and optional notification UI", async () => {
+  const { unzipSync } = await import("fflate");
+  const folder = mkdtempSync(join(tmpdir(), "betterhuskyct-modules-"));
+  try {
+    const out = join(folder, "extension.zip");
+    execFileSync(process.execPath, [fileURLToPath(new URL("../scripts/build-extension.mjs", import.meta.url)), out], { stdio: "pipe" });
+    const files = unzipSync(new Uint8Array(readFileSync(out)));
+    for (const name of ["background.js", "background-sync.js", "background-diff.js", "changes.js", "announcements.js", "content-hash.js", "is-record.js", "offscreen.html", "offscreen.js", "popup.html", "popup.js", "popup.css"]) assert.ok(files[name], "missing " + name);
+    const manifest = JSON.parse(new TextDecoder().decode(files["manifest.json"]));
+    assert.equal(manifest.background.type, "module");
+    assert.ok(manifest.permissions.includes("alarms") && manifest.permissions.includes("offscreen"));
+    assert.ok(!manifest.permissions.includes("notifications"));
+    assert.deepEqual(manifest.optional_permissions, ["notifications"]);
+    for (const [name, bytes] of Object.entries(files)) if (/^[\w-]+\.js$/.test(name)) writeFileSync(join(folder, name), bytes);
+    writeFileSync(join(folder, "package.json"), '{"type":"module"}');
+    const packaged = await import(pathToFileURL(join(folder, "background-sync.js")).href);
+    assert.equal(typeof packaged.createBackgroundSync, "function");
+  } finally {
+    assert.ok(resolve(folder).startsWith(resolve(tmpdir()) + sep));
+    rmSync(folder, { recursive: true, force: true });
+  }
 });

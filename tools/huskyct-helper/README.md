@@ -42,6 +42,7 @@ pages send, with the session your browser already has.
 
 ## When it runs
 
+- **In the background, with the extension**, if you enable background sync in its popup or the Helper page. It checks about every six hours while the browser runs and keeps the results locally until BetterHuskyCT opens. A 401 pauses checks until sign-in is restored. System notifications are a separate opt-in, with per-kind switches; the first reading only establishes a baseline. Background reads update file directories, while the existing Sync button downloads file contents. Userscripts keep the page-based modes below.
 - **From BetterHuskyCT's Sync button.** The helper on BetterHuskyCT's page asks for a HuskyCT tab:
   an open one answers, or one is opened behind it and closed after. What is read comes back to the
   tab that asked, so nothing has to be pressed on HuskyCT.

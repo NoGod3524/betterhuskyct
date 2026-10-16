@@ -26,6 +26,9 @@ function taskCode(task: CalendarTask, book: CourseBook): string | null {
   return book.courses.find((course) => course.id === chosen)?.code ?? task.course;
 }
 
+const deadlineScope = (task: CalendarTask, book: CourseBook) => task.sourceCourseId
+  ? `deadlines:id:${task.sourceCourseId}` : `deadlines:${codeKey(taskCode(task, book))}`;
+
 /** Compare the actual saved readings, rather than an accumulated "not seen yet" list. */
 export function recordSyncChanges(
   current: ChangesStore,
@@ -41,7 +44,7 @@ export function recordSyncChanges(
   const previousTasks = before.subscriptions.flatMap((subscription) => subscription.events).filter(isDeadline);
   const previousById = new Map(previousTasks.map((task) => [task.id, task]));
   const previousUids = new Set(previousTasks.map(eventUid));
-  const priorScopes = new Set(previousTasks.map((task) => `deadlines:${codeKey(taskCode(task, before.courses))}`));
+  const priorScopes = new Set(previousTasks.map((task) => deadlineScope(task, before.courses)));
   const incomingUids = new Set(payload.feeds.flatMap((feed) => feed.events).map(eventUid));
   const tasks = after.subscriptions.flatMap((subscription) => subscription.events).filter(isDeadline);
   const tasksById = new Map(tasks.map((task) => [task.id, task]));
@@ -51,7 +54,7 @@ export function recordSyncChanges(
     if (!incomingUids.has(uid) || counted.has(uid)) continue;
     counted.add(uid);
     const courseCode = taskCode(task, after.courses);
-    const scope = `deadlines:${codeKey(courseCode)}`;
+    const scope = deadlineScope(task, after.courses);
     if (!previousUids.has(uid) && (current.baselines.includes(scope) || priorScopes.has(scope))) {
       entries.push({ id: createChangeId("deadline-added", uid, task.start, payload.exportedAt), at,
         kind: "deadline-added", courseCode, title: task.title,
@@ -72,7 +75,7 @@ export function recordSyncChanges(
   for (const [id] of Object.entries(payload.doneByHuskyct)) {
     const task = tasksById.get(id);
     if (!task || wasDone.has(eventUid(task))) continue;
-    const scope = `deadlines:${codeKey(taskCode(task, after.courses))}`;
+    const scope = deadlineScope(task, after.courses);
     if (!current.baselines.includes(scope) && !priorScopes.has(scope)) continue;
     // A helper's To Do UID uses the gradebook column id too. Both deliveries describe one completion.
     // ponytail: report completion once per UID; submission history needs source attempt revisions.
@@ -99,9 +102,11 @@ export function recordSyncChanges(
   }
   // An empty successful reading is a baseline too; a failed read says nothing about that course.
   for (const course of report?.courses ?? []) {
-    const key = codeKey(course.code ?? course.id);
     if (course.announcements) baselines.add(`announcements:id:${course.id}`);
-    if (report?.dueDates || report?.todo) baselines.add(`deadlines:${key}`);
+    if (report?.dueDates || report?.todo) {
+      baselines.add(`deadlines:id:${course.id}`);
+      baselines.add(`deadlines:${codeKey(course.code ?? course.id)}`);
+    }
   }
   return recordChanges(current, entries, now, [...baselines]);
 }

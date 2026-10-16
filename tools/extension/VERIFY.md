@@ -34,13 +34,13 @@ Two older cases, where the rebuild's bytes can differ though the files are the s
 
 ## 3. Compare what is installed with the release
 
-A browser installs the store's copy, which you can compare file by file with the release. In Edge or Chrome, open `edge://extensions` or `chrome://extensions`, turn on Developer mode, and note the extension's ID. Its files are in your browser profile, under `Extensions/<id>/<version>_0/`. Unzip the release's package beside it and compare each file: `manifest.json`, `huskyct-helper.js`, `background.js`, `relay.js`, `shim.js` and `icons/`. Ignore a `_metadata/` folder, which the browser adds itself.
+A browser installs the store's copy, which you can compare file by file with the release. In Edge or Chrome, open `edge://extensions` or `chrome://extensions`, turn on Developer mode, and note the extension's ID. Its files are in your browser profile, under `Extensions/<id>/<version>_0/`. Unzip the release's package beside it and compare every packaged file, including the background modules, offscreen document, popup, generated history and announcement modules, helper, relay, shim and icons. Ignore a `_metadata/` folder, which the browser adds itself. These generated modules are compiled from `src/lib/changes.ts`, `src/lib/announcements.ts`, `src/lib/content-hash.ts` and `src/lib/is-record.ts` with the TypeScript version pinned in `package-lock.json`.
 
 ## What there is to check
 
 Worth knowing while you look:
 
-- **Permissions** are in `manifest.json`: `storage`, `unlimitedStorage` and `scripting`, with access to `lms.uconn.edu`, `huskyct.uconn.edu` and `betterhuskyct.vercel.app` only.
+- **Permissions** are in `manifest.json`: `storage`, `unlimitedStorage`, `scripting`, `alarms` and `offscreen`, with access to `lms.uconn.edu`, `huskyct.uconn.edu` and `betterhuskyct.vercel.app` only. `notifications` is optional and requested when you enable notifications. Background sync and notifications both start off.
 - **No remote code.** Nothing in the package calls `eval` or `new Function`, injects a script, or loads code from an address; everything that runs is in the zip.
 - **Where it connects:** to HuskyCT (to read your data with your own session) and nowhere else. It never asks for or stores your password or cookies.
 

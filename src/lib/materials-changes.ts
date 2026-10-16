@@ -5,6 +5,13 @@ import { isMaterialKey, materialsCourseKey, type MaterialsIndex } from "./materi
 /** Saved with the directory in the same IndexedDB transaction, before notifying the app. */
 export type MaterialsChangeOutbox = { seen: Record<string, string[]>; pending: ChangeEntry[] };
 
+/** Remember the directory as seen, but deliver only history the extension actually observed. */
+export function adoptMaterialChanges(previous: MaterialsIndex | null, incoming: MaterialsIndex, raw: unknown, history: readonly ChangeEntry[], now: Date): MaterialsChangeOutbox {
+  const state = recordMaterialChanges(previous, incoming, raw, now);
+  const pending = parseChanges(JSON.stringify({ version: 1, entries: isRecord(raw) && Array.isArray(raw.pending) ? raw.pending : [], baselines: [] }));
+  return { seen: state.seen, pending: recordChanges(pending, history, now).entries };
+}
+
 export function recordMaterialChanges(previous: MaterialsIndex | null, incoming: MaterialsIndex, raw: unknown, now: Date): MaterialsChangeOutbox {
   const seen: Record<string, string[]> = {};
   if (isRecord(raw) && isRecord(raw.seen)) {

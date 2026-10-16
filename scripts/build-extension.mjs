@@ -11,6 +11,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { zipSync, strToU8 } from "fflate";
+import ts from "typescript";
 
 const here = (path) => new URL(path, import.meta.url);
 // Text goes into the package with LF line endings, so a checkout that turned them into CRLF (git on
@@ -24,7 +25,15 @@ const manifest = JSON.parse(text("../tools/extension/manifest.json"));
 manifest.version = version;
 
 const files = { "manifest.json": strToU8(JSON.stringify(manifest, null, 2) + "\n"), "huskyct-helper.js": strToU8(helper) };
-for (const name of ["background.js", "relay.js", "shim.js"]) files[name] = strToU8(text(`../tools/extension/${name}`));
+for (const name of ["background.js", "background-sync.js", "background-diff.js", "offscreen.html", "offscreen.js", "popup.html", "popup.js", "popup.css", "relay.js", "shim.js"]) {
+  files[name] = strToU8(text(`../tools/extension/${name}`).replace(/"\.\.\/\.\.\/src\/lib\/(changes|announcements)\.ts"/g, '"./$1.js"'));
+}
+for (const name of ["changes", "is-record", "announcements", "content-hash"]) {
+  const compiled = ts.transpileModule(text(`../src/lib/${name}.ts`), {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2020, newLine: ts.NewLineKind.LineFeed },
+  }).outputText.replace(/"\.\/(is-record|content-hash)\.ts"/g, '"./$1.js"');
+  files[`${name}.js`] = strToU8(compiled);
+}
 
 for (const size of [16, 48, 128]) files[`icons/icon-${size}.png`] = readFileSync(here(`../tools/extension/icons/icon-${size}.png`));
 
