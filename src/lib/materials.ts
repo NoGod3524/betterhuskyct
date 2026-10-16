@@ -257,6 +257,10 @@ export type MaterialsStore = {
   deleteFile(key: string): Promise<void>;
   getIndex(): Promise<MaterialsIndex | null>;
   putIndex(index: MaterialsIndex): Promise<void>;
+  /** Merge against the current index inside its IndexedDB transaction. */
+  mergeIndex?(index: MaterialsIndex, replace?: boolean): Promise<void>;
+  /** Retry file notices committed with the index but not yet delivered to the change log. */
+  flushChanges?(): Promise<void>;
   clear(): Promise<void>;
 };
 
@@ -267,10 +271,10 @@ export type MaterialsStore = {
  * also keeps entries missing from the incoming courses.
  */
 export function mergeMaterialsIndex(current: MaterialsIndex | null, incoming: MaterialsIndex, replace = true): MaterialsIndex {
-  const incomingKeys = new Set(incoming.courses.map(courseKey));
-  const kept = (current?.courses ?? []).filter((course) => !incomingKeys.has(courseKey(course)));
+  const incomingKeys = new Set(incoming.courses.map(materialsCourseKey));
+  const kept = (current?.courses ?? []).filter((course) => !incomingKeys.has(materialsCourseKey(course)));
   const courses = incoming.courses.map((course) => {
-    const previous = current?.courses.find((saved) => courseKey(saved) === courseKey(course));
+    const previous = current?.courses.find((saved) => materialsCourseKey(saved) === materialsCourseKey(course));
     if (replace || !previous) return course;
     return {
       ...course,
@@ -296,7 +300,7 @@ function keepMissing<T>(previous: T[], incoming: T[], key: (item: T) => string):
  * A course is the same course by HuskyCT's id when it has one, so a lecture and a lab that share a
  * code stay two courses. Without a real id (a folder import names the course by its code), the code.
  */
-function courseKey(course: MaterialsCourse): string {
+export function materialsCourseKey(course: MaterialsCourse): string {
   if (/^_\d+_\d+$/.test(course.id)) return "id:" + course.id;
   return course.code ? "code:" + course.code.toUpperCase() : "id:" + course.id;
 }
@@ -386,10 +390,11 @@ export function createMaterialsReceiver(options: {
       case "index": {
         // A tab can close before `done`. Keep old entries visible until the whole delivery succeeds.
         deliveries.delete(source);
-        await options.store.putIndex(mergeMaterialsIndex(await options.store.getIndex(), message.index, false));
+        if (options.store.mergeIndex) await options.store.mergeIndex(message.index, false);
+        else await options.store.putIndex(mergeMaterialsIndex(await options.store.getIndex(), message.index, false));
         const next = { index: message.index, revision: ++revision, expected: message.sending, stored: 0, failed: 0 };
         deliveries.set(source, next);
-        for (const course of message.index.courses) courseRevisions.set(courseKey(course), next.revision);
+        for (const course of message.index.courses) courseRevisions.set(materialsCourseKey(course), next.revision);
         update({ phase: "receiving", expected: message.sending, stored: 0, failed: 0 });
         return;
       }
@@ -414,10 +419,11 @@ export function createMaterialsReceiver(options: {
         if (!delivery) return;
         if (message.complete && delivery.failed === 0 && delivery.stored === delivery.expected) {
           // Another helper may have sent a newer partial index for the same course in the meantime.
-          const courses = delivery.index.courses.filter((course) => courseRevisions.get(courseKey(course)) === delivery.revision);
+          const courses = delivery.index.courses.filter((course) => courseRevisions.get(materialsCourseKey(course)) === delivery.revision);
           const have = new Set(await options.store.keys());
           if (courses.length && courses.every((course) => course.files.every((file) => have.has(file.key)))) {
-            await options.store.putIndex(mergeMaterialsIndex(await options.store.getIndex(), { ...delivery.index, courses }));
+            if (options.store.mergeIndex) await options.store.mergeIndex({ ...delivery.index, courses });
+            else await options.store.putIndex(mergeMaterialsIndex(await options.store.getIndex(), { ...delivery.index, courses }));
             await pruneMaterials(options.store);
           }
         }

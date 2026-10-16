@@ -107,6 +107,15 @@ test("each course starts closed, with a line saying what is in it", async () => 
   await view.unmount();
 });
 
+test("opening the app retries a pending file notice without blocking materials when the log is full", async () => {
+  let attempts = 0;
+  const store = { ...await seeded(), flushChanges: async () => { attempts++; throw new Error("change log full"); } };
+  const view = await render(store);
+  assert.equal(attempts, 1);
+  assert.ok(view.text().includes("MATH 1070Q"));
+  await view.unmount();
+});
+
 test("opening a course shows its own files and its folders; opening a folder shows what is in it", async () => {
   window.localStorage.clear();
   const view = await render(await seeded());

@@ -16,7 +16,7 @@ import {
 import { AppFooter } from "@/components/app-footer";
 import { MobileNav } from "@/components/mobile-nav";
 import { NAV_ITEMS } from "@/components/nav-items";
-import { recordAnnouncementVersions } from "@/components/use-announcement-state";
+import { useChanges } from "@/components/use-changes";
 import { announceSeenChanged, useAnnouncementsSeenAt } from "@/components/use-seen";
 import { ensureAnnouncementsBaseline, unseenAnnouncements } from "@/lib/seen";
 import { SearchPalette } from "@/components/search-palette";
@@ -74,6 +74,8 @@ export function AppShell({
   const pathname = usePathname();
   const [theme, chooseTheme] = useTheme();
   const ThemeIcon = THEME_ICONS[theme];
+  const changes = useChanges();
+  const newChanges = changes.ready ? changes.store.entries.filter((entry) => !entry.read).length : 0;
   const {
     locale,
     changeLocale,
@@ -94,12 +96,6 @@ export function AppShell({
     ensureAnnouncementsBaseline(window.localStorage, new Date());
     announceSeenChanged();
   }, []);
-
-  // What each announcement says is kept as it is saved, so a later change to it can be shown. It is
-  // done here, once for every page, so a sync made while another page is open still counts.
-  useEffect(() => {
-    recordAnnouncementVersions(announcements);
-  }, [announcements]);
 
   const iconButton =
     "tap-icon grid size-8 shrink-0 place-items-center rounded-lg text-[var(--muted)] transition hover:bg-[var(--subtle)] hover:text-[var(--ink)]";
@@ -133,6 +129,11 @@ export function AppShell({
                   className={`nav-item${active ? " nav-item-active" : ""}`}
                 >
                   <Icon size={16} />{t(locale, key)}
+                  {href === "/changes" && newChanges > 0 ? (
+                    <span className="ml-auto rounded-full bg-[var(--warning-soft)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--warning)]" aria-label={t(locale, "changes.unreadCount", { count: newChanges })}>
+                      {newChanges}
+                    </span>
+                  ) : null}
                   {href === "/announcements" && newAnnouncements > 0 && !active ? (
                     <span
                       className="ml-auto rounded-full bg-[var(--warning-soft)] px-1.5 text-[11px] font-semibold tabular-nums text-[var(--warning)]"
@@ -259,7 +260,7 @@ export function AppShell({
           </div>
         </section>
       </div>
-      <MobileNav pathname={pathname} locale={locale} />
+      <MobileNav pathname={pathname} locale={locale} unreadChanges={newChanges} />
     </main>
   );
 }

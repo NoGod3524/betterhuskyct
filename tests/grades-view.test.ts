@@ -3,6 +3,7 @@ import { after, test } from "node:test";
 
 import { GRADES_PROTOCOL, type GradesStore } from "../src/lib/grades.ts";
 import { openGradesStore } from "../src/lib/grades-store.ts";
+import { CHANGES_KEY, parseChanges } from "../src/lib/changes.ts";
 import { t } from "../src/lib/i18n.ts";
 import { installDom } from "./support/dom.ts";
 import { memoryGradesStore, memoryMaterialsStore } from "./support/memory-stores.ts";
@@ -337,4 +338,39 @@ test("clearing asks first, then empties the page", async () => {
   assert.equal(await store.get(), null);
   assert.ok(view.text().includes(t("en", "grades.emptyTitle")));
   await view.unmount();
+});
+
+test("grade data and its history save together, marking seen does not add history, and clearing removes scores from both", async () => {
+  window.localStorage.clear();
+  const store = await openGradesStore();
+  await store.put(READING);
+  assert.equal(parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.length, 0);
+  const later = { ...READING, takenAt: new Date().toISOString(), courses: READING.courses.map((course) => ({ ...course,
+    items: course.items.map((item) => item.id === "_1_1" ? { ...item, earned: 90 } : item),
+  })) };
+  const storage = window.localStorage;
+  const descriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+  Object.defineProperty(window, "localStorage", { configurable: true, value: {
+    getItem: storage.getItem.bind(storage), removeItem: storage.removeItem.bind(storage),
+    setItem: (key: string, value: string) => {
+      if (key === CHANGES_KEY) throw new DOMException("Full", "QuotaExceededError");
+      storage.setItem(key, value);
+    },
+  } });
+  try {
+    await assert.rejects((await openGradesStore()).put(later));
+    assert.equal((await store.get())?.courses[0].items[0].earned, 81.3);
+    assert.equal(parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.length, 0);
+  } finally {
+    if (descriptor) Object.defineProperty(window, "localStorage", descriptor);
+    else Reflect.deleteProperty(window, "localStorage");
+  }
+  await store.put(later);
+  assert.equal(parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.length, 1);
+  await store.put({ ...later, changes: [] });
+  assert.equal(parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.length, 1);
+  await store.clear();
+  assert.equal(await store.get(), null);
+  assert.equal(parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.length, 0);
+  window.localStorage.clear();
 });

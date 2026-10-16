@@ -16,6 +16,7 @@ import {
   type RestoreMode,
 } from "@/lib/backup";
 import { t, type TranslationKey } from "@/lib/i18n";
+import { withChangesLock } from "@/lib/changes";
 
 type Step =
   | { phase: "idle" }
@@ -106,12 +107,12 @@ export function BackupSection({ version }: { version: string }) {
     }
   }
 
-  function apply() {
+  async function apply() {
     if (step.phase !== "chosen") return;
     if (mode === "replace" && !window.confirm(t(locale, "backup.replaceConfirm"))) return;
     let result;
     try {
-      result = restoreBackup(window.localStorage, step.backup, mode);
+      result = await withChangesLock(() => restoreBackup(window.localStorage, step.backup, mode));
     } catch {
       result = { ok: false };
     }

@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import test from "node:test";
 import { parseStoredSubscriptions } from "../src/lib/subscriptions.ts";
 import { EMPTY_PLAN_STATE, PLAN_DATA_KEY, PLAN_STORAGE_KEY, restorePlanState, saveSwitchedOn } from "../src/lib/ai-plan.ts";
+import { CHANGES_KEY, parseChanges, type ChangeEntry } from "../src/lib/changes.ts";
 
 import {
   BACKUP_KEYS,
@@ -118,6 +119,27 @@ test("merge keeps what is here and adds what is missing", () => {
   assert.deepEqual(JSON.parse(target.getItem("huskypilot.customEvents.v1")!), [{ id: "e1", title: "Studied (edited here)" }]);
   assert.equal(target.getItem("huskypilot.theme.v1"), "light", "the setting here was overridden");
   assert.ok(target.getItem("huskypilot.grades.v1"), "a missing key was not added");
+});
+
+test("backup merge combines change history and baselines without undoing either device's read decisions", () => {
+  const now = new Date();
+  const change = (id: string, read: boolean): ChangeEntry => ({
+    id, read, at: now.toISOString(), kind: "grade", courseCode: null, title: "Quiz 1",
+  });
+  const source = new MemoryStorage();
+  source.setItem(CHANGES_KEY, JSON.stringify({ version: 1, entries: [change("here-read", false), change("there-read", true), change("new", false)], baselines: ["announcements"] }));
+  const target = new MemoryStorage();
+  target.setItem(CHANGES_KEY, JSON.stringify({ version: 1, entries: [change("here-read", true), change("there-read", false)], baselines: ["grades"] }));
+  const backup = createBackup(source, now, "2.0.0");
+  assert.deepEqual(summarize(backup), [{ id: "changes", items: 3 }]);
+  assert.deepEqual(restoreBackup(target, backup, "merge"), { ok: true });
+  const restored = parseChanges(target.getItem(CHANGES_KEY));
+  assert.deepEqual(restored.entries.map(({ id, read }) => [id, read]), [["here-read", true], ["new", false], ["there-read", true]]);
+  assert.deepEqual(restored.baselines, ["grades", "announcements"]);
+  assert.deepEqual(restoreBackup(target, backup, "merge"), { ok: true });
+  assert.deepEqual(parseChanges(target.getItem(CHANGES_KEY)), restored, "reimport duplicated a change or reset read state");
+  assert.deepEqual(restoreBackup(target, backup, "replace"), { ok: true });
+  assert.equal(parseChanges(target.getItem(CHANGES_KEY)).entries.find(({ id }) => id === "here-read")?.read, false);
 });
 
 test("merging objects goes key by key, keeps lists free of repeats, and cannot be used to change the prototype", () => {

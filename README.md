@@ -59,6 +59,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Works on a phone** — below 1024 px a bar along the bottom reaches every page (four main ones, and a *More* sheet with the rest), buttons and the completion checkbox are finger-sized on a touch screen, and the header fits the width
 - **Installable and offline** — add it to a phone's home screen as a PWA and keep reading saved tasks without a connection
 - **Announcements** — the browser helper brings your courses' announcements in on the same press as the deadlines, newest first and grouped by course
+- **Recent changes** — one page for new or edited announcements, new or moved deadlines, grade changes, newly listed course files, and work HuskyCT marks done. The first reading establishes a baseline; later changes have unread dots and can be marked read. History stays in this browser and its backup, for up to 30 days and 500 entries. Course-file entries mean a file appeared in the directory; its download may still be pending
 - **Course materials** — every course's files, lecture videos, links and tools, sent over by the browser helper and kept in this browser: browse by course and folder, open PDFs in place, download the rest. Nothing is uploaded; a folder the helper saved can be imported too. **Save to a folder** (Chrome, Edge) or **Download as ZIP** puts everything on your computer, by course and folder, so it can be opened in other programs and survives clearing the browser's data
 - **Grades** — each course's gradebook, read by the browser helper and kept in this browser: what every item scored, and the points so far for the graded work. Scores that are new or different since you last looked are badged ("Newly graded", "Was 80 / 100") until you mark them seen. It says plainly that the total is not your course grade, since HuskyCT shows no weights or dropped scores. Nothing is uploaded
 - **Dark mode** — follows the device, or pick light or dark from the top bar; the choice is kept in this browser and applied before the page is drawn
@@ -145,6 +146,7 @@ src/
 │  ├─ privacy/page.tsx                            # /privacy       what the helper reads and never does
 │  ├─ backup/page.tsx                            # /backup        save everything as one file, and load it back
 │  ├─ about/page.tsx                             # /about         what the project promises and does not, and where to check
+│  ├─ changes/page.tsx                           # /changes       recent changes across courses
 │  ├─ globals.css, icon.tsx                      # Styles; the app icon
 ├─ components/
 │  ├─ calendar-provider.tsx                      # Every piece of app state, in the root layout
@@ -158,6 +160,7 @@ src/
 │  ├─ helper-section.tsx                         # How to install the browser helper
 │  ├─ privacy-section.tsx                         # The helper's privacy policy, which the stores link to
 │  ├─ backup-section.tsx                         # Download a backup; load one, merged or replacing
+│  ├─ changes-section.tsx, use-changes.ts         # Recent changes, unread counts and read decisions
 │  ├─ about-section.tsx                          # The about page: the promise, what it does not promise, costs, where to check
 │  ├─ helper-deliveries.tsx                      # Receives what the helper sends: materials and grades
 │  ├─ sync-status-view.tsx                       # The sync status: a line on the overview, a table on the Helper page
@@ -201,6 +204,7 @@ src/
    ├─ sync-status.ts                             # What each sync read, course by course, and when each part was last read
    ├─ ics.ts                                     # Open deadlines as an .ics file, with reminders, for a calendar app
    ├─ backup.ts, storage-batch.ts                # Backup and grouped storage writes with rollback on failure
+   ├─ changes.ts, change-producers.ts, materials-changes.ts# Bounded change history, source comparisons and recoverable file-directory delivery
    ├─ announcements.ts                           # Course announcements: derived ids, caps, storage
    ├─ announcement-actions.ts, announcement-dates.ts, announcement-sentences.ts# The rules: sentences, the dates in them, the to-dos they suggest
    ├─ announcement-decisions.ts, announcement-versions.ts, announcement-todo.ts, announcement-text.ts, announcement-filters.ts# What the student decided; what each announcement said when saved; the add form; showing the text; filters
@@ -295,7 +299,7 @@ slowly, so running it once a semester is plenty. Pass a term to limit it:
 ## Design decisions
 
 - **Version every stored payload.** Each `localStorage` entry is a versioned, structurally validated object. Malformed data is dropped (and the user is told) instead of crashing the app.
-- **Completion is keyed by event ID.** IDs are derived from the event UID plus start time, so syncing again preserves completion. If the source calendar moves an event's start time, its ID changes and completion resets — a known limitation.
+- **Completion follows stable source identities.** A deadline with one source UID keeps its tick, note and course choice when it moves. Legacy records without a stable source identity are kept separately rather than guessed to be the same task.
 - **A rolling 7 days, not a calendar week.** The question the app answers is "what's due next", not "what is on this week's grid".
 - **No i18n library.** The string set is bounded and small; two dictionaries plus a lookup function were enough.
 - **Reminders only fire while the app is open.** Real background push would need a push server plus stored subscriptions, which this project deliberately avoids. So reminders are an in-app banner plus opt-in notifications, de-duplicated by a task fingerprint so the same reminder is never repeated.

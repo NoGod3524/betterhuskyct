@@ -249,6 +249,10 @@ export type GradesStore = {
   get(): Promise<GradesSnapshot | null>;
   put(snapshot: GradesSnapshot): Promise<void>;
   clear(): Promise<void>;
+  /** Merge against the latest saved reading without yielding between read and write. */
+  receive?(incoming: GradesSnapshot): Promise<void>;
+  /** Clear the latest reading's badges without writing a page's older snapshot back. */
+  markSeen?(): Promise<void>;
 };
 
 /**
@@ -396,7 +400,8 @@ export function createGradesReceiver(options: { store: GradesStore; onChange?: (
       return;
     }
     try {
-      await options.store.put(mergeGrades(await options.store.get(), message.grades));
+      if (options.store.receive) await options.store.receive(message.grades);
+      else await options.store.put(mergeGrades(await options.store.get(), message.grades));
       reply({ kind: "stored", ok: true });
       update({
         phase: "done",

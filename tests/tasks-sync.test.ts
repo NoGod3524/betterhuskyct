@@ -47,6 +47,20 @@ function payload(): unknown {
 
 const message = (body: Record<string, unknown>) => ({ protocol: TASKS_PROTOCOL, ...body });
 
+test("an asynchronous source save acknowledges only after it commits, and a rejection reports not stored", async () => {
+  for (const fail of [false, true]) {
+    let finish!: () => void;
+    const pending = new Promise<boolean>((resolve, reject) => { finish = () => fail ? reject(new Error("Full")) : resolve(true); });
+    const helper = helperWindow();
+    const receive = createTasksReceiver({ onSync: () => pending });
+    const saved = receive({ origin: "https://lms.uconn.edu", source: helper.source, data: message({ kind: "sync", payload: payload() }) });
+    assert.equal(helper.replies.length, 0);
+    finish();
+    await saved;
+    assert.deepEqual(helper.replies.map((reply) => reply.message), [{ protocol: TASKS_PROTOCOL, kind: "stored", ok: !fail }]);
+  }
+});
+
 function helperWindow() {
   const replies: Array<{ message: Record<string, unknown>; origin: string }> = [];
   return {

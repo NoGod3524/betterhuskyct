@@ -388,3 +388,32 @@ test("a second reading merges into the first", async () => {
 
   assert.deepEqual((await store.get())?.courses.map((course) => course.code), ["ECON 1201", "MATH 1070Q"]);
 });
+
+test("a store with atomic receive gets the source reading directly without an earlier get and merge", async () => {
+  const incoming: GradesSnapshot[] = [];
+  const store: GradesStore = {
+    get: async () => { throw new Error("a separate read would race"); },
+    put: async () => { throw new Error("a separate write would race"); },
+    clear: async () => undefined,
+    receive: async (grades) => { incoming.push(grades); },
+  };
+  const receive = createGradesReceiver({ store });
+  const helper = helperWindow();
+  const grades = snapshot();
+  await receive({ origin: "https://lms.uconn.edu", data: message({ kind: "grades", grades }), source: helper.source });
+  assert.deepEqual(incoming, [grades]);
+  assert.deepEqual(helper.replies.map((reply) => reply.message.ok), [true]);
+});
+
+test("a failed atomic receive is reported as not stored without falling back to a stale merge", async () => {
+  const store: GradesStore = {
+    get: async () => { throw new Error("fallback must not run"); },
+    put: async () => { throw new Error("fallback must not run"); },
+    clear: async () => undefined,
+    receive: async () => { throw new Error("quota"); },
+  };
+  const receive = createGradesReceiver({ store });
+  const helper = helperWindow();
+  await receive({ origin: "https://lms.uconn.edu", data: message({ kind: "grades", grades: snapshot() }), source: helper.source });
+  assert.deepEqual(helper.replies.map((reply) => reply.message.ok), [false]);
+});
