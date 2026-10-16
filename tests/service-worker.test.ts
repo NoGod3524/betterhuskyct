@@ -52,10 +52,13 @@ function loadWorker(pages: Record<string, number>, writes = { delayMs: 0, fail: 
   };
 
   const network = { online: true };
-  const fetch = async (request: { url: string }) => {
+  const requests: string[] = [];
+  const fetch = async (request: string | { url: string }) => {
     if (!network.online) throw new TypeError("offline");
-    const path = new URL(request.url).pathname;
-    return new Response(`${path} page`, { status: pages[path] ?? 404 });
+    const address = typeof request === "string" ? request : request.url;
+    requests.push(address);
+    const path = new URL(address, ORIGIN).pathname;
+    return new Response(`${path} page`, { status: pages[path] ?? 404, headers: { "content-type": "text/html" } });
   };
 
   const listeners: Record<string, Listener> = {};
@@ -72,6 +75,7 @@ function loadWorker(pages: Record<string, number>, writes = { delayMs: 0, fail: 
     const lifetime: Promise<unknown>[] = [];
     listeners[type]({
       ...extra,
+      ...(extra.request ? { request: { headers: new Headers(), ...extra.request as object } } : {}),
       waitUntil: (value: Promise<unknown>) => lifetime.push(value),
       respondWith: (value: Promise<unknown>) => (response = value),
     });
@@ -87,8 +91,34 @@ function loadWorker(pages: Record<string, number>, writes = { delayMs: 0, fail: 
     return response.text();
   }
 
-  return { store, network, fire, navigate };
+  return { store, network, fire, navigate, requests };
 }
+
+test("a route visited through Next Link has its HTML available for a cold offline opening", async () => {
+  const worker = loadWorker({ "/": 200, "/tasks": 200 }, { delayMs: 20, fail: false });
+  await worker.fire("install");
+  await worker.fire("fetch", { request: {
+    method: "GET", mode: "cors", url: ORIGIN + "/tasks?_rsc=from-sidebar",
+    headers: new Headers({ RSC: "1", "Next-Router-State-Tree": "source-route" }),
+  } });
+  assert.deepEqual(worker.requests, [ORIGIN + "/tasks"], "cache a fresh HTML request without RSC headers or query");
+  worker.network.online = false;
+  assert.equal(await worker.navigate("/tasks"), "/tasks page");
+});
+
+test("failed Link route caching never replaces a good page or creates an error fallback", async () => {
+  const pages = { "/": 200, "/tasks": 200, "/broken": 500 };
+  const worker = loadWorker(pages);
+  await worker.fire("install");
+  await worker.navigate("/tasks");
+  pages["/tasks"] = 500;
+  for (const path of ["/tasks", "/broken"]) await worker.fire("fetch", { request: {
+    method: "GET", mode: "cors", url: ORIGIN + path + "?_rsc=sidebar", headers: new Headers({ RSC: "1" }),
+  } });
+  worker.network.online = false;
+  assert.equal(await worker.navigate("/tasks"), "/tasks page");
+  assert.equal(await worker.navigate("/broken"), "/offline.html page");
+});
 
 test("offline, each route gets its own page back", async () => {
   const worker = loadWorker({ "/": 200, "/calendar": 200, "/tasks": 200 });
@@ -157,9 +187,10 @@ test("the offline page is a plain page: no script, and a way back to the home pa
 test("activating clears the old cache, whose shell may be another route's page", async () => {
   const worker = loadWorker({ "/": 200 });
   worker.store.set("huskypilot-v1", new Map([["/", "/calendar page"]]));
+  worker.store.set("huskypilot-v2", new Map([["/", "/ page"]]));
 
   await worker.fire("install");
   await worker.fire("activate");
 
-  assert.deepEqual([...worker.store.keys()], ["huskypilot-v2"]);
+  assert.deepEqual([...worker.store.keys()], ["huskypilot-v3"]);
 });
