@@ -11,7 +11,7 @@ const GITHUB = "https://github.com/NoGod3524/betterhuskyct";
 export function PrivacySection() {
   const { locale } = useCalendar();
   const never = ["privacy.never1", "privacy.never2", "privacy.never3"] as const;
-  const perms = ["privacy.perm1", "privacy.perm2", "privacy.perm3"] as const;
+  const perms = ["privacy.perm1", "privacy.perm2", "privacy.perm3", "privacy.perm4", "privacy.perm5"] as const;
 
   return (
     <section className="mt-10 max-w-2xl" aria-labelledby="privacy-heading">

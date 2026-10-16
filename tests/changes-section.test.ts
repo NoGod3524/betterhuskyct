@@ -31,15 +31,15 @@ function seed(entries: ChangeEntry[]) {
   saveChanges(window.localStorage as unknown as Storage, { version: 1, entries, baselines: ["grades"] });
 }
 
-function page() {
-  return createElement(CalendarProvider, { initialNow: "2026-10-16T12:00:00.000Z", children: createElement(ChangesSection) });
+function page(preview = false) {
+  return createElement(CalendarProvider, { initialNow: "2026-10-16T12:00:00.000Z", children: createElement(ChangesSection, { preview }) });
 }
 
-async function mount() {
+async function mount(preview = false) {
   const container = window.document.createElement("div");
   window.document.body.appendChild(container);
   const root = createRoot(container as unknown as Element);
-  await act(async () => root.render(page()));
+  await act(async () => root.render(page(preview)));
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); });
   return {
     container,
@@ -205,4 +205,49 @@ test("blocked storage is reported without claiming that there are no changes", a
     else Reflect.deleteProperty(window, "localStorage");
     await view.unmount();
   }
+});
+
+test("home preview shows the five newest unread changes and the full unread count", async () => {
+  seed([
+    entry("read", { at: LATER, read: true }),
+    ...Array.from({ length: 7 }, (_, index) => entry(String(index), { at: new Date(day.valueOf() + index * 60_000).toISOString() })),
+  ]);
+  const view = await mount(true);
+  assert.deepEqual([...view.container.querySelectorAll("h4")].map((node) => node.textContent), ["Homework 6", "Homework 5", "Homework 4", "Homework 3", "Homework 2"]);
+  assert.equal(view.unread(), 5);
+  assert.equal(view.container.querySelector('a[href="/changes"]')?.textContent, `${t("en", "changes.viewAll")} (7)`);
+  assert.equal(view.container.querySelector("h1"), null);
+  assert.equal(view.container.querySelector("h2")?.textContent, t("en", "changes.previewTitle"));
+  await view.click(t("en", "changes.markReadLabel", { title: "Homework 6" }));
+  assert.ok(view.text().includes("Homework 1"));
+  assert.ok(!view.text().includes("Homework 6"));
+  await view.click(t("en", "changes.markAllRead"));
+  assert.ok(parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.every((row) => row.read));
+  assert.ok(view.text().includes(t("en", "changes.allRead")));
+  assert.ok(view.text().includes(t("en", "changes.allReadBody")));
+  assert.equal(view.container.querySelector('a[href="/changes"]')?.textContent, t("en", "changes.viewAll"));
+  await view.unmount();
+});
+
+test("home preview distinguishes first sync from all read, including Chinese", async () => {
+  window.localStorage.setItem(LOCALE_STORAGE_KEY, "zh-CN");
+  const view = await mount(true);
+  assert.ok(view.text().includes(t("zh-CN", "changes.previewTitle")));
+  assert.ok(view.text().includes(t("zh-CN", "changes.emptyTitle")));
+  assert.ok(!view.text().includes(t("zh-CN", "changes.allRead")));
+  seed([entry("read", { read: true })]);
+  await view.changed();
+  assert.ok(view.text().includes(t("zh-CN", "changes.allRead")));
+  assert.ok(!view.text().includes(t("zh-CN", "changes.emptyTitle")));
+  assert.equal(view.container.querySelector("button"), null);
+  await view.unmount();
+});
+
+test("home preview also waits for local changes during server rendering", () => {
+  seed([entry("private-title")]);
+  const html = renderToString(page(true));
+  assert.ok(html.includes(t("en", "common.loading")));
+  assert.ok(!html.includes("Homework private-title"));
+  assert.ok(!html.includes(t("en", "changes.emptyTitle")));
+  assert.ok(!html.includes(t("en", "changes.allRead")));
 });

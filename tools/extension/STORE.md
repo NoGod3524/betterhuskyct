@@ -25,6 +25,8 @@ Reads your HuskyCT deadlines, announcements, grades and files in your own browse
 >
 > HuskyCT shows these things on different pages, one course at a time. With the helper installed, press Sync on BetterHuskyCT (or just open HuskyCT) and it reads your courses, to-do list and due dates, announcements, gradebook and course files, using the session your browser already has, and hands them to BetterHuskyCT.
 >
+> Optional background sync checks about every six hours while your browser runs, even with both sites closed. Course changes wait locally for your next visit. Optional system notifications show course updates; both features start off. If your HuskyCT session expires, checks pause and you are asked to sign in again. Background sync updates file directories; use Sync to download file contents.
+>
 > Private by design: it never asks for or stores your NetID, password or cookies; it talks only to lms.uconn.edu; it has no analytics or tracking; and what it reads stays in your browser. It is free, open source (MIT), and has no ads, sign-up or tracking; every release can be checked against the public code.
 >
 > This is an unofficial tool and is not affiliated with the University of Connecticut or Blackboard.
@@ -34,6 +36,8 @@ Reads your HuskyCT deadlines, announcements, grades and files in your own browse
 > BetterHuskyCT Helper 把 UConn 的 HuskyCT（Blackboard Ultra）连到 BetterHuskyCT，一个汇总截止日期、公告、成绩和课件的仪表盘。
 >
 > HuskyCT 把这些内容分散在不同页面、一门课一门课地看。装上助手后，在 BetterHuskyCT 点「同步」（或直接打开 HuskyCT），它会用你浏览器里已有的登录状态读取课程、待办和截止日期、公告、成绩和课件，并交给 BetterHuskyCT。
+>
+> 可选的后台同步会在浏览器运行时大约每六小时检查一次，即使两个站点都没打开。课程变化先保存在本机，等下次打开网站时交给你；还可选择开启系统通知。这两项默认关闭。HuskyCT 登录失效时会暂停检查，提示你重新登录。后台更新课件目录，文件内容仍由「同步」下载。
 >
 > 隐私优先：不会索取或保存你的 NetID、密码和 cookie；只和 lms.uconn.edu 通信；没有统计和跟踪；读到的内容留在你的浏览器里。免费、开源（MIT），没有广告、不需注册、不追踪；每个发布版本都能对照公开代码核对。
 >
@@ -49,6 +53,9 @@ Reads your HuskyCT deadlines, announcements, grades and files in your own browse
 
 - `storage` and `unlimitedStorage`: keep what was read, including course files the student asks for, on the device. File contents can exceed the default storage quota.
 - `scripting`: run the bundled helper in the HuskyCT and BetterHuskyCT pages (it needs the page's own session to read HuskyCT).
+- `alarms`: schedule optional background checks about every six hours while the browser runs.
+- `offscreen`: run the same bundled API reader in a document with DOM support while no HuskyCT page is open.
+- `notifications` (optional): show local course-update and sign-in reminders after the student enables them. Previews may contain course names and item titles. This is not a push service.
 - Host access to `https://lms.uconn.edu/*` and `https://huskyct.uconn.edu/*`: read HuskyCT. `https://betterhuskyct.vercel.app/*`: receive the result and start a sync from its Sync button.
 
 **Remote code:** none. All code is in the package.

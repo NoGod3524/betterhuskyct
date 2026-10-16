@@ -1,5 +1,9 @@
+import { BACKGROUND_PROTOCOL, createBackgroundSync } from "./background-sync.js";
+
 const PREFIX = "gm:";
 const HUSKYCT = "https://lms.uconn.edu/";
+const backgroundSync = createBackgroundSync(chrome);
+backgroundSync.install();
 
 /** The helper's storage as it is now, without the prefix, for the page to start from. */
 async function snapshot() {
@@ -11,7 +15,7 @@ async function snapshot() {
 
 async function inject(tabId) {
   const target = { tabId, frameIds: [0] };
-  const boot = await snapshot();
+  const boot = await backgroundSync.enqueue(snapshot);
   await chrome.scripting.executeScript({
     target,
     world: "MAIN",
@@ -28,7 +32,11 @@ async function opened() {
   return (await chrome.storage.session.get("opened")).opened || {};
 }
 
-chrome.runtime.onMessage.addListener((message, sender) => {
+chrome.runtime.onMessage.addListener((message, sender, reply) => {
+  if (message?.protocol === BACKGROUND_PROTOCOL && ["worker", "background"].includes(message.target)) {
+    backgroundSync.handle(message, sender).then(reply).catch(() => reply({ ok: false, reason: "failed" }));
+    return true;
+  }
   const tabId = sender.tab && sender.tab.id;
   if (typeof tabId !== "number" || !message) return;
   if (message.kind === "ready") {
@@ -38,14 +46,16 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     chrome.tabs
       .create({ url: message.url, active, openerTabId: tabId })
       .then(async (tab) => {
-        const map = await opened();
-        map[message.id] = tab.id;
-        await chrome.storage.session.set({ opened: map });
+        await backgroundSync.enqueue(async () => {
+          const map = await opened();
+          map[message.id] = tab.id;
+          await chrome.storage.session.set({ opened: map });
+        });
       })
       .catch(() => {});
   } else if (message.kind === "close" && typeof message.id === "string") {
-    opened()
-      .then(async (map) => {
+    backgroundSync.enqueue(async () => {
+        const map = await opened();
         const id = map[message.id];
         if (typeof id !== "number") return;
         delete map[message.id];

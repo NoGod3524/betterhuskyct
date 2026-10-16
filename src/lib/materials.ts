@@ -17,6 +17,8 @@
  */
 
 import { isRecord } from "./is-record.ts";
+import type { ChangesStore } from "./changes.ts";
+import type { ReadReport } from "./sync-status.ts";
 
 /**
  * The types a stored file may be opened as in a tab of this app. A blob address belongs to the app's
@@ -261,6 +263,7 @@ export type MaterialsStore = {
   mergeIndex?(index: MaterialsIndex, replace?: boolean): Promise<void>;
   /** Retry file notices committed with the index but not yet delivered to the change log. */
   flushChanges?(): Promise<void>;
+  receiveBackground?(index: MaterialsIndex, history: ChangesStore, report?: ReadReport): Promise<void>;
   clear(): Promise<void>;
 };
 

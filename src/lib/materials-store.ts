@@ -1,6 +1,9 @@
 import { mergeMaterialsIndex, type MaterialsIndex, type MaterialsStore, type StoredFile } from "@/lib/materials";
 import { CHANGES_CHANGED, CHANGES_KEY, parseChanges, saveChanges, withChangesLock } from "@/lib/changes";
-import { flushMaterialChanges, recordMaterialChanges, type MaterialsChangeOutbox } from "@/lib/materials-changes";
+import { adoptMaterialChanges, flushMaterialChanges, recordMaterialChanges, type MaterialsChangeOutbox } from "@/lib/materials-changes";
+import { historyForSource } from "./background-sync.ts";
+import type { ChangesStore } from "./changes.ts";
+import type { ReadReport } from "./sync-status.ts";
 
 /**
  * The materials store in IndexedDB, which holds files as Blobs and can hold a
@@ -75,15 +78,20 @@ export async function openMaterialsStore(): Promise<MaterialsStore> {
     return work;
   };
 
-  const writeIndex = async (incoming: MaterialsIndex, replace?: boolean) => {
+  const writeIndex = async (incoming: MaterialsIndex, replace?: boolean, history?: ChangesStore, flush = true, report?: ReadReport) => {
     const transaction = db.transaction(META, "readwrite");
     const meta = transaction.objectStore(META);
     const saved = committed(transaction);
     const update = Promise.all([promised(meta.get(INDEX_ID)), promised(meta.get(CHANGES_ID))])
       .then(([row, outbox]: [{ index?: MaterialsIndex } | undefined, unknown]) => {
         const previous = row?.index ?? null;
-        const index = replace === undefined ? incoming : mergeMaterialsIndex(previous, incoming, replace);
-        const changes = recordMaterialChanges(previous, index, outbox, new Date());
+        const older = history && previous && Date.parse(previous.updatedAt) > Date.parse(incoming.updatedAt);
+        const candidate = history ? { ...incoming, updatedAt: older ? previous.updatedAt : incoming.updatedAt,
+          courses: incoming.courses.filter(course => !previous?.courses.some(saved => saved.id === course.id)
+            || (!older && (!report || report.courses.some(status => status.id === course.id && status.files)))),
+        } : incoming;
+        const index = replace === undefined ? candidate : mergeMaterialsIndex(previous, candidate, replace);
+        const changes = history ? adoptMaterialChanges(previous, index, outbox, historyForSource(history, "materials").entries, new Date()) : recordMaterialChanges(previous, index, outbox, new Date());
         meta.put({ id: INDEX_ID, index });
         meta.put({ id: CHANGES_ID, ...changes });
       })
@@ -93,7 +101,10 @@ export async function openMaterialsStore(): Promise<MaterialsStore> {
       });
     // Request success alone does not guarantee that the index and its outbox committed.
     await Promise.all([update, saved]);
-    void flushChanges().catch(() => undefined);
+    if (flush) {
+      if (history) await flushChanges();
+      else void flushChanges().catch(() => undefined);
+    }
   };
 
   return {
@@ -113,6 +124,10 @@ export async function openMaterialsStore(): Promise<MaterialsStore> {
     putIndex: (index) => writeIndex(index),
     mergeIndex: (index, replace = true) => writeIndex(index, replace),
     flushChanges,
+    receiveBackground: async (index, history, report) => {
+      await withChangesLock(() => writeIndex(index, false, history, false, report));
+      await flushChanges();
+    },
     clear: async () => {
       await withChangesLock(async () => {
         const storage = window.localStorage;

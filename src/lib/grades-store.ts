@@ -1,6 +1,7 @@
 import { markChangesSeen, mergeGrades, parseStoredGrades, type GradesSnapshot, type GradesStore } from "@/lib/grades";
+import { historyForSource } from "./background-sync.ts";
 import { recordGradeChanges } from "./change-producers.ts";
-import { CHANGES_CHANGED, CHANGES_KEY, parseChanges, saveChanges, withChangesLock, type ChangesStore } from "./changes.ts";
+import { CHANGES_CHANGED, CHANGES_KEY, mergeChangeStores, parseChanges, saveChanges, withChangesLock, type ChangesStore } from "./changes.ts";
 import { writeStorageBatch } from "./storage-batch.ts";
 
 /**
@@ -47,6 +48,15 @@ export async function openGradesStore(): Promise<GradesStore> {
     receive: async (incoming) => withChangesLock(() => {
       const before = read();
       put(mergeGrades(before, incoming), before);
+    }),
+    receiveBackground: async (incoming, history, report) => withChangesLock(() => {
+      const before = read();
+      const courses = new Map((before?.courses ?? []).map(course => [course.id, course]));
+      const older = before && Date.parse(before.takenAt) > Date.parse(incoming.takenAt);
+      const accepted = incoming.courses.filter(course => !courses.has(course.id)
+        || (!older && (!report || report.courses.some(status => status.id === course.id && status.grades))));
+      const snapshot = { ...mergeGrades(before, { ...incoming, courses: accepted }), takenAt: older ? before.takenAt : incoming.takenAt };
+      write(snapshot, mergeChangeStores(parseChanges(storage.getItem(CHANGES_KEY)), historyForSource(history, "grades"), new Date()));
     }),
     markSeen: async () => withChangesLock(() => {
       const latest = read();
