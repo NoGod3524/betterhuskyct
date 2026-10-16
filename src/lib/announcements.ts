@@ -1,27 +1,7 @@
 /**
- * Course announcements, as a first-class thing the app can hold.
- *
- * Until now the helper could read announcements but had nowhere to put them: it
- * wrote a Markdown digest and the app only ever knew about deadlines. This is the
- * data type that lets them arrive the same way deadlines do.
- *
- * Three properties matter, and each is a response to something measured:
- *
- * - **An announcement has an id, and it is derived rather than given.**
- *   Blackboard hands out no id for an announcement, and the only timestamp on it
- *   is the page's own words — "7 hours ago, at 5:31 PM" — which the helper
- *   deliberately refuses to convert, because turning a relative time into an
- *   instant needs a clock reading that may not match the person reading it. So
- *   the id is a hash of the parts that *are* stable across collects. Collecting
- *   the same course twice updates a row in place instead of duplicating it.
- * - **The posted time is kept as text.** Converting it would mean inventing a
- *   precision the page does not have, and a wrong date on an announcement is
- *   worse than an approximate one. `announced` — when we actually saw it — is
- *   what gets sorted and aged.
- * - **`title` is the only required field.** The helper already skips any row
- *   without one, so demanding more would be the "depending on the caller's
- *   selector for the shape of a record" mistake that file's own comments warn
- *   against: it is how an empty entry reaches the output.
+ * Course announcements use HuskyCT's course and announcement ids when available.
+ * Legacy records keep their original content hash. API timestamps are ISO; old
+ * page text is retained without guessing which timezone or instant it described.
  */
 
 import { contentHash } from "./content-hash.ts";
@@ -42,15 +22,18 @@ export const MAX_ANNOUNCEMENTS = 400;
 export const MAX_ANNOUNCEMENT_BODY = 1_200;
 
 export type Announcement = {
-  /** Derived from course, title and posted — stable across collects. */
+  /** Source identity when available, otherwise the legacy content hash. */
   id: string;
+  /** HuskyCT ids, independent of this device's local course UUID. */
+  sourceId?: string;
+  sourceCourseId?: string;
   /** Resolved to a local course when one matches; null when none does. */
   courseId: string | null;
   /** The course as the page named it, so an unmatched one is still readable. */
   courseCode: string | null;
   title: string;
   body: string;
-  /** The page's own words. Never converted to an instant. */
+  /** An ISO timestamp from the API, or the original text from an older collector. */
   posted: string | null;
   /** When this device (or the device that sent it) actually saw it. */
   announced: string;
@@ -65,6 +48,8 @@ export function isAnnouncement(value: unknown): value is Announcement {
   return (
     typeof value.id === "string" &&
     value.id.length > 0 &&
+    (value.sourceId === undefined || (typeof value.sourceId === "string" && value.sourceId.length > 0)) &&
+    (value.sourceCourseId === undefined || (typeof value.sourceCourseId === "string" && value.sourceCourseId.length > 0)) &&
     (typeof value.courseId === "string" || value.courseId === null) &&
     (typeof value.courseCode === "string" || value.courseCode === null) &&
     typeof value.title === "string" &&
@@ -75,17 +60,19 @@ export function isAnnouncement(value: unknown): value is Announcement {
 }
 
 /**
- * The id an announcement keeps for the rest of its life.
- *
- * The course code is an input rather than the resolved course id because ids are
- * per-device UUIDs: the same announcement arriving by sync on a second device
- * has to hash to the same thing, or it would be counted twice there.
+ * Source ids survive edits and timezone changes. Without both source ids, keep
+ * the legacy hash: matching only a title or date cannot establish a migration.
  */
 export function computeAnnouncementId(input: {
   courseCode: string | null;
   title: string;
   posted: string | null;
+  sourceId?: string;
+  sourceCourseId?: string;
 }): string {
+  if (input.sourceCourseId && input.sourceId) {
+    return `huskyct-announcement:${encodeURIComponent(JSON.stringify([input.sourceCourseId, input.sourceId]))}`;
+  }
   return contentHash(
     `${input.courseCode ?? ""}|${input.title}|${input.posted ?? ""}`,
   );
@@ -132,9 +119,16 @@ export function parseAnnouncementCandidates(
     const rawPosted = text(entry.posted);
     const posted = rawPosted.length > 0 ? rawPosted : null;
     const announced = isValidDateString(entry.announced) ? entry.announced : stamp;
+    const sourceId = text(entry.sourceId);
+    const sourceCourseId = text(entry.sourceCourseId);
+    const source = {
+      ...(sourceId ? { sourceId } : {}),
+      ...(sourceCourseId ? { sourceCourseId } : {}),
+    };
 
     const announcement: Announcement = {
-      id: computeAnnouncementId({ courseCode, title, posted }),
+      id: computeAnnouncementId({ courseCode, title, posted, ...source }),
+      ...source,
       courseId: null,
       courseCode,
       title: clamp(title, 200),
@@ -207,12 +201,15 @@ export function clearAnnouncements(storage: Storage) {
 }
 
 /**
- * When a posted line says an announcement was posted, as a time, or null when it only says it
- * relatively ("7 hours ago, at 5:31 PM") or not at all. The helper writes an absolute time as
- * `9/25/26, 4:00 PM` in the reader's own zone, which is the zone this reads it in.
+ * Read API instants and legacy local date text. Relative page text has no known instant.
  */
 export function postedTime(posted: string | null): number | null {
-  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s+(\d{1,2}):(\d{2})\s*([AP])M$/i.exec((posted ?? "").trim());
+  const value = (posted ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) {
+    const at = Date.parse(value);
+    return Number.isNaN(at) ? null : at;
+  }
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4}),\s+(\d{1,2}):(\d{2})\s*([AP])M$/i.exec(value);
   if (!match) return null;
   const year = match[3].length === 2 ? 2000 + Number(match[3]) : Number(match[3]);
   const hour = (Number(match[4]) % 12) + (/p/i.test(match[6]) ? 12 : 0);

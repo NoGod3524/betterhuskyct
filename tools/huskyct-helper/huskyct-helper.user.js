@@ -286,16 +286,12 @@
     }
   }
 
-  /**
-   * A time as the Announcements page writes it, "9/25/26, 4:00 PM". An announcement's id is
-   * made from this text, so the same announcement must come out the same whichever way it was read.
-   */
+  /** Keep the API's instant independent of the collecting device's timezone. */
   function postedText(iso) {
+    if (typeof iso !== "string" || !iso) return null;
     const at = new Date(iso);
     if (Number.isNaN(at.valueOf())) return null;
-    return at
-      .toLocaleString("en-US", { year: "2-digit", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })
-      .replace(/[  ]/g, " ");
+    return at.toISOString();
   }
 
   /** The course's announcements as { title, body, posted } rows, newest first, or null if they could not be read this way. */
@@ -313,6 +309,7 @@
         if (!title) continue;
         const body = item.body || {};
         rows.push({
+          ...(typeof item.id === "string" && item.id ? { sourceId: item.id, sourceCourseId: courseId } : {}),
           title,
           body: htmlToText(body.displayText || body.rawText),
           posted: postedText(item.startDateRestriction || item.createdDate),
@@ -423,20 +420,16 @@
   /**
    * Announcements in the shape the dashboard's announcement reader accepts.
    *
-   * The course is named by its *code* rather than its id, because the code is
-   * the only handle both sides understand: HuskyCT's `_203765_1` means nothing
-   * to the dashboard, while `MATH 1070Q` is what its course book is keyed on.
-   *
-   * `announced` is when this page was read, not when the announcement was
-   * posted. The posted time is relative prose that only holds at the moment it
-   * is read — see `postedFromText` — so it travels as text and is never used as
-   * a sort key. Anything else would be inventing a date the page never gave.
+   * The course code resolves the dashboard's local course. The source ids identify the
+   * announcement across devices. API posted times are ISO; old basket text stays as recorded.
    */
   function announcementsToCandidates(records, courseCode, now) {
     const stamp = (now || new Date()).toISOString();
     return (records || [])
       .filter((record) => record && record.title)
       .map((record) => ({
+        ...(record.sourceId ? { sourceId: record.sourceId } : {}),
+        ...(record.sourceCourseId ? { sourceCourseId: record.sourceCourseId } : {}),
         courseCode: courseCode || null,
         title: record.title,
         body: record.body || "",
@@ -546,6 +539,8 @@
    */
   function rememberAnnouncements(basket, course, records, now) {
     const kept = (records || []).slice(0, BASKET_PER_COURSE).map((record) => ({
+      ...(record.sourceId ? { sourceId: record.sourceId } : {}),
+      ...(record.sourceCourseId ? { sourceCourseId: record.sourceCourseId } : {}),
       title: record.title,
       body: String(record.body || "").slice(0, BASKET_BODY_LIMIT),
       posted: record.posted || null,

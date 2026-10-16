@@ -15,6 +15,10 @@ import {
   sortAnnouncements,
   type Announcement,
 } from "../src/lib/announcements.ts";
+import { recordVersions } from "../src/lib/announcement-versions.ts";
+import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
+import { buildSyncPayload, parseSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
+import { mergeSyncPayload } from "../src/lib/sync-merge.ts";
 
 const NOW = new Date("2026-09-23T12:00:00.000Z");
 
@@ -122,6 +126,59 @@ test("a different title or posted time is a different announcement", () => {
 });
 
 // ---------------------------------------------------------------- ingestion
+
+test("a source announcement keeps its identity through title, time and course label edits, scoped to its HuskyCT course", () => {
+  const source = { sourceId: "_11_1", sourceCourseId: "_203765_1" };
+  const [first] = parseAnnouncementCandidates([candidate(source)], NOW);
+  const [changed] = parseAnnouncementCandidates([candidate({ ...source, title: "New title", posted: "2026-10-01T14:00:00Z", courseCode: "NRE 1000E lecture" })], NOW);
+  const [otherCourse] = parseAnnouncementCandidates([candidate({ ...source, sourceCourseId: "_203766_1" })], NOW);
+
+  assert.equal(changed.id, first.id);
+  assert.notEqual(otherCourse.id, first.id);
+  assert.equal(first.sourceId, source.sourceId);
+  assert.equal(first.sourceCourseId, source.sourceCourseId);
+});
+
+test("legacy or incomplete source information preserves the old identity without guessing a migration", () => {
+  const legacy = candidate();
+  const id = computeAnnouncementId(legacy);
+  assert.equal(id, "9cfd4f68");
+  for (const partial of [{}, { sourceId: "_11_1" }, { sourceCourseId: "_203765_1" }]) {
+    assert.equal(parseAnnouncementCandidates([{ ...legacy, ...partial }], NOW)[0].id, id);
+  }
+  const sourced = parseAnnouncementCandidates([{ ...legacy, sourceId: "_11_1", sourceCourseId: "_203765_1" }], NOW)[0];
+  assert.notEqual(sourced.id, id);
+});
+
+test("source identity accepts arbitrary sync strings without throwing or confusing id boundaries", () => {
+  const rows = parseAnnouncementCandidates([
+    candidate({ sourceCourseId: "a:b", sourceId: "c" }),
+    candidate({ sourceCourseId: "a", sourceId: "b:c" }),
+    candidate({ sourceCourseId: "_203765_1", sourceId: "\ud800" }),
+  ], NOW);
+  assert.equal(rows.length, 3);
+  assert.equal(new Set(rows.map((row) => row.id)).size, 3);
+  assert.deepEqual(parseAnnouncementCandidates(JSON.parse(JSON.stringify(rows)), NOW), rows);
+});
+
+test("source identity survives storage and a real sync round trip, with edits merging into the same version history", () => {
+  const [first] = parseAnnouncementCandidates([candidate({ sourceId: "_11_1", sourceCourseId: "_203765_1" })], NOW);
+  const stored = parseStoredAnnouncements(serializeAnnouncements([first]))!;
+  assert.deepEqual(stored, [first]);
+  const [changed] = parseAnnouncementCandidates([{ ...first, title: "Midterm moved again", body: "The midterm moves to the 16th.", posted: "2026-10-01T14:00:00.000Z" }], NOW);
+  const payload = parseSyncPayload(serialiseSyncPayload(buildSyncPayload({
+    feeds: [], completedIds: [], courses: EMPTY_COURSE_BOOK, announcements: [changed], now: NOW,
+  })))!;
+  assert.equal(payload.announcements[0].sourceId, "_11_1");
+  assert.equal(payload.announcements[0].sourceCourseId, "_203765_1");
+  assert.equal(payload.announcements[0].id, first.id);
+  const merged = mergeSyncPayload({ courses: EMPTY_COURSE_BOOK, completedIds: new Set(), subscriptions: [], announcements: stored }, payload);
+  assert.equal(merged.addedAnnouncements, 0);
+  assert.equal(merged.announcements.length, 1);
+  assert.equal(merged.announcements[0].body, changed.body);
+  const versions = recordVersions(recordVersions({}, [first], NOW), merged.announcements, new Date("2026-10-02T00:00:00Z"));
+  assert.deepEqual(versions[first.id].map((version) => version.body), [first.body, changed.body]);
+});
 
 test("a row with no title is dropped, because a title is the whole announcement", () => {
   const parsed = parseAnnouncementCandidates(
@@ -274,6 +331,8 @@ test("a posted line that is relative or missing is ordered by when it was seen",
 });
 
 test("a posted time is read as the helper writes it, in the reader's zone, and nothing else is", () => {
+  assert.equal(postedTime("2026-10-08T20:50:00.000Z"), Date.parse("2026-10-08T20:50:00Z"));
+  assert.equal(postedTime("2026-10-08T16:50:00-04:00"), Date.parse("2026-10-08T20:50:00Z"));
   assert.equal(postedTime("10/8/26, 4:50 PM"), new Date(2026, 9, 8, 16, 50).valueOf());
   assert.equal(postedTime("10/8/26, 12:05 AM"), new Date(2026, 9, 8, 0, 5).valueOf());
   assert.equal(postedTime("10/8/26, 12:05 PM"), new Date(2026, 9, 8, 12, 5).valueOf());
