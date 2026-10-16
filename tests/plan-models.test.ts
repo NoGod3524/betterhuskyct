@@ -88,7 +88,7 @@ test("an answer that is not the JSON asked for is no answer", () => {
 test("contact details are taken out before a provider sees the syllabus, and JSON is asked for", async () => {
   const { sent, fetchImpl } = stub({ glm: [says('{"items":[]}')] });
 
-  await extractPlan(SYLLABUS, { providers, fetchImpl });
+  await extractPlan(SYLLABUS, { providers, country: "US", fetchImpl });
 
   const body = JSON.stringify(sent[0].body);
   assert.ok(!body.includes("prof.jones@uconn.edu") && !body.includes("486-1234"), body);
@@ -103,7 +103,7 @@ test("an answer that is not JSON moves on to the next provider", async () => {
     gemini: [says('{"items":[{"title":"Midterm 1","date":"2026-10-14","time":null,"kind":"exam","evidence":"","source":null}]}')],
   });
 
-  const result = await extractPlan(SYLLABUS, { providers, fetchImpl, wait: async () => {} });
+  const result = await extractPlan(SYLLABUS, { providers, country: "US", fetchImpl, wait: async () => {} });
 
   assert.equal(result.provider, "gemini");
   assert.equal(result.items[0].title, "Midterm 1");
@@ -114,7 +114,7 @@ test("when every provider is busy the problem is busy, so the page can try again
   const { fetchImpl } = stub({ glm: [() => new Response("{}", { status: 429 })], gemini: [() => new Response("{}", { status: 429 })] });
 
   await assert.rejects(
-    extractPlan(SYLLABUS, { providers, fetchImpl, wait: async () => {} }),
+    extractPlan(SYLLABUS, { providers, country: "US", fetchImpl, wait: async () => {} }),
     (error: unknown) => error instanceof ModelError && error.problem === "busy",
   );
 });
@@ -151,12 +151,12 @@ test("only a syllabus's summary is kept: one a model adds to announcements is dr
   const { fetchImpl } = stub({ glm: [says('{"summary":"- Something","items":[]}')] });
   const result = await extractPlan(
     { ...SYLLABUS, kind: "announcements", text: "", announcements: [{ title: "A", body: "B", posted: null }] },
-    { providers, fetchImpl },
+    { providers, country: "US", fetchImpl },
   );
   assert.equal(result.summary, null);
 
   const { fetchImpl: again } = stub({ glm: [says('{"summary":"- Exams 60%","items":[]}')] });
-  assert.equal((await extractPlan(SYLLABUS, { providers, fetchImpl: again })).summary, "- Exams 60%");
+  assert.equal((await extractPlan(SYLLABUS, { providers, country: "US", fetchImpl: again })).summary, "- Exams 60%");
 });
 
 test("office hours, class meeting times, weekly routines and contact details are not to-dos", async () => {

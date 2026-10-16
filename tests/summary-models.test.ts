@@ -51,7 +51,7 @@ const says = (content: unknown, finish_reason = "stop") => () =>
 const busy = () => new Response("{}", { status: 429 });
 const noWait = async () => {};
 
-function run(providers: ModelProvider[], fetchImpl: ReturnType<typeof upstream>["fetchImpl"], country: string | null = null) {
+function run(providers: ModelProvider[], fetchImpl: ReturnType<typeof upstream>["fetchImpl"], country: string | null = "US") {
   const waits: number[] = [];
   const errors: ModelError[] = [];
   const result = summarizeAnnouncements(REQUEST, {
@@ -98,7 +98,7 @@ test("a summary is checked for the page's language", () => {
 test("an English summary for a Chinese page is not shown: the other model is asked instead", async () => {
   const chinese = "- 期中考试改到 10 月 14 日，地点 MSB 411。";
   const { fetchImpl, calls } = upstream({ glm: [says("- Midterm moved to Oct 14.")], gemini: [says(chinese)] });
-  const result = summarizeAnnouncements({ ...REQUEST, locale: "zh-CN" }, { providers: BOTH, fetchImpl, wait: noWait });
+  const result = summarizeAnnouncements({ ...REQUEST, locale: "zh-CN" }, { providers: BOTH, country: "US", fetchImpl, wait: noWait });
 
   assert.deepEqual(await result, { text: chinese, provider: "gemini" });
   assert.equal(calls.length, 2);
@@ -107,7 +107,7 @@ test("an English summary for a Chinese page is not shown: the other model is ask
 test("when no model writes in the page's language, it fails rather than showing the wrong one", async () => {
   const { fetchImpl } = upstream({ glm: [says("- Midterm moved.")], gemini: [says("- Midterm moved.")] });
   await assert.rejects(
-    summarizeAnnouncements({ ...REQUEST, locale: "zh-CN" }, { providers: BOTH, fetchImpl, wait: noWait }),
+    summarizeAnnouncements({ ...REQUEST, locale: "zh-CN" }, { providers: BOTH, country: "US", fetchImpl, wait: noWait }),
     (e) => e instanceof ModelError && e.problem === "failed",
   );
 });
@@ -167,10 +167,17 @@ test("Gemini's free tier is not offered to the EEA, Switzerland or the UK", () =
   for (const country of ["DE", "fr", "GB", "CH", "NO", "IE"]) {
     assert.equal(gemini.servesCountry(country), false, country);
   }
-  for (const country of ["US", "CN", "CA", null]) {
+  for (const country of ["US", "CN", "ca"]) {
     assert.equal(gemini.servesCountry(country), true, String(country));
   }
   assert.equal(BOTH[0].servesCountry("DE"), true, "GLM has no such restriction");
+});
+
+test("an unknown country disables Gemini without changing GLM or Groq availability", () => {
+  const providers = providersFromEnv({ ZAI_API_KEY: "zai", GEMINI_API_KEY: "gemini", GROQ_API_KEY: "groq" });
+  for (const country of [null, ""]) {
+    assert.deepEqual(providers.filter((provider) => provider.servesCountry(country)).map((provider) => provider.id), ["glm", "groq"]);
+  }
 });
 
 // --- trying them in order -----------------------------------------------------
@@ -243,7 +250,7 @@ test("what reaches either provider has already been redacted", async () => {
       ...REQUEST,
       announcements: [{ title: "Questions?", body: "Write to prof@uconn.edu or see https://x.test/a", posted: null }],
     },
-    { providers: BOTH, fetchImpl, wait: noWait },
+    { providers: BOTH, country: "US", fetchImpl, wait: noWait },
   );
 
   for (const call of calls) {
@@ -265,7 +272,7 @@ test("the providers share one time budget: each gets what is left, and none is t
   const { firstAnswer, ModelError: Problem } = await import("../src/lib/summary-models.ts");
   let clock = 0;
   const given: Array<[string, number]> = [];
-  const result = firstAnswer({ providers: BOTH, budgetMs: 50_000, now: () => clock, wait: async () => undefined }, async (provider, timeLeft) => {
+  const result = firstAnswer({ providers: BOTH, country: "US", budgetMs: 50_000, now: () => clock, wait: async () => undefined }, async (provider, timeLeft) => {
     given.push([provider.id, timeLeft]);
     clock += 47_000; // the first provider times out late
     throw new Problem("failed", provider.id);
