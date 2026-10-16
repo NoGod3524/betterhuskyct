@@ -5,8 +5,9 @@ import { isDeadline, type CalendarTask } from "./calendar-types.ts";
  *
  * The app's reminders only fire while BetterHuskyCT is open; a calendar app reminds with the app
  * closed. Each deadline is a short event that ends when the work is due, with two alarms. Its UID
- * is the task's own id, so importing a newer file updates an event instead of adding it twice
- * (where the calendar app honours UIDs on import, as Apple Calendar and Outlook do).
+ * is the helper's source id, so importing a newer file updates a rescheduled deadline instead of
+ * adding it twice (where the calendar app honours UIDs on import, as Apple Calendar and Outlook do).
+ * Other tasks keep their own ids: historical feeds may contain independent recurring instances.
  *
  * Nothing leaves the device: the file is made here and downloaded.
  */
@@ -79,7 +80,9 @@ export function tasksToIcs(tasks: CalendarTask[], now: Date): string {
   const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//BetterHuskyCT//Deadlines//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:BetterHuskyCT deadlines"];
   for (const task of tasks) {
     const summary = task.course ? `Due: ${task.title} (${task.course})` : `Due: ${task.title}`;
-    lines.push("BEGIN:VEVENT", `UID:${icsText(task.id)}@betterhuskyct`, `DTSTAMP:${utcStamp(now)}`, `SUMMARY:${icsText(summary)}`);
+    // Helper source ids never contain a colon; the dated suffix can outlive a local time edit.
+    const uid = /^huskyct-(todo|calendar)-/.test(task.id) ? task.id.split(":")[0] : task.id;
+    lines.push("BEGIN:VEVENT", `UID:${icsText(uid)}@betterhuskyct`, `DTSTAMP:${utcStamp(now)}`, `SUMMARY:${icsText(summary)}`);
     if (task.allDay && task.dateKey) {
       lines.push(`DTSTART;VALUE=DATE:${dateValue(task.dateKey)}`, `DTEND;VALUE=DATE:${nextDay(task.dateKey)}`);
     } else {
