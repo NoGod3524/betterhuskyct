@@ -224,6 +224,57 @@ test("marking them seen removes the banner and badges, and keeps the grades", as
   await view.unmount();
 });
 
+test("marking changes seen after another tab clears grades keeps the store and page empty", async () => {
+  const store = await seededWithChanges([CHANGED]);
+  const view = await render(store);
+  try {
+    await store.clear();
+    await view.click(t("en", "grades.markSeen"));
+
+    assert.equal(await store.get(), null, "the stale tab restored the deleted grades");
+    assert.ok(view.text().includes(t("en", "grades.emptyTitle")));
+    assert.ok(!view.text().includes("Section 4.2 Homework"));
+  } finally {
+    await view.unmount();
+  }
+});
+
+test("a failed read while marking changes seen preserves grades and can be retried", async () => {
+  const base = await seededWithChanges([CHANGED]);
+  let failRead = false;
+  let writes = 0;
+  const store: GradesStore = {
+    ...base,
+    get: async () => {
+      if (failRead) throw new Error("Storage blocked");
+      return base.get();
+    },
+    put: async (snapshot) => {
+      writes += 1;
+      await base.put(snapshot);
+    },
+  };
+  const view = await render(store);
+  try {
+    failRead = true;
+    await view.click(t("en", "grades.markSeen"));
+
+    assert.equal(writes, 0, "a failed read wrote a stale snapshot");
+    assert.deepEqual((await base.get())?.changes, [CHANGED]);
+    assert.ok(view.text().includes(t("en", "grades.unavailable")));
+    assert.ok(view.text().includes("Section 4.2 Homework"), "a read failure was treated as deletion");
+    assert.ok(view.text().includes(t("en", "grades.markSeen")));
+
+    failRead = false;
+    await view.click(t("en", "grades.markSeen"));
+    assert.equal(writes, 1);
+    assert.equal((await base.get())?.changes, undefined);
+    assert.ok(!view.text().includes(t("en", "grades.unavailable")));
+  } finally {
+    await view.unmount();
+  }
+});
+
 test("two readings through the page: the second shows what moved", async () => {
   const store = memoryGradesStore();
   const view = await render(store);
