@@ -239,6 +239,9 @@ function resolveAnnouncementCourse(
  * old payload, a hand-built one) is its own UID.
  */
 export function eventUid(event: CalendarTask): string {
+  // Older Calendar records were keyed by title and response order, not source.
+  // Keep each dated record: treating a reused title as a move can transfer a tick.
+  if (event.id.startsWith("huskyct-due-")) return event.id;
   const suffix = `:${event.start}`;
   return event.id.endsWith(suffix) && event.id.length > suffix.length
     ? event.id.slice(0, -suffix.length)
@@ -249,14 +252,16 @@ export function eventUid(event: CalendarTask): string {
  * Which existing calendar should receive this feed's events.
  *
  * A feed that shares a UID with a calendar here is that calendar arriving again;
- * the one with the most shared UIDs wins. A feed that shares none is new.
+ * the one with the most shared UIDs wins.
  *
  * Deliberately not by name. The first version of this fell back to a name match
  * when nothing overlapped, and Blackboard gives every course feed the same
  * `X-WR-CALNAME` — "University of Connecticut" — so an unrelated course was
  * folded into whichever one happened to be here, and took its course label.
  * The case the name match was for, a to-do list whose deadlines all moved, is
- * covered by comparing UIDs, which survive a move.
+ * covered by comparing UIDs, which survive a move. Helper feeds can also reuse
+ * their sole helper-only container when every legacy Calendar UID changed;
+ * this does not establish identity between any of the individual tasks.
  */
 function findReceivingSubscription(
   subscriptions: Subscription[],
@@ -279,7 +284,13 @@ function findReceivingSubscription(
     }
   }
 
-  return best;
+  if (best) return best;
+  const isHelperFeed = (events: CalendarTask[]) => events.length > 0 && events.every(
+    (event) => /^huskyct-(todo|calendar|fallback|due)-/.test(event.id),
+  );
+  if (!isHelperFeed(feed.events)) return null;
+  const candidates = subscriptions.filter((subscription) => isHelperFeed(subscription.events));
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 /**

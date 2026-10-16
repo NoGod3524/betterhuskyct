@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      2.0.4
+// @version      2.0.5
 // @description  Reads your HuskyCT deadlines, announcements, grades and course files through HuskyCT's own data, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       Yinuo (NoGod3524)
 // @homepageURL  https://github.com/NoGod3524/betterhuskyct
@@ -52,7 +52,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "2.0.4";
+  const VERSION = "2.0.5";
   const PANEL_WIDTH = 340;
 
   // ----------------------------------------------------------------- language
@@ -330,6 +330,11 @@
   /** How far ahead the due dates are read: a term, with room to spare. */
   const CALENDAR_AHEAD_DAYS = 240;
 
+  /** Both APIs name the same gradebook column. Keep the uid existing ToDo records already use. */
+  function gradeItemUid(id) {
+    return typeof id === "string" && id ? "huskyct-todo-" + encodeURIComponent(id) : null;
+  }
+
   /**
    * Every due date from today on, from HuskyCT's own calendar data, as the records the basket
    * keeps ({ uid, title, course, courseId, dueText, due }), or null if it could not be read this
@@ -338,8 +343,9 @@
    * `endDate`) beside the class meetings and the student's own entries, which are left out here,
    * since only what is due is a deadline.
    *
-   * The uid is the one the Calendar's Due dates view used to give (the course and the title), so
-   * a deadline BetterHuskyCT already holds from that view is updated in place, not added twice.
+   * A gradebook column keeps the same uid when it enters or leaves the ToDo window, changes its
+   * title, or moves. A calendar-only id is a separate identity. With neither id, the exact course,
+   * title and time are all that is known: that fallback cannot establish that a deadline moved.
    */
   async function readDueDatesApi(opts) {
     const timeout = (opts && opts.apiTimeout) || 8000;
@@ -362,9 +368,10 @@
         if (!title || Number.isNaN(due.valueOf())) continue;
         const courseId = typeof item.calendarId === "string" ? item.calendarId : null;
         const name = item.calendarNameLocalizable && item.calendarNameLocalizable.rawValue;
-        let uid = "huskyct-due-" + ((courseId || "course") + "-" + title).replace(/[^\w.-]+/g, "-");
-        // Two assignments can share a title in one course; the first keeps the id an earlier helper gave.
-        if (seen.has(uid)) uid += "-" + String(item.itemSourceId || item.id || due.toISOString()).replace(/[^\w.-]+/g, "-");
+        const uid = gradeItemUid(item.itemSourceId) ||
+          (typeof item.id === "string" && item.id
+            ? "huskyct-calendar-" + encodeURIComponent(item.id)
+            : "huskyct-fallback-" + encodeURIComponent(JSON.stringify([courseId, title, due.toISOString()])));
         if (seen.has(uid)) continue;
         seen.add(uid);
         records.push({ uid, title, course: courseCodeFromDisplay(name), courseId, dueText: "", due });
@@ -402,8 +409,8 @@
         const column = item && item.column;
         const title = textOf({ textContent: item && item.title });
         const due = new Date((item && (item.dueDate || (column && column.dueDate))) || "");
-        if (!column || typeof column.id !== "string" || !title || Number.isNaN(due.valueOf())) continue;
-        const uid = "huskyct-todo-" + column.id.replace(/[^\w.-]+/g, "-");
+        const uid = column && gradeItemUid(column.id);
+        if (!uid || !title || Number.isNaN(due.valueOf())) continue;
         if (seen.has(uid)) continue;
         seen.add(uid);
         const courseId = typeof column.courseId === "string" ? column.courseId : null;
@@ -446,6 +453,7 @@
       uid: todo.uid,
       title: todo.title,
       course: todo.course,
+      courseId: todo.courseId || null,
       start: todo.due.toISOString(),
       end: null,
       allDay: false,
@@ -595,9 +603,18 @@
         changed = true;
       }
     }
+    // Calendar is read before ToDo. Refresh a retained ToDo copy too, or an empty ToDo response
+    // after a deadline moves outside its window would let the old time hide this fresh reading.
+    const fresh = new Map(records.map((record) => [record.uid, record]));
+    const todos = basket.todos.map((todo) => {
+      const record = fresh.get(todo.uid);
+      if (!record || JSON.stringify(todo) === JSON.stringify(record)) return todo;
+      changed = true;
+      return record;
+    });
     if (!changed) return { basket, changed: false };
     return {
-      basket: { ...basket, dueDates: [...byUid.values()], dueDatesAt: (now || new Date()).toISOString() },
+      basket: { ...basket, todos, dueDates: [...byUid.values()], dueDatesAt: (now || new Date()).toISOString() },
       changed: true,
     };
   }
@@ -606,14 +623,16 @@
    * Every deadline in the basket, once.
    *
    * The to-do list and the Calendar overlap for the coming week. The to-do
-   * list's copy wins — it carries HuskyCT's own item id, and it is the only one
-   * of the two that shows overdue work — and a due date is dropped when the
-   * to-do list has the same course, title and time.
+   * list's copy wins because it is read last, and it is the only one of the two that shows overdue
+   * work. Only the same uid is a duplicate: two source items may have the same title and time.
    */
   function deadlineRecords(basket) {
-    const key = (record) => [record.course || "", record.title, record.start].join("|");
-    const fromTodos = new Set(basket.todos.map(key));
-    return basket.todos.concat((basket.dueDates || []).filter((record) => !fromTodos.has(key(record))));
+    const seen = new Set();
+    return basket.todos.concat(basket.dueDates || []).filter((record) => {
+      if (seen.has(record.uid)) return false;
+      seen.add(record.uid);
+      return true;
+    });
   }
 
   function basketSummary(basket) {

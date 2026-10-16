@@ -489,22 +489,40 @@ test("a partial look at the due dates does not drop the ones read before", () =>
   assert.equal(same.changed, false, "an unchanged view rewrote storage");
 });
 
-test("a deadline on both the to-do list and the Calendar is sent once, as the to-do item", () => {
+test("a deadline on both sources is sent once by uid; same-title tasks with other ids remain", () => {
   const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
   const start = "2026-10-03T03:59:00.000Z";
   const basket: Basket = {
     ...helper.emptyBasket(),
     todos: [{ uid: "huskyct-todo-_3867214_1", title: "Section 5.1 Homework", course: "MATH 1070Q", start }],
     dueDates: [
-      { uid: "huskyct-due-_203765_1-Section-5.1-Homework", title: "Section 5.1 Homework", course: "MATH 1070Q", start },
+      { uid: "huskyct-todo-_3867214_1", title: "Section 5.1 Homework", course: "MATH 1070Q", start },
+      { uid: "huskyct-todo-_3867215_1", title: "Section 5.1 Homework", course: "MATH 1070Q", start },
       { uid: "huskyct-due-_201693_1-Assignment-2", title: "Assignment 2", course: "STAT 1000Q", start },
     ],
   };
 
   const records = plain(helper.deadlineRecords(basket));
 
-  assert.deepEqual(records.map((record) => record.uid), ["huskyct-todo-_3867214_1", "huskyct-due-_201693_1-Assignment-2"]);
-  assert.equal(helper.basketSummary(basket).deadlines, 2);
+  assert.deepEqual(records.map((record) => record.uid), ["huskyct-todo-_3867214_1", "huskyct-todo-_3867215_1", "huskyct-due-_201693_1-Assignment-2"]);
+  assert.equal(helper.basketSummary(basket).deadlines, 3);
+});
+
+test("a fresh Calendar reading replaces an older ToDo copy, including when Calendar itself is unchanged", () => {
+  const { helper } = openPage("https://lms.uconn.edu/ultra/stream", "");
+  const old = { uid: "huskyct-todo-_1_1", title: "Homework", course: "MATH 1070Q", start: "2026-10-03T03:59:00.000Z" };
+  const moved = { ...old, title: "Homework (extended)", start: "2026-10-20T03:59:00.000Z" };
+  const basket: Basket = { ...helper.emptyBasket(), todos: [old], dueDates: [moved] };
+
+  const refreshed = helper.rememberDueDates(basket, [moved]);
+  assert.equal(refreshed.changed, true, "only the stale ToDo copy needed updating");
+  const quietWeek = helper.rememberTodos(refreshed.basket, []);
+  assert.deepEqual(plain(helper.deadlineRecords(quietWeek.basket)), [moved], "an empty ToDo response must not resurrect the old deadline");
+  assert.deepEqual(basket.todos, [old], "the input basket was mutated");
+
+  const newerTodo = { ...moved, start: "2026-10-21T03:59:00.000Z" };
+  const fresh = helper.rememberTodos(quietWeek.basket, [newerTodo]);
+  assert.deepEqual(plain(helper.deadlineRecords(fresh.basket)), [newerTodo], "ToDo is read after Calendar, so its fresh copy wins");
 });
 
 test("a basket saved before due dates existed still reads", () => {

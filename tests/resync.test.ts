@@ -76,6 +76,57 @@ test("eventUid takes the start back off a producer's id", () => {
   assert.equal(eventUid({ ...task("x"), id: "legacy" }), "legacy");
 });
 
+test("legacy Calendar title ids cannot transfer a tick to a different deadline", () => {
+  const old = task("huskyct-due-_203765_1-Weekly-Reading");
+  const later = task("huskyct-due-_203765_1-Weekly-Reading", "2026-10-02T03:59:00.000Z");
+  const first = mergeSyncPayload(EMPTY, send([old]));
+  first.completedIds.add(old.id);
+  const second = mergeSyncPayload(localOf(first), send([later]));
+
+  assert.equal(eventUid(old), old.id, "a title-derived UID does not prove source identity");
+  assert.equal(second.subscriptions.length, 1);
+  assert.deepEqual(idsOnDevice(second), [old.id, later.id]);
+  assert.deepEqual(second.completedIds, new Set([old.id]));
+  assert.deepEqual(second.moves, []);
+  assert.equal(second.addedEvents, 1);
+  assert.equal(mergeSyncPayload(localOf(second), send([later])).addedEvents, 0);
+});
+
+test("a canonical helper feed reuses its only legacy container without guessing task state", () => {
+  const old = task("huskyct-due-_203765_1-Weekly-Reading");
+  const current = { ...task("huskyct-todo-_101_1"), title: old.title };
+  const first = mergeSyncPayload(EMPTY, send([old]));
+  first.completedIds.add(old.id);
+  first.subscriptions[0].name = "My deadlines";
+  const second = mergeSyncPayload(localOf(first), send([current]));
+
+  assert.equal(second.addedFeeds, 0);
+  assert.equal(second.subscriptions[0].id, first.subscriptions[0].id);
+  assert.equal(second.subscriptions[0].name, "My deadlines");
+  assert.deepEqual(idsOnDevice(second), [old.id, current.id]);
+  assert.deepEqual(second.completedIds, new Set([old.id]));
+  assert.deepEqual(second.moves, []);
+});
+
+test("helper container fallback refuses mixed, ambiguous and unrelated calendars", () => {
+  const legacy = send([task("huskyct-due-old")]).feeds[0];
+  const other = send([task("other")]).feeds[0];
+  const helper = send([task("huskyct-todo-_101_1")]);
+  const subscription = (id: string, feed = legacy): Subscription => ({ id, ...feed });
+  for (const subscriptions of [
+    [subscription("mixed", { ...legacy, events: [...legacy.events, ...other.events] })],
+    [subscription("a"), subscription("b")],
+    [subscription("unrelated", other)],
+  ]) {
+    const merged = mergeSyncPayload({ ...EMPTY, subscriptions }, helper);
+    assert.equal(merged.addedFeeds, 1);
+    assert.equal(merged.subscriptions.length, subscriptions.length + 1);
+  }
+  const first = mergeSyncPayload(EMPTY, send([task("huskyct-due-old")]));
+  const unrelated = mergeSyncPayload(localOf(first), send([task("other")], "HuskyCT to-do"));
+  assert.equal(unrelated.addedFeeds, 1, "the name never identifies a helper feed");
+});
+
 test("sending a to-do list twice keeps every deadline from the second send", () => {
   const first = mergeSyncPayload(EMPTY, send([task("A"), task("B")]));
 
