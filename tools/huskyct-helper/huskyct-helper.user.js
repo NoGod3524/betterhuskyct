@@ -1698,7 +1698,7 @@
       if (result.connected) {
         files = result.sent;
         parts.push(t("sentPartFiles", { files: result.sent + result.skipped }));
-        if (result.failed) failed = true;
+        if (result.failed || result.tooBig) failed = true;
       } else {
         failed = true;
       }
