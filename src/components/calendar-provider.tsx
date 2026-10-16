@@ -639,7 +639,9 @@ export function CalendarProvider({
   function toggleTaskCompletion(taskId: string) {
     try {
       // Another tab may have saved a choice before its storage event reaches this one.
-      const ticks = restoreTicks(completionSource, isImported ? subscriptionsRef.current : null);
+      // Save every persisted decision. This tab's calendar can predate a move in another tab;
+      // filtering by its visible tasks would erase the tick already moved to the new id.
+      const ticks = restoreTicks(completionSource, null);
       const latestReopened = restoreReopened(window.localStorage);
       const latestSynced = restoreSyncedDone(window.localStorage);
       const fromHuskyct = doneFromGrades.has(taskId) || latestSynced.has(taskId);
@@ -658,7 +660,7 @@ export function CalendarProvider({
       });
       setSyncedDone(latestSynced);
       setReopened(latestReopened);
-      setCompletedIds(ticks);
+      setCompletedIds(restoreTicks(completionSource, isImported ? subscriptionsRef.current : null));
       setError(null);
     } catch {
       setError(t(locale, "errors.saveFailed"));

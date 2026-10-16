@@ -572,6 +572,29 @@ function storeTicks(key: string, ids: string[]) {
   window.localStorage.setItem(key, JSON.stringify({ version: 1, completedIds: ids }));
 }
 
+test("ticking in a stale tab preserves the tick another tab moved to a new deadline", async () => {
+  const essay = savedFeed().events[0];
+  const start = "2026-09-20T23:59:00.000Z";
+  const moved = { ...essay, id: `a:${start}`, start };
+  const quiz = { ...essay, id: "quiz", title: "Quiz" };
+  const subscription = { ...savedFeed(), events: [essay, quiz] };
+  window.localStorage.setItem(SUBSCRIPTIONS_STORAGE_KEY, JSON.stringify({ version: 1, subscriptions: [subscription] }));
+  storeTicks(COMPLETION_STORAGE_KEY_IMPORTED, [essay.id]);
+  const app = await mount();
+
+  window.localStorage.setItem(SUBSCRIPTIONS_STORAGE_KEY, JSON.stringify({ version: 1, subscriptions: [{ ...subscription, events: [moved, quiz] }] }));
+  storeTicks(COMPLETION_STORAGE_KEY_IMPORTED, [moved.id]);
+  await storageChanged(SUBSCRIPTIONS_STORAGE_KEY);
+  await storageChanged(COMPLETION_STORAGE_KEY_IMPORTED);
+  await act(async () => app.calendar.toggleTaskCompletion(quiz.id));
+  assert.deepEqual(new Set(JSON.parse(window.localStorage.getItem(COMPLETION_STORAGE_KEY_IMPORTED)!).completedIds), new Set([moved.id, quiz.id]));
+  await app.unmount();
+
+  const restored = await mount();
+  assert.deepEqual(restored.calendar.doneIds, new Set([moved.id, quiz.id]));
+  await restored.unmount();
+});
+
 test("ticks changed in another tab appear here, including unticks and custom events", async () => {
   const app = await mount();
   const imported = await importOneTask(app);
