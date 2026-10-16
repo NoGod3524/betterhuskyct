@@ -23,7 +23,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: refs/tags/${{ github.event.inputs.tag || github.ref_name }}
   package:
+    needs: verify
     name: build, attest, release
     runs-on: ubuntu-latest
     timeout-minutes: 15
