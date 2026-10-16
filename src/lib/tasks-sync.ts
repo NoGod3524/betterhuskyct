@@ -47,8 +47,8 @@ export type TasksEvent = { origin: string; data: unknown; source: Source | null 
  * banner on this route, unlike the `#sync=` link, because the student already
  * pressed Sync and does not need to be asked twice.
  */
-export function createTasksReceiver(options: { onSync: (payload: SyncPayload) => boolean; onStatus?: (report: ReadReport) => void }) {
-  return function receive(event: TasksEvent): void {
+export function createTasksReceiver(options: { onSync: (payload: SyncPayload, status?: ReadReport) => boolean | Promise<boolean>; onStatus?: (report: ReadReport) => void }) {
+  return function receive(event: TasksEvent): void | Promise<void> {
     if (!HUSKYCT_ORIGINS.has(event.origin) || !event.source) return;
     const message = parseTasksMessage(event.data);
     if (!message) return;
@@ -60,13 +60,16 @@ export function createTasksReceiver(options: { onSync: (payload: SyncPayload) =>
       reply({ kind: "ready" });
       return;
     }
-    let ok: boolean;
+    const finish = (ok: boolean) => {
+      if (ok && message.status) options.onStatus?.(message.status);
+      reply({ kind: "stored", ok });
+    };
     try {
-      ok = options.onSync(message.payload);
+      const result = options.onSync(message.payload, message.status);
+      if (typeof result === "boolean") finish(result);
+      else return result.then(finish, () => finish(false));
     } catch {
-      ok = false;
+      finish(false);
     }
-    if (ok && message.status) options.onStatus?.(message.status);
-    reply({ kind: "stored", ok });
   };
 }

@@ -15,14 +15,14 @@ import { isDeadline } from "@/lib/calendar-types";
 import { formatDate } from "@/lib/format-date";
 import type { CalendarTask, TaskGroup } from "@/lib/calendar-types";
 import {
-  clearAnnouncements,
+  ANNOUNCEMENTS_STORAGE_KEY,
   restoreAnnouncements,
   saveAnnouncements,
   sortAnnouncements,
   type Announcement,
 } from "@/lib/announcements";
 import {
-  clearSubscriptions,
+  SUBSCRIPTIONS_STORAGE_KEY,
   latestImportAt,
   mergeTasks,
   removeSubscription as removeSubscriptionFrom,
@@ -35,6 +35,9 @@ import {
 } from "@/lib/subscriptions";
 import { watchClock } from "@/lib/clock";
 import { writeStorageBatch, type StorageWriter } from "@/lib/storage-batch";
+import { CHANGES_CHANGED, CHANGES_KEY, parseChanges, saveChanges, withChangesLock } from "@/lib/changes";
+import { recordSyncChanges } from "@/lib/change-producers";
+import { parseVersions, recordVersions, VERSIONS_CHANGED, VERSIONS_KEY } from "@/lib/announcement-versions";
 import {
   decodeSyncPayload,
   readSyncFragment,
@@ -42,7 +45,7 @@ import {
 } from "@/lib/sync";
 import { planSyncApply } from "@/lib/sync-apply";
 import { createTasksReceiver } from "@/lib/tasks-sync";
-import { recordReadReport, SYNC_STATUS_CHANGED } from "@/lib/sync-status";
+import { recordReadReport, SYNC_STATUS_CHANGED, type ReadReport } from "@/lib/sync-status";
 import {
   activeNotices,
   dismissNotice,
@@ -81,7 +84,6 @@ import {
   COMPLETION_STORAGE_KEY_CUSTOM,
   COMPLETION_STORAGE_KEY_DEMO,
   COMPLETION_STORAGE_KEY_IMPORTED,
-  clearCompletedTaskIds,
   restoreCompletedTaskIds,
   saveCompletedTaskIds,
 } from "@/lib/completion-storage";
@@ -106,7 +108,7 @@ import {
   EMPTY_COURSE_BOOK,
   addCourse as addCourseToBook,
   assignTaskCourse,
-  clearCourseBook,
+  COURSES_STORAGE_KEY,
   clearTaskCourse,
   courseIdForTask,
   labelForTask,
@@ -346,16 +348,6 @@ export function CalendarProvider({
     return true;
   }
 
-  function commitAnnouncements(next: Announcement[]) {
-    // Sorted once, here, so every consumer sees the same order without each of
-    // them having to remember to sort.
-    const ordered = sortAnnouncements(next);
-    if (!saveChange(() => saveAnnouncements(window.localStorage, ordered))) return false;
-    announcementsRef.current = ordered;
-    setAnnouncements(ordered);
-    return true;
-  }
-
   /**
    * Throws the collected announcements away.
    *
@@ -363,10 +355,26 @@ export function CalendarProvider({
    * announcements collected by mistake — or a course the user has finished —
    * would sit on the page until storage was cleared wholesale.
    */
-  function dropAnnouncements() {
-    if (!commitAnnouncements([])) return;
-    setNotice(t(locale, "announcements.cleared"));
-    setError(null);
+  async function dropAnnouncements() {
+    try {
+      await withChangesLock(() => {
+        const changes = parseChanges(window.localStorage.getItem(CHANGES_KEY));
+        if (!saveChange(() => writeStorageBatch(window.localStorage, (staged) => {
+          staged.removeItem(ANNOUNCEMENTS_STORAGE_KEY);
+          staged.removeItem(VERSIONS_KEY);
+          saveChanges(staged, { ...changes,
+            entries: changes.entries.filter((entry) => entry.kind !== "announcement-new" && entry.kind !== "announcement-edited"),
+            baselines: changes.baselines.filter((scope) => !scope.startsWith("announcements:")),
+          });
+        }))) return;
+        announcementsRef.current = [];
+        setAnnouncements([]);
+        window.dispatchEvent(new window.Event(CHANGES_CHANGED));
+        window.dispatchEvent(new window.Event(VERSIONS_CHANGED));
+        setNotice(t(locale, "announcements.cleared"));
+        setError(null);
+      });
+    } catch { setError(t(locale, "errors.saveFailed")); }
   }
 
   function commitEventOverlay(next: EventOverlay) {
@@ -777,13 +785,20 @@ export function CalendarProvider({
   // decided by `planSyncApply`; this only writes the result. Shared by the
   // `#sync=` link, which asks first, and the helper's direct `postMessage`,
   // which does not.
-  function applyPayload(payload: SyncPayload) {
+  function applyPayload(payload: SyncPayload, report?: ReadReport) {
+    const now = new Date();
+    const before = {
+      courses: restoreCourseBook(window.localStorage),
+      subscriptions: restoreSubscriptions(window.localStorage).subscriptions,
+      announcements: restoreAnnouncements(window.localStorage).announcements,
+      doneByHuskyct: restoreSyncedDone(window.localStorage),
+    };
     const savedTicks = new Set([...restoreCompletedTaskIds(window.localStorage, "imported")].filter((id) => !isCustomEventId(id)));
     const plan = planSyncApply(
       {
-        courses: courseBook,
-        subscriptions: subscriptionsRef.current,
-        announcements: announcementsRef.current,
+        courses: before.courses,
+        subscriptions: before.subscriptions,
+        announcements: before.announcements,
         showingImported: isImported,
         ticksOnScreen: savedTicks,
         savedTicks,
@@ -794,16 +809,20 @@ export function CalendarProvider({
 
     // A deadline the teacher moved is the same task: what is kept under its id moves with it.
     const { moves } = merged;
-    const nextSynced = moveMap(mergeDone(restoreSyncedDone(window.localStorage), Object.entries(payload.doneByHuskyct)), moves);
+    const nextSynced = moveMap(mergeDone(before.doneByHuskyct, Object.entries(payload.doneByHuskyct)), moves);
     const nextColors = mergeCourseColors(restoreCourseColors(window.localStorage), payload.courseColors);
     const nextReopened = moveSet(new Set([...restoreReopened(window.localStorage), ...payload.reopened]), moves);
     const nextOverlay = moves.length > 0 ? moveOverlay(restoreEventOverlay(window.localStorage), moves) : null;
     const nextMoveLog = moves.length > 0 ? recordMoves(restoreMoveLog(window.localStorage), moves, new Date()) : null;
     const ordered = sortAnnouncements(merged.announcements);
+    const changes = recordSyncChanges(parseChanges(window.localStorage.getItem(CHANGES_KEY)), before, merged, payload, now, report);
+    const versions = recordVersions(recordVersions(parseVersions(window.localStorage.getItem(VERSIONS_KEY)), before.announcements, now), ordered, now);
     writeStorageBatch(window.localStorage, (staged) => {
       saveSubscriptions(staged, merged.subscriptions);
       saveCourseBook(staged, merged.courses);
       saveAnnouncements(staged, ordered);
+      staged.setItem(VERSIONS_KEY, JSON.stringify(versions));
+      saveChanges(staged, changes);
       saveCompletedTaskIds(staged, "imported", plan.ticksToSave);
       if (!saveSyncedDone(staged, nextSynced) || !saveCourseColors(staged, nextColors) || !saveReopened(staged, nextReopened)) {
         throw new Error(t(locale, "errors.saveFailed"));
@@ -811,6 +830,8 @@ export function CalendarProvider({
       if (nextOverlay) saveEventOverlay(staged, nextOverlay);
       if (nextMoveLog) saveMoveLog(staged, nextMoveLog);
     });
+    window.dispatchEvent(new window.Event(CHANGES_CHANGED));
+    window.dispatchEvent(new window.Event(VERSIONS_CHANGED));
     if (nextOverlay) setEventOverlay(nextOverlay);
     if (nextMoveLog) setMoveLog(nextMoveLog);
     subscriptionsRef.current = merged.subscriptions;
@@ -828,10 +849,11 @@ export function CalendarProvider({
     return merged;
   }
 
-  function applyPendingSync() {
+  async function applyPendingSync() {
     if (!pendingSync) return;
+    const payload = pendingSync;
     let merged;
-    try { merged = applyPayload(pendingSync); }
+    try { merged = await withChangesLock(() => applyPayload(payload)); }
     catch { setError(t(locale, "errors.saveFailed")); return; }
     setPendingSync(null);
     clearSyncFragment();
@@ -852,11 +874,11 @@ export function CalendarProvider({
   // closes over the render it happened to be attached on. The assignment
   // runs in an effect — not during render itself — only to satisfy the rule
   // against touching a ref while rendering; it still runs on every render.
-  const applyFromHelperRef = useRef<(payload: SyncPayload) => void>(() => {});
+  const applyFromHelperRef = useRef<(payload: SyncPayload, report?: ReadReport) => void | Promise<void>>(() => {});
   useEffect(() => {
-    applyFromHelperRef.current = (payload: SyncPayload) => {
+    applyFromHelperRef.current = (payload: SyncPayload, report?: ReadReport) => withChangesLock(() => {
       let merged;
-      try { merged = applyPayload(payload); }
+      try { merged = applyPayload(payload, report); }
       catch (error) { setError(t(locale, "errors.saveFailed")); throw error; }
       setError(null);
       setNotice(
@@ -868,15 +890,15 @@ export function CalendarProvider({
           announcements: merged.announcements.length,
         }),
       );
-    };
+    });
   });
 
   useEffect(() => {
     const receiver = createTasksReceiver({
-      onSync: (payload) => {
+      onSync: (payload, report) => {
         try {
-          applyFromHelperRef.current(payload);
-          return true;
+          const result = applyFromHelperRef.current(payload, report);
+          return result ? result.then(() => true, () => false) : true;
         } catch {
           return false;
         }
@@ -965,22 +987,32 @@ export function CalendarProvider({
     setError(null);
   }
 
-  function clearSavedData() {
-    clearSyncFragment();
-    clearSubscriptions(window.localStorage);
-    clearCompletedTaskIds(window.localStorage, "imported");
-    clearCourseBook(window.localStorage);
-    clearAnnouncements(window.localStorage);
-    subscriptionsRef.current = [];
-    announcementsRef.current = [];
-    setSubscriptions([]);
-    setAnnouncements([]);
-    setCourseBook(EMPTY_COURSE_BOOK);
-    setDemoMode(true);
-    setRestoredFromStorage(false);
-    setCompletedIds(restoreTicks("demo", null));
-    setNotice(t(locale, "notices.savedDataCleared"));
-    setError(null);
+  async function clearSavedData() {
+    try {
+      await withChangesLock(() => {
+        const changes = parseChanges(window.localStorage.getItem(CHANGES_KEY));
+        if (!saveChange(() => writeStorageBatch(window.localStorage, (staged) => {
+          for (const key of [SUBSCRIPTIONS_STORAGE_KEY, COMPLETION_STORAGE_KEY_IMPORTED, COURSES_STORAGE_KEY, ANNOUNCEMENTS_STORAGE_KEY, VERSIONS_KEY]) staged.removeItem(key);
+          saveChanges(staged, { ...changes,
+            entries: changes.entries.filter((entry) => entry.kind === "grade" || entry.kind === "file-new" || (entry.kind === "done-by-huskyct" && !entry.ref?.id)),
+            baselines: changes.baselines.filter((scope) => !scope.startsWith("announcements:") && !scope.startsWith("deadlines:")),
+          });
+        }))) return;
+        clearSyncFragment();
+        subscriptionsRef.current = [];
+        announcementsRef.current = [];
+        setSubscriptions([]);
+        setAnnouncements([]);
+        setCourseBook(EMPTY_COURSE_BOOK);
+        setDemoMode(true);
+        setRestoredFromStorage(false);
+        setCompletedIds(restoreTicks("demo", null));
+        setNotice(t(locale, "notices.savedDataCleared"));
+        setError(null);
+        window.dispatchEvent(new window.Event(CHANGES_CHANGED));
+        window.dispatchEvent(new window.Event(VERSIONS_CHANGED));
+      });
+    } catch { setError(t(locale, "errors.saveFailed")); }
   }
 
   /** Download exactly what is on screen, as a spreadsheet-friendly CSV. */

@@ -1,5 +1,6 @@
 import {
   Award,
+  Bell,
   CalendarDays,
   Check,
   FolderOpen,
@@ -21,6 +22,7 @@ export type NavItem = { href: string; key: TranslationKey; Icon: LucideIcon };
  */
 export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/", key: "nav.dashboard", Icon: LayoutDashboard },
+  { href: "/changes", key: "nav.changes", Icon: Bell },
   { href: "/tasks", key: "nav.tasks", Icon: Check },
   { href: "/calendar", key: "nav.calendar", Icon: CalendarDays },
   { href: "/announcements", key: "nav.announcements", Icon: Megaphone },

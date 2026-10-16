@@ -1,4 +1,7 @@
-import { parseStoredGrades, type GradesStore } from "@/lib/grades";
+import { markChangesSeen, mergeGrades, parseStoredGrades, type GradesSnapshot, type GradesStore } from "@/lib/grades";
+import { recordGradeChanges } from "./change-producers.ts";
+import { CHANGES_CHANGED, CHANGES_KEY, parseChanges, saveChanges, withChangesLock, type ChangesStore } from "./changes.ts";
+import { writeStorageBatch } from "./storage-batch.ts";
 
 /**
  * The grades in this browser's localStorage. A term of gradebooks is a few
@@ -19,21 +22,47 @@ export async function openGradesStore(): Promise<GradesStore> {
   const storage = window.localStorage;
   // Blocked storage may only show itself on use.
   storage.getItem(STORAGE_KEY);
+  const read = () => {
+    const raw = storage.getItem(STORAGE_KEY);
+    try {
+      return parseStoredGrades(JSON.parse(raw || "null"));
+    } catch {
+      return null;
+    }
+  };
+  const write = (snapshot: GradesSnapshot, changes?: ChangesStore) => {
+    writeStorageBatch(storage, (staged) => {
+      staged.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+      if (changes) saveChanges(staged, changes);
+    });
+    window.dispatchEvent(new window.Event(GRADES_CHANGED));
+    if (changes) window.dispatchEvent(new window.Event(CHANGES_CHANGED));
+  };
+  const put = (snapshot: GradesSnapshot, before = read()) => {
+    write(snapshot, recordGradeChanges(parseChanges(storage.getItem(CHANGES_KEY)), before, snapshot, new Date()));
+  };
   return {
-    get: async () => {
-      try {
-        return parseStoredGrades(JSON.parse(storage.getItem(STORAGE_KEY) || "null"));
-      } catch {
-        return null;
-      }
-    },
-    put: async (snapshot) => {
-      storage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    get: async () => read(),
+    put: async (snapshot) => withChangesLock(() => put(snapshot)),
+    receive: async (incoming) => withChangesLock(() => {
+      const before = read();
+      put(mergeGrades(before, incoming), before);
+    }),
+    markSeen: async () => withChangesLock(() => {
+      const latest = read();
+      if (latest) write(markChangesSeen(latest));
+    }),
+    clear: async () => withChangesLock(() => {
+      const changes = parseChanges(storage.getItem(CHANGES_KEY));
+      writeStorageBatch(storage, (staged) => {
+        staged.removeItem(STORAGE_KEY);
+        saveChanges(staged, { ...changes,
+          entries: changes.entries.filter((entry) => entry.kind !== "grade" && !(entry.kind === "done-by-huskyct" && !entry.ref?.id)),
+          baselines: changes.baselines.filter((scope) => !scope.startsWith("grades:")),
+        });
+      });
       window.dispatchEvent(new window.Event(GRADES_CHANGED));
-    },
-    clear: async () => {
-      storage.removeItem(STORAGE_KEY);
-      window.dispatchEvent(new window.Event(GRADES_CHANGED));
-    },
+      window.dispatchEvent(new window.Event(CHANGES_CHANGED));
+    }),
   };
 }

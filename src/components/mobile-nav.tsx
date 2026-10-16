@@ -21,11 +21,13 @@ import { t, type Locale } from "@/lib/i18n";
 export function MobileNav({
   pathname,
   locale,
+  unreadChanges = 0,
   primary = PRIMARY_NAV,
   more = MORE_NAV,
 }: {
   pathname: string;
   locale: Locale;
+  unreadChanges?: number;
   primary?: readonly NavItem[];
   more?: readonly NavItem[];
 }) {
@@ -92,7 +94,12 @@ export function MobileNav({
                   aria-current={active ? "page" : undefined}
                   className={`mobile-tab${active ? " mobile-tab-active" : ""}`}
                 >
-                  <Icon size={20} aria-hidden />
+                  <span className="relative">
+                    <Icon size={20} aria-hidden />
+                    {href === "/changes" && unreadChanges > 0 ? (
+                      <span className="absolute -right-3 -top-1.5 rounded-full bg-[var(--warning-soft)] px-1 text-[10px] font-semibold leading-4 tabular-nums text-[var(--warning)]" aria-label={t(locale, "changes.unreadCount", { count: unreadChanges })}>{unreadChanges}</span>
+                    ) : null}
+                  </span>
                   <span className="max-w-full truncate">{t(locale, key)}</span>
                 </Link>
               </li>

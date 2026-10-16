@@ -5,6 +5,8 @@ import { isCourseCatalogueLoaded } from "../src/lib/course-catalogue.ts";
 import { COURSES_STORAGE_KEY, EMPTY_COURSE_BOOK, addCourse } from "../src/lib/courses.ts";
 import { ANNOUNCEMENTS_STORAGE_KEY, parseAnnouncementCandidates } from "../src/lib/announcements.ts";
 import { COURSE_COLORS_KEY } from "../src/lib/course-colors.ts";
+import { CHANGES_KEY, parseChanges, type ChangeEntry } from "../src/lib/changes.ts";
+import { VERSIONS_KEY } from "../src/lib/announcement-versions.ts";
 import { MAX_CUSTOM_EVENTS, buildCustomEvent, saveCustomEvents } from "../src/lib/custom-events.ts";
 import { SUBSCRIPTIONS_STORAGE_KEY, type Subscription } from "../src/lib/subscriptions.ts";
 import { buildSyncPayload, encodeSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
@@ -781,7 +783,7 @@ test("custom events and their related records commit together, including retries
 });
 
 test("a failed helper sync rolls every changed key back and never publishes a partial calendar", async () => {
-  const keys = [SUBSCRIPTIONS_STORAGE_KEY, COURSES_STORAGE_KEY, ANNOUNCEMENTS_STORAGE_KEY, COMPLETION_STORAGE_KEY_IMPORTED, SYNCED_DONE_STORAGE_KEY, COURSE_COLORS_KEY, REOPENED_STORAGE_KEY];
+  const keys = [SUBSCRIPTIONS_STORAGE_KEY, COURSES_STORAGE_KEY, ANNOUNCEMENTS_STORAGE_KEY, COMPLETION_STORAGE_KEY_IMPORTED, SYNCED_DONE_STORAGE_KEY, COURSE_COLORS_KEY, REOPENED_STORAGE_KEY, CHANGES_KEY, VERSIONS_KEY];
   for (const key of keys) {
     window.localStorage.clear();
     const existing = savedFeed();
@@ -892,6 +894,7 @@ test("a source-identified deadline keeps its tick and note through a rename, mov
 
   const app = await mount();
   await deliver(FRIDAY);
+  assert.equal(parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.length, 0, "the first reading created unread history");
   const oldId = `huskyct-todo-_101_1:${FRIDAY}`;
   const newId = `huskyct-todo-_101_1:${SUNDAY}`;
   await act(async () => app.calendar.toggleTaskCompletion(oldId));
@@ -900,6 +903,12 @@ test("a source-identified deadline keeps its tick and note through a rename, mov
   assert.equal(app.calendar.eventNoteFor(oldId), "ask for an extension");
 
   await deliver(SUNDAY);
+  const history = parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries;
+  assert.equal(history.length, 1);
+  assert.equal(history[0].kind, "deadline-moved");
+  assert.deepEqual(history[0].detail, { from: FRIDAY, to: SUNDAY });
+  await deliver(SUNDAY);
+  assert.equal(parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.length, 1, "a repeated delivery duplicated the change");
 
   assert.deepEqual(app.calendar.tasks.map((task) => task.id), [newId], "the old instance is shown beside the new one");
   assert.ok(app.calendar.doneIds.has(newId), "the tick did not follow the deadline");
@@ -960,4 +969,128 @@ test("legacy Calendar decisions remain on their dated record after old and new h
   assert.equal(restored.calendar.eventNoteFor(canonical.id), null);
   assert.deepEqual(restored.calendar.moveNotices, {});
   await restored.unmount();
+});
+
+function seedClearableHistory() {
+  const at = new RealDate().toISOString();
+  const feed = savedFeed();
+  const second = { ...feed.events[0], id: `huskyct-todo-_802_1:${feed.events[0].start}`, title: "Section 4.2 Homework" };
+  feed.events = [feed.events[0], second];
+  const announcements = parseAnnouncementCandidates([
+    { sourceId: "_901_1", sourceCourseId: "_900_1", courseCode: "MATH 1070Q", title: "Private course update", body: "Consult the updated course handout." },
+    { sourceId: "_902_1", sourceCourseId: "_900_1", courseCode: "MATH 1070Q", title: "Office hours moved", body: "The new meeting time is in the course schedule." },
+  ]);
+  const courseBook = addCourse(EMPTY_COURSE_BOOK, "MATH 1070Q", "LEC");
+  const change = (id: string, kind: ChangeEntry["kind"], ref?: ChangeEntry["ref"]): ChangeEntry => ({
+    id, kind, ref, at, courseCode: "MATH 1070Q", title: id, read: id === "grade",
+  });
+  const entries = [
+    change("grade", "grade", { page: "/grades", id: "_950_1" }),
+    change("file", "file-new", { page: "/materials", id: "folder:Course notes.pdf" }),
+    change("grade-completion", "done-by-huskyct", { page: "/tasks" }),
+    change("deadline-added", "deadline-added", { page: "/tasks", id: feed.events[0].id }),
+    change("deadline-moved", "deadline-moved", { page: "/tasks", id: feed.events[0].id }),
+    change("task-completion", "done-by-huskyct", { page: "/tasks", id: feed.events[0].id }),
+    change("announcement-new", "announcement-new", { page: "/announcements", id: announcements[0].id }),
+    change("announcement-edited", "announcement-edited", { page: "/announcements", id: announcements[1].id }),
+  ];
+  window.localStorage.setItem(SUBSCRIPTIONS_STORAGE_KEY, JSON.stringify({ version: 1, subscriptions: [feed] }));
+  window.localStorage.setItem(COURSES_STORAGE_KEY, JSON.stringify({ version: 1, ...courseBook }));
+  window.localStorage.setItem(COMPLETION_STORAGE_KEY_IMPORTED, JSON.stringify({ version: 1, completedIds: [feed.events[0].id] }));
+  window.localStorage.setItem(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify({ version: 1, announcements }));
+  window.localStorage.setItem(VERSIONS_KEY, JSON.stringify(Object.fromEntries(announcements.map((entry) => [entry.id, [{ at, title: entry.title, body: entry.body }]]))));
+  window.localStorage.setItem(CHANGES_KEY, JSON.stringify({ version: 1, entries,
+    baselines: ["grades:_900_1", "files:id:_900_1", "deadlines:MATH1070Q", "announcements:id:_900_1"],
+  }));
+  return { feed, announcements, entries, courseBook };
+}
+
+async function deliverAfterClearing(seeded: ReturnType<typeof seedClearableHistory>) {
+  const payload = JSON.parse(serialiseSyncPayload(buildSyncPayload({
+    feeds: [seeded.feed], completedIds: [], courses: EMPTY_COURSE_BOOK, announcements: seeded.announcements,
+  })));
+  const replies: unknown[] = [];
+  await act(async () => {
+    window.dispatchEvent(new window.MessageEvent("message", {
+      data: { protocol: TASKS_PROTOCOL, kind: "sync", payload }, origin: "https://lms.uconn.edu",
+      source: { postMessage: (reply: unknown) => replies.push(reply) } as never,
+    }));
+  });
+  assert.deepEqual(replies, [{ protocol: TASKS_PROTOCOL, kind: "stored", ok: true }]);
+}
+
+test("clearing announcements removes their private history and versions, keeps other kinds, and resets the first-reading baseline", async () => {
+  const seeded = seedClearableHistory();
+  const app = await mount();
+  try {
+    await act(async () => app.calendar.clearAnnouncements());
+    assert.deepEqual(app.calendar.announcements, []);
+    assert.equal(window.localStorage.getItem(ANNOUNCEMENTS_STORAGE_KEY), null);
+    assert.equal(window.localStorage.getItem(VERSIONS_KEY), null);
+    const history = parseChanges(window.localStorage.getItem(CHANGES_KEY));
+    const kept = seeded.entries.filter((entry) => !entry.kind.startsWith("announcement-"));
+    assert.deepEqual(new Set(history.entries.map((entry) => entry.id)), new Set(kept.map((entry) => entry.id)));
+    assert.equal(history.entries.find((entry) => entry.id === "grade")?.read, true);
+    assert.ok(history.baselines.includes("deadlines:MATH1070Q"));
+    assert.ok(!history.baselines.some((scope) => scope.startsWith("announcements:")));
+    assert.deepEqual(app.calendar.subscriptions, [seeded.feed]);
+    await deliverAfterClearing(seeded);
+    assert.deepEqual(new Set(parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.map((entry) => entry.id)), new Set(kept.map((entry) => entry.id)), "the first imported batch became new again");
+    assert.equal(app.calendar.announcements.length, 2);
+  } finally { await app.unmount(); }
+});
+
+test("clearing saved imported data removes deadline and announcement history while preserving grades and files", async () => {
+  const seeded = seedClearableHistory();
+  const app = await mount();
+  try {
+    await act(async () => app.calendar.clearSavedData());
+    for (const key of [SUBSCRIPTIONS_STORAGE_KEY, COURSES_STORAGE_KEY, COMPLETION_STORAGE_KEY_IMPORTED, ANNOUNCEMENTS_STORAGE_KEY, VERSIONS_KEY]) {
+      assert.equal(window.localStorage.getItem(key), null, key);
+    }
+    assert.deepEqual(app.calendar.subscriptions, []);
+    assert.deepEqual(app.calendar.announcements, []);
+    assert.deepEqual(app.calendar.courses, []);
+    assert.equal(app.calendar.isImported, false);
+    const history = parseChanges(window.localStorage.getItem(CHANGES_KEY));
+    assert.deepEqual(new Set(history.entries.map((entry) => entry.id)), new Set(["grade", "file", "grade-completion"]));
+    assert.deepEqual(history.baselines, ["grades:_900_1", "files:id:_900_1"]);
+    await deliverAfterClearing(seeded);
+    assert.deepEqual(new Set(parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.map((entry) => entry.id)), new Set(["grade", "file", "grade-completion"]), "reimporting the first batch flooded changes");
+    assert.equal(app.calendar.subscriptions.length, 1);
+    assert.equal(app.calendar.announcements.length, 2);
+  } finally { await app.unmount(); }
+});
+
+test("refused source or history writes roll each clear back before publishing visible state", async () => {
+  const common = [SUBSCRIPTIONS_STORAGE_KEY, COURSES_STORAGE_KEY, COMPLETION_STORAGE_KEY_IMPORTED, ANNOUNCEMENTS_STORAGE_KEY, VERSIONS_KEY, CHANGES_KEY];
+  for (const action of ["clearAnnouncements", "clearSavedData"] as const) {
+    const failures = action === "clearAnnouncements" ? [ANNOUNCEMENTS_STORAGE_KEY, VERSIONS_KEY, CHANGES_KEY] : common;
+    for (const failedKey of failures) {
+      window.localStorage.clear();
+      const seeded = seedClearableHistory();
+      const app = await mount();
+      const storage = window.localStorage;
+      const before = common.map((key) => storage.getItem(key));
+      const descriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+      Object.defineProperty(window, "localStorage", { configurable: true, value: {
+        getItem: storage.getItem.bind(storage),
+        setItem: (key: string, value: string) => { if (key === failedKey) throw new Error("full"); storage.setItem(key, value); },
+        removeItem: (key: string) => { if (key === failedKey) throw new Error("blocked"); storage.removeItem(key); },
+      } });
+      try {
+        await act(async () => app.calendar[action]());
+        assert.deepEqual(common.map((key) => storage.getItem(key)), before, `${action}: ${failedKey}`);
+        assert.deepEqual(app.calendar.subscriptions, [seeded.feed]);
+        assert.deepEqual(app.calendar.announcements, seeded.announcements);
+        assert.deepEqual(app.calendar.courses, seeded.courseBook.courses);
+        assert.equal(app.calendar.isImported, true);
+        assert.ok(app.calendar.error?.includes("could not be saved"));
+      } finally {
+        if (descriptor) Object.defineProperty(window, "localStorage", descriptor);
+        else Reflect.deleteProperty(window, "localStorage");
+        await app.unmount();
+      }
+    }
+  }
 });

@@ -41,6 +41,8 @@ export function HelperDeliveries({
     Promise.all([openGrades(), openMaterials()])
       .then(([gradesStore, materialsStore]) => {
         if (cancelled) return;
+        // A previous page may have saved a directory while localStorage was full.
+        void materialsStore.flushChanges?.().catch(() => undefined);
         const receiveGrades = createGradesReceiver({
           store: gradesStore,
           onChange: (state) => announce({ kind: "grades", state }),

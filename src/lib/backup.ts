@@ -7,6 +7,7 @@ import { MAX_SUBSCRIPTIONS, parseStoredSubscriptions, SUBSCRIPTIONS_STORAGE_KEY 
 import { detectMoves, findReceivingSubscription } from "./sync-merge.ts";
 import { moveOverlay, moveRecord, moveSet } from "./moved-deadlines.ts";
 import { parseEventOverlay } from "./event-overlay.ts";
+import { CHANGES_KEY, mergeChangeStores, parseChanges } from "./changes.ts";
 
 /**
  * A backup is every `huskypilot.*` value this browser holds, as the text each module saved, in one
@@ -29,6 +30,7 @@ export const BACKUP_GROUPS = [
   { id: "calendar", keys: ["huskypilot.subscriptions.v1", "huskypilot.customEvents.v1", "huskypilot.eventOverlay.v1", "huskypilot.undatedTodos.v1", "huskypilot.academicCalendar.v1", "huskypilot.reminders.v1"] },
   { id: "announcements", keys: ["huskypilot.announcements.v1", "huskypilot.announcementActions.v1", "huskypilot.announcementVersions.v1", "huskypilot.seen.announcements.v1", "huskypilot.seen.files.v1"] },
   { id: "grades", keys: ["huskypilot.grades.v1"] },
+  { id: "changes", keys: [CHANGES_KEY] },
   { id: "courses", keys: ["huskypilot.courses.v1", "huskypilot.courseLabel.v1", "huskypilot.courseColors.v1"] },
   { id: "ai", keys: ["huskypilot.aiPlan.v1", "huskypilot.aiPlanData.v1", "huskypilot.summaryModel.v1"] },
   { id: "settings", keys: ["huskypilot.locale.v1", "huskypilot.theme.v1", "huskypilot.materials.open.v1", "huskypilot.syncStatus.v1", "huskypilot.moves.v1"] },
@@ -253,6 +255,10 @@ export function restoreBackup(storage: Writer, backup: Backup, mode: RestoreMode
         // Merge never writes permission, including during rollback or into a fresh browser.
         if (mode === "merge" && key === PLAN_STORAGE_KEY) continue;
         const incoming = data[key];
+        if (key === CHANGES_KEY && incoming !== undefined && mode === "merge") {
+          put(key, JSON.stringify(mergeChangeStores(parseChanges(storage.getItem(key)), parseChanges(incoming), new Date())));
+          continue;
+        }
         if (key === PLAN_DATA_KEY && incoming !== undefined) {
           const current = mode === "merge" ? storage.getItem(key) ?? storage.getItem(PLAN_STORAGE_KEY) : null;
           const merged = current === null ? parsePlanState(incoming)

@@ -263,6 +263,24 @@ test("index and done messages are processed in order even when the store is slow
   assert.equal(states.at(-1), "done");
 });
 
+test("a persistent store merges inside its transaction for both partial and completed directories", async () => {
+  const base = memoryMaterialsStore();
+  const calls: boolean[] = [];
+  const store = {
+    ...base,
+    mergeIndex: async (incoming: MaterialsIndex, replace = true) => {
+      calls.push(replace);
+      await base.putIndex(mergeMaterialsIndex(await base.getIndex(), incoming, replace));
+    },
+    putIndex: async () => { throw new Error("the receiver bypassed the atomic merge"); },
+  };
+  const receive = createMaterialsReceiver({ store });
+  const helper = helperWindow();
+  await receive({ origin: "https://lms.uconn.edu", source: helper.source, data: message({ kind: "index", index: index([]), sending: 0 }) });
+  await receive({ origin: "https://lms.uconn.edu", source: helper.source, data: message({ kind: "done", complete: true }) });
+  assert.deepEqual(calls, [false, true]);
+});
+
 test("a message that never finishes does not hold up the ones behind it", async () => {
   const store = memoryMaterialsStore();
   let calls = 0;

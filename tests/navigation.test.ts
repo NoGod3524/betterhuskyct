@@ -75,8 +75,8 @@ async function mountBar(pathname: string) {
   const container = window.document.createElement("div");
   window.document.body.appendChild(container);
   const root = createRoot(container as unknown as Element);
-  const show = (path: string, locale: "en" | "zh-CN" = "en") =>
-    act(async () => root.render(createElement(MobileNav, { pathname: path, locale })));
+  const show = (path: string, locale: "en" | "zh-CN" = "en", unreadChanges = 0) =>
+    act(async () => root.render(createElement(MobileNav, { pathname: path, locale, unreadChanges })));
   await show(pathname);
   const q = (selector: string) => container.querySelector(selector) as unknown as HTMLElement | null;
   return {
@@ -98,7 +98,7 @@ async function mountBar(pathname: string) {
 test("the bar shows the four main pages and a More, with the current page marked", async () => {
   const bar = await mountBar("/tasks");
 
-  assert.deepEqual(bar.links(), ["/", "/tasks", "/calendar", "/announcements"]);
+  assert.deepEqual(bar.links(), ["/", "/changes", "/tasks", "/calendar"]);
   assert.ok(bar.more(), "no More button");
   assert.equal(bar.q('a[href="/tasks"]')!.getAttribute("aria-current"), "page");
   assert.equal(bar.q('a[href="/calendar"]')!.getAttribute("aria-current"), null);
@@ -180,5 +180,19 @@ test("the bar is in Chinese when the page is", async () => {
 
   assert.ok(bar.text().includes(t("zh-CN", "nav.dashboard")));
   assert.ok(bar.text().includes(t("zh-CN", "nav.more")));
+  await bar.unmount();
+});
+
+test("Changes stays in the bottom bar, announcements move to More, and unread counts follow", async () => {
+  const bar = await mountBar("/changes");
+  assert.equal(bar.q('a[href="/changes"]')!.getAttribute("aria-current"), "page");
+  assert.equal(bar.q('[aria-label="3 unread changes"]'), null);
+  await bar.show("/changes", "en", 3);
+  assert.ok(bar.q('a[href="/changes"] [aria-label="3 unread changes"]'));
+  await bar.click(bar.more());
+  assert.ok(bar.q('[role=dialog] a[href="/announcements"]'));
+  await bar.show("/changes", "zh-CN", 0);
+  assert.equal(bar.q('a[href="/changes"] [aria-label="3 unread changes"]'), null);
+  assert.ok(bar.text().includes(t("zh-CN", "nav.changes")));
   await bar.unmount();
 });
