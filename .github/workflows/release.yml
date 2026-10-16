@@ -26,7 +26,7 @@ jobs:
   verify:
     uses: ./.github/workflows/ci.yml
     with:
-      ref: refs/tags/${{ github.event.inputs.tag || github.ref_name }}
+      ref: ${{ github.event_name == 'push' && github.sha || format('refs/tags/{0}', github.event.inputs.tag) }}
   package:
     needs: verify
     name: build, attest, release
@@ -38,8 +38,11 @@ jobs:
       - name: Checkout the tag
         uses: actions/checkout@v7
         with:
-          ref: refs/tags/${{ github.event.inputs.tag || github.ref_name }}
+          ref: ${{ needs.verify.outputs.verified_sha }}
           fetch-depth: 0
+
+      - name: Confirm the tag still names the checked commit
+        run: test "$(git rev-parse "$TAG^{commit}")" = "$(git rev-parse HEAD)"
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
