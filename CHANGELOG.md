@@ -14,6 +14,16 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [2.0.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v2.0.1) — Load your calendar in your own time zone
+
+*Patch: consistent first-page loading across time zones. HuskyCT Helper is unchanged at 2.1.0.*
+
+### Fixed
+
+- **The homepage hydrates consistently across time zones.** The server and a browser in another zone could generate different demo tasks, counts and date groups on the first render, especially late at night. Date-derived content now waits for the browser to restore its own clock and saved calendar, so the server markup and first browser render agree. ([#244])
+- **The calendar opens in the browser's current month.** The month grid initializes after local calendar restoration, including when the server's build date falls in another month or day. ([#244])
+- **A failed storage migration does not leave the calendar loading forever.** Restoration failures show an error in the selected language, finish the loading state and allow a reload to retry without discarding the saved source data. ([#244])
+
 ## [2.0.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v2.0.0) — Your course inbox, with optional background checks
 
 *Major: a course inbox that can receive updates while the app is closed. HuskyCT Helper goes from 2.0.5 to 2.1.0.*
@@ -2119,3 +2129,5 @@ saying what to work on next.*
 [#240]: https://github.com/NoGod3524/betterhuskyct/pull/240
 
 [#242]: https://github.com/NoGod3524/betterhuskyct/pull/242
+
+[#244]: https://github.com/NoGod3524/betterhuskyct/pull/244
