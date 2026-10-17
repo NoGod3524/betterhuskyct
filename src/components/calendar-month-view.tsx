@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, GraduationCap, Plus, RotateCcw, Trash2, X } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
+import { ListSkeleton } from "@/components/list-skeleton";
 import { useAcademicCalendar } from "@/components/use-academic-calendar";
 import { academicByDay, type AcademicEvent } from "@/lib/academic-calendar";
 import { formatDate } from "@/lib/format-date";
@@ -115,12 +116,19 @@ function SchoolDateLabel({ event, continued }: { event: AcademicEvent; continued
   );
 }
 
-export function CalendarMonthView({
-  fetchAcademic,
-}: {
+type CalendarMonthProps = {
   /** Where UConn's academic calendar comes from; tests pass their own. */
   fetchAcademic?: (input: string, init?: RequestInit) => Promise<Response>;
-}) {
+};
+
+export function CalendarMonthView(props: CalendarMonthProps) {
+  const { locale, calendarReady } = useCalendar();
+  return calendarReady
+    ? <CalendarMonthContents {...props} />
+    : <ListSkeleton label={t(locale, "common.loading")} />;
+}
+
+function CalendarMonthContents({ fetchAcademic }: CalendarMonthProps) {
   const {
     locale,
     tasks,

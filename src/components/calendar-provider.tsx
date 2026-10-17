@@ -146,6 +146,7 @@ import {
 
 type CalendarContextValue = {
   now: Date;
+  calendarReady: boolean;
   locale: Locale;
   changeLocale: (nextLocale: Locale) => void;
 
@@ -278,6 +279,7 @@ export function CalendarProvider({
   children: ReactNode;
 }) {
   const [now, setNow] = useState(() => new Date(initialNow));
+  const [calendarReady, setCalendarReady] = useState(false);
   const [locale, setLocale] = useState<Locale>(DEFAULT_LOCALE);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   // Course announcements. They arrive by sync only — the app never fetches
@@ -455,44 +457,50 @@ export function CalendarProvider({
     const timer = window.setTimeout(() => {
       const currentTime = new Date();
       setNow(currentTime);
-      const restoredLocale = restoreLocale(window.localStorage);
-      setLocale(restoredLocale);
-      const restored = restoreSubscriptions(window.localStorage);
-      subscriptionsRef.current = restored.subscriptions;
-      setSubscriptions(restored.subscriptions);
-      setDemoMode(restored.subscriptions.length === 0);
+      let restoredLocale = DEFAULT_LOCALE;
+      try {
+        restoredLocale = restoreLocale(window.localStorage);
+        setLocale(restoredLocale);
+        const restored = restoreSubscriptions(window.localStorage);
+        subscriptionsRef.current = restored.subscriptions;
+        setSubscriptions(restored.subscriptions);
+        setDemoMode(restored.subscriptions.length === 0);
 
-      if (restored.subscriptions.length > 0) {
-        setRestoredFromStorage(true);
-        setNotice(t(restoredLocale, "notices.restoredImported"));
-        setCompletedIds(restoreTicks("imported", restored.subscriptions));
-      } else {
-        if (restored.recoveredFromCorruptData) {
-          setNotice(t(restoredLocale, "notices.corruptDataCleared"));
+        if (restored.subscriptions.length > 0) {
+          setRestoredFromStorage(true);
+          setNotice(t(restoredLocale, "notices.restoredImported"));
+          setCompletedIds(restoreTicks("imported", restored.subscriptions));
+        } else {
+          if (restored.recoveredFromCorruptData) {
+            setNotice(t(restoredLocale, "notices.corruptDataCleared"));
+          }
+          setCompletedIds(restoreTicks("demo", null));
         }
-        setCompletedIds(restoreTicks("demo", null));
+
+        const restoredReminders = restoreReminderState(window.localStorage);
+        setRemindersEnabled(restoredReminders.enabled);
+        reminderLog.current = {
+          lastSignature: restoredReminders.lastSignature,
+          lastNotifiedAt: restoredReminders.lastNotifiedAt,
+        };
+        setNotificationPermission(
+          "Notification" in window ? Notification.permission : "unsupported",
+        );
+        setCourseBook(restoreCourseBook(window.localStorage));
+
+        const restoredAnnouncements = restoreAnnouncements(window.localStorage);
+        announcementsRef.current = restoredAnnouncements.announcements;
+        setAnnouncements(restoredAnnouncements.announcements);
+
+        setEventOverlay(restoreEventOverlay(window.localStorage));
+        setMoveLog(restoreMoveLog(window.localStorage));
+        setCustomEvents(restoreCustomEvents(window.localStorage));
+        setCourseColors(restoreCourseColors(window.localStorage));
+      } catch {
+        setError(t(restoredLocale, "errors.restoreFailed"));
+      } finally {
+        setCalendarReady(true);
       }
-
-      const restoredReminders = restoreReminderState(window.localStorage);
-      setRemindersEnabled(restoredReminders.enabled);
-      reminderLog.current = {
-        lastSignature: restoredReminders.lastSignature,
-        lastNotifiedAt: restoredReminders.lastNotifiedAt,
-      };
-      setNotificationPermission(
-        "Notification" in window ? Notification.permission : "unsupported",
-      );
-      setCourseBook(restoreCourseBook(window.localStorage));
-
-      const restoredAnnouncements = restoreAnnouncements(window.localStorage);
-      announcementsRef.current = restoredAnnouncements.announcements;
-      setAnnouncements(restoredAnnouncements.announcements);
-
-      setEventOverlay(restoreEventOverlay(window.localStorage));
-      setMoveLog(restoreMoveLog(window.localStorage));
-      setCustomEvents(restoreCustomEvents(window.localStorage));
-      setCourseColors(restoreCourseColors(window.localStorage));
-
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -540,7 +548,9 @@ export function CalendarProvider({
   // returned cleanup is the effect's, so an unmounted provider stops ticking.
   useEffect(() => watchClock(() => setNow(new Date()), window), []);
 
-  const demoTasks = useMemo(() => createDemoTasks(now), [now]);
+  // The server does not know the reader's day or zone. Keep the first frame
+  // neutral until this browser has restored its clock and saved calendar.
+  const demoTasks = useMemo(() => calendarReady ? createDemoTasks(now) : [], [calendarReady, now]);
   // Corrections and deletions apply only to what was actually imported — the
   // demo is not something anyone is correcting. Events the student added
   // themselves are not a correction of anything, so they are always shown,
@@ -993,7 +1003,7 @@ export function CalendarProvider({
     });
   }, [remindersEnabled, notificationPermission, dueSoon, locale]);
 
-  const groups = useMemo(() => groupTasks(tasks, now, locale), [tasks, now, locale]);
+  const groups = useMemo(() => calendarReady ? groupTasks(tasks, now, locale) : [], [calendarReady, tasks, now, locale]);
   // The groups keep class meetings — seeing your day is useful — but the
   // headline says "due", so it counts only the things actually due.
   const visibleCount = groups.reduce(
@@ -1001,7 +1011,7 @@ export function CalendarProvider({
     0,
   );
 
-  const formattedToday = formatDate(now, locale, { weekday: "long" });
+  const formattedToday = calendarReady ? formatDate(now, locale, { weekday: "long" }) : "";
   const formattedImportedAt = useMemo(() => {
     const latest = latestImportAt(subscriptions);
     if (!latest) return null;
@@ -1103,6 +1113,7 @@ export function CalendarProvider({
 
   const value: CalendarContextValue = {
     now,
+    calendarReady,
     locale,
     changeLocale,
     tasks,

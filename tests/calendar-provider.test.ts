@@ -11,6 +11,7 @@ import { MAX_CUSTOM_EVENTS, buildCustomEvent, saveCustomEvents } from "../src/li
 import { SUBSCRIPTIONS_STORAGE_KEY, type Subscription } from "../src/lib/subscriptions.ts";
 import { buildSyncPayload, encodeSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
 import { TASKS_PROTOCOL } from "../src/lib/tasks-sync.ts";
+import { t } from "../src/lib/i18n.ts";
 import {
   COMPLETION_STORAGE_KEY_CUSTOM,
   COMPLETION_STORAGE_KEY_DEMO,
@@ -494,6 +495,38 @@ test("a calendar saved by a version that remembered links is opened without the 
   assert.equal(window.localStorage.getItem("huskypilot.rememberSource.v1"), null);
   assert.equal(storedFeeds()[0].events.length, 1);
   await app.unmount();
+});
+
+test("a refused calendar migration reports the failure and still finishes loading, so a reload can retry", async () => {
+  const storage = window.localStorage;
+  const saved = JSON.stringify({ version: 1, subscriptions: [{ ...savedFeed(), url: PRIVATE_LINK }] });
+  storage.setItem(SUBSCRIPTIONS_STORAGE_KEY, saved);
+  const descriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+  Object.defineProperty(window, "localStorage", { configurable: true, value: {
+    getItem: storage.getItem.bind(storage),
+    removeItem: storage.removeItem.bind(storage),
+    setItem(key: string, value: string) {
+      if (key === SUBSCRIPTIONS_STORAGE_KEY) throw new Error("Full");
+      storage.setItem(key, value);
+    },
+  } });
+  try {
+    const app = await mount();
+    assert.equal(app.calendar.calendarReady, true);
+    assert.equal(app.calendar.error, t("en", "errors.restoreFailed"));
+    assert.equal(app.calendar.isImported, false);
+    assert.equal(app.calendar.groups.length, 3);
+    assert.equal(storage.getItem(SUBSCRIPTIONS_STORAGE_KEY), saved);
+    await app.unmount();
+  } finally {
+    if (descriptor) Object.defineProperty(window, "localStorage", descriptor);
+    else Reflect.deleteProperty(window, "localStorage");
+  }
+  const retry = await mount();
+  assert.equal(retry.calendar.calendarReady, true);
+  assert.equal(retry.calendar.isImported, true);
+  assert.equal(retry.calendar.error, null);
+  await retry.unmount();
 });
 
 const OWN_EVENT = {
