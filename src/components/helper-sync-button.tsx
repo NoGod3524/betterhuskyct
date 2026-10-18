@@ -175,7 +175,7 @@ export function HelperSyncButton({ variant }: { variant: "big" | "compact" }) {
   }
 
   return (
-    <div className="shrink-0 sm:max-w-xs sm:text-right">
+    <div className="w-full shrink-0 sm:w-auto sm:max-w-xs sm:text-right">
       <button
         type="button"
         onClick={start}
