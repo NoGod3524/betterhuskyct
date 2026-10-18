@@ -69,13 +69,13 @@ test("a pressed button shrinks a little, and not for people who asked for less m
 test("the components carry the classes the touch rules hang on", () => {
   const card = read("components/task-card.tsx");
   assert.match(card, /<label htmlFor=\{checkboxId\} className="tap-check[^"]*">\s*<input/, "the checkbox is not inside its hit area");
-  assert.equal((read("components/helper-section.tsx").match(/tap-link inline-flex h-9/g) ?? []).length, 2, "an install button is under a finger's height");
+  assert.match(read("components/background-sync-button.tsx"), /tap-link btn btn-primary h-9/, "the install and manual sync links need finger-sized targets");
 
   const shell = read("components/app-shell.tsx");
   assert.match(shell, /const iconButton =\s*"tap-icon /, "the header's icon buttons are not finger-sized");
   assert.equal((shell.match(/\{iconButton\}|\$\{iconButton\}/g) ?? []).length, 3, "the search, theme and reminder buttons do not all use it");
 
-  for (const file of ["materials-section", "grades-section", "announcements-section", "helper-section"]) {
+  for (const file of ["materials-section", "grades-section", "announcements-section", "background-sync-button"]) {
     assert.match(read(`components/${file}.tsx`), /tap-link/, `${file} has a text link a finger could miss`);
   }
 });

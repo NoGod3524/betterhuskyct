@@ -20,6 +20,10 @@ export const HELPER_SCRIPT_URL =
 export const EDGE_ADDONS_URL =
   "https://microsoftedge.microsoft.com/addons/detail/betterhuskyct-helper/ffecjgdlpganijnbbnilofjphjhbekmc";
 
+/** Unpacked Chrome installation, with the download and browser steps. */
+export const EXTENSION_INSTALL_URL =
+  "https://github.com/NoGod3524/betterhuskyct/tree/main/tools/extension";
+
 /** Its source and documentation, for anyone who wants to read it first. */
 export const HELPER_SOURCE_URL =
   "https://github.com/NoGod3524/betterhuskyct/tree/main/tools/huskyct-helper";

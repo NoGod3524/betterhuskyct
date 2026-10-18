@@ -30,6 +30,10 @@ export function AppFooter({ version }: { version: string }) {
         <Link href="/about" className="underline-offset-2 hover:underline">
           {t(locale, "footer.about")}
         </Link>
+        {" · "}
+        <Link href="/privacy" className="underline-offset-2 hover:underline">
+          {t(locale, "privacy.link")}
+        </Link>
       </span>
       <span>
         {t(locale, "footer.madeBy")}{" "}

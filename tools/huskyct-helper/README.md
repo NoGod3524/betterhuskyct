@@ -2,8 +2,8 @@
 
 A script that runs inside your own HuskyCT session, reads your deadlines, announcements, grades and
 course files from HuskyCT's own data, and hands them to BetterHuskyCT. It runs as
-[the browser extension](../extension) (Chrome and Edge), which is how BetterHuskyCT's Helper page
-hands it out, or as a userscript in a manager such as Tampermonkey, for a browser the extension
+[the browser extension](../extension) (Chrome and Edge), linked from BetterHuskyCT's homepage,
+or as a userscript in a manager such as Tampermonkey, for a browser the extension
 does not cover. This file is the userscript, and the extension runs it unchanged.
 
 > **HuskyCT is Blackboard Ultra at `lms.uconn.edu`.** The script also matches
@@ -42,8 +42,8 @@ pages send, with the session your browser already has.
 
 ## When it runs
 
-- **In the background, with the extension**, if you enable background sync in its popup or the Helper page. It checks about every six hours while the browser runs and keeps the results locally until BetterHuskyCT opens. A 401 pauses checks until sign-in is restored. System notifications are a separate opt-in, with per-kind switches; the first reading only establishes a baseline. Background reads update file directories, while the existing Sync button downloads file contents. Userscripts keep the page-based modes below.
-- **From BetterHuskyCT's Sync button.** The helper on BetterHuskyCT's page asks for a HuskyCT tab:
+- **In the background, with the extension**, enabled on new installations, with the first check scheduled after about one minute. It then checks about every six hours while the browser runs and keeps the results locally until BetterHuskyCT opens. Turn it off in the toolbar popup; an existing saved off setting is preserved on update. The homepage's **Check for updates** button runs the same check immediately, without opening HuskyCT. A 401 pauses checks until sign-in is restored. System notifications are a separate opt-in, with per-kind switches; the first reading only establishes a baseline. Background reads update file directories; file contents still need the manual sync below. Userscripts keep the page-based modes below.
+- **From the Materials page's manual sync, also linked from the homepage for older helpers and userscripts.** The helper on BetterHuskyCT's page asks for a HuskyCT tab:
   an open one answers, or one is opened behind it and closed after. What is read comes back to the
   tab that asked, so nothing has to be pressed on HuskyCT.
 - **From the panel.** A small panel sits in the corner of HuskyCT: **Sync now** reads and sends to

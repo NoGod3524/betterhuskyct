@@ -150,7 +150,7 @@ export function TodoSection() {
       <p className="mt-2 max-w-2xl text-xs text-[var(--muted)]">
         {hasGrades ? t(locale, "todo.autoHint") : t(locale, "todo.noGradesHint")}{" "}
         {hasGrades ? null : (
-          <Link href="/helper" className="font-semibold text-[var(--link)] hover:underline">
+          <Link href="/#check-updates" className="tap-link font-semibold text-[var(--link)] hover:underline">
             {t(locale, "todo.noGradesCta")}
           </Link>
         )}

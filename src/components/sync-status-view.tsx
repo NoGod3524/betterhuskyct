@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useSyncExternalStore } from "react";
 
 import { useCalendar } from "@/components/calendar-provider";
@@ -50,25 +49,25 @@ function ago(locale: Locale, then: string, now: Date): string {
   return t(locale, `syncstatus.ago.${unit}` as TranslationKey, { count });
 }
 
-/** One line under the overview's Sync button: when the last sync was, and what it missed. */
-export function SyncStatusLine() {
+/** Keep course-by-course diagnostics available without a separate setup page. */
+export function SyncStatusDetails() {
   const { locale, now } = useCalendar();
   const status = useSyncStatus();
   if (!status) return null;
   const when = ago(locale, status.lastSync, now);
   const missed = missedParts(status);
-  if (missed.length === 0) return <p className="mt-3 text-xs text-[var(--muted)]">{t(locale, "syncstatus.allRead", { ago: when })}</p>;
   const what = missed
     .slice(0, 4)
     .map((entry) => (entry.course ? `${entry.course} ${t(locale, `syncstatus.part.${entry.part}` as TranslationKey).toLowerCase()}` : t(locale, `syncstatus.part.${entry.part}` as TranslationKey)))
     .join(", ") + (missed.length > 4 ? " …" : "");
   return (
-    <p className="mt-3 text-xs text-[var(--warn,#a16207)]">
-      {t(locale, "syncstatus.missed", { ago: when, what })}{" "}
-      <Link href="/helper#sync-status" className="underline underline-offset-2">
-        {t(locale, "syncstatus.details")}
-      </Link>
-    </p>
+    <details id="sync-status" className="mt-3 text-xs text-[var(--muted)]">
+      <summary className="tap-link cursor-pointer">
+        {t(locale, missed.length ? "syncstatus.missed" : "syncstatus.allRead", { ago: when, what })}{" · "}
+        <span className="text-[var(--link)]">{t(locale, "syncstatus.details")}</span>
+      </summary>
+      <SyncStatusTable />
+    </details>
   );
 }
 
@@ -91,14 +90,14 @@ function Part({ locale, label, part, now }: { locale: Locale; label: string; par
   );
 }
 
-/** The Helper page's table: each course's announcements, grades and files, and the term-wide parts. */
-export function SyncStatusTable() {
+/** Each course's announcements, grades and files, and the term-wide parts. */
+function SyncStatusTable() {
   const { locale, now } = useCalendar();
   const status = useSyncStatus();
   const label = (name: string) => t(locale, `syncstatus.part.${name}` as TranslationKey);
 
   return (
-    <div className="mt-10" id="sync-status">
+    <div className="mt-3">
       <h3 className="font-display text-lg font-semibold">{t(locale, "syncstatus.title")}</h3>
       <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--muted)]">{t(locale, status ? "syncstatus.intro" : "syncstatus.none")}</p>
       {status ? (

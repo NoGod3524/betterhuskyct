@@ -94,6 +94,22 @@ function loadWorker(pages: Record<string, number>, writes = { delayMs: 0, fail: 
   return { store, network, fire, navigate, requests };
 }
 
+test("the retired helper route redirects home even when an older page is cached offline", async () => {
+  const worker = loadWorker({ "/": 200 });
+  await worker.fire("install");
+  worker.store.get("huskypilot-v3")!.set("/helper", "old helper page");
+  for (const online of [true, false]) {
+    worker.network.online = online;
+    const response = await worker.fire("fetch", { request: {
+      method: "GET", mode: "navigate", url: ORIGIN + "/helper?from=bookmark",
+    } }) as Response;
+    assert.equal(response.status, 308);
+    assert.equal(response.headers.get("location"), ORIGIN + "/");
+  }
+  assert.equal(worker.requests.length, 0);
+  assert.equal(await worker.navigate("/"), "/ page");
+});
+
 test("a route visited through Next Link has its HTML available for a cold offline opening", async () => {
   const worker = loadWorker({ "/": 200, "/tasks": 200 }, { delayMs: 20, fail: false });
   await worker.fire("install");

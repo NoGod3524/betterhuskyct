@@ -1,7 +1,6 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
@@ -16,6 +15,7 @@ import {
 } from "@/lib/helper-sync";
 import { t, type Locale } from "@/lib/i18n";
 import { recordReadReport, SYNC_STATUS_CHANGED } from "@/lib/sync-status";
+import { HELPER_SOURCE_URL } from "@/lib/helper";
 
 /** Opens the HuskyCT tab, or finds the one already open, from the press that is in progress. */
 function openHuskyctTab(): HuskyctTab | null {
@@ -67,7 +67,7 @@ export function HelperSyncProvider({ children, deps }: { children: ReactNode; de
       }),
       now: deps?.now ?? (() => Date.now()),
       onChange: (next) => {
-        // What the sync read, course by course, is kept for the status on the Helper page.
+        // What the sync read, course by course, is kept for the overview's status details.
         if (next.phase === "done" && next.status) {
           recordReadReport(window.localStorage, next.status, new Date());
           window.dispatchEvent(new Event(SYNC_STATUS_CHANGED));
@@ -147,8 +147,8 @@ export function syncStatusText(locale: Locale, state: HelperSyncState): string {
 
 /**
  * The Sync button: it opens HuskyCT in another tab, where the helper reads announcements and grades
- * in the background, and the result comes back here. `big` is the one on the overview; `compact`
- * sits in the header, and shares the same sync.
+ * in the background, and the result comes back here. This full sync also transfers file contents;
+ * the overview's background check only updates the course file index.
  */
 export function HelperSyncButton({ variant }: { variant: "big" | "compact" }) {
   const { locale } = useCalendar();
@@ -198,9 +198,9 @@ export function HelperSyncButton({ variant }: { variant: "big" | "compact" }) {
         {state.phase === "failed" && state.reason === "noanswer" ? (
           <>
             {" "}
-            <Link href="/helper" className="font-semibold text-[var(--link)] hover:underline">
+            <a href={HELPER_SOURCE_URL} className="tap-link font-semibold text-[var(--link)] hover:underline">
               {t(locale, "helpersync.helperLink")}
-            </Link>
+            </a>
           </>
         ) : null}
       </p>

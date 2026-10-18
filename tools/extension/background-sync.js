@@ -9,7 +9,7 @@ const LOGIN = "https://lms.uconn.edu/";
 const LOGIN_NOTICE = "betterhuskyct-login", CHANGES_NOTICE = "betterhuskyct-changes";
 const MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024;
 const emptyChanges = () => ({ version: 1, entries: [], baselines: [] });
-const defaults = () => ({ version: 1, settings: { enabled: false, notifications: false, locale: null,
+const defaults = () => ({ version: 1, settings: { enabled: true, notifications: false, locale: null,
   kinds: Object.fromEntries(CHANGE_KINDS.map((kind) => [kind, true])) }, snapshot: null, pendingChanges: emptyChanges(),
   basket: null, colors: null, lastAttempt: null, lastSuccess: null, needsLogin: false, loginNotified: false,
   lastError: null, runToken: null, lease: null, lastAckRevision: null, settingsRevision: 0 });
@@ -61,7 +61,7 @@ export function createBackgroundSync(api, options = {}) {
       if (await api.alarms.get(BACKGROUND_ALARM)) return;
       const previous = Date.parse(state.lastAttempt || state.lastSuccess || "");
       // Worker restarts ensure an alarm exists; they never push an existing deadline back.
-      const when = Number.isFinite(previous) ? Math.max(now().valueOf() + 60_000, previous + 360 * 60_000) : now().valueOf() + 360 * 60_000;
+      const when = Number.isFinite(previous) ? Math.max(now().valueOf() + 60_000, previous + 360 * 60_000) : now().valueOf() + 60_000;
       await api.alarms.create(BACKGROUND_ALARM, { when, periodInMinutes: 360 });
     } else await api.alarms.clear(BACKGROUND_ALARM);
   });
