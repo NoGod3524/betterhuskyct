@@ -14,6 +14,16 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [2.1.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v2.1.0) — Check for course updates from the homepage
+
+*Minor: one homepage entry for course updates. HuskyCT Helper goes from 2.1.0 to 2.2.0.*
+
+### Changed
+
+- **Check for updates replaces the separate Helper page.** The homepage uses the extension's background reader without opening HuskyCT, shows the actual saved setting and last successful check, and offers installation or sign-in when needed. Course-by-course reading details stay available in a collapsed section. Old `/helper` bookmarks redirect home, including offline visits with a previously cached page. ([#246])
+- **Background checks start enabled on new installations.** The extension schedules its first check after about one minute, then checks about every six hours while the browser runs. An existing saved off setting stays off after updates and restarts; checking once does not re-enable it. Expired sessions still pause checks. System notifications remain separately optional and off by default, with no additional permissions. ([#246])
+- **Full manual sync remains on Materials.** It downloads course-file contents, which background checks do not, and preserves the manual route for phones, userscripts and older extensions. Installation and privacy documentation describe the new defaults in both languages. ([#246])
+
 ## [2.0.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v2.0.1) — Load your calendar in your own time zone
 
 *Patch: consistent first-page loading across time zones. HuskyCT Helper is unchanged at 2.1.0.*
@@ -2131,3 +2141,4 @@ saying what to work on next.*
 [#242]: https://github.com/NoGod3524/betterhuskyct/pull/242
 
 [#244]: https://github.com/NoGod3524/betterhuskyct/pull/244
+[#246]: https://github.com/NoGod3524/betterhuskyct/pull/246
