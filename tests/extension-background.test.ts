@@ -60,10 +60,10 @@ function fixture() {
     time: (value: number) => { at = value; }, permission: (value: boolean) => { permission = value; } };
 }
 
-test("background and notifications start off; manual reads establish a silent baseline", async () => {
+test("background starts on and notifications off; manual reads establish a silent baseline", async () => {
   const f = fixture();
   const state = await f.manager.handle(message("status"), popup);
-  assert.equal(state.settings.enabled, false); assert.equal(state.settings.notifications, false);
+  assert.equal(state.settings.enabled, true); assert.equal(state.settings.notifications, false);
   assert.equal(f.reads(), 0); assert.equal(f.alarms.size, 0);
   assert.deepEqual(await f.manager.run(), { ok: true });
   assert.equal(f.state().pendingChanges.entries.length, 0); assert.equal(f.notices.length, 0);
@@ -71,6 +71,61 @@ test("background and notifications start off; manual reads establish a silent ba
   assert.deepEqual(f.queries, [{ url: ["https://betterhuskyct.vercel.app/*"] }]);
   const signal = f.broadcasts[0] as [number, { kind: string; target: string; snapshot?: unknown }];
   assert.equal(signal[1].kind, "available"); assert.equal(signal[1].target, "relay"); assert.equal(signal[1].snapshot, undefined);
+});
+
+test("installation schedules an unset background check in one minute and worker wakes retain its deadline", async () => {
+  for (const saved of [undefined, { version: 1, settings: { locale: "zh-CN" } }]) {
+    const f = fixture();
+    if (saved) f.data[BACKGROUND_KEY] = saved;
+    f.manager.install(); f.api.runtime.onInstalled.fire({ reason: "install" });
+    const state = await f.manager.handle(message("status"), popup);
+    assert.equal(state.settings.enabled, true); assert.equal(state.settings.notifications, false);
+    assert.deepEqual(f.alarms.get(BACKGROUND_ALARM), { when: +NOW + 60_000, periodInMinutes: 360 });
+    assert.equal(f.reads(), 0, "installation read HuskyCT before the scheduled check");
+
+    f.time(+NOW + 30_000); f.api.runtime.onStartup.fire();
+    await f.manager.handle(message("status"), popup);
+    const restarted = createBackgroundSync(f.api, { now: () => new Date(+NOW + 30_000) });
+    restarted.install(); await restarted.handle(message("status"), popup);
+    assert.equal(f.alarms.get(BACKGROUND_ALARM).when, +NOW + 60_000, "a worker wake postponed the first check");
+  }
+});
+
+test("the first installed alarm reads once without enabling notifications, then retains the six-hour schedule", async () => {
+  const f = fixture(); f.manager.install();
+  await f.manager.handle(message("status"), popup);
+  f.time(+NOW + 60_000); f.api.alarms.onAlarm.fire({ name: BACKGROUND_ALARM });
+  assert.deepEqual(await f.manager.run("alarm"), { ok: true });
+  assert.equal(f.reads(), 1); assert.equal(f.notices.length, 0);
+  assert.equal(f.state().settings.enabled, true); assert.equal(f.state().settings.notifications, false);
+  // Chrome advances periodic alarms itself; if it loses one, restore from the last attempt.
+  f.alarms.clear(); f.time(+NOW + 120_000);
+  const restarted = createBackgroundSync(f.api, { now: () => new Date(+NOW + 120_000) });
+  restarted.install(); await restarted.handle(message("status"), popup);
+  assert.deepEqual(f.alarms.get(BACKGROUND_ALARM), { when: +NOW + 60_000 + 360 * 60_000, periodInMinutes: 360 });
+  assert.equal(f.reads(), 1);
+});
+
+test("an existing or newly saved off choice survives install, unrelated settings and worker restart", async () => {
+  for (const savedOff of [false, true]) {
+    const f = fixture();
+    if (savedOff) f.data[BACKGROUND_KEY] = { version: 1, settings: { enabled: false } };
+    f.manager.install(); f.api.runtime.onInstalled.fire({ reason: "update" });
+    await f.manager.handle(message("status"), popup);
+    if (savedOff) assert.equal(f.alarms.size, 0);
+    else await f.manager.handle(message("settings", { settings: { enabled: false } }), popup);
+    const state = await f.manager.handle(message("settings", { settings: { locale: "zh-CN" } }), popup);
+    assert.equal(state.settings.enabled, false); assert.equal(state.settings.notifications, false);
+    f.api.runtime.onStartup.fire(); await f.manager.handle(message("status"), popup);
+    const restarted = createBackgroundSync(f.api, { now: () => new Date(+NOW) }); restarted.install();
+    assert.equal((await restarted.handle(message("status"), popup)).settings.enabled, false);
+    assert.deepEqual(await restarted.run("alarm"), { ok: false, reason: "paused" });
+    assert.equal(f.alarms.size, 0); assert.equal(f.reads(), 0);
+    assert.deepEqual(await restarted.handle(message("run-now"), popup), { ok: true });
+    await restarted.run();
+    assert.equal(f.reads(), 1); assert.equal(f.state().settings.enabled, false);
+    assert.equal(f.alarms.size, 0, "a manual check re-enabled the saved off choice");
+  }
 });
 
 test("real helper announcement candidates without ids are normalized before caching or diffing", async () => {
@@ -189,6 +244,7 @@ test("worker restarts preserve an existing alarm and a lost overdue alarm is res
 
 test("an old disabled schedule cannot clear a newer enabled alarm", async () => {
   const f = fixture();
+  f.data[BACKGROUND_KEY] = { version: 1, settings: { enabled: false } };
   let entered!: () => void, release!: () => void, calls = 0;
   const started = new Promise<void>((resolve) => { entered = resolve; });
   const gate = new Promise<void>((resolve) => { release = resolve; });

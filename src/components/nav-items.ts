@@ -6,7 +6,6 @@ import {
   FolderOpen,
   LayoutDashboard,
   Megaphone,
-  Puzzle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -28,7 +27,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/announcements", key: "nav.announcements", Icon: Megaphone },
   { href: "/materials", key: "nav.materials", Icon: FolderOpen },
   { href: "/grades", key: "nav.grades", Icon: Award },
-  { href: "/helper", key: "nav.helper", Icon: Puzzle },
 ];
 
 /** The bar's own slots: what a student opens most, one press away. */

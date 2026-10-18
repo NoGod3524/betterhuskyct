@@ -107,7 +107,7 @@ test("what the helper says it read, course by course, is kept for the sync statu
   await view.unmount();
 });
 
-test("the header's button and the overview's are one sync: pressing either shows it on both", async () => {
+test("manual sync buttons share one request: pressing either shows it on both", async () => {
   const { tab, posted } = fakeTab();
   const view = await render({ open: () => tab, schedule: noTimers }, ["big", "compact"]);
   assert.equal(view.buttons().length, 2);
@@ -142,7 +142,7 @@ test("a browser that blocks the tab is told so", async () => {
   await view.unmount();
 });
 
-test("a helper that never answers ends in a message that names what to check, with a way to the helper's page", async () => {
+test("a helper that never answers names what to check and links to the installation documentation", async () => {
   const { tab } = fakeTab();
   let calls = 0;
   const view = await render({

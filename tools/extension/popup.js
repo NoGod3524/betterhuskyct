@@ -1,7 +1,7 @@
 const PROTOCOL = "betterhuskyct/background@1";
 const KINDS = ["grade", "announcement-new", "announcement-edited", "deadline-moved", "deadline-added", "file-new", "done-by-huskyct"];
 const WORDS = {
-  en: { language: "Language", background: "Sync every 6 hours", backgroundHint: "Uses your existing HuskyCT session in this browser. Off by default.",
+  en: { language: "Language", background: "Sync every 6 hours", backgroundHint: "Uses your existing HuskyCT session. On by default for new installs; your saved choice is kept.",
     notifications: "Show system notifications", notificationHint: "Notifications can show course names and titles on your screen. They are off until you allow them.",
     kinds: "Notify me about", grade: "Grades", "announcement-new": "New announcements", "announcement-edited": "Edited announcements",
     "deadline-moved": "Moved deadlines", "deadline-added": "New deadlines", "file-new": "New file listings", "done-by-huskyct": "Submitted work",
@@ -9,7 +9,7 @@ const WORDS = {
     last: "Last successful reading: ", paused: "Sign in to HuskyCT yourself to resume. No repeated requests are being made.",
     failed: "The reading could not finish. Your last successful data is kept.", "too-large": "The reading is too large. Your last successful data is kept.",
     permission: "Notifications were not allowed.", saved: "Settings saved.", error: "Could not save or read settings. Try again." },
-  "zh-CN": { language: "语言", background: "每 6 小时同步", backgroundHint: "使用此浏览器现有的 HuskyCT 登录状态，默认关闭。",
+  "zh-CN": { language: "语言", background: "每 6 小时同步", backgroundHint: "使用此浏览器现有的 HuskyCT 登录状态。新安装默认开启，保留你已保存的选择。",
     notifications: "显示系统通知", notificationHint: "通知可能在屏幕上显示课程名和标题。只有你允许后才会开启。", kinds: "通知这些变化",
     grade: "成绩", "announcement-new": "新公告", "announcement-edited": "公告编辑", "deadline-moved": "截止时间变动", "deadline-added": "新截止时间",
     "file-new": "课件目录新增文件", "done-by-huskyct": "已提交作业", run: "立即同步", running: "正在读取 HuskyCT…", login: "自行登录 HuskyCT",

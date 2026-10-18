@@ -1,10 +1,10 @@
-For students signed in to UConn's HuskyCT (https://lms.uconn.edu), which requires a UConn NetID. We cannot provide a test account.
+For students signed in to UConn's HuskyCT (https://lms.uconn.edu), which requires a NetID. We cannot provide a test account.
 
-The helper reads HuskyCT's web endpoints using the browser's existing session: courses, announcements, deadlines, grades and file links. Results go only to the local BetterHuskyCT dashboard (https://betterhuskyct.vercel.app). It never reads, copies or saves passwords or cookies; the browser attaches its session to requests. No analytics or remote code.
+The helper reads HuskyCT endpoints with the browser's existing session: courses, announcements, deadlines, grades and file links. Results stay in this browser, reaching https://betterhuskyct.vercel.app locally. It never reads or saves passwords or cookies. No analytics or remote code.
 
-New in Helper 2.1.0: optional background checks and notifications, both OFF by default. Added alarms/offscreen permissions run the same packaged API reader about every six hours without opening HuskyCT tabs. Only metadata is read; file contents still require manual sync. An expired session pauses checks. Snapshots and up to 500 changes / 30 days wait in trusted extension storage until the app saves and acknowledges them. The separately optional notifications permission is requested only when enabled; previews may show course names and titles. Storage/scripting and the same three host permissions support the existing bridge and manual sync.
+Helper 2.2.0: background checks start ON for new installations, first after about one minute, then about every six hours while the browser runs. Existing saved off settings stay off; the popup can disable checks. Notifications start OFF and request permission only when enabled. No new permissions since 2.1.0. Alarms/offscreen run the packaged API reader without HuskyCT tabs. Only metadata is read; file contents need manual sync. An expired session pauses checks. Snapshots and up to 500 changes / 30 days wait in trusted local storage until the app saves and acknowledges them. Notification previews may show course names and titles.
 
 Without an account, reviewers can:
-1. Open the toolbar popup. Confirm both features start off; enable background checks and press Run now while signed out. It should report sign-in required without opening a HuskyCT tab.
-2. Open https://betterhuskyct.vercel.app/helper. The manual Sync button opens HuskyCT; the helper reports signed out without handling credentials.
+1. Open the toolbar popup on a new install: checks on, notifications off. Run now while signed out reports sign-in required without opening HuskyCT. A saved off choice survives restart/update.
+2. Open https://betterhuskyct.vercel.app/. Check for updates uses the background reader. Materials retains manual file sync. The former /helper URL redirects home.
 3. Inspect all bundled source at https://github.com/NoGod3524/betterhuskyct (tools/extension and tools/huskyct-helper). Privacy: https://betterhuskyct.vercel.app/privacy.

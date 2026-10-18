@@ -34,8 +34,15 @@ function pageRoutes(): string[] {
   return routes;
 }
 
-/** Pages that are not for the sidebar, and are linked from the page they belong to: the helper's privacy policy. */
-const LINKED_FROM = { "/privacy": "components/helper-section.tsx", "/backup": "components/app-footer.tsx", "/about": "components/app-footer.tsx" } as const;
+/** Informational and data-management pages stay available in the shared footer. */
+const LINKED_FROM = { "/privacy": "components/app-footer.tsx", "/backup": "components/app-footer.tsx", "/about": "components/app-footer.tsx" } as const;
+
+test("the retired helper page redirects to the dashboard and is absent from navigation", async () => {
+  const { default: config } = await import("../next.config.ts");
+  assert.deepEqual(await config.redirects?.(), [{ source: "/helper", destination: "/", permanent: true }]);
+  assert.ok(!NAV_ITEMS.some(item => item.href === "/helper"));
+  assert.ok(!existsSync(join(APP, "helper/page.tsx")));
+});
 
 test("every page can be reached from the navigation, and nothing in it goes nowhere", () => {
   const routes = pageRoutes();

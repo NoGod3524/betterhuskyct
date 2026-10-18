@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HelperSyncButton } from "@/components/helper-sync-button";
 import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import {
   BellOff,
@@ -183,8 +182,6 @@ export function AppShell({
               <span className="hidden text-sm font-semibold sm:inline">{t(locale, "app.name")}</span>
             </Link>
             <div className="ml-auto flex items-center gap-1.5">
-              {/* The overview has its own, bigger one. */}
-              {pathname !== "/" && <HelperSyncButton variant="compact" />}
               <SearchPalette iconButton={iconButton} />
               <div
                 role="group"

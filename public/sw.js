@@ -44,6 +44,11 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // Old bookmarks must not reopen a cached setup page after it has moved home.
+  if (request.mode === "navigate" && url.pathname === "/helper") {
+    event.respondWith(Promise.resolve(Response.redirect(url.origin + APP_SHELL, 308)));
+    return;
+  }
   // Calendar imports must always hit the network, never the cache.
   if (url.pathname.startsWith("/api/")) return;
 

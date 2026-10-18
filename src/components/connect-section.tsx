@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Check, ChevronRight, ChevronUp, Plug, Plus, TriangleAlert, X } from "lucide-react";
 
@@ -159,15 +158,6 @@ export function ConnectSection() {
           </button>
         )}
       </div>
-
-      {!hasCalendars && (
-        <div className="flex flex-wrap items-center gap-3 p-5 pt-3 sm:p-6 sm:pt-3">
-          <Link href="/helper" className="btn btn-primary h-9 px-4 text-sm">
-            {t(locale, "connect.setup")}
-            <ChevronRight size={16} />
-          </Link>
-        </div>
-      )}
 
       {subscriptions.length > 0 && (
         <div className="border-t border-[var(--line)] px-5 py-4 sm:px-7">
