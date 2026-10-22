@@ -11,6 +11,7 @@ import {
   mergeGrades,
   parseStoredGrades,
   parseGradesMessage,
+  parseGradesSnapshot,
   summarizeCourse,
   type GradeItem,
   type GradesSnapshot,
@@ -140,6 +141,27 @@ test("a newer reading replaces its own courses and keeps the rest", () => {
   assert.equal(merged.courses[0].items.length, 5, "a course the reading did not reach was emptied");
   assert.equal(merged.takenAt, "2026-09-29T09:00:00.000Z");
   assert.equal(mergeGrades(null, newer).courses.length, 1);
+});
+
+test("retained courses keep their own reading times through storage and unrelated newer readings", () => {
+  const original = snapshot([["MATH 1070Q", "_203765_1"], ["ECON 1201", "_198430_1"]]);
+  const latest = snapshot([["MATH 1070Q", "_203765_1"]]);
+  latest.takenAt = "2026-09-30T09:00:00.000Z";
+  const saved = parseStoredGrades(JSON.parse(JSON.stringify(mergeGrades(original, latest))))!;
+  assert.equal(saved.courses.find(course => course.id === "_198430_1")?.observedAt, original.takenAt);
+  assert.equal(saved.courses.find(course => course.id === "_203765_1")?.observedAt, latest.takenAt);
+  const other = snapshot([["ECON 1201", "_198430_1"]]);
+  other.takenAt = "2026-09-29T09:00:00.000Z";
+  other.courses[0].items = [scored("_9_1", "Exam", 90, 100)];
+  const merged = mergeGrades(saved, other);
+  assert.equal(merged.courses.find(course => course.id === "_198430_1")?.items[0].earned, 90);
+  assert.equal(merged.takenAt, latest.takenAt);
+  assert.equal(mergeGrades(merged, original).courses.find(course => course.id === "_198430_1")?.items[0].earned, 90);
+  for (const observedAt of [null, 5, "not-a-date"]) {
+    const invalid = snapshot();
+    Object.assign(invalid.courses[0], { observedAt });
+    assert.equal(parseGradesSnapshot(invalid), null);
+  }
 });
 
 test("two courses with one code are two courses, and a reading of one keeps the other", () => {
@@ -341,7 +363,9 @@ test("a reading: hello, the grades, then a stored reply", async () => {
     ],
   );
   assert.ok(helper.replies.every((reply) => reply.origin === from), "a reply went to another origin");
-  assert.deepEqual(await store.get(), snapshot());
+  const expected = snapshot();
+  expected.courses[0].observedAt = expected.takenAt;
+  assert.deepEqual(await store.get(), expected);
   assert.deepEqual(states, ["connected", "done"]);
 });
 

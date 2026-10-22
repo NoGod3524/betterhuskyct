@@ -127,7 +127,8 @@ export function recordGradeChanges(current: ChangesStore, before: GradesSnapshot
       const from = old ? score(old) : "";
       const to = score(item);
       if (isCounted(item) && from !== to) {
-        entries.push({ id: createChangeId("grade", course.id, item.id, from, to, after.takenAt, before!.takenAt), at,
+        entries.push({ id: createChangeId("grade", course.id, item.id, from, to,
+          course.observedAt ?? after.takenAt, oldCourse.observedAt ?? before!.takenAt), at,
           kind: "grade", courseCode: course.code, title: item.title,
           detail: { ...(from ? { from } : {}), to }, ref: { page: "/grades", id: item.id }, read: false });
       }

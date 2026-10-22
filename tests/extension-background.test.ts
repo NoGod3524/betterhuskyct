@@ -307,7 +307,7 @@ test("new source courses get silent baselines even when course codes match; fail
   const partial = snapshot("partial"); partial.status.courses[0] = { ...partial.status.courses[0], grades: false, files: false, announcements: false };
   partial.grades.courses = []; partial.materials.courses = []; partial.tasks.announcements = [];
   const result = diffBackgroundSnapshot(old, partial, empty(), NOW);
-  assert.deepEqual(result.snapshot.grades.courses, old.grades.courses);
+  assert.deepEqual(result.snapshot.grades.courses, old.grades.courses.map(course => ({ ...course, observedAt: old.grades.takenAt })));
   assert.deepEqual(result.snapshot.materials.courses, old.materials.courses);
   assert.deepEqual(result.snapshot.tasks.announcements, old.tasks.announcements);
   assert.equal(result.added.length, 0);

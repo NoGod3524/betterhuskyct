@@ -37,6 +37,15 @@ export function mergeBackgroundSnapshot(previous, incoming) {
     !item.sourceCourseId || reached.get(item.sourceCourseId)?.announcements), (item) => item.id);
   const mergeCourses = (part, flag) => {
     const fresh = list(incoming[part]?.courses).filter((course) => reached.get(course.id)?.[flag]);
+    if (part === "grades") {
+      const previousCourses = list(previous?.grades?.courses).map(course => ({ ...course, observedAt: course.observedAt || previous.grades.takenAt }));
+      const previousById = new Map(previousCourses.map(course => [course.id, course]));
+      const read = fresh.map(course => ({ ...course, observedAt: incoming.grades.takenAt }))
+        .filter(course => !previousById.has(course.id) || Date.parse(course.observedAt) >= Date.parse(previousById.get(course.id).observedAt));
+      return !incoming.grades && !previous?.grades ? null : {
+        ...(incoming.grades || previous.grades), courses: union(previousCourses, read, course => course.id),
+      };
+    }
     const courses = union(previous?.[part]?.courses, fresh, (course) => course.id);
     if (!incoming[part] && !previous?.[part]) return null;
     if (part === "materials") {
@@ -106,7 +115,8 @@ export function diffBackgroundSnapshot(previous, incoming, pending, now = new Da
     const old = previous?.grades?.courses.find((entry) => entry.id === course.id);
     if (old) for (const item of course.items) {
       const was = old.items.find((entry) => entry.id === item.id), from = score(was), to = score(item);
-      if (counted(item) && from !== to) push("grade", [course.id, item.id, from, to, snapshot.grades.takenAt, previous.grades.takenAt], item.title, course.code,
+      if (counted(item) && from !== to) push("grade", [course.id, item.id, from, to,
+        course.observedAt || snapshot.grades.takenAt, old.observedAt || previous.grades.takenAt], item.title, course.code,
         { page: "/grades", id: item.id }, { ...(from ? { from } : {}), to });
       if (done(item) && !done(was)) push("done-by-huskyct", [`huskyct-todo-${encodeURIComponent(item.id)}`], item.title, course.code, { page: "/tasks" });
     }

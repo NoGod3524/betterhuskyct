@@ -111,6 +111,63 @@ test("a real background poll does not make the foreground's read grade change un
   assert.equal((await store.get())!.courses[0].items[0].earned, 90);
 });
 
+test("failed grade polls do not advance the retained baseline and resurrect a read foreground change", async () => {
+  const samples = [80, 90, 80, 90].map((score, minute) => {
+    const incoming = offer().snapshot;
+    incoming.at = new Date(Date.parse(at) + minute * 60_000).toISOString();
+    incoming.grades = { ...reading(score), takenAt: incoming.at };
+    return incoming;
+  });
+  const store = await openGradesStore();
+  await store.receive!(samples[0].grades);
+  await store.receive!(samples[1].grades);
+  const read = markChangesRead(parseChanges(window.localStorage.getItem(CHANGES_KEY)));
+  saveChanges(window.localStorage, read);
+  let pending = diffBackgroundSnapshot(null, samples[0], history(), new Date(samples[0].at));
+  samples[2].status.courses[0].grades = false;
+  samples[2].grades.courses = [];
+  for (const incoming of samples.slice(2)) pending = diffBackgroundSnapshot(pending.snapshot, incoming, pending.changes, new Date(incoming.at));
+  await store.receiveBackground!(pending.snapshot.grades, pending.changes, pending.snapshot.status);
+  assert.deepEqual(parseChanges(window.localStorage.getItem(CHANGES_KEY)), read);
+});
+
+test("reading another course does not advance the retained foreground grade baseline", async () => {
+  const samples = [80, 90, 10, 90].map((score, minute) => {
+    const incoming = offer().snapshot;
+    incoming.at = new Date(Date.parse(at) + minute * 60_000).toISOString();
+    incoming.grades = { ...reading(score), takenAt: incoming.at };
+    return incoming;
+  });
+  const baseline = diffBackgroundSnapshot(null, samples[0], history(), new Date(samples[0].at));
+  const pending = diffBackgroundSnapshot(baseline.snapshot, samples[1], baseline.changes, new Date(samples[1].at));
+  const store = await openGradesStore();
+  await store.receive!(samples[0].grades);
+  samples[2].grades.courses[0].id = "_2_1";
+  await store.receive!(samples[2].grades);
+  await store.receive!(samples[3].grades);
+  const read = markChangesRead(parseChanges(window.localStorage.getItem(CHANGES_KEY)));
+  saveChanges(window.localStorage, read);
+  await store.receiveBackground!(pending.snapshot.grades, pending.changes, pending.snapshot.status);
+  const saved = parseChanges(window.localStorage.getItem(CHANGES_KEY));
+  assert.equal(saved.entries.length, 1);
+  assert.equal(saved.entries[0].read, true);
+});
+
+test("a background course newer than its saved reading is accepted even after another course was read later", async () => {
+  const store = await openGradesStore();
+  await store.receive!(reading(80));
+  const other = { ...reading(10), takenAt: new Date(Date.parse(at) + 120_000).toISOString() };
+  other.courses[0].id = "_2_1";
+  await store.receive!(other);
+  const incoming = { ...reading(90), takenAt: new Date(Date.parse(at) + 60_000).toISOString() };
+  await store.receiveBackground!(incoming, history(), offer().snapshot.status);
+  const saved = (await store.get())!;
+  assert.equal(saved.courses.find(course => course.id === "_1_1")?.items[0].earned, 90);
+  assert.equal(saved.courses.find(course => course.id === "_1_1")?.observedAt, incoming.takenAt);
+  assert.equal(saved.courses.find(course => course.id === "_2_1")?.observedAt, other.takenAt);
+  assert.equal(saved.takenAt, other.takenAt);
+});
+
 test("real polls while the app is closed retain each intermediate grade transition", async () => {
   const store = await openGradesStore();
   const snapshots = [80, 85, 90].map((score, minute) => {
