@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+import { diffBackgroundSnapshot } from "../tools/extension/background-diff.js";
+import type { SyncPayload } from "../src/lib/sync.ts";
 import { BACKGROUND_PROTOCOL } from "../src/lib/background-sync.ts";
 import { CHANGES_KEY, mergeChangeStores, parseChanges, type ChangeEntry, type ChangesStore } from "../src/lib/changes.ts";
 import { buildSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
@@ -120,6 +124,57 @@ test("an older background cache cannot roll back a newer manually saved grade or
   assert.equal(subscriptions[0].events[0].id, latestTask.id);
   assert.equal(posted.filter(message => message.kind === "ack").length, 1);
   await view.unmount();
+});
+
+test("real helper retention cannot roll a foreground deadline back, while a fresh partial read can move it", async () => {
+  type RecordRow = { uid: string; title: string; course: string; courseId: string; start: string; observedAt?: string };
+  type Basket = { todos: RecordRow[]; dueDates: RecordRow[] };
+  type Helper = {
+    emptyBasket(): Basket;
+    rememberDueDates(basket: Basket, records: RecordRow[], now: Date): { basket: Basket };
+    rememberTodos(basket: Basket, records: RecordRow[], now: Date): { basket: Basket };
+    basketContents(basket: Basket): { records: RecordRow[] };
+    syncPayload(records: RecordRow[], now: Date): SyncPayload;
+  };
+  const helperWindow = { location: { protocol: "chrome-extension:" }, __huskyctHelper: undefined as Helper | undefined,
+    __bhcHelperRuntime: { headless: true, origin: "https://lms.uconn.edu", credentials: "include", storage: { getItem: () => null, setItem: () => {} } } };
+  vm.runInNewContext(readFileSync(new URL("../tools/huskyct-helper/huskyct-helper.user.js", import.meta.url), "utf8"), { window: helperWindow, navigator: { language: "en" }, Date, URL, console });
+  const helper = helperWindow.__huskyctHelper!;
+  const times = [0, 60_000, 120_000, 180_000].map(offset => new Date(Date.parse(at) + offset));
+  const record = { uid: "huskyct-todo-_2_1", title: "Homework", course: "MATH 1131Q", courseId: "_1_1", start: "2026-10-21T18:00:00.000Z" };
+  let basket = helper.rememberDueDates(helper.emptyBasket(), [record], times[0]).basket;
+  const collected = (now: Date) => {
+    const incoming = offer();
+    incoming.snapshot.at = now.toISOString();
+    incoming.snapshot.tasks = JSON.parse(JSON.stringify({ ...helper.syncPayload(helper.basketContents(basket).records, now), doneByHuskyct: {}, reopened: [] }));
+    return incoming.snapshot;
+  };
+  const baseline = diffBackgroundSnapshot(null, collected(times[0]), history(), times[0]);
+  const corrected = { ...baseline.snapshot.tasks.feeds[0].events[0], start: "2026-10-21T20:00:00.000Z", observedAt: times[1].toISOString() };
+  corrected.id = `${record.uid}:${corrected.start}`;
+  window.localStorage.setItem("huskypilot.subscriptions.v1", JSON.stringify({ version: 1, subscriptions: [{ id: "saved", name: null, courseId: null, importedAt: times[1].toISOString(), events: [corrected] }] }));
+  const view = await mount();
+  const saved = () => JSON.parse(window.localStorage.getItem("huskypilot.subscriptions.v1")!).subscriptions[0].events;
+  try {
+    // Both APIs succeeded, but neither returned the submitted/past assignment.
+    basket = helper.rememberDueDates(basket, [], times[2]).basket;
+    basket = helper.rememberTodos(basket, [], times[2]).basket;
+    const retained = diffBackgroundSnapshot(baseline.snapshot, collected(times[2]), baseline.changes, times[2]);
+    assert.equal(retained.snapshot.tasks.feeds[0].events[0].observedAt, times[0].toISOString());
+    await view.send({ ...offer(), snapshot: retained.snapshot, changes: retained.changes });
+    assert.equal(saved()[0].start, corrected.start);
+    assert.equal(posted.filter(message => message.kind === "ack").length, 1);
+
+    // Calendar genuinely sees a new time; a failing ToDo API must not hide that evidence.
+    basket = helper.rememberDueDates(basket, [{ ...record, start: "2026-10-23T22:00:00.000Z" }], times[3]).basket;
+    const partial = collected(times[3]);
+    partial.status.todo = false;
+    const fresh = diffBackgroundSnapshot(retained.snapshot, partial, retained.changes, times[3]);
+    await view.send({ ...offer(), snapshot: fresh.snapshot, changes: fresh.changes });
+    assert.equal(saved()[0].start, "2026-10-23T22:00:00.000Z");
+    assert.equal(saved()[0].observedAt, times[3].toISOString());
+    assert.equal(posted.filter(message => message.kind === "ack").length, 2);
+  } finally { await view.unmount(); }
 });
 
 test("a refused history save rolls back grades and withholds acknowledgement", async () => {

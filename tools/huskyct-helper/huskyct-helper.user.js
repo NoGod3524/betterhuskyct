@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      2.2.0
+// @version      2.2.1
 // @description  Reads your HuskyCT deadlines, announcements, grades and course files through HuskyCT's own data, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       Yinuo (NoGod3524)
 // @homepageURL  https://github.com/NoGod3524/betterhuskyct
@@ -52,7 +52,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "2.2.0";
+  const VERSION = "2.2.1";
   const PANEL_WIDTH = 340;
 
   // Only the packaged offscreen page can select this mode. A website cannot redirect the
@@ -589,8 +589,10 @@
    */
   function rememberTodos(basket, records, now) {
     if (!records || records.length === 0) return { basket, changed: false };
+    const observedAt = (now || new Date()).toISOString();
+    records = records.map((record) => ({ ...record, observedAt }));
     if (JSON.stringify(basket.todos) === JSON.stringify(records)) return { basket, changed: false };
-    return { basket: { ...basket, todos: records, todosAt: (now || new Date()).toISOString() }, changed: true };
+    return { basket: { ...basket, todos: records, todosAt: observedAt }, changed: true };
   }
 
   /**
@@ -602,6 +604,8 @@
    */
   function rememberDueDates(basket, records, now) {
     if (!records || records.length === 0) return { basket, changed: false };
+    const observedAt = (now || new Date()).toISOString();
+    records = records.map((record) => ({ ...record, observedAt }));
     const byUid = new Map((basket.dueDates || []).map((item) => [item.uid, item]));
     let changed = false;
     for (const record of records) {
@@ -622,7 +626,7 @@
     });
     if (!changed) return { basket, changed: false };
     return {
-      basket: { ...basket, todos, dueDates: [...byUid.values()], dueDatesAt: (now || new Date()).toISOString() },
+      basket: { ...basket, todos, dueDates: [...byUid.values()], dueDatesAt: observedAt },
       changed: true,
     };
   }
@@ -1385,6 +1389,10 @@
       allDay: Boolean(record.allDay),
       location: record.location === undefined ? null : record.location,
       kind: record.kind === undefined ? null : record.kind,
+      // Legacy basket rows have no reliable reading time. Keep them, but do not let a new send
+      // pass them off as fresher than a deadline already saved on another device.
+      observedAt: typeof record.observedAt === "string" && Number.isFinite(Date.parse(record.observedAt))
+        ? record.observedAt : "1970-01-01T00:00:00.000Z",
     };
   }
 

@@ -76,6 +76,42 @@ test("eventUid takes the start back off a producer's id", () => {
   assert.equal(eventUid({ ...task("x"), id: "legacy" }), "legacy");
 });
 
+test("mixed fresh and retained helper rows merge by their actual reading times", () => {
+  const stamps = [0, 60_000, 120_000, 180_000].map(offset => new Date(+AT + offset).toISOString());
+  const original = { ...task("huskyct-todo-_1"), observedAt: stamps[0] };
+  const corrected = { ...task("huskyct-todo-_1", "2026-09-26T03:59:00.000Z"), observedAt: stamps[1] };
+  const other = { ...task("huskyct-todo-_2"), observedAt: stamps[2] };
+  const first = mergeSyncPayload(EMPTY, send([corrected]));
+  const retained = send([original, other]);
+  retained.feeds[0].importedAt = stamps[2];
+  const mixed = mergeSyncPayload(localOf(first), retained);
+  assert.deepEqual(mixed.subscriptions[0].events, [corrected, other]);
+  assert.equal(mixed.updatedEvents, 0);
+  assert.deepEqual(mixed.moves, []);
+  const genuinelyMoved = { ...original, observedAt: stamps[3] };
+  const fresh = mergeSyncPayload(localOf(mixed), send([genuinelyMoved]));
+  assert.equal(fresh.subscriptions[0].events.find(row => eventUid(row) === eventUid(original))?.start, original.start);
+  assert.equal(fresh.updatedEvents, 1);
+  assert.equal(fresh.moves.length, 1);
+});
+
+test("upgrading legacy rows freezes their prior reading before an unrelated task advances the feed", () => {
+  const stamps = [0, 60_000, 120_000, 180_000].map(offset => new Date(+AT + offset).toISOString());
+  const first = mergeSyncPayload(EMPTY, send([task("huskyct-todo-_1"), task("huskyct-todo-_2")]));
+  const update = send([{ ...task("huskyct-todo-_1"), observedAt: stamps[1] }]);
+  update.feeds[0].importedAt = stamps[3];
+  const second = mergeSyncPayload(localOf(first), update);
+  assert.equal(second.subscriptions[0].events.find(row => eventUid(row) === "huskyct-todo-_2")?.observedAt, stamps[0]);
+  const moved = { ...task("huskyct-todo-_2", "2026-09-26T03:59:00.000Z"), observedAt: stamps[2] };
+  const third = mergeSyncPayload(localOf(second), send([moved]));
+  assert.equal(third.subscriptions[0].events.find(row => eventUid(row) === "huskyct-todo-_2")?.id, moved.id);
+  assert.equal(third.updatedEvents, 1);
+  const stale = send([{ ...moved, observedAt: stamps[0] }]);
+  stale.feeds[0].importedAt = new Date(+AT + 240_000).toISOString();
+  const ignored = mergeSyncPayload(localOf(third), stale);
+  assert.equal(ignored.subscriptions[0].importedAt, third.subscriptions[0].importedAt);
+});
+
 test("legacy Calendar title ids cannot transfer a tick to a different deadline", () => {
   const old = task("huskyct-due-_203765_1-Weekly-Reading");
   const later = task("huskyct-due-_203765_1-Weekly-Reading", "2026-10-02T03:59:00.000Z");

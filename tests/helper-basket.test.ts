@@ -28,9 +28,9 @@ type Basket = {
     announcements: Array<{ title: string; body: string; posted: string | null }>;
     announcementsAt: string | null;
   }>;
-  todos: Array<{ uid: string; start: string; title: string; course?: string | null }>;
+  todos: Array<{ uid: string; start: string; title: string; course?: string | null; observedAt?: string }>;
   todosAt: string | null;
-  dueDates?: Array<{ uid: string; start: string; title: string; course?: string | null }>;
+  dueDates?: Array<{ uid: string; start: string; title: string; course?: string | null; observedAt?: string }>;
   dueDatesAt?: string | null;
 };
 
@@ -485,8 +485,10 @@ test("a partial look at the due dates does not drop the ones read before", () =>
       ["b", "2026-10-10T03:59:00.000Z"],
     ],
   );
-  const same = helper.rememberDueDates(later.basket, [record("a", "2026-10-04T03:59:00.000Z")]);
-  assert.equal(same.changed, false, "an unchanged view rewrote storage");
+  const refreshedAt = "2026-10-05T12:00:00.000Z";
+  const same = helper.rememberDueDates(later.basket, [record("a", "2026-10-04T03:59:00.000Z")], new Date(refreshedAt));
+  assert.equal(same.basket.dueDates?.[0].observedAt, refreshedAt, "an unchanged task was actually seen again");
+  assert.equal(same.basket.dueDates?.[1].observedAt, first.basket.dueDates?.[1].observedAt, "a retained task got a new reading time");
 });
 
 test("a deadline on both sources is sent once by uid; same-title tasks with other ids remain", () => {
@@ -514,15 +516,16 @@ test("a fresh Calendar reading replaces an older ToDo copy, including when Calen
   const moved = { ...old, title: "Homework (extended)", start: "2026-10-20T03:59:00.000Z" };
   const basket: Basket = { ...helper.emptyBasket(), todos: [old], dueDates: [moved] };
 
-  const refreshed = helper.rememberDueDates(basket, [moved]);
+  const now = new Date("2026-10-05T12:00:00.000Z");
+  const refreshed = helper.rememberDueDates(basket, [moved], now);
   assert.equal(refreshed.changed, true, "only the stale ToDo copy needed updating");
   const quietWeek = helper.rememberTodos(refreshed.basket, []);
-  assert.deepEqual(plain(helper.deadlineRecords(quietWeek.basket)), [moved], "an empty ToDo response must not resurrect the old deadline");
+  assert.deepEqual(plain(helper.deadlineRecords(quietWeek.basket)), [{ ...moved, observedAt: now.toISOString() }], "an empty ToDo response must not resurrect the old deadline");
   assert.deepEqual(basket.todos, [old], "the input basket was mutated");
 
   const newerTodo = { ...moved, start: "2026-10-21T03:59:00.000Z" };
-  const fresh = helper.rememberTodos(quietWeek.basket, [newerTodo]);
-  assert.deepEqual(plain(helper.deadlineRecords(fresh.basket)), [newerTodo], "ToDo is read after Calendar, so its fresh copy wins");
+  const fresh = helper.rememberTodos(quietWeek.basket, [newerTodo], now);
+  assert.deepEqual(plain(helper.deadlineRecords(fresh.basket)), [{ ...newerTodo, observedAt: now.toISOString() }], "ToDo is read after Calendar, so its fresh copy wins");
 });
 
 test("a basket saved before due dates existed still reads", () => {

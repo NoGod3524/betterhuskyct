@@ -106,11 +106,20 @@ export function mergeSyncPayload(
     const target = findReceivingSubscription(subscriptions, feed);
 
     if (target) {
-      const merged = mergeFeedEvents(target.events, feed.events);
+      const known = new Map(target.events.map(task => [eventUid(task), task]));
+      const fresh = feed.events.filter(task => {
+        const saved = known.get(eventUid(task));
+        return !saved || !task.observedAt || Date.parse(task.observedAt) >= Date.parse(saved.observedAt ?? target.importedAt);
+      });
+      // Freeze legacy rows' prior reading before another UID advances the container timestamp.
+      const existing = fresh.some(task => task.observedAt)
+        ? target.events.map(task => task.observedAt ? task : { ...task, observedAt: target.importedAt })
+        : target.events;
+      const merged = mergeFeedEvents(existing, fresh);
       subscriptions[subscriptions.indexOf(target)] = {
         ...target,
         events: merged.events,
-        importedAt: Date.parse(feed.importedAt) > Date.parse(target.importedAt)
+        importedAt: fresh.length > 0 && Date.parse(feed.importedAt) > Date.parse(target.importedAt)
           ? feed.importedAt
           : target.importedAt,
       };

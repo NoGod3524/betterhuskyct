@@ -16,6 +16,8 @@ export type CalendarTask = {
   location: string | null;
   /** HuskyCT's course identity, independent of a student's local course labels. */
   sourceCourseId?: string;
+  /** When this task was actually read, rather than when a retained basket was sent. */
+  observedAt?: string;
   /** Absent on older saved payloads, and on feeds that are not Blackboard. */
   kind?: TaskKind | null;
 };

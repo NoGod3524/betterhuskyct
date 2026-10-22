@@ -93,6 +93,12 @@ test("the userscript parses and exposes its helpers", () => {
   assert.match(VERSION, /^\d+\.\d+\.\d+$/);
 });
 
+test("a legacy retained record never receives the time of its new export", () => {
+  const record = { uid: "huskyct-todo-_1_1", title: "Homework", start: "2026-10-21T18:00:00.000Z" };
+  assert.equal(taskFromRecord(record).observedAt, "1970-01-01T00:00:00.000Z");
+  assert.equal(taskFromRecord({ ...record, observedAt: "2026-10-22T08:00:00.000Z" }).observedAt, "2026-10-22T08:00:00.000Z");
+});
+
 /**
  * The panel prints this version, and it is the only way to tell from the screen
  * which copy the browser actually installed. If it drifts from `@version`, the

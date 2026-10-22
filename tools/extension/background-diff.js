@@ -25,9 +25,14 @@ const date = (task) => task.allDay && task.dateKey ? task.dateKey : task.start;
 export function mergeBackgroundSnapshot(previous, incoming) {
   const reached = new Map(list(incoming.status?.courses).map((course) => [course.id, course]));
   const oldTasks = tasks(previous), newTasks = tasks(incoming);
-  const arriving = new Set(newTasks.map(taskUid));
+  const known = new Map(oldTasks.map((task) => [taskUid(task), task]));
+  const fresh = newTasks.filter((task) => {
+    const saved = known.get(taskUid(task));
+    return !saved || (task.observedAt && (!saved.observedAt || Date.parse(task.observedAt) >= Date.parse(saved.observedAt)));
+  });
+  const arriving = new Set(fresh.map(taskUid));
   const events = incoming.status?.dueDates || incoming.status?.todo
-    ? [...oldTasks.filter((task) => !arriving.has(taskUid(task))), ...newTasks] : oldTasks;
+    ? [...oldTasks.filter((task) => !arriving.has(taskUid(task))), ...fresh] : oldTasks;
   const announcements = union(previous?.tasks?.announcements, list(incoming.tasks.announcements).filter((item) =>
     !item.sourceCourseId || reached.get(item.sourceCourseId)?.announcements), (item) => item.id);
   const mergeCourses = (part, flag) => {

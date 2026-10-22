@@ -24,6 +24,19 @@ test("a complete empty snapshot is valid; null optional sources mean not read", 
   assert.deepEqual(parsed.changes.entries, []);
 });
 
+test("task reading times survive parsing and invalid freshness cannot enter a background offer", () => {
+  const task = { id: "task", title: "Homework", course: null, start: at, dateKey: null, end: null, allDay: false, location: null };
+  for (const observedAt of [at, undefined, "not a date", 123, null]) {
+    const incoming = offer();
+    incoming.snapshot.tasks.feeds = [{ name: null, courseId: null, importedAt: at, events: [{ ...task, ...(observedAt === undefined ? {} : { observedAt }) }] }];
+    const parsed = parseBackgroundOffer(incoming);
+    if (observedAt === at || observedAt === undefined) {
+      assert.ok(parsed);
+      assert.equal(parsed.snapshot.tasks.feeds[0].events[0].observedAt, observedAt);
+    } else assert.equal(parsed, null);
+  }
+});
+
 test("a missing optional source cannot consume pending history belonging to that source", () => {
   for (const entry of [row("grade"), row("done-by-huskyct", "graded", { page: "/tasks" }), row("file-new")]) {
     const raw = offer();

@@ -34,7 +34,7 @@ export type EventOverlay = {
 
 export const EMPTY_OVERLAY: EventOverlay = { edits: {}, deletedIds: [] };
 
-const STORAGE_KEY = "huskypilot.eventOverlay.v1";
+export const EVENT_OVERLAY_STORAGE_KEY = "huskypilot.eventOverlay.v1";
 
 function isValidDateString(value: unknown): value is string {
   return typeof value === "string" && !Number.isNaN(Date.parse(value));
@@ -95,7 +95,7 @@ export function parseEventOverlay(value: unknown): EventOverlay | null {
 
 export function restoreEventOverlay(storage: Storage): EventOverlay {
   try {
-    const raw = storage.getItem(STORAGE_KEY);
+    const raw = storage.getItem(EVENT_OVERLAY_STORAGE_KEY);
     if (!raw) return EMPTY_OVERLAY;
     return parseEventOverlay(JSON.parse(raw)) ?? EMPTY_OVERLAY;
   } catch {
@@ -104,7 +104,7 @@ export function restoreEventOverlay(storage: Storage): EventOverlay {
 }
 
 export function saveEventOverlay(storage: Pick<Storage, "setItem">, overlay: EventOverlay): void {
-  storage.setItem(STORAGE_KEY, JSON.stringify(overlay));
+  storage.setItem(EVENT_OVERLAY_STORAGE_KEY, JSON.stringify(overlay));
 }
 
 /** Merges a correction into whatever this task already had. */
