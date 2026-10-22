@@ -202,10 +202,11 @@ const CONTACT = /\b(contact|e-?mail|phone|reach)\b.*\b(instructor|professor|prof
  * however they are told; a list cached before they were told is read through
  * this too.
  */
-export function isNotAToDo(item: Pick<PlanItem, "title" | "evidence" | "date">): boolean {
+export function isNotAToDo(item: Pick<PlanItem, "title" | "evidence" | "date" | "kind">): boolean {
   return (
     OFFICE_HOURS.test(item.title) ||
-    OFFICE_HOURS.test(item.evidence) ||
+    // An assessment may say to hand it in during office hours; that is still work to do.
+    ((item.kind === "task" || item.kind === "no-class") && OFFICE_HOURS.test(item.evidence)) ||
     (item.date === null && RECURRING.test(item.title)) ||
     MEETINGS.test(item.title) ||
     CONTACT.test(item.title)
@@ -217,9 +218,9 @@ function parseItem(value: unknown, sources: number): PlanItem | null {
   const title = typeof value.title === "string" ? oneLine(value.title, MAX_TITLE) : "";
   if (!title) return null;
   const evidence = typeof value.evidence === "string" ? value.evidence : "";
-  if (isNotAToDo({ title, evidence, date: isIsoDay(value.date) ? value.date : null })) return null;
   const date = isIsoDay(value.date) ? value.date : null;
   const kind = (PLAN_ITEM_KINDS as readonly string[]).includes(value.kind as string) ? (value.kind as PlanItemKind) : "task";
+  if (isNotAToDo({ title, evidence, date, kind })) return null;
   const source =
     typeof value.source === "number" && Number.isInteger(value.source) && value.source >= 1 && value.source <= sources
       ? value.source

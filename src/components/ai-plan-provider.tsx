@@ -245,19 +245,21 @@ export function AiPlanProvider({
       store = null;
     }
     const index = store ? await store.getIndex().catch(() => null) : null;
-    if (store && index) {
-      const files: StoredFile[] = await store.files().catch(() => []);
+    const files: StoredFile[] | null = store && index ? await store.files().catch(() => null) : null;
+    if (store && index && files) {
       const byKey = new Map(files.map((file) => [file.key, file]));
       for (const course of index.courses) {
         if (!active()) return null;
         const picks = pickSyllabusFiles(course, byKey);
-        if (picks.length === 0) continue;
         const key = syllabusKey(course.id);
         const language = localeRef.current;
         const signature = syllabusSignature(
           picks.map((pick) => ({ key: pick.key, savedAt: byKey.get(pick.key)!.savedAt })),
           language,
         );
+        // A changed file or language makes the old policy obsolete even if the new read fails or has no text.
+        commit((current) => picks.length > 0 && current.read[key] === signature ? current : setSummary(current, course.id, null), true);
+        if (picks.length === 0) continue;
         if (!needsReading(stateRef.current, key, signature)) continue;
         const stillCurrent = async () => {
           const currentIndex = await store!.getIndex();

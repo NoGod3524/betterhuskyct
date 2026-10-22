@@ -5,7 +5,7 @@ import vm from "node:vm";
 import { diffBackgroundSnapshot } from "../tools/extension/background-diff.js";
 import type { SyncPayload } from "../src/lib/sync.ts";
 import { BACKGROUND_PROTOCOL } from "../src/lib/background-sync.ts";
-import { CHANGES_KEY, mergeChangeStores, parseChanges, type ChangeEntry, type ChangesStore } from "../src/lib/changes.ts";
+import { CHANGES_KEY, markChangesRead, mergeChangeStores, parseChanges, saveChanges, type ChangeEntry, type ChangesStore } from "../src/lib/changes.ts";
 import { buildSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { openGradesStore, GRADES_STORAGE_KEY } from "../src/lib/grades-store.ts";
@@ -88,6 +88,60 @@ test("a background 80→85→90 history never gets an invented app-side 80→90 
   assert.equal(posted.filter(message => message.kind === "ack").length, 1);
   assert.equal(JSON.parse(window.localStorage.getItem("huskypilot.syncStatus.v1")!).lastSync, at, "delivery time replaced the source reading time");
   await view.unmount();
+});
+
+test("a real background poll does not make the foreground's read grade change unread again", async () => {
+  const times = [0, 60_000, 120_000].map(offset => new Date(Date.parse(at) + offset).toISOString());
+  const sample = (score: number, takenAt: string) => ({ ...reading(score), takenAt });
+  const baselineOffer = offer().snapshot;
+  baselineOffer.at = times[0];
+  baselineOffer.grades = sample(80, times[0]);
+  const baseline = diffBackgroundSnapshot(null, baselineOffer, history(), new Date(times[0]));
+  const store = await openGradesStore();
+  await store.receive!(sample(80, times[0]));
+  await store.receive!(sample(90, times[1]));
+  const read = markChangesRead(parseChanges(window.localStorage.getItem(CHANGES_KEY)));
+  saveChanges(window.localStorage, read);
+  const later = { ...baselineOffer, at: times[2], revision: "later", grades: sample(90, times[2]) };
+  const polled = diffBackgroundSnapshot(baseline.snapshot, later, baseline.changes, new Date(times[2]));
+  assert.equal(polled.added.length, 1, "the independent background baseline should detect the transition");
+  await store.receiveBackground!(polled.snapshot.grades, polled.changes, polled.snapshot.status);
+  await store.receiveBackground!(polled.snapshot.grades, polled.changes, polled.snapshot.status);
+  assert.deepEqual(parseChanges(window.localStorage.getItem(CHANGES_KEY)), read);
+  assert.equal((await store.get())!.courses[0].items[0].earned, 90);
+});
+
+test("real polls while the app is closed retain each intermediate grade transition", async () => {
+  const store = await openGradesStore();
+  const snapshots = [80, 85, 90].map((score, minute) => {
+    const incoming = offer().snapshot;
+    incoming.at = new Date(Date.parse(at) + minute * 60_000).toISOString();
+    incoming.grades = { ...reading(score), takenAt: incoming.at };
+    return incoming;
+  });
+  await store.receive!(snapshots[0].grades);
+  let pending = diffBackgroundSnapshot(null, snapshots[0], history(), new Date(snapshots[0].at));
+  for (const incoming of snapshots.slice(1)) pending = diffBackgroundSnapshot(pending.snapshot, incoming, pending.changes, new Date(incoming.at));
+  await store.receiveBackground!(pending.snapshot.grades, pending.changes, pending.snapshot.status);
+  const changes = parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.filter(row => row.kind === "grade");
+  assert.deepEqual(changes.map(row => `${row.detail?.from}→${row.detail?.to}`).sort(), ["80/100→85/100", "85/100→90/100"]);
+  assert.equal((await store.get())!.courses[0].items[0].earned, 90);
+});
+
+test("removing then restoring the same grade twice records both real regradings", async () => {
+  const store = await openGradesStore();
+  const scores = [null, 90, null, 90];
+  for (const [minute, score] of scores.entries()) {
+    const incoming = reading(90);
+    incoming.takenAt = new Date(Date.parse(at) + minute * 60_000).toISOString();
+    incoming.courses[0].items[0] = { ...incoming.courses[0].items[0], earned: score, possible: score === null ? null : 100 };
+    await store.receive!(incoming);
+    if (minute === 1) saveChanges(window.localStorage, markChangesRead(parseChanges(window.localStorage.getItem(CHANGES_KEY))));
+  }
+  const gradeChanges = parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.filter(row => row.kind === "grade");
+  assert.equal(gradeChanges.length, 2);
+  assert.equal(gradeChanges.filter(row => row.read).length, 1);
+  assert.ok(gradeChanges.every(row => row.detail?.from === undefined && row.detail?.to === "90/100"));
 });
 
 test("a later source failure withholds ACK and a replay preserves saved history and read choices", async () => {

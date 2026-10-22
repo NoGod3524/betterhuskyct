@@ -106,7 +106,7 @@ export function diffBackgroundSnapshot(previous, incoming, pending, now = new Da
     const old = previous?.grades?.courses.find((entry) => entry.id === course.id);
     if (old) for (const item of course.items) {
       const was = old.items.find((entry) => entry.id === item.id), from = score(was), to = score(item);
-      if (counted(item) && from !== to) push("grade", [course.id, item.id, from, to, snapshot.grades.takenAt], item.title, course.code,
+      if (counted(item) && from !== to) push("grade", [course.id, item.id, from, to, snapshot.grades.takenAt, previous.grades.takenAt], item.title, course.code,
         { page: "/grades", id: item.id }, { ...(from ? { from } : {}), to });
       if (done(item) && !done(was)) push("done-by-huskyct", [`huskyct-todo-${encodeURIComponent(item.id)}`], item.title, course.code, { page: "/tasks" });
     }

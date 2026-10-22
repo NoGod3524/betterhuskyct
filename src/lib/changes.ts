@@ -61,6 +61,45 @@ function readEntry(value: unknown): ChangeEntry | null {
   return JSON.stringify(entry).length <= 8192 ? entry : null;
 }
 
+/** The two reading times bound when a grade changed, independently of when it was delivered. */
+function gradeTransition(entry: ChangeEntry) {
+  if (entry.kind !== "grade" || !entry.id.startsWith("grade:")) return null;
+  try {
+    const parts: unknown = JSON.parse(entry.id.slice("grade:".length));
+    if (!Array.isArray(parts) || ![5, 6].includes(parts.length) || !parts.every(part => typeof part === "string")) return null;
+    const [course, item, from, to, at, before] = parts as string[];
+    if (!course || !item || entry.ref?.id !== item || (entry.detail?.from ?? "") !== from || entry.detail?.to !== to) return null;
+    const end = Date.parse(at), start = before === undefined ? null : Date.parse(before);
+    if (!Number.isFinite(end) || (start !== null && (!Number.isFinite(start) || start >= end))) return null;
+    return { key: JSON.stringify([course, item]), from, to, start, end };
+  } catch { return null; }
+}
+
+function coalesceGradeReadings(entries: ChangeEntry[]): ChangeEntry[] {
+  const readings = entries.flatMap(entry => {
+    const transition = gradeTransition(entry);
+    return transition ? [{ entry, ...transition }] : [];
+  }).sort((a, b) => a.end - b.end || a.entry.id.localeCompare(b.entry.id));
+  const latest = new Map<string, typeof readings[number]>();
+  const removed = new Set<string>();
+  for (const reading of readings) {
+    const previous = latest.get(reading.key);
+    const overlaps = previous && (previous.start === null
+      ? reading.start !== null && reading.start < previous.end && previous.end <= reading.end
+      : reading.start === null
+        ? previous.start < reading.end && reading.end <= previous.end
+        : Math.max(previous.start, reading.start) < Math.min(previous.end, reading.end));
+    // A legacy reading can match a modern interval containing its observation, never another legacy ID.
+    // Disjoint intervals can be a real return after the score disappeared without a history row.
+    if (previous && previous.from === reading.from && previous.to === reading.to &&
+      overlaps) {
+      previous.entry.read ||= reading.entry.read;
+      removed.add(reading.entry.id);
+    } else latest.set(reading.key, reading);
+  }
+  return entries.filter(entry => !removed.has(entry.id));
+}
+
 function combine(entries: readonly unknown[], baselines: readonly unknown[], now?: Date): ChangesStore {
   const byId = new Map<string, ChangeEntry>();
   const cutoff = now ? now.valueOf() - CHANGES_RETENTION_DAYS * 86_400_000 : -Infinity;
@@ -73,7 +112,7 @@ function combine(entries: readonly unknown[], baselines: readonly unknown[], now
   }
   return {
     version: 1,
-    entries: [...byId.values()].sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || a.id.localeCompare(b.id)).slice(0, MAX_CHANGES),
+    entries: coalesceGradeReadings([...byId.values()]).sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || a.id.localeCompare(b.id)).slice(0, MAX_CHANGES),
     baselines: [...new Set(baselines.filter((value): value is string => text(value, 200)))].slice(0, MAX_BASELINES),
   };
 }

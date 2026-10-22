@@ -433,17 +433,19 @@ export function syllabusKey(courseId: string): string {
 /**
  * A syllabus is read again only when a different file, or a newer copy of it,
  * arrives — or when the page's language changes, since its summary is written
- * in that language. The leading "2" is what was read: dates and a summary. One
- * read before summaries existed carries no "2", so it is read once more, for
- * its summary; the dates it already offered are not offered again.
+ * in that language. Version 3 rereads results that could have kept an older
+ * file's summary after a dates-only response; dates already offered stay decided.
  */
 export function syllabusSignature(files: Array<{ key: string; savedAt: string }>, locale: SummaryLocale): string {
-  return `2|${locale}|${files.map((file) => `${file.key}@${file.savedAt}`).join("|")}`;
+  return `3|${locale}|${files.map((file) => `${file.key}@${file.savedAt}`).join("|")}`;
 }
 
 export function setSummary(state: PlanState, courseId: string, summary: SyllabusSummary | null): PlanState {
-  if (!summary) return state;
-  return { ...state, summaries: { ...state.summaries, [courseId]: summary } };
+  if (!summary && !(courseId in state.summaries)) return state;
+  const summaries = { ...state.summaries };
+  if (summary) summaries[courseId] = summary;
+  else delete summaries[courseId];
+  return { ...state, summaries };
 }
 
 /**

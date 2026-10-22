@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 
-import { addFound, EMPTY_PLAN_STATE, PLAN_DATA_KEY, PLAN_STORAGE_KEY, restorePlanState, savePlanState, saveSwitchedOff, saveSwitchedOn } from "../src/lib/ai-plan.ts";
+import { addFound, EMPTY_PLAN_STATE, PLAN_DATA_KEY, PLAN_STORAGE_KEY, restorePlanState, savePlanState, saveSwitchedOff, saveSwitchedOn, syllabusKey, syllabusSignature } from "../src/lib/ai-plan.ts";
 import { saveCustomEvents } from "../src/lib/custom-events.ts";
 import { saveAnnouncements, type Announcement } from "../src/lib/announcements.ts";
 import { DECISIONS_KEY } from "../src/lib/announcement-decisions.ts";
@@ -10,6 +10,7 @@ import { saveUndatedTodos, UNDATED_TODOS_KEY } from "../src/lib/undated-todos.ts
 import type { MaterialsStore } from "../src/lib/materials.ts";
 import { installDom } from "./support/dom.ts";
 import { memoryMaterialsStore } from "./support/memory-stores.ts";
+import { makePdf } from "./support/pdf.ts";
 
 const dom = installDom();
 const { window } = dom;
@@ -249,6 +250,85 @@ test("a replaced syllabus cannot save the old file's suggestions or summary", as
     assert.deepEqual(view.plan.summaries, {});
     assert.deepEqual(savedPlan().read, {});
   } finally { await view.close(); }
+});
+
+for (const change of ["text", "scan", "removed", "failed", "locale"] as const) {
+  test(`a ${change} syllabus change clears its old grading summary`, async () => {
+    const store = await syllabus();
+    let finish!: (response: Response) => void;
+    const replacement = new Promise<Response>((resolve) => { finish = resolve; });
+    const requests: Array<{ text: string; locale: string }> = [];
+    const view = await mount({ store, fetchImpl: async (_url, init) => {
+      requests.push(JSON.parse(String(init.body)));
+      return requests.length === 1 ? Response.json({ items: [dated], summary: "- Exams count 60%." }) : replacement;
+    } });
+    try {
+      await act(async () => view.plan.enable());
+      await settle();
+      assert.equal(view.plan.summaries._1_1?.text, "- Exams count 60%.");
+      const [file] = await store.files();
+      if (change === "locale") await act(async () => view.calendar.changeLocale("zh-CN"));
+      else {
+        if (change === "removed") await store.deleteFile(file.key);
+        else await store.putFile({
+          ...file,
+          savedAt: "2026-10-16T00:00:00Z",
+          ...(change === "scan"
+            ? { name: "Syllabus.pdf", type: "application/pdf", blob: new Blob([makePdf([])]) }
+            : { blob: new Blob(["Revised policy: exams count 20%. Final exam on December 1."]) }),
+        });
+        await act(async () => view.plan.checkNow());
+      }
+      await settle();
+      assert.equal(view.plan.summaries._1_1, undefined, "old policy stayed visible while its replacement was read");
+      assert.equal(savedPlan().summaries._1_1, undefined, "old policy returned after a reload");
+      if (change !== "scan" && change !== "removed") {
+        assert.equal(requests.length, 2);
+        if (change === "locale") assert.equal(requests[1].locale, "zh-CN");
+        else assert.match(requests[1].text, /exams count 20%/);
+        await act(async () => finish(change === "failed"
+          ? Response.json({ problem: "failed" }, { status: 500 })
+          : Response.json({ items: [dated], summary: null })));
+      }
+      for (let i = 0; i < 100 && view.plan.status.phase === "reading"; i++) await settle();
+      assert.equal(view.plan.status.phase, "idle");
+      assert.equal(view.plan.summaries._1_1, undefined);
+      if (change !== "failed" && change !== "removed") {
+        assert.equal(savedPlan().read[syllabusKey("_1_1")], syllabusSignature(await store.files(), change === "locale" ? "zh-CN" : "en"));
+        await act(async () => view.plan.checkNow());
+        await settle();
+        assert.equal(requests.length, change === "scan" ? 1 : 2, "a successfully read source was sent again");
+      }
+    } finally { finish(Response.json({ items: [] })); await view.close(); }
+  });
+}
+
+test("a failed syllabus file listing preserves the last verified summary", async () => {
+  const store = await syllabus();
+  const files = store.files.bind(store);
+  let calls = 0;
+  const view = await mount({ store, fetchImpl: async () => {
+    calls++;
+    return Response.json({ items: [dated], summary: "- Exams count 60%." });
+  } });
+  try {
+    await act(async () => view.plan.enable());
+    await settle();
+    const before = savedPlan();
+    assert.equal(before.summaries._1_1?.text, "- Exams count 60%.");
+    store.files = async () => { throw new Error("IndexedDB unavailable"); };
+    await act(async () => view.plan.checkNow());
+    await settle();
+    assert.deepEqual(view.plan.summaries, before.summaries);
+    assert.deepEqual(savedPlan(), before);
+    assert.equal(calls, 1);
+
+    store.files = files;
+    await act(async () => view.plan.checkNow());
+    await settle();
+    assert.deepEqual(view.plan.summaries, before.summaries);
+    assert.equal(calls, 1, "recovering storage reread an unchanged syllabus");
+  } finally { store.files = files; await view.close(); }
 });
 
 function switchOffElsewhere(clear = false) {
