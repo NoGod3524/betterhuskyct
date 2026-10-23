@@ -8,6 +8,7 @@ import { COURSE_COLORS_KEY } from "../src/lib/course-colors.ts";
 import { CHANGES_KEY, parseChanges, type ChangeEntry } from "../src/lib/changes.ts";
 import { VERSIONS_KEY } from "../src/lib/announcement-versions.ts";
 import { MAX_CUSTOM_EVENTS, buildCustomEvent, saveCustomEvents } from "../src/lib/custom-events.ts";
+import { EVENT_OVERLAY_STORAGE_KEY, restoreEventOverlay, saveEventOverlay } from "../src/lib/event-overlay.ts";
 import { SUBSCRIPTIONS_STORAGE_KEY, type Subscription } from "../src/lib/subscriptions.ts";
 import { buildSyncPayload, encodeSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
 import { TASKS_PROTOCOL } from "../src/lib/tasks-sync.ts";
@@ -357,6 +358,52 @@ test("a note on an imported event survives a page reload, by itself", async () =
   // The title is unaffected by a note-only edit.
   assert.equal(app.calendar.tasks.find((entry) => entry.id === id)?.title, "Section 4.1 Homework");
   await app.unmount();
+});
+
+test("editing, hiding and restoring in a stale tab preserve other saved corrections before storage events arrive", async () => {
+  for (const action of ["edit", "hide", "restore"] as const) {
+    window.localStorage.clear();
+    const app = await mount();
+    try {
+      // A second tab saves after this one mounts; its storage event is still queued.
+      saveEventOverlay(window.localStorage, {
+        edits: { here: { note: "Keep this note" }, elsewhere: { note: "Saved in the other tab" } },
+        deletedIds: ["elsewhere"],
+      });
+      await act(async () => {
+        if (action === "edit") app.calendar.editEvent("here", { title: "New title" });
+        else if (action === "hide") app.calendar.deleteEvent("here");
+        else app.calendar.restoreEvent("here");
+      });
+      const saved = restoreEventOverlay(window.localStorage);
+      assert.deepEqual(saved.edits.elsewhere, { note: "Saved in the other tab" }, action);
+      assert.ok(saved.deletedIds.includes("elsewhere"), action);
+      assert.equal(app.calendar.eventNoteFor("elsewhere"), "Saved in the other tab");
+      if (action === "edit") assert.deepEqual(saved.edits.here, { note: "Keep this note", title: "New title" });
+      if (action === "hide") assert.ok(saved.deletedIds.includes("here"));
+      if (action === "restore") assert.equal(saved.edits.here, undefined);
+    } finally { await app.unmount(); }
+  }
+});
+
+test("another tab's corrections, hiding and clearing appear without reloading", async () => {
+  const app = await mount();
+  try {
+    const id = await importOneTask(app);
+    const key = EVENT_OVERLAY_STORAGE_KEY;
+    saveEventOverlay(window.localStorage, { edits: { [id]: { title: "Corrected elsewhere", note: "Bring notes" } }, deletedIds: [] });
+    await storageChanged(key);
+    assert.equal(app.calendar.tasks.find(task => task.id === id)?.title, "Corrected elsewhere");
+    assert.equal(app.calendar.eventNoteFor(id), "Bring notes");
+    saveEventOverlay(window.localStorage, { edits: {}, deletedIds: [id] });
+    await storageChanged(key);
+    assert.equal(app.calendar.tasks.some(task => task.id === id), false);
+    window.localStorage.removeItem(key);
+    await storageChanged(null);
+    assert.equal(app.calendar.tasks.find(task => task.id === id)?.title, "Section 4.1 Homework");
+    assert.equal(app.calendar.eventNoteFor(id), null);
+    assert.equal(app.calendar.isEventEdited(id), false);
+  } finally { await app.unmount(); }
 });
 
 test("a custom event the student adds appears on the calendar even before any import", async () => {

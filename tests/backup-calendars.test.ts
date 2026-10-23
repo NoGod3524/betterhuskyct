@@ -4,6 +4,8 @@ import { createBackup, restoreBackup } from "../src/lib/backup.ts";
 import { MAX_CUSTOM_EVENTS, restoreCustomEvents } from "../src/lib/custom-events.ts";
 import { MAX_UNDATED_TODOS } from "../src/lib/undated-todos.ts";
 import { MAX_SUBSCRIPTIONS, mergeTasks, parseStoredSubscriptions } from "../src/lib/subscriptions.ts";
+import { COURSES_STORAGE_KEY, EMPTY_COURSE_BOOK, addCourse, parseStoredCourseBook, saveCourseBook } from "../src/lib/courses.ts";
+import { ANNOUNCEMENTS_STORAGE_KEY, parseAnnouncementCandidates, saveAnnouncements } from "../src/lib/announcements.ts";
 
 class MemoryStorage {
   readonly map = new Map<string, string>();
@@ -21,6 +23,48 @@ const task = (uid: string, start = BEFORE) => ({ id: `${uid}:${start}`, title: "
 const save = (storage: MemoryStorage, key: string, data: unknown) => storage.setItem(key, JSON.stringify(data));
 const read = (storage: MemoryStorage, key: string) => JSON.parse(storage.getItem(key) ?? "null");
 const feed = (id: string, events: ReturnType<typeof task>[]) => ({ id, name: "My deadlines", courseId: null, importedAt: NOW.toISOString(), events });
+
+test("merging the same six courses from two devices keeps six and leaves room for another course", () => {
+  const codes = ["MATH 1070Q", "STAT 1000Q", "NRE 1000E", "ECON 1201", "SOCI 1501", "ENGL 1007"];
+  const makeBook = () => codes.reduce((book, code) => addCourse(book, code, "LEC"), EMPTY_COURSE_BOOK);
+  const local = new MemoryStorage(), source = new MemoryStorage();
+  const original = makeBook();
+  saveCourseBook(local, original);
+  saveCourseBook(source, makeBook());
+  const backup = createBackup(source, NOW, "2.1.0");
+  for (let repeat = 0; repeat < 2; repeat++) {
+    assert.deepEqual(restoreBackup(local, backup, "merge"), { ok: true });
+    const saved = parseStoredCourseBook(local.getItem(COURSES_STORAGE_KEY)!)!;
+    assert.deepEqual(saved.courses, original.courses);
+    assert.equal(addCourse(saved, "CSE 1010", "LEC").courses.length, 7);
+  }
+});
+
+test("course reconciliation remaps backup assignments, feeds and announcements while keeping local choices", () => {
+  for (const withLocalCalendar of [false, true]) {
+    const local = new MemoryStorage(), source = new MemoryStorage();
+    const here = addCourse(EMPTY_COURSE_BOOK, "MATH 1070Q", "LEC");
+    const there = addCourse(addCourse(EMPTY_COURSE_BOOK, "math 1070q", "LEC"), "MATH 1070Q", "DIS");
+    const localId = here.courses[0].id, remoteId = there.courses[0].id;
+    saveCourseBook(local, { ...here, assignments: { chosen: null } });
+    saveCourseBook(source, { ...there, assignments: { chosen: remoteId, extra: remoteId, discussion: there.courses[1].id } });
+    if (withLocalCalendar) save(local, SUBS, { version: 1, subscriptions: [feed("local", [task("local")])] });
+    save(source, SUBS, { version: 1, subscriptions: [{ ...feed("remote", [task("remote")]), courseId: remoteId }] });
+    const announcements = parseAnnouncementCandidates([{ title: "Exam update", body: "Bring a calculator", courseCode: "MATH 1070Q" }], NOW);
+    saveAnnouncements(source, announcements.map(item => ({ ...item, courseId: remoteId })));
+    const backup = createBackup(source, NOW, "2.1.0");
+    assert.deepEqual(restoreBackup(local, backup, "merge"), { ok: true });
+    const saved = parseStoredCourseBook(local.getItem(COURSES_STORAGE_KEY)!)!;
+    assert.deepEqual(saved.courses.map(course => course.id), [localId, there.courses[1].id]);
+    assert.deepEqual(saved.assignments, { chosen: null, extra: localId, discussion: there.courses[1].id });
+    assert.equal(read(local, SUBS).subscriptions.find((entry: { id: string }) => entry.id === "remote").courseId, localId);
+    assert.equal(read(local, ANNOUNCEMENTS_STORAGE_KEY).announcements[0].courseId, localId);
+    const restored = new MemoryStorage();
+    assert.deepEqual(restoreBackup(restored, backup, "replace"), { ok: true });
+    assert.deepEqual(parseStoredCourseBook(restored.getItem(COURSES_STORAGE_KEY)!)!.courses, there.courses);
+    assert.equal(read(restored, SUBS).subscriptions[0].courseId, remoteId);
+  }
+});
 
 test("backup merge keeps the local source deadline and aligns the backup's saved decisions", () => {
   for (const backupFeedId of ["local-feed", "other-device-feed"]) {

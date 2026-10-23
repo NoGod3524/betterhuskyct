@@ -14,7 +14,7 @@ import { computeAnnouncementId, isAnnouncement } from "../src/lib/announcements.
 const NOW = new Date("2026-10-18T12:00:00.000Z");
 const empty = () => ({ version: 1 as const, entries: [], baselines: [] });
 const task = (id = "_1_1", start = "2026-10-20T12:00:00.000Z"): CalendarTask & { sourceCourseId?: string } => ({ id: `huskyct-todo-${id}:${start}`, title: "Homework", course: "MATH 1131Q",
-  start, dateKey: start.slice(0, 10), end: null, allDay: false, kind: "assignment", location: null });
+  start, dateKey: start.slice(0, 10), end: null, allDay: false, kind: "assignment", location: null, observedAt: NOW.toISOString() });
 const announcement = (sourceId = "a", body = "Old text") => ({ id: computeAnnouncementId({ sourceId, sourceCourseId: "_10_1", courseCode: "MATH 1131Q", title: "Announcement " + sourceId, posted: NOW.toISOString() }), sourceId, sourceCourseId: "_10_1", courseId: null, courseCode: "MATH 1131Q",
   title: "Announcement " + sourceId, body, posted: NOW.toISOString(), announced: NOW.toISOString() });
 function snapshot(revision = "one") {
@@ -307,8 +307,23 @@ test("new source courses get silent baselines even when course codes match; fail
   const partial = snapshot("partial"); partial.status.courses[0] = { ...partial.status.courses[0], grades: false, files: false, announcements: false };
   partial.grades.courses = []; partial.materials.courses = []; partial.tasks.announcements = [];
   const result = diffBackgroundSnapshot(old, partial, empty(), NOW);
-  assert.deepEqual(result.snapshot.grades.courses, old.grades.courses);
+  assert.deepEqual(result.snapshot.grades.courses, old.grades.courses.map(course => ({ ...course, observedAt: old.grades.takenAt })));
   assert.deepEqual(result.snapshot.materials.courses, old.materials.courses);
   assert.deepEqual(result.snapshot.tasks.announcements, old.tasks.announcements);
   assert.equal(result.added.length, 0);
+});
+
+test("retained and failed task reads preserve per-record freshness without inventing deadline moves", () => {
+  const old = snapshot();
+  const saved = { ...task(), observedAt: "2026-10-18T13:00:00.000Z" };
+  old.tasks.feeds[0].events = [saved];
+  const incoming = snapshot("retained");
+  incoming.at = "2026-10-18T14:00:00.000Z";
+  incoming.tasks.feeds[0].events = [{ ...task("_1_1", "2026-10-19T12:00:00.000Z"), observedAt: NOW.toISOString() }, task("_2_1")];
+  const merged = diffBackgroundSnapshot(old, incoming, empty(), NOW);
+  assert.equal(merged.snapshot.tasks.feeds[0].events.find((row: CalendarTask) => row.id === saved.id)?.observedAt, saved.observedAt);
+  assert.equal(merged.added.filter((row: { kind: string }) => row.kind === "deadline-moved").length, 0);
+  incoming.status.dueDates = false; incoming.status.todo = false;
+  const failed = diffBackgroundSnapshot(old, incoming, empty(), NOW);
+  assert.deepEqual(failed.snapshot.tasks.feeds[0].events, [saved]);
 });

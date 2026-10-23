@@ -52,10 +52,9 @@ export async function openGradesStore(): Promise<GradesStore> {
     receiveBackground: async (incoming, history, report) => withChangesLock(() => {
       const before = read();
       const courses = new Map((before?.courses ?? []).map(course => [course.id, course]));
-      const older = before && Date.parse(before.takenAt) > Date.parse(incoming.takenAt);
       const accepted = incoming.courses.filter(course => !courses.has(course.id)
-        || (!older && (!report || report.courses.some(status => status.id === course.id && status.grades))));
-      const snapshot = { ...mergeGrades(before, { ...incoming, courses: accepted }), takenAt: older ? before.takenAt : incoming.takenAt };
+        || !report || report.courses.some(status => status.id === course.id && status.grades));
+      const snapshot = mergeGrades(before, { ...incoming, courses: accepted });
       write(snapshot, mergeChangeStores(parseChanges(storage.getItem(CHANGES_KEY)), historyForSource(history, "grades"), new Date()));
     }),
     markSeen: async () => withChangesLock(() => {

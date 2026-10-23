@@ -172,12 +172,13 @@ test("office hours, class meeting times, weekly routines and contact details are
       { title: "Exam review help session", date: "2026-10-12", time: null, kind: "task", evidence: "", source: null },
       { title: "Buy the textbook", date: null, time: null, kind: "task", evidence: "", source: null },
       { title: "Lab report 3 due", date: "2026-10-15", time: null, kind: "assignment", evidence: "", source: null },
+      { title: "Submit final paper", date: "2026-10-30", time: "15:00", kind: "assignment", evidence: "Final paper is due October 30 at 3pm. Hand it in during office hours.", source: null },
     ],
   });
 
   assert.deepEqual(
     parsePlanResult(answer)?.items.map((item) => item.title),
-    ["Weekly reflection 3 due", "Exam review help session", "Buy the textbook", "Lab report 3 due"],
+    ["Weekly reflection 3 due", "Exam review help session", "Buy the textbook", "Lab report 3 due", "Submit final paper"],
   );
   assert.match(planMessages(SYLLABUS)[0].content, /never office hours/);
 });

@@ -307,6 +307,7 @@ test("a syllabus is read again when its language changes, and once more if it wa
   const files = [{ key: "k", savedAt: "2026-09-01T00:00:00.000Z" }];
   const english = syllabusSignature(files, "en");
   assert.notEqual(english, syllabusSignature(files, "zh-CN"));
+  assert.notEqual(english, "2|en|k@2026-09-01T00:00:00.000Z", "a potentially obsolete summary was not reread");
   assert.notEqual(english, "k@2026-09-01T00:00:00.000Z", "a read from before summaries counts as read with one");
   assert.equal(english, syllabusSignature(files, "en"));
 });
@@ -322,6 +323,7 @@ test("stored summaries are checked like the model's answer, and a bad one is dro
   assert.deepEqual(Object.keys(state.summaries), ["_1_1"]);
   assert.deepEqual(state.summaries._1_1, good);
   assert.deepEqual(setSummary(state, "_9_1", null), state, "no summary replaced the state");
+  assert.deepEqual(setSummary(state, "_1_1", null).summaries, {}, "a dates-only result kept the old summary");
 });
 
 test("the endpoint's summary is kept for a syllabus in the page's language, and never for announcements", async () => {
@@ -440,9 +442,10 @@ test("office hours saved in a list from before are cleared when it is read back"
     pending: [
       { ...suggestion({ title: "Office hours", date: null, kind: "task", evidence: "Tue 2-3" }) },
       { ...suggestion({ title: "Midterm 1" }) },
+      { ...suggestion({ title: "Submit final paper", kind: "assignment", evidence: "Final paper is due October 30 at 3pm. Hand it in during office hours." }) },
     ],
   });
-  assert.deepEqual(parsePlanState(saved).pending.map((s) => s.title), ["Midterm 1"]);
+  assert.deepEqual(parsePlanState(saved).pending.map((s) => s.title), ["Midterm 1", "Submit final paper"]);
 });
 
 test("turning the AI off sticks even when the browser has no room to write the state", async () => {

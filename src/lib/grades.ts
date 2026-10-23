@@ -44,6 +44,8 @@ export type GradesCourse = {
   id: string;
   code: string | null;
   items: GradeItem[];
+  /** When this course was actually read; another course's success must not refresh retained grades. */
+  observedAt?: string;
 };
 
 /**
@@ -123,7 +125,9 @@ function readCourse(value: unknown): GradesCourse | null {
     if (!item) return null;
     items.push(item);
   }
-  return { id, code, items };
+  const observedAt = value.observedAt === undefined ? undefined : text(value.observedAt, 40);
+  if (observedAt === null || (observedAt !== undefined && Number.isNaN(Date.parse(observedAt)))) return null;
+  return { id, code, items, ...(observedAt === undefined ? {} : { observedAt }) };
 }
 
 export function parseGradesSnapshot(value: unknown): GradesSnapshot | null {
@@ -311,7 +315,7 @@ function carryChanges(current: GradesSnapshot | null, incoming: GradesSnapshot):
   const reached = new Set(incoming.courses.map(courseKey));
   const fresh = incoming.courses.flatMap((course) => {
     const old = before.get(course.id);
-    return old ? diffCourse(old, course, incoming.takenAt) : [];
+    return old ? diffCourse(old, course, course.observedAt ?? incoming.takenAt) : [];
   });
   const freshKey = (change: GradeChange) => change.courseId + "\u0000" + change.itemId;
   const freshByItem = new Map(fresh.map((change) => [freshKey(change), change]));
@@ -330,7 +334,7 @@ function carryChanges(current: GradesSnapshot | null, incoming: GradesSnapshot):
       // Changed again before it was seen: the delta is from what they last saw.
       freshByItem.delete(freshKey(old));
       if (sameScore(old.from, now)) continue; // back where it started
-      out.push({ ...old, kind: old.kind === "new" ? "new" : old.from ? "changed" : "graded", at: incoming.takenAt });
+      out.push({ ...old, kind: old.kind === "new" ? "new" : old.from ? "changed" : "graded", at: course!.observedAt ?? incoming.takenAt });
     } else if (!sameScore(old.from, now) || old.kind === "new") {
       out.push(old); // still differs from what they saw, and nothing newer
     }
@@ -346,14 +350,17 @@ function carryChanges(current: GradesSnapshot | null, incoming: GradesSnapshot):
  * stored one, and kept until the student marks it seen.
  */
 export function mergeGrades(current: GradesSnapshot | null, incoming: GradesSnapshot): GradesSnapshot {
-  const incomingKeys = new Set(incoming.courses.map(courseKey));
-  const kept = (current?.courses ?? []).filter((course) => !incomingKeys.has(courseKey(course)));
-  const changes = carryChanges(current, incoming);
+  const previous = new Map((current?.courses ?? []).map(course => [course.id, { ...course, observedAt: course.observedAt ?? current!.takenAt }]));
+  const fresh = incoming.courses.map(course => ({ ...course, observedAt: course.observedAt ?? incoming.takenAt }))
+    .filter(course => !previous.has(course.id) || Date.parse(course.observedAt) >= Date.parse(previous.get(course.id)!.observedAt));
+  const incomingKeys = new Set(fresh.map(courseKey));
+  const kept = [...previous.values()].filter((course) => !incomingKeys.has(courseKey(course)));
+  const changes = carryChanges(current, { ...incoming, courses: fresh });
   return {
     version: 1,
     term: incoming.term ?? current?.term ?? null,
-    takenAt: incoming.takenAt,
-    courses: [...incoming.courses, ...kept].sort(
+    takenAt: current && Date.parse(current.takenAt) > Date.parse(incoming.takenAt) ? current.takenAt : incoming.takenAt,
+    courses: [...fresh, ...kept].sort(
       (a, b) => (a.code ?? a.id).localeCompare(b.code ?? b.id) || a.id.localeCompare(b.id),
     ),
     ...(changes.length ? { changes } : {}),

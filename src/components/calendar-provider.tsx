@@ -63,6 +63,7 @@ import {
   applyOverlay,
   deleteEvent as deleteOverlayEvent,
   EMPTY_OVERLAY,
+  EVENT_OVERLAY_STORAGE_KEY,
   noteFor as overlayNoteFor,
   restoreEvent as restoreOverlayEvent,
   restoreEventOverlay,
@@ -410,23 +411,33 @@ export function CalendarProvider({
     if (isCustomEventId(taskId)) {
       commitCustomEvents(applyCustomEventEdit(restoreCustomEvents(window.localStorage), taskId, edit));
     } else {
-      commitEventOverlay(setEventEdit(eventOverlay, taskId, edit));
+      commitEventOverlay(setEventEdit(restoreEventOverlay(window.localStorage), taskId, edit));
     }
   }
 
   function deleteEvent(taskId: string) {
     if (isCustomEventId(taskId)) commitCustomEvents(dropCustomEvent(restoreCustomEvents(window.localStorage), taskId));
-    else commitEventOverlay(deleteOverlayEvent(eventOverlay, taskId));
+    else commitEventOverlay(deleteOverlayEvent(restoreEventOverlay(window.localStorage), taskId));
   }
 
   /** Back to exactly what HuskyCT sent. Meaningless for a custom event — there is no "original" to go back to. */
   function restoreEvent(taskId: string) {
-    if (!isCustomEventId(taskId)) commitEventOverlay(restoreOverlayEvent(eventOverlay, taskId));
+    if (!isCustomEventId(taskId)) commitEventOverlay(restoreOverlayEvent(restoreEventOverlay(window.localStorage), taskId));
   }
 
   function restoreAllEvents() {
     commitEventOverlay(EMPTY_OVERLAY);
   }
+
+  useEffect(() => {
+    function readOverlay(event: StorageEvent) {
+      if (event.storageArea && event.storageArea !== window.localStorage) return;
+      if (event.key !== null && event.key !== EVENT_OVERLAY_STORAGE_KEY) return;
+      setEventOverlay(restoreEventOverlay(window.localStorage));
+    }
+    window.addEventListener("storage", readOverlay);
+    return () => window.removeEventListener("storage", readOverlay);
+  }, []);
 
   function eventNoteFor(taskId: string): string | null {
     if (isCustomEventId(taskId)) return customEvents.find((event) => event.id === taskId)?.note ?? null;
@@ -812,8 +823,10 @@ export function CalendarProvider({
       const staleIds = new Set<string>();
       payload = { ...payload, feeds: payload.feeds.map(feed => ({ ...feed, events: feed.events.filter(task => {
         const saved = latest.get(eventUid(task));
-        // ponytail: partial task reads retain cached rows; refresh known UIDs after both parts succeed.
-        const stale = saved && ((report && !(report.dueDates && report.todo)) || Date.parse(saved.at) > Date.parse(feed.importedAt));
+        // A successful source may still send retained rows. Only a task's own reading time
+        // can establish freshness; older helpers without it may add tasks but not replace them.
+        const stale = saved && (!task.observedAt || (report && !report.dueDates && !report.todo)
+          || Date.parse(saved.task.observedAt ?? saved.at) > Date.parse(task.observedAt));
         if (stale) staleIds.add(task.id);
         return !stale;
       }) })).filter(feed => feed.events.length > 0), announcements: payload.announcements.filter(item => {

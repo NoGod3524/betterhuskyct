@@ -8,6 +8,8 @@ import { detectMoves, findReceivingSubscription } from "./sync-merge.ts";
 import { moveOverlay, moveRecord, moveSet } from "./moved-deadlines.ts";
 import { parseEventOverlay } from "./event-overlay.ts";
 import { CHANGES_KEY, mergeChangeStores, parseChanges } from "./changes.ts";
+import { COURSES_STORAGE_KEY, parseStoredCourseBook, sameCourse } from "./courses.ts";
+import { ANNOUNCEMENTS_STORAGE_KEY } from "./announcements.ts";
 
 /**
  * A backup is every `huskypilot.*` value this browser holds, as the text each module saved, in one
@@ -175,6 +177,32 @@ function json(raw: string | null | undefined): unknown {
   try { return JSON.parse(raw ?? "null"); } catch { return null; }
 }
 
+/** Course UUIDs belong to a device. Align incoming references before the local-first merge. */
+function alignBackupCourses(storage: Reader, data: Record<string, string>): void {
+  const local = parseStoredCourseBook(storage.getItem(COURSES_STORAGE_KEY) ?? "null");
+  const incoming = parseStoredCourseBook(data[COURSES_STORAGE_KEY] ?? "null");
+  if (!local || !incoming) return;
+  const known = [...local.courses];
+  const idMap = new Map<string, string>();
+  const courses = incoming.courses.map(course => {
+    const match = known.find(item => item.id === course.id) ?? known.find(item => sameCourse(item, course));
+    if (!match) known.push(course);
+    const id = match?.id ?? course.id;
+    idMap.set(course.id, id);
+    return { ...course, id };
+  });
+  const assignments = Object.fromEntries(Object.entries(incoming.assignments).map(([taskId, courseId]) =>
+    [taskId, courseId === null ? null : idMap.get(courseId) ?? courseId]));
+  data[COURSES_STORAGE_KEY] = JSON.stringify({ version: 1, courses, assignments });
+  for (const [key, list] of [[SUBSCRIPTIONS_STORAGE_KEY, "subscriptions"], [ANNOUNCEMENTS_STORAGE_KEY, "announcements"]] as const) {
+    const value = json(data[key]);
+    if (!isRecord(value) || !Array.isArray(value[list])) continue;
+    data[key] = JSON.stringify({ ...value, [list]: value[list].map(item =>
+      isRecord(item) && typeof item.courseId === "string"
+        ? { ...item, courseId: idMap.get(item.courseId) ?? item.courseId } : item) });
+  }
+}
+
 /** Refuse values the normal readers would truncate, before a restore can report success. */
 function checkTaskCapacity(key: string, raw: string): void {
   const value = json(raw);
@@ -246,6 +274,7 @@ function mergeBackupCalendars(storage: Reader, data: Record<string, string>): bo
 export function restoreBackup(storage: Writer, backup: Backup, mode: RestoreMode): { ok: true } | { ok: false } {
   try {
     const data = { ...backup.data };
+    if (mode === "merge") alignBackupCourses(storage, data);
     const calendarsMerged = mode === "merge" && mergeBackupCalendars(storage, data);
     // Legacy backups keep results beside permission. Copy only their results into the new data key.
     if (data[PLAN_DATA_KEY] === undefined && data[PLAN_STORAGE_KEY] !== undefined) data[PLAN_DATA_KEY] = data[PLAN_STORAGE_KEY];

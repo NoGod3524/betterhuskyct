@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+import { diffBackgroundSnapshot } from "../tools/extension/background-diff.js";
+import type { SyncPayload } from "../src/lib/sync.ts";
 import { BACKGROUND_PROTOCOL } from "../src/lib/background-sync.ts";
-import { CHANGES_KEY, mergeChangeStores, parseChanges, type ChangeEntry, type ChangesStore } from "../src/lib/changes.ts";
+import { CHANGES_KEY, markChangesRead, mergeChangeStores, parseChanges, saveChanges, type ChangeEntry, type ChangesStore } from "../src/lib/changes.ts";
 import { buildSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { openGradesStore, GRADES_STORAGE_KEY } from "../src/lib/grades-store.ts";
@@ -86,6 +90,117 @@ test("a background 80→85→90 history never gets an invented app-side 80→90 
   await view.unmount();
 });
 
+test("a real background poll does not make the foreground's read grade change unread again", async () => {
+  const times = [0, 60_000, 120_000].map(offset => new Date(Date.parse(at) + offset).toISOString());
+  const sample = (score: number, takenAt: string) => ({ ...reading(score), takenAt });
+  const baselineOffer = offer().snapshot;
+  baselineOffer.at = times[0];
+  baselineOffer.grades = sample(80, times[0]);
+  const baseline = diffBackgroundSnapshot(null, baselineOffer, history(), new Date(times[0]));
+  const store = await openGradesStore();
+  await store.receive!(sample(80, times[0]));
+  await store.receive!(sample(90, times[1]));
+  const read = markChangesRead(parseChanges(window.localStorage.getItem(CHANGES_KEY)));
+  saveChanges(window.localStorage, read);
+  const later = { ...baselineOffer, at: times[2], revision: "later", grades: sample(90, times[2]) };
+  const polled = diffBackgroundSnapshot(baseline.snapshot, later, baseline.changes, new Date(times[2]));
+  assert.equal(polled.added.length, 1, "the independent background baseline should detect the transition");
+  await store.receiveBackground!(polled.snapshot.grades, polled.changes, polled.snapshot.status);
+  await store.receiveBackground!(polled.snapshot.grades, polled.changes, polled.snapshot.status);
+  assert.deepEqual(parseChanges(window.localStorage.getItem(CHANGES_KEY)), read);
+  assert.equal((await store.get())!.courses[0].items[0].earned, 90);
+});
+
+test("failed grade polls do not advance the retained baseline and resurrect a read foreground change", async () => {
+  const samples = [80, 90, 80, 90].map((score, minute) => {
+    const incoming = offer().snapshot;
+    incoming.at = new Date(Date.parse(at) + minute * 60_000).toISOString();
+    incoming.grades = { ...reading(score), takenAt: incoming.at };
+    return incoming;
+  });
+  const store = await openGradesStore();
+  await store.receive!(samples[0].grades);
+  await store.receive!(samples[1].grades);
+  const read = markChangesRead(parseChanges(window.localStorage.getItem(CHANGES_KEY)));
+  saveChanges(window.localStorage, read);
+  let pending = diffBackgroundSnapshot(null, samples[0], history(), new Date(samples[0].at));
+  samples[2].status.courses[0].grades = false;
+  samples[2].grades.courses = [];
+  for (const incoming of samples.slice(2)) pending = diffBackgroundSnapshot(pending.snapshot, incoming, pending.changes, new Date(incoming.at));
+  await store.receiveBackground!(pending.snapshot.grades, pending.changes, pending.snapshot.status);
+  assert.deepEqual(parseChanges(window.localStorage.getItem(CHANGES_KEY)), read);
+});
+
+test("reading another course does not advance the retained foreground grade baseline", async () => {
+  const samples = [80, 90, 10, 90].map((score, minute) => {
+    const incoming = offer().snapshot;
+    incoming.at = new Date(Date.parse(at) + minute * 60_000).toISOString();
+    incoming.grades = { ...reading(score), takenAt: incoming.at };
+    return incoming;
+  });
+  const baseline = diffBackgroundSnapshot(null, samples[0], history(), new Date(samples[0].at));
+  const pending = diffBackgroundSnapshot(baseline.snapshot, samples[1], baseline.changes, new Date(samples[1].at));
+  const store = await openGradesStore();
+  await store.receive!(samples[0].grades);
+  samples[2].grades.courses[0].id = "_2_1";
+  await store.receive!(samples[2].grades);
+  await store.receive!(samples[3].grades);
+  const read = markChangesRead(parseChanges(window.localStorage.getItem(CHANGES_KEY)));
+  saveChanges(window.localStorage, read);
+  await store.receiveBackground!(pending.snapshot.grades, pending.changes, pending.snapshot.status);
+  const saved = parseChanges(window.localStorage.getItem(CHANGES_KEY));
+  assert.equal(saved.entries.length, 1);
+  assert.equal(saved.entries[0].read, true);
+});
+
+test("a background course newer than its saved reading is accepted even after another course was read later", async () => {
+  const store = await openGradesStore();
+  await store.receive!(reading(80));
+  const other = { ...reading(10), takenAt: new Date(Date.parse(at) + 120_000).toISOString() };
+  other.courses[0].id = "_2_1";
+  await store.receive!(other);
+  const incoming = { ...reading(90), takenAt: new Date(Date.parse(at) + 60_000).toISOString() };
+  await store.receiveBackground!(incoming, history(), offer().snapshot.status);
+  const saved = (await store.get())!;
+  assert.equal(saved.courses.find(course => course.id === "_1_1")?.items[0].earned, 90);
+  assert.equal(saved.courses.find(course => course.id === "_1_1")?.observedAt, incoming.takenAt);
+  assert.equal(saved.courses.find(course => course.id === "_2_1")?.observedAt, other.takenAt);
+  assert.equal(saved.takenAt, other.takenAt);
+});
+
+test("real polls while the app is closed retain each intermediate grade transition", async () => {
+  const store = await openGradesStore();
+  const snapshots = [80, 85, 90].map((score, minute) => {
+    const incoming = offer().snapshot;
+    incoming.at = new Date(Date.parse(at) + minute * 60_000).toISOString();
+    incoming.grades = { ...reading(score), takenAt: incoming.at };
+    return incoming;
+  });
+  await store.receive!(snapshots[0].grades);
+  let pending = diffBackgroundSnapshot(null, snapshots[0], history(), new Date(snapshots[0].at));
+  for (const incoming of snapshots.slice(1)) pending = diffBackgroundSnapshot(pending.snapshot, incoming, pending.changes, new Date(incoming.at));
+  await store.receiveBackground!(pending.snapshot.grades, pending.changes, pending.snapshot.status);
+  const changes = parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.filter(row => row.kind === "grade");
+  assert.deepEqual(changes.map(row => `${row.detail?.from}→${row.detail?.to}`).sort(), ["80/100→85/100", "85/100→90/100"]);
+  assert.equal((await store.get())!.courses[0].items[0].earned, 90);
+});
+
+test("removing then restoring the same grade twice records both real regradings", async () => {
+  const store = await openGradesStore();
+  const scores = [null, 90, null, 90];
+  for (const [minute, score] of scores.entries()) {
+    const incoming = reading(90);
+    incoming.takenAt = new Date(Date.parse(at) + minute * 60_000).toISOString();
+    incoming.courses[0].items[0] = { ...incoming.courses[0].items[0], earned: score, possible: score === null ? null : 100 };
+    await store.receive!(incoming);
+    if (minute === 1) saveChanges(window.localStorage, markChangesRead(parseChanges(window.localStorage.getItem(CHANGES_KEY))));
+  }
+  const gradeChanges = parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.filter(row => row.kind === "grade");
+  assert.equal(gradeChanges.length, 2);
+  assert.equal(gradeChanges.filter(row => row.read).length, 1);
+  assert.ok(gradeChanges.every(row => row.detail?.from === undefined && row.detail?.to === "90/100"));
+});
+
 test("a later source failure withholds ACK and a replay preserves saved history and read choices", async () => {
   const view = await mount();
   view.failMaterials(true);
@@ -120,6 +235,57 @@ test("an older background cache cannot roll back a newer manually saved grade or
   assert.equal(subscriptions[0].events[0].id, latestTask.id);
   assert.equal(posted.filter(message => message.kind === "ack").length, 1);
   await view.unmount();
+});
+
+test("real helper retention cannot roll a foreground deadline back, while a fresh partial read can move it", async () => {
+  type RecordRow = { uid: string; title: string; course: string; courseId: string; start: string; observedAt?: string };
+  type Basket = { todos: RecordRow[]; dueDates: RecordRow[] };
+  type Helper = {
+    emptyBasket(): Basket;
+    rememberDueDates(basket: Basket, records: RecordRow[], now: Date): { basket: Basket };
+    rememberTodos(basket: Basket, records: RecordRow[], now: Date): { basket: Basket };
+    basketContents(basket: Basket): { records: RecordRow[] };
+    syncPayload(records: RecordRow[], now: Date): SyncPayload;
+  };
+  const helperWindow = { location: { protocol: "chrome-extension:" }, __huskyctHelper: undefined as Helper | undefined,
+    __bhcHelperRuntime: { headless: true, origin: "https://lms.uconn.edu", credentials: "include", storage: { getItem: () => null, setItem: () => {} } } };
+  vm.runInNewContext(readFileSync(new URL("../tools/huskyct-helper/huskyct-helper.user.js", import.meta.url), "utf8"), { window: helperWindow, navigator: { language: "en" }, Date, URL, console });
+  const helper = helperWindow.__huskyctHelper!;
+  const times = [0, 60_000, 120_000, 180_000].map(offset => new Date(Date.parse(at) + offset));
+  const record = { uid: "huskyct-todo-_2_1", title: "Homework", course: "MATH 1131Q", courseId: "_1_1", start: "2026-10-21T18:00:00.000Z" };
+  let basket = helper.rememberDueDates(helper.emptyBasket(), [record], times[0]).basket;
+  const collected = (now: Date) => {
+    const incoming = offer();
+    incoming.snapshot.at = now.toISOString();
+    incoming.snapshot.tasks = JSON.parse(JSON.stringify({ ...helper.syncPayload(helper.basketContents(basket).records, now), doneByHuskyct: {}, reopened: [] }));
+    return incoming.snapshot;
+  };
+  const baseline = diffBackgroundSnapshot(null, collected(times[0]), history(), times[0]);
+  const corrected = { ...baseline.snapshot.tasks.feeds[0].events[0], start: "2026-10-21T20:00:00.000Z", observedAt: times[1].toISOString() };
+  corrected.id = `${record.uid}:${corrected.start}`;
+  window.localStorage.setItem("huskypilot.subscriptions.v1", JSON.stringify({ version: 1, subscriptions: [{ id: "saved", name: null, courseId: null, importedAt: times[1].toISOString(), events: [corrected] }] }));
+  const view = await mount();
+  const saved = () => JSON.parse(window.localStorage.getItem("huskypilot.subscriptions.v1")!).subscriptions[0].events;
+  try {
+    // Both APIs succeeded, but neither returned the submitted/past assignment.
+    basket = helper.rememberDueDates(basket, [], times[2]).basket;
+    basket = helper.rememberTodos(basket, [], times[2]).basket;
+    const retained = diffBackgroundSnapshot(baseline.snapshot, collected(times[2]), baseline.changes, times[2]);
+    assert.equal(retained.snapshot.tasks.feeds[0].events[0].observedAt, times[0].toISOString());
+    await view.send({ ...offer(), snapshot: retained.snapshot, changes: retained.changes });
+    assert.equal(saved()[0].start, corrected.start);
+    assert.equal(posted.filter(message => message.kind === "ack").length, 1);
+
+    // Calendar genuinely sees a new time; a failing ToDo API must not hide that evidence.
+    basket = helper.rememberDueDates(basket, [{ ...record, start: "2026-10-23T22:00:00.000Z" }], times[3]).basket;
+    const partial = collected(times[3]);
+    partial.status.todo = false;
+    const fresh = diffBackgroundSnapshot(retained.snapshot, partial, retained.changes, times[3]);
+    await view.send({ ...offer(), snapshot: fresh.snapshot, changes: fresh.changes });
+    assert.equal(saved()[0].start, "2026-10-23T22:00:00.000Z");
+    assert.equal(saved()[0].observedAt, times[3].toISOString());
+    assert.equal(posted.filter(message => message.kind === "ack").length, 2);
+  } finally { await view.unmount(); }
 });
 
 test("a refused history save rolls back grades and withholds acknowledgement", async () => {
