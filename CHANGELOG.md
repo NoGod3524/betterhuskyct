@@ -14,6 +14,19 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [2.1.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v2.1.1) — Keep saved edits and fresh course data
+
+*Patch: six audit fixes for saved edits, background readings, backups and syllabus results. HuskyCT Helper goes from 2.2.0 to 2.2.1.*
+
+### Fixed
+
+- **Calendar edits preserve work in other tabs.** Editing, hiding or restoring a task reads the latest saved notes and hidden choices first. Other open tabs refresh when those choices change. ([#248])
+- **Retained background tasks cannot replace newer deadlines.** Each task carries its actual reading time through the helper and app. Empty reads keep the old time; fresh partial reads can still update a task. Older helpers can add unknown tasks but need the update to replace known ones in the background. ([#248])
+- **Changed syllabi clear obsolete summaries.** A new file, language or dates-only result invalidates the old policy summary, while a temporary file-listing failure preserves it for a retry. Existing saved results are reread once. ([#248])
+- **Backup merges reconcile the same courses across devices.** Matching course codes and components share one course, with task, subscription and announcement references remapped while local choices stay in place. Different lecture and discussion sections remain separate. ([#248])
+- **Repeated grade readings keep changes marked as read.** Matching transitions are combined only when their reading intervals overlap, preserving real intermediate changes and repeated score cycles. Each course keeps its last successful reading time across failed or partial polls. ([#248])
+- **Office-hours submission instructions do not hide assignments.** Assessments with real deadlines remain available when their evidence mentions handing work in during office hours; actual availability entries are still excluded. ([#248])
+
 ## [2.1.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v2.1.0) — Check for course updates from the homepage
 
 *Minor: one homepage entry for course updates. HuskyCT Helper goes from 2.1.0 to 2.2.0.*
@@ -2142,3 +2155,4 @@ saying what to work on next.*
 
 [#244]: https://github.com/NoGod3524/betterhuskyct/pull/244
 [#246]: https://github.com/NoGod3524/betterhuskyct/pull/246
+[#248]: https://github.com/NoGod3524/betterhuskyct/pull/248
