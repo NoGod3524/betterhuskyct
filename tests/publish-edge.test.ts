@@ -200,12 +200,22 @@ test("unexpected/malformed GET and missing operations block future writes", asyn
 });
 
 test("an unknown GET outcome can recover only its saved operation through status", async () => {
-  const m = memory({ ...record("unknown"), publishOperationId: "saved-operation" }), s = server();
+  const m = memory({ ...record("unknown"), operationStep: "submit", publishOperationId: "saved-operation" }), s = server();
   assert.equal((await publishToEdge(SETTINGS, deps(m.store, s.fetch))).phase, "unknown");
   assert.equal(s.calls.length, 0);
   assert.equal((await publishToEdge({ ...SETTINGS, mode: "status" }, deps(m.store, s.fetch))).phase, "submitted");
   assert.ok(s.calls[0].url.endsWith("/operations/saved-operation"));
   assert.equal(s.posts().length, 0);
+});
+
+test("an uncertain submit cannot be recovered from the earlier upload receipt", async () => {
+  const m = memory({ ...record("uploaded"), uploadOperationId: "old-upload" }), s = server({ post: new Error("lost submission response") });
+  assert.equal((await publishToEdge(SETTINGS, deps(m.store, s.fetch))).phase, "unknown");
+  assert.equal(m.current().releases[SETTINGS.version].operationStep, "submit");
+  assert.equal((await publishToEdge({ ...SETTINGS, mode: "status" }, deps(m.store, s.fetch))).phase, "unknown");
+  assert.equal((await publishToEdge(SETTINGS, deps(m.store, s.fetch))).phase, "unknown");
+  assert.equal(s.posts().length, 1);
+  assert.equal(s.calls.length, 1, "the old upload was polled as if it resolved the uncertain submission");
 });
 
 test("a stale clearance blocks upload and an expired clearance blocks submission after upload", async () => {

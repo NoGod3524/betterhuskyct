@@ -8,6 +8,7 @@ export type Release = {
   updatedAt: string;
   runUrl: string;
   clearedAt?: string;
+  operationStep?: "upload" | "submit";
   uploadOperationId?: string;
   publishOperationId?: string;
   submissionId?: string;

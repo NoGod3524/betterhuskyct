@@ -84,7 +84,7 @@ export async function publishToEdge(settings: Settings, deps: Deps): Promise<Res
     await save({ version: settings.version, sourceSha: settings.sourceSha, zipSha256, phase,
       evidence: { state: evidence.state, version: evidence.version, observedAt: evidence.observedAt, reference: evidence.reference, submissionId: evidence.submissionId },
       clearedAt: evidence.state === "clear" ? evidence.observedAt : undefined,
-      uploadOperationId: undefined, publishOperationId: undefined,
+      operationStep: undefined, uploadOperationId: undefined, publishOperationId: undefined,
       submissionId: evidence.version === settings.version ? evidence.submissionId : undefined,
       errorCode: phase === "blocked" ? "InProgressSubmission" : undefined });
     return result();
@@ -98,8 +98,8 @@ export async function publishToEdge(settings: Settings, deps: Deps): Promise<Res
   // A read/authentication failure does not lose a known receipt. Only explicit status may
   // recover an unknown operation; it still cannot follow recovery with a new POST.
   if (release?.phase === "unknown" && mode === "status") {
-    if (release.publishOperationId) await save({ phase: "submit-pending" });
-    else if (release.uploadOperationId) await save({ phase: "upload-pending" });
+    if (release.operationStep === "submit" && release.publishOperationId) await save({ phase: "submit-pending" });
+    else if (release.operationStep === "upload" && release.uploadOperationId) await save({ phase: "upload-pending" });
   }
   if (!release || ["submitted", "published", "blocked", "unknown", "failed"].includes(release.phase)) return result();
   if (["upload-intent", "submit-intent"].includes(release.phase)) {
@@ -114,7 +114,7 @@ export async function publishToEdge(settings: Settings, deps: Deps): Promise<Res
 
   async function post(step: "upload" | "submit") {
     if (!freshClearance()) { await save({ phase: "blocked", errorCode: "ClearanceExpired" }); return; }
-    await save({ phase: step === "upload" ? "upload-intent" : "submit-intent", errorCode: undefined });
+    await save({ phase: step === "upload" ? "upload-intent" : "submit-intent", operationStep: step, errorCode: undefined });
     const endpoint = step === "upload" ? `${base}/draft/package` : base;
     let response: Response;
     try {
@@ -149,13 +149,13 @@ export async function publishToEdge(settings: Settings, deps: Deps): Promise<Res
           retryAfter = header ? (/^\d+$/.test(header) ? Number(header) * 1000 : Math.max(0, Date.parse(header) - now())) : 0;
           if (!Number.isFinite(retryAfter)) retryAfter = 0;
         } else if (response.status !== 200 && response.status !== 202) {
-          await save({ phase: "unknown", errorCode: `GetHTTP${response.status}` }); return;
+          await save({ phase: "unknown", operationStep: step, errorCode: `GetHTTP${response.status}` }); return;
         } else {
           let operation: Operation;
           try { operation = await response.json() as Operation; }
-          catch { await save({ phase: "unknown", errorCode: "InvalidOperationResponse" }); return; }
+          catch { await save({ phase: "unknown", operationStep: step, errorCode: "InvalidOperationResponse" }); return; }
           if (!operation || !["InProgress", "Succeeded", "Failed"].includes(operation.status)) {
-            await save({ phase: "unknown", errorCode: "InvalidOperationStatus" }); return;
+            await save({ phase: "unknown", operationStep: step, errorCode: "InvalidOperationStatus" }); return;
           }
           if (operation.status === "Succeeded") {
             const submissionId = typeof operation.message === "string" ? /Successfully created submission with ID (\d+)/.exec(operation.message)?.[1] : undefined;
