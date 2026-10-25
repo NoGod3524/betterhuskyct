@@ -1,19 +1,27 @@
-name: Publish the extension to Edge
+name: Edge release status and publish
 
-# A release is tagged vX.Y.Z. If the helper's version has not been sent yet, the extension is
-# built, uploaded over the draft in Microsoft Edge Add-ons, and submitted for review, and the
-# version is remembered as a tag, edge/X.Y.Z. A release that did not move the helper changes
-# nothing in the store. Run by hand to send the current helper whatever the tags say.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      action:
+        description: Status never POSTs to Microsoft. Reconcile records fresh Partner Center evidence.
+        type: choice
+        options: [status, reconcile, publish]
+        default: status
+      release_tag:
+        description: Immutable source release tag (for example v2.1.1)
+        required: true
+        default: v2.1.1
+      evidence:
+        description: Reconcile only - JSON state, version, observedAt, reference, optional submissionId. No credentials.
+        required: false
 
-# Write, to leave the edge/X.Y.Z tag that says a version was sent.
 permissions:
   contents: write
 
-# Two submissions at once would race for the same draft.
+# Every workflow that can write this product must share this group and journal.
 concurrency:
   group: publish-edge
   cancel-in-progress: false
@@ -23,65 +31,45 @@ jobs:
     uses: ./.github/workflows/ci.yml
   publish:
     needs: verify
-    name: upload and submit
+    name: inspect or resume Edge release
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout
+      - name: Checkout publishing code
+        uses: actions/checkout@v7
+      - name: Validate source tag
+        id: source
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Expected a release tag"; exit 1; }
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+      - name: Checkout exact package source
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-
-      - name: Has this helper version been sent?
-        id: moved
-        run: |
-          current=$(grep -m1 '^// @version' tools/huskyct-helper/huskyct-helper.user.js | awk '{print $3}')
-          echo "version=$current" >> "$GITHUB_OUTPUT"
-          echo "note=$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "Run by hand: sending $current."
-            echo "send=true" >> "$GITHUB_OUTPUT"
-          elif git rev-parse -q --verify "refs/tags/edge/$current" > /dev/null; then
-            echo "Helper $current was sent before (tag edge/$current), so the store is left as it is."
-            echo "send=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Helper $current has not been sent."
-            echo "send=true" >> "$GITHUB_OUTPUT"
-          fi
-
+          ref: ${{ steps.source.outputs.tag }}
+          path: .release
+          persist-credentials: false
       - name: Set up Node.js
-        if: steps.moved.outputs.send == 'true'
         uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-
-      - name: Install dependencies
-        if: steps.moved.outputs.send == 'true'
-        run: npm ci
-
-      - name: Build the extension
-        if: steps.moved.outputs.send == 'true'
-        run: node scripts/build-extension.mjs
-
-      - name: Show the package's checksum
-        if: steps.moved.outputs.send == 'true'
-        # The same bytes as the release's package for this tag: they can be matched by this line.
-        run: sha256sum public/betterhuskyct-extension.zip
-
-      - name: Upload and submit
-        if: steps.moved.outputs.send == 'true'
-        run: node scripts/publish-edge.ts
+      - name: Install publishing dependencies
+        run: npm ci --ignore-scripts
+      - name: Build source package and record identity
+        id: package
+        run: |
+          node .release/scripts/build-extension.mjs
+          echo "sha=$(git -C .release rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          sha256sum .release/public/betterhuskyct-extension.zip
+      - name: Inspect, reconcile or resume
+        run: node scripts/publish-edge.ts .release/public/betterhuskyct-extension.zip
         env:
-          # Partner Center, Microsoft Edge, Publish API. The product id is the extension's, in its address.
+          EDGE_MODE: ${{ inputs.action || 'status' }}
+          EDGE_SOURCE_SHA: ${{ steps.package.outputs.sha }}
+          EDGE_EVIDENCE: ${{ inputs.evidence }}
           EDGE_PRODUCT_ID: 765d310d-eb89-4c3c-af8d-d031dbc78399
           EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
           EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
-          RELEASE_NOTE: ${{ steps.moved.outputs.note }}
-
-      # Only after the store took it: a failed run leaves no tag, so the next release tries again.
-      - name: Remember that this version was sent
-        if: steps.moved.outputs.send == 'true'
-        run: |
-          git tag "edge/${{ steps.moved.outputs.version }}" || true
-          git push origin "edge/${{ steps.moved.outputs.version }}"
+          GH_TOKEN: ${{ github.token }}
