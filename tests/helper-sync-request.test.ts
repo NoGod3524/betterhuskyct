@@ -77,6 +77,18 @@ function setup(options: { refuse?: boolean } = {}) {
 const message = (fields: Record<string, unknown>) => ({ protocol: HELPER_SYNC_PROTOCOL, ...fields });
 const DONE = { kind: "done", ok: true, courses: 2, announcements: 3, gradeItems: 4, skipped: ["ECON 1201"], sent: true, files: 1 };
 
+test("a cross-origin HuskyCT window that blocks custom properties still receives sync requests", () => {
+  const { sync, tab, sent, time, say } = setup();
+  Object.defineProperty(tab, "background", { get() { throw new DOMException("Blocked a cross-origin frame", "SecurityError"); } });
+  assert.doesNotThrow(() => sync.start());
+  assert.equal(sent.length, 1);
+  time.advance(RETRY_EVERY_MS);
+  assert.equal(sent.length, 2);
+  say(message({ kind: "ack", state: "started" }));
+  say(message(DONE));
+  assert.equal(sync.state.phase, "done");
+});
+
 test("a message is read only if it is shaped as one the helper sends", () => {
   assert.deepEqual(parseSyncMessage(message({ kind: "ack", state: "started" })), { kind: "ack", state: "started" });
   assert.deepEqual(parseSyncMessage(message({ kind: "progress", course: "MATH 1070Q", index: 1, total: 6 })), { kind: "progress", course: "MATH 1070Q", index: 1, total: 6 });

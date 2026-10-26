@@ -8,6 +8,7 @@ import { useCalendar } from "@/components/calendar-provider";
 import { BACKGROUND_CHANGED, parseBackgroundStatus, requestBackground, type BackgroundStatus } from "@/lib/background-sync";
 import { EDGE_ADDONS_URL, EXTENSION_INSTALL_URL, HELPER_SOURCE_URL, managerFor } from "@/lib/helper";
 import { HUSKYCT_URL } from "@/lib/helper-sync";
+import { BRIDGE_CONTROL, isBridgeHello } from "@/lib/helper-bridge";
 import { intlLocale, t } from "@/lib/i18n";
 
 const subscribeBrowser = () => () => {};
@@ -19,10 +20,15 @@ export function BackgroundSyncButton() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [pageHelper, setPageHelper] = useState(false);
+  const [retry, setRetry] = useState(0);
   const browser = useSyncExternalStore(subscribeBrowser, () => /Android|iPhone|iPad|Mobile/.test(navigator.userAgent) ? "mobile" : managerFor(navigator.userAgent).id, () => "other");
 
   useEffect(() => {
     let active = true;
+    const hello = (event: MessageEvent) => { if (isBridgeHello(event, window)) setPageHelper(true); };
+    window.addEventListener("message", hello);
+    window.postMessage({ protocol: BRIDGE_CONTROL, kind: "ping" }, window.location.origin);
     const refresh = () => { void requestBackground("status").then(value => {
       if (active) {
         const next = parseBackgroundStatus(value);
@@ -35,10 +41,11 @@ export function BackgroundSyncButton() {
     window.addEventListener(BACKGROUND_CHANGED, refresh);
     return () => {
       active = false;
+      window.removeEventListener("message", hello);
       window.removeEventListener("focus", refresh);
       window.removeEventListener(BACKGROUND_CHANGED, refresh);
     };
-  }, []);
+  }, [retry]);
 
   useEffect(() => {
     if (!status?.running) return;
@@ -84,7 +91,9 @@ export function BackgroundSyncButton() {
       <div className="mt-2 text-xs leading-5 text-[var(--muted)]" role="status">
         {loading ? t(locale, "common.loading") : !status ? (
           <>
-            <p>{t(locale, browser === "mobile" ? "background.manualOnly" : "background.unavailable")}</p>
+            <p>{t(locale, browser === "mobile" ? "background.manualOnly" : pageHelper ? "background.pageHelperOnly" : "background.unavailable")}</p>
+            {browser !== "mobile" ? <button type="button" onClick={() => { setLoading(true); setRetry(value => value + 1); }} className="tap-link font-semibold text-[var(--link)] hover:underline">{t(locale, "background.reconnect")}</button> : null}
+            {browser !== "mobile" ? " · " : null}
             <a href={browser === "mobile" ? HELPER_SOURCE_URL : EXTENSION_INSTALL_URL} className="tap-link font-semibold text-[var(--link)] hover:underline">{t(locale, "background.installHelp")}</a>
             {browser !== "mobile" ? <>{" · "}<Link href="/materials#manual-sync" className="tap-link font-semibold text-[var(--link)] hover:underline">{t(locale, "background.manual")}</Link></> : null}
           </>
