@@ -6,7 +6,7 @@
       "version": "2.2.2",
       "sourceSha": "1415c245cbf8c368f5ffadc4780b00289094b1e1",
       "zipSha256": "dab19cdaa75282d60e53b4be75f3815559cfab3c7697a9808c6146f1a904d8ad",
-      "phase": "submit-intent",
+      "phase": "submit-pending",
       "evidence": {
         "state": "clear",
         "version": "2.2.2",
@@ -14,10 +14,11 @@
         "reference": "https://partner.microsoft.com/zh-cn/dashboard/microsoftedge/765d310d-eb89-4c3c-af8d-d031dbc78399/packages/dashboard"
       },
       "clearedAt": "2026-10-26T17:15:33.9872897Z",
-      "updatedAt": "2026-10-26T17:29:54.288Z",
+      "updatedAt": "2026-10-26T17:29:55.379Z",
       "runUrl": "https://github.com/NoGod3524/betterhuskyct/actions/runs/40368487608/attempts/1",
       "operationStep": "submit",
-      "uploadOperationId": "76ec1dc1-4d41-488d-bbbc-793024f11f72"
+      "uploadOperationId": "76ec1dc1-4d41-488d-bbbc-793024f11f72",
+      "publishOperationId": "042b7035-c1b7-43f2-af64-abacd8a1d085"
     }
   },
   "activeVersion": "2.2.2"
