@@ -14,7 +14,9 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
-## Unreleased — Helper 2.2.2
+## [2.1.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v2.1.2) — Restore complete manual sync
+
+*Patch: direct window requests and file delivery. HuskyCT Helper goes from 2.2.1 to 2.2.2.*
 
 - Fix full manual sync silently dropping newly downloaded files when the destination is a cross-origin BHC window. Keep the size limit for the shared-storage bridge.
 - Full manual sync connects directly to a named HuskyCT tab instead of relying on a page-helper greeting to establish a working storage bridge. Missing replies no longer imply a sign-in failure.
