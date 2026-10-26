@@ -197,7 +197,7 @@ test("every state has words in both languages, and a result that arrived in part
   );
 });
 
-test("a helper that says it is here after the page's ask has timed out is used", async () => {
+test("a page helper hello cannot divert full sync into an unresponsive shared-storage bridge", async () => {
   const target = window as unknown as {
     open: (...args: unknown[]) => unknown;
     postMessage: (message: unknown, origin: string) => void;
@@ -206,26 +206,34 @@ test("a helper that says it is here after the page's ask has timed out is used",
   const realPost = target.postMessage;
   let opened = 0;
   const posted: unknown[] = [];
+  const direct = fakeTab();
+  Object.defineProperty(direct.tab, "location", { get() { throw new DOMException("Cross-origin window", "SecurityError"); } });
   target.open = () => {
     opened++;
-    return null;
+    return direct.tab;
   };
   target.postMessage = (message) => void posted.push(message);
   try {
     const view = await render({ schedule: noTimers });
-    // The page's own ask, which nobody answered, runs out.
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 1700));
-    });
-    // Then the helper starts: its hello arrives unasked.
+    // A page helper can announce itself even when its cross-tab bridge is broken.
     await act(async () => {
       window.dispatchEvent(new window.MessageEvent("message", { data: { protocol: "betterhuskyct/bridge@1", kind: "pong" }, origin: window.location.origin, source: window as never }));
     });
 
     await view.click(view.buttons()[0]);
 
-    assert.equal(opened, 0, "HuskyCT was opened in front, as if there were no helper");
-    assert.ok(posted.some((message) => JSON.stringify(message) === JSON.stringify({ protocol: "betterhuskyct/bridge@1", kind: "open" })), "the helper was not asked to open HuskyCT behind");
+    assert.equal(opened, 1);
+    assert.equal(posted.length, 0, "full sync must not depend on shared-storage forwarding");
+    assert.equal(direct.posted.length, 1);
+    await view.hear(direct.tab, say({ kind: "ack", state: "started" }));
+    await view.hear(direct.tab, say({ kind: "done", ok: true, courses: 6, announcements: 150, gradeItems: 79, skipped: [], sent: false, files: 0 }));
+    assert.ok(view.text().includes(t("en", "helpersync.partial")));
+    await view.click(view.buttons()[0]);
+    assert.equal(opened, 2);
+    await view.hear(direct.tab, say({ kind: "ack", state: "started" }));
+    await view.hear(direct.tab, say({ kind: "done", ok: true, courses: 6, announcements: 150, gradeItems: 79, skipped: [], sent: true, files: 1 }));
+    assert.ok(!view.text().includes(t("en", "helpersync.partial")));
+    assert.equal(view.buttons()[0].disabled, false);
     await view.unmount();
   } finally {
     target.open = realOpen;
