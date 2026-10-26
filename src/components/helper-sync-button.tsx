@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { LoaderCircle, RefreshCw } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
-import { helperMessage, isBridgeHello, openThroughBridge, pingBridge } from "@/lib/helper-bridge";
+import { helperMessage } from "@/lib/helper-bridge";
 import {
   createHelperSync,
   HUSKYCT_TAB_NAME,
@@ -49,18 +49,15 @@ function showHuskyct() {
  * Holds the one sync in progress for every Sync button on the page, and listens for what the helper
  * says about it. `deps` is for tests; the app uses the real window.
  *
- * When the helper runs on this page too (1.11.0 and later) the sync goes through its bridge: HuskyCT
- * opens behind this tab, or an open HuskyCT tab is used, and the student stays here. Otherwise
- * HuskyCT opens in front, as it did.
+ * Full sync uses a named HuskyCT window directly, including file delivery. A page-helper hello
+ * alone does not establish that its shared-storage bridge can reach another tab.
  */
 export function HelperSyncProvider({ children, deps }: { children: ReactNode; deps?: Partial<SyncDeps> }) {
   const [state, setState] = useState<HelperSyncState>({ phase: "idle" });
   const sync = useRef<ReturnType<typeof createHelperSync> | null>(null);
-  // Whether the helper on this page can reach HuskyCT behind it; found out once the page has loaded.
-  const [bridge] = useState(() => ({ found: false }));
   if (sync.current === null) {
     sync.current = createHelperSync({
-      open: deps?.open ?? (() => (bridge.found ? openThroughBridge(window) : openHuskyctTab())),
+      open: deps?.open ?? openHuskyctTab,
       schedule: deps?.schedule ?? ((run, ms) => {
         const id = window.setTimeout(run, ms);
         return () => window.clearTimeout(id);
@@ -79,24 +76,13 @@ export function HelperSyncProvider({ children, deps }: { children: ReactNode; de
 
   useEffect(() => {
     const listener = (event: MessageEvent) => {
-      // A helper that started after the ping says so itself.
-      if (isBridgeHello(event, window)) bridge.found = true;
       sync.current?.receive(helperMessage(event, window));
     };
     window.addEventListener("message", listener);
-    let live = true;
-    // Asked once, for a helper that was there before this page's own code ran. One that the
-    // userscript manager starts later announces itself, and the listener above hears it.
-    if (!deps?.open) {
-      void pingBridge(window).then((found) => {
-        if (live && found) bridge.found = true;
-      });
-    }
     return () => {
-      live = false;
       window.removeEventListener("message", listener);
     };
-  }, [deps?.open, bridge]);
+  }, []);
 
   const start = useCallback(() => sync.current?.start(), []);
   const value = useMemo(() => ({ state, start }), [state, start]);
