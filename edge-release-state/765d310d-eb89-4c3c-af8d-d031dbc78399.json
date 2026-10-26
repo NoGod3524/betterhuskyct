@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "productId": "765d310d-eb89-4c3c-af8d-d031dbc78399",
+  "releases": {
+    "2.2.2": {
+      "version": "2.2.2",
+      "sourceSha": "1415c245cbf8c368f5ffadc4780b00289094b1e1",
+      "zipSha256": "dab19cdaa75282d60e53b4be75f3815559cfab3c7697a9808c6146f1a904d8ad",
+      "phase": "ready",
+      "evidence": {
+        "state": "clear",
+        "version": "2.2.2",
+        "observedAt": "2026-10-26T17:15:33.9872897Z",
+        "reference": "https://partner.microsoft.com/zh-cn/dashboard/microsoftedge/765d310d-eb89-4c3c-af8d-d031dbc78399/packages/dashboard"
+      },
+      "clearedAt": "2026-10-26T17:15:33.9872897Z",
+      "updatedAt": "2026-10-26T17:24:33.599Z",
+      "runUrl": "https://github.com/NoGod3524/betterhuskyct/actions/runs/40366931348/attempts/1"
+    }
+  },
+  "activeVersion": "2.2.2"
+}
