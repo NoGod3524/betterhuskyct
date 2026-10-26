@@ -159,7 +159,9 @@ export function createHelperSync(deps: SyncDeps) {
       set({ phase: "failed", reason: "closed" });
       return;
     }
-    const background = tab.background === true;
+    // Cross-origin WindowProxy objects reject custom properties; only the local bridge has this flag.
+    let background = false;
+    try { background = tab.background === true; } catch { /* A real HuskyCT window. */ }
     if (deps.now() - startedAt > (background ? BACKGROUND_GIVE_UP_MS : GIVE_UP_AFTER_MS)) {
       set({ phase: "failed", reason: background ? "signin" : "noanswer" });
       return;

@@ -4,6 +4,7 @@ import { after, test } from "node:test";
 import { BACKGROUND_PROTOCOL, type BackgroundStatus } from "../src/lib/background-sync.ts";
 import { EDGE_ADDONS_URL, EXTENSION_INSTALL_URL } from "../src/lib/helper.ts";
 import { HUSKYCT_URL } from "../src/lib/helper-sync.ts";
+import { BRIDGE_CONTROL } from "../src/lib/helper-bridge.ts";
 import { LOCALE_STORAGE_KEY, t, type Locale } from "../src/lib/i18n.ts";
 import { installDom } from "./support/dom.ts";
 
@@ -21,7 +22,7 @@ const status = (fields: Partial<BackgroundStatus> = {}): BackgroundStatus => ({
   lastError: null, running: false, pending: 0, cachedAt: null, ...fields,
 });
 
-async function render(initial: unknown, { browser = "edge", locale = "en", refuse = false }: { browser?: "edge" | "chrome" | "mobile"; locale?: Locale; refuse?: boolean } = {}) {
+async function render(initial: unknown, { browser = "edge", locale = "en", refuse = false, pageHelper = false }: { browser?: "edge" | "chrome" | "mobile"; locale?: Locale; refuse?: boolean; pageHelper?: boolean } = {}) {
   window.localStorage.clear();
   window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
   Object.defineProperty(window.navigator, "userAgent", { configurable: true, value: browser === "mobile" ? "Mozilla/5.0 (iPhone; Mobile)" : `Mozilla/5.0 (Windows NT 10.0) Chrome/155.0${browser === "edge" ? " Edg/155.0" : ""}` });
@@ -34,6 +35,10 @@ async function render(initial: unknown, { browser = "edge", locale = "en", refus
   const unanswered: string[] = [];
   window.open = (() => { opened++; return null; }) as typeof window.open;
   window.postMessage = ((message: { protocol?: string; target?: string; kind?: string; requestId?: string }) => {
+    if (pageHelper && message.protocol === BRIDGE_CONTROL && message.kind === "ping") {
+      window.dispatchEvent(new window.MessageEvent("message", { origin: window.location.origin, source: window as never,
+        data: { protocol: BRIDGE_CONTROL, kind: "pong", version: "2.2.1" } }));
+    }
     if (message.protocol !== BACKGROUND_PROTOCOL || message.target !== "relay") return;
     requests.push(message.kind!);
     if (!available) { unanswered.push(message.requestId!); return; }
@@ -123,6 +128,20 @@ test("Chrome gets the downloadable extension and installation steps", async () =
   try {
     assert.ok(view.container.querySelector('a[href="/betterhuskyct-extension.zip"][download]'));
     assert.ok(view.container.querySelector(`a[href="${EXTENSION_INSTALL_URL}"]`));
+  } finally { await view.unmount(); }
+});
+
+test("a 2.2.1 page helper is distinguished from the background extension and can reconnect", async () => {
+  const view = await render(null, { pageHelper: true, locale: "zh-CN" });
+  try {
+    assert.ok(view.text().includes(t("zh-CN", "background.pageHelperOnly")));
+    assert.ok(!view.text().includes("需要 2.2.1"));
+    assert.equal(view.button().textContent, t("zh-CN", "background.reconnect"));
+    view.reconnect(status());
+    await view.click();
+    assert.ok(view.text().includes(t("zh-CN", "background.on")));
+    assert.ok(!view.text().includes(t("zh-CN", "background.pageHelperOnly")));
+    assert.ok(!view.requests.includes("run-now"), "reconnecting must not start a sync");
   } finally { await view.unmount(); }
 });
 
