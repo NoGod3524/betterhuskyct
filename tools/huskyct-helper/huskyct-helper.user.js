@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HuskyCT Helper
 // @namespace    https://github.com/NoGod3524/betterhuskyct
-// @version      2.2.1
+// @version      2.2.2
 // @description  Reads your HuskyCT deadlines, announcements, grades and course files through HuskyCT's own data, and sends them to BetterHuskyCT. Nothing leaves your browser.
 // @author       Yinuo (NoGod3524)
 // @homepageURL  https://github.com/NoGod3524/betterhuskyct
@@ -52,7 +52,7 @@
   // Shown in the panel header and in the PRODID of every file this writes, so
   // it has to agree with `@version` in the metadata block above — otherwise the
   // panel reports a version the browser never installed. A test enforces it.
-  const VERSION = "2.2.1";
+  const VERSION = "2.2.2";
   const PANEL_WIDTH = 340;
 
   // Only the packaged offscreen page can select this mode. A website cannot redirect the
@@ -1228,6 +1228,9 @@
     const origin = bhcOrigin();
     const post = (message) => target.postMessage(Object.assign({ protocol: MATERIALS_PROTOCOL }, message), origin);
     const result = { connected: false, sent: 0, skipped: 0, failed: 0, tooBig: 0 };
+    // Only the local storage bridge has a size cap. A real cross-origin Window rejects custom properties.
+    let maxBlobBytes = 0;
+    try { maxBlobBytes = target.maxBlobBytes || 0; } catch { /* Direct window delivery has no bridge cap. */ }
 
     // The app's page may still be loading: say hello until it answers.
     const ready = nextFromApp("ready", null, options.connectTimeout);
@@ -1263,7 +1266,7 @@
       try {
         const fetched = await fetchMaterial(file.key);
         // A file too big for the way it would go (the bridge's storage) waits for the panel's Sync now, which hands it over whole.
-        if (target.maxBlobBytes && fetched.blob.size > target.maxBlobBytes) {
+        if (maxBlobBytes && fetched.blob.size > maxBlobBytes) {
           result.tooBig++;
           continue;
         }

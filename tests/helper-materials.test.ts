@@ -265,6 +265,18 @@ function appTab(window: Window) {
 
 const SEND = { helloEvery: 20, connectTimeout: 1000, fileTimeout: 1000 };
 
+test("a cross-origin BHC window rejects custom properties but still receives every file", async () => {
+  const { window, helper } = openPage();
+  const manifest = await readMaterials(helper);
+  const app = appTab(window);
+  Object.defineProperty(app.target, "maxBlobBytes", { get() { throw new DOMException("Blocked a cross-origin frame", "SecurityError"); } });
+  const result = plain(await helper.sendMaterialsToBhc(app.target, manifest, SEND));
+  await app.flush();
+  assert.equal(result.failed, 0);
+  assert.equal(result.sent, manifest.courses.flatMap(course => course.files).length);
+  assert.equal((await app.store.files()).length, result.sent);
+});
+
 test("sent to BetterHuskyCT: every file stored there, then only what is new", async () => {
   const { window, helper, requests } = openPage();
   const manifest = await readMaterials(helper);
