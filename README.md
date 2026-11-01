@@ -16,8 +16,8 @@ BetterHuskyCT is a free, open-source student project, and these are the things i
 
 - **Free.** No price, no paid tier, no ads, no sign-up. Nothing in it will be put behind payment.
 - **Open source.** The code is [MIT-licensed](./LICENSE). A version released under it stays open for everyone to use, change and run, whatever happens to this project afterwards.
-- **Yours.** What you collect stays in your browser. The helper delivers to your BetterHuskyCT tab; optional background readings wait in the extension until the app receives them. **Back up and restore** exports the app's saved data, so there is no account to lose. It does not export the extension's pending cache or preferences.
-- **No tracking, no selling.** The app adds no analytics, advertising or tracking, and nothing it holds is sold or shared. The one time text leaves your browser is when you press **Summarize** or turn on the AI dates; the [privacy page](./PRIVACY.md) says what goes where.
+- **Yours.** Course data stays in your browser by default. Backups export the website's saved data. A separate, optional task-sharing feature publishes a minimal snapshot only when you explicitly consent and press Publish; publishing credentials are excluded from backups.
+- **No tracking, no selling.** No analytics, advertising or tracking. Text leaves the browser only for AI features you enable or a task snapshot you explicitly publish. See [privacy](./PRIVACY.md) and Task sharing below.
 
 What this does **not** promise, so it is not mistaken for more:
 
@@ -26,7 +26,7 @@ What this does **not** promise, so it is not mistaken for more:
 - One student maintains this in spare time. There is no support promise and no timetable.
 - The site's address is `betterhuskyct.vercel.app`. If it ever moves, [run your own copy](#getting-started), and download a backup first: browser storage belongs to an address, and **Back up and restore** brings it to the new one.
 
-It runs on free plans: the site on Vercel's free hosting, summaries on the free tiers of Z.ai, Google Gemini and Groq. If it ever cost real money, the AI summaries would be what scales back; everything else runs in your browser and costs nothing to serve. If donations are ever accepted, they will be optional and unlock nothing.
+It runs on free plans where available: Vercel hosting and third-party AI services. Optional task sharing also needs Redis storage; its availability and quota depend on the site owner's provider plan. Donations, if accepted, unlock nothing.
 
 Don't take this on trust: the extension's package is built from this repository by GitHub, and every release carries a checksum and a build attestation anyone can check. See [tools/extension/VERIFY.md](./tools/extension/VERIFY.md). Written October 2026; the history of this section is in git.
 
@@ -46,7 +46,7 @@ The same routes in Chinese: [`overview.zh.png`](./public/screenshots/overview.zh
 
 Students track deadlines across an LMS, a syllabus, and email. BetterHuskyCT turns what HuskyCT already shows you into a single rolling 7-day list, so "what's due next" is one glance instead of a scavenger hunt.
 
-It is deliberately small and privacy-first: no NetID, no password, no account, and nothing leaves your browser except what you ask an AI model to read.
+It is deliberately small: no NetID, password or account. Course data stays local unless you ask an AI model to read text or explicitly publish a task snapshot.
 
 BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkward case: it hands out **one feed per course**, and its assignment entries carry no course name. The browser helper reads it from your own signed-in session; see [Getting your deadlines in](#getting-your-deadlines-in).
 
@@ -89,7 +89,7 @@ The to-dos suggested from an announcement ("Possible to-dos in this announcement
 
 ## Architecture
 
-A static Next.js app that keeps its data in the browser. The server has three small routes and holds none of your data:
+A Next.js app with browser-local course data by default. Optional server routes provide:
 
 - `/api/announcements/summarize` and `/api/plan/extract` pass text you ask to be summarised or read to an AI service, and cache the answer by a hash of what was sent;
 - `/api/academic-calendar` reads UConn's public Registrar page about once a day.
@@ -118,7 +118,7 @@ For background checks, the extension runs the same API reader in an offscreen do
 | Completed task IDs | `localStorage`, in your browser only |
 | Language choice | `localStorage`, in your browser only |
 
-No NetID, no password, no account, no analytics. Calendar data stays in your browser; the only optional server-side database is the summary cache described above. The **Clear saved data** button wipes the saved calendars and the completion state together.
+No NetID, password, account or analytics. Course data stays local by default. Optional summary caching and explicitly published task snapshots use separate Redis storage. Clear saved data clears local calendars and completion state; revoke remote task shares separately before clearing site data.
 
 ## Tech stack
 
@@ -136,6 +136,10 @@ No NetID, no password, no account, no analytics. Calendar data stays in your bro
 ```text
 src/
 ├─ app/
+│  ├─ api/task-share/route.ts # Create an optional task snapshot
+│  ├─ api/task-share/[id]/route.ts # Authenticated update and revoke
+│  ├─ api/task-share/[id]/[token]/route.ts # Read-only snapshot
+│  ├─ api/mcp/tasks/[id]/[token]/route.ts # Read-only MCP transport
 │  ├─ api/academic-calendar/route.ts             # GET  UConn's academic calendar, read from the Registrar about once a day
 │  ├─ api/announcements/summarize/route.ts       # POST a course's announcements -> key points (hosted model, cached)
 │  ├─ api/plan/extract/route.ts                  # POST a syllabus or announcements -> dates and to-dos as JSON
@@ -153,6 +157,7 @@ src/
 │  ├─ changes/page.tsx                           # /changes       recent changes across courses
 │  ├─ globals.css, icon.tsx                      # Styles; the app icon
 ├─ components/
+│  ├─ task-sharing-section.tsx                   # Optional snapshot publishing controls
 │  ├─ calendar-provider.tsx                      # Every piece of app state, in the root layout
 │  ├─ app-shell.tsx                              # Sidebar, header, footer, theme and language toggles
 │  ├─ app-footer.tsx                             # Version footer
@@ -193,6 +198,10 @@ src/
 │  ├─ service-worker-registrar.tsx               # Registers the offline service worker (production only)
 │  ├─ use-academic-calendar.ts, use-announcement-state.ts, use-seen.ts# Hooks over the academic calendar, announcement state and what is new
 └─ lib/
+   ├─ task-snapshot.ts # Task snapshot validation, storage and read-only access
+   ├─ task-share-store.ts # Task snapshot validation, storage and read-only access
+   ├─ task-share-http.ts # Task snapshot validation, storage and read-only access
+   ├─ task-share-mcp.ts # Task snapshot validation, storage and read-only access
    ├─ calendar-types.ts                          # Shared types: a task, a group, deadline vs class
    ├─ calendar-task.ts                           # Whether a stored or synced value is shaped like a task
    ├─ calendar-view.ts                           # Grouping (Today / Tomorrow / This week) and formatting
@@ -337,7 +346,25 @@ Built by [Yinuo (NoGod3524)](https://github.com/NoGod3524), a UConn student.
 
 BetterHuskyCT is an independent student project. It is **not affiliated with, endorsed by, or supported by** the University of Connecticut, HuskyCT, or Blackboard Inc. "HuskyCT", "Blackboard" and "UConn" are named only to describe what the app reads.
 
-The helper reads HuskyCT through your own signed-in session and never sees or sends your password. The app stores no calendar or account data in a server-side database. An optional Upstash database holds summary cache entries for up to 6 hours.
+The helper uses your signed-in browser session without copying your password. Optional task sharing stores only the published task allowlist for seven days after each publication, or until you revoke it. It does not store the calendar feed, files, grades or account credentials.
+
+## Optional task sharing and read-only MCP
+
+Under **Back up and restore**, review the disclosure, check consent, and publish. The allowlist is titles, course labels, due dates, completion states, capture/latest-import times, time zone and duplicate counts. Classes, grades, notes, files, raw announcements, feed URLs and login credentials are excluded. Unconfirmed AI suggestions are excluded. Identical tasks merge; conflicting completion states become `null` for review. Limits: 500 tasks / 128 KiB; no silent truncation.
+
+Configure these **server-only** variables and redeploy. Missing configuration returns 503; there is no memory fallback:
+
+- `BHC_TASK_SHARING_ENABLED=true`
+- `BHC_TASK_REDIS_REST_URL`: a dedicated Upstash Redis REST HTTPS endpoint
+- `BHC_TASK_REDIS_REST_TOKEN`: that database's REST write credential
+
+Use a dedicated database and configure provider quotas/retention. Off by default; the summary cache is not reused. Each publication/update sets a seven-day TTL. Revoke atomically deletes the snapshot. A closed browser exposes only the last publication: new assignments require a HuskyCT sync and another Update. `sourceImportedAt` is the latest import, not a guarantee that every course was refreshed then.
+
+Creation has a shared limit of 100 new shares per UTC day per database. Existing shares can still be updated or revoked. Write requests also have a best-effort per-instance limit of 30 per minute; this is not a distributed per-user quota.
+
+Copy the MCP URL into an assistant supporting Streamable HTTP (no additional auth; the secret is in the URL). It negotiates 2025-11-25, 2025-06-18 or 2025-03-26 and exposes only `get_tasks`, without mutations. Trusted clients can GET the JSON URL. Copying does not connect the assistant automatically.
+
+**Possession of the read URL grants access** to the entire published snapshot. Share only with trusted assistants. Its random token may appear in hosting access logs; app code does not log it. Responses are no-store and provide no cross-origin script access. Read and write tokens differ; Redis stores only token hashes. Publishing credentials stay in the original browser and are excluded from backups. Clearing site data loses revocation access; the TTL still applies. Titles and course labels can themselves be sensitive: review them before publishing. Redis backups/log retention are separately controlled by the operator and provider.
 
 ## Author and license
 

@@ -107,6 +107,7 @@ export function TodoSection() {
           <h2 id="todo-heading" className="font-display mt-1 text-2xl font-semibold">
             {t(locale, "todo.heading")}
           </h2>
+          <Link href="/backup#task-sharing-heading" className="mt-2 inline-block text-xs underline underline-offset-2">{t(locale, "taskShare.link")}</Link>
           <p className="mt-2 text-sm font-semibold text-[var(--ink)]">
             {t(locale, "todo.summary", { open: todo.openCount, done: todo.done.length })}
           </p>

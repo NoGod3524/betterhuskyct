@@ -1,6 +1,6 @@
 # Privacy policy — BetterHuskyCT Helper
 
-*Last updated 2026-10-18.*
+*Last updated 2026-11-01.*
 
 BetterHuskyCT Helper is a browser extension for Chrome and Edge. It reads your own HuskyCT data in your own browser and hands it to BetterHuskyCT (`https://betterhuskyct.vercel.app`), the dashboard you use alongside it.
 
@@ -24,9 +24,15 @@ Clearing BetterHuskyCT's site data removes the website's copy. Removing the exte
 
 System notifications are also optional and start off. Enabling them requests the browser's notification permission. A notification preview can show course names and item titles on your device. The first background reading is a baseline and does not create notifications.
 
-This policy covers the extension. The BetterHuskyCT website is a separate program and is described in the project's README; in particular, its announcement features that use a language model send the text of announcements to the website's server, which passes it to a model provider to produce a summary or a list of suggested tasks. The extension does not do that, and nothing in the extension's data reaches the website's server except through those features.
+This policy covers the extension. The BetterHuskyCT website is a separate program and is described in the project's README; in particular, its announcement features that use a language model send the text of announcements to the website's server, which passes it to a model provider to produce a summary or a list of suggested tasks. The extension does not do that, and nothing in the extension's data reaches the website's server except through those features or the separate task-sharing option described below.
 
 ## Permissions
+
+## Optional website task sharing
+
+The website can publish a minimal task snapshot only after explicit consent and a Publish action. It sends task titles, course labels, due dates and completion states, with capture/latest-import times, time zone and duplicate counts, to the operator's dedicated Redis storage. No grades, notes, files, raw announcements, feed links or login credentials are included. Titles may still contain sensitive information.
+
+Anyone holding the secret read URL can view that snapshot through JSON or the read-only MCP tool. The URL token may appear in the hosting provider's access logs. Each update renews a seven-day TTL; Revoke deletes the live snapshot. Browser closure does not refresh it. Publishing credentials stay in the original browser, are excluded from backups, and are lost when site data is cleared. Clear local data does not revoke a remote share. Provider backups/log retention are controlled separately. See both READMEs for deployment configuration and limits.
 
 - `storage`, `unlimitedStorage`: to keep what it reads (including course files you ask for) on your device.
 - `scripting`: to run the helper in HuskyCT's and BetterHuskyCT's pages.
