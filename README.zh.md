@@ -16,8 +16,8 @@ BetterHuskyCT 是一个免费、开源的学生项目，它做出下面这些承
 
 - **免费。** 没有价格、没有付费版本、没有广告、不需要注册。任何功能都不会被放到付费墙后面。
 - **开源。** 代码采用 [MIT 许可证](./LICENSE)。按它发布过的版本，不论这个项目以后怎样，都永远对所有人开放：任何人都可以使用、修改和自己运行。
-- **数据是你的。** 你收集的内容只留在你的浏览器里。助手交给 BetterHuskyCT 标签页；可选的后台读取暂存在扩展中，等待应用接收。「备份与恢复」可导出应用已保存的数据，不包含扩展的待交付缓存和偏好设置，没有账号可丢。
-- **不追踪，不出售。** 应用本身没有统计、广告和追踪，它持有的任何内容都不会被出售或共享。文字只有在你按下**总结**、或打开 AI 找日期时才会离开浏览器，什么内容发给谁，见[隐私页](./PRIVACY.md)。
+- **数据是你的。** 课程数据默认留在浏览器。「备份与恢复」可导出网站数据。独立的可选待办分享功能，只有在你勾选同意并点击发布时才上传最少字段的快照；发布密钥不进入备份。
+- **不追踪，不出售。** 没有统计、广告或追踪。只有你启用的 AI 功能和主动发布的待办快照会发送相关文本。见[隐私说明](./PRIVACY.md)及下方待办分享说明。
 
 下面这些**不是**承诺，写出来免得被当成更多的东西：
 
@@ -26,7 +26,7 @@ BetterHuskyCT 是一个免费、开源的学生项目，它做出下面这些承
 - 这个项目由一个学生在业余时间维护，不承诺技术支持，也不承诺时间表。
 - 站点地址是 `betterhuskyct.vercel.app`。如果将来换地址，可以[自己运行一份](#本地运行)，并且先下载一份备份：浏览器的存储是跟着地址走的，用「备份与恢复」就能把数据带到新地址。
 
-它靠免费方案运行：站点用 Vercel 的免费托管，总结用 Z.ai、Google Gemini 和 Groq 的免费额度。万一真要花钱，收缩的会是 AI 总结；其他功能都在你的浏览器里运行，不花服务器的钱。如果以后接受捐助，也是自愿的，并且不会解锁任何东西。
+它尽量使用免费方案：Vercel 托管和第三方 AI 服务。可选待办分享还需 Redis 存储，可用性与额度取决于维护者的服务方案。若接受捐助，也不会解锁任何功能。
 
 别只听我说：扩展的安装包是由 GitHub 从这个仓库自动构建的，每个发布版本都带校验码和构建证明，任何人都能自己核对。见 [tools/extension/VERIFY.md](./tools/extension/VERIFY.md)。写于 2026 年 10 月，这一节的修改历史都在 git 里。
 
@@ -46,7 +46,7 @@ BetterHuskyCT 是一个免费、开源的学生项目，它做出下面这些承
 
 学生的 deadline 散落在教学平台、课程大纲和邮件里。BetterHuskyCT 把 HuskyCT 本来就摆在你面前的东西，变成一份滚动的未来 7 天任务清单——「接下来要交什么」一眼可见，不用到处翻。
 
-它刻意做得小而注重隐私：不需要 NetID、不需要密码、不需要注册账号，除了你主动让 AI 读的文字，什么都不会离开你的浏览器。
+它刻意做得小：不要 NetID、密码或账号。课程数据默认只在本地，除非你主动让 AI 读取文字或发布待办快照。
 
 BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好是最难搞的那一档：**一门课一条订阅**，而且作业条目完全不写课程名。浏览器助手在你自己已登录的会话里读取这些，见[怎么把 deadline 接进来](#怎么把-deadline-接进来)。
 
@@ -69,7 +69,7 @@ BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好�
 - **待办完成率** —— 整学期的完成情况，总体与各课程
 - **English / 简体中文** —— 一键切换语言，选择会被记住
 - **本地持久化** —— 再次同步，勾选状态会保留
-- **隐私优先设计** —— 不要 NetID、不要密码、不要账号。助手带来的一切只存在这个浏览器里
+- **隐私优先设计** —— 不要 NetID、不要密码、不要账号。助手带来的数据默认在本地；仅主动启用 AI 或发布待办快照时发送相应内容
 
 ## 怎么把 deadline 接进来
 
@@ -85,7 +85,7 @@ BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好�
 
 ## 架构
 
-一个把数据留在浏览器里的 Next.js 应用。服务端只有三个小接口，不存任何你的数据：
+Next.js 应用，课程数据默认保存在浏览器。可选服务端接口提供 AI、公用校历及明确同意后发布的待办快照。
 
 - `/api/announcements/summarize` 和 `/api/plan/extract`：把你要求总结或读取的文字交给 AI 服务，并按发送内容的哈希缓存答案；
 - `/api/academic-calendar`：大约每天读一次 UConn 教务处的公开页面。
@@ -130,6 +130,10 @@ BetterHuskyCT 是在 UConn 对着 HuskyCT（Blackboard）做的，而它恰好�
 ```text
 src/
 ├─ app/
+│  ├─ api/task-share/route.ts # Create an optional task snapshot
+│  ├─ api/task-share/[id]/route.ts # Authenticated update and revoke
+│  ├─ api/task-share/[id]/[token]/route.ts # Read-only snapshot
+│  ├─ api/mcp/tasks/[id]/[token]/route.ts # Read-only MCP transport
 │  ├─ api/academic-calendar/route.ts             # GET  UConn 校历，大约每天从教务处读一次
 │  ├─ api/announcements/summarize/route.ts       # POST 一门课的公告 -> 要点（托管模型，带缓存）
 │  ├─ api/plan/extract/route.ts                  # POST 大纲或公告 -> JSON 形式的日期和待办
@@ -147,6 +151,7 @@ src/
 │  ├─ changes/page.tsx                           # /changes       各门课程最近的变化
 │  ├─ globals.css, icon.tsx                      # 样式；应用图标
 ├─ components/
+│  ├─ task-sharing-section.tsx                   # Optional snapshot publishing controls
 │  ├─ calendar-provider.tsx                      # 整个应用的状态，放在根布局里
 │  ├─ app-shell.tsx                              # 侧栏、顶栏、页脚、主题和语言切换
 │  ├─ app-footer.tsx                             # 版本页脚
@@ -187,6 +192,10 @@ src/
 │  ├─ service-worker-registrar.tsx               # 注册离线 service worker（仅生产环境）
 │  ├─ use-academic-calendar.ts, use-announcement-state.ts, use-seen.ts# 校历、公告状态、「新」标记的 hooks
 └─ lib/
+   ├─ task-snapshot.ts # Task snapshot validation, storage and read-only access
+   ├─ task-share-store.ts # Task snapshot validation, storage and read-only access
+   ├─ task-share-http.ts # Task snapshot validation, storage and read-only access
+   ├─ task-share-mcp.ts # Task snapshot validation, storage and read-only access
    ├─ calendar-types.ts                          # 共用类型：任务、分组、deadline 与上课
    ├─ calendar-task.ts                           # 判断存储或同步来的值是不是任务
    ├─ calendar-view.ts                           # 分组（今天 / 明天 / 本周）和格式化
@@ -312,9 +321,27 @@ BetterHuskyCT 最初是一个自用工具。deadline 散落在 HuskyCT、课程�
 
 BetterHuskyCT 是独立的个人学生项目，**与康涅狄格大学、HuskyCT、Blackboard 官方没有任何隶属、背书或支持关系**。文中提到这些名字，只是为了说明这个工具读取的是什么。
 
-助手通过你自己已登录的会话读取 HuskyCT，不会看到也不会发送你的密码。本应用不在服务端数据库存储日历或账号数据；可选的 Upstash 数据库只保存最多 6 小时的总结缓存。
+课程数据默认在本地。可选的总结缓存和主动发布的待办快照使用独立 Redis 存储。清除本地数据前，请先撤销远程待办分享。
 
 ## 作者与许可证
+
+## 可选：待办分享与只读 MCP
+
+在「备份与恢复」下方勾选同意，然后发布快照。只上传标题、课程标签、截止时间和完成状态，以及采集时间、最近导入时间、时区和重复条数。课堂安排、成绩、备注、课件、公告原文、订阅地址和登录信息不会上传；未确认的 AI 建议不会上传。相同任务合并，完成状态冲突时为 `null`，需核对。最多 500 条、128 KiB，不会静默截断。
+
+维护者需设置以下**仅服务端**环境变量，再重新部署；缺少配置时返回 503，不会退回不可靠的内存存储：
+
+- `BHC_TASK_SHARING_ENABLED=true`
+- `BHC_TASK_REDIS_REST_URL`：专用 Upstash Redis REST HTTPS 地址
+- `BHC_TASK_REDIS_REST_TOKEN`：该数据库的 REST 写入凭据
+
+请用专用数据库，按提供方控制台的额度与保留策略配置。默认关闭，不复用总结缓存。七天 TTL 从每次发布/更新起算，点击撤销会原子删除快照。浏览器关闭后只能读取最后发布的版本，新作业仍需重新同步 HuskyCT 并点击更新。输出中的 `sourceImportedAt` 是最近一次导入时间，不代表每门课都在该时刻刷新。
+
+每个数据库每天（UTC）最多新建 100 个分享，已有分享仍可更新或撤销。写请求另有每实例每分钟 30 次的尽力限制，不是跨实例的用户配额。
+
+复制的 MCP 地址可配置到支持 Streamable HTTP 的助手（无额外认证；秘密已包含在地址中）。实现协商 2025-11-25、2025-06-18 或 2025-03-26，只提供 `get_tasks`，不能修改任务。JSON 地址可由受信任的客户端 GET。创建连接本身不会自动发生，需在助手中添加该地址。
+
+**读取地址即权限。** 持有者可读取整份已发布快照，应只分享给信任的助手。地址里的随机令牌可能出现在托管商的访问日志；本站不主动记录它，响应不缓存且不允许跨域脚本读取。读写令牌分离，Redis 只存令牌哈希。发布密钥只保存在原浏览器，不进入备份；清除网站数据会失去撤销能力，快照仍按 TTL 失效。标题与课程名称也是可能敏感的内容，发布前请检查。Redis 的备份/日志保留另由维护者和提供方管理。
 
 BetterHuskyCT 和 HuskyCT 助手由 **Yinuo**（[@NoGod3524](https://github.com/NoGod3524)）制作。源码以 [MIT](./LICENSE) 许可证开放，© 2026 Yinuo：可以使用、修改、分享，但请保留这份版权声明。
 

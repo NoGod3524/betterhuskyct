@@ -34,7 +34,7 @@ Node 24. The extension is built from `tools/` into `public/betterhuskyct-extensi
 
 ## What the project will not take
 
-Anything that sends a student's data to a server, adds analytics, advertising or tracking, or puts a feature behind payment. These are in [the promise](./README.md#the-promise) and not up for trade.
+Anything that sends a student's data without explicit opt-in, adds analytics, advertising or tracking, or puts a feature behind payment. The documented AI text processing and default-off minimal task snapshot sharing are the only server-data exceptions. These are in [the promise](./README.md#the-promise) and not up for trade.
 
 ## Conduct
 

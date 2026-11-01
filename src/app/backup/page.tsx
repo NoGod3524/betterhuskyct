@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { BackupSection } from "@/components/backup-section";
+import { TaskSharingSection } from "@/components/task-sharing-section";
 import packageJson from "../../../package.json";
 
 export const metadata: Metadata = {
@@ -9,5 +10,5 @@ export const metadata: Metadata = {
 };
 
 export default function BackupPage() {
-  return <BackupSection version={packageJson.version} />;
+  return <><BackupSection version={packageJson.version} /><TaskSharingSection /></>;
 }
