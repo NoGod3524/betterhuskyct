@@ -348,8 +348,6 @@ BetterHuskyCT is an independent student project. It is **not affiliated with, en
 
 The helper uses your signed-in browser session without copying your password. Optional task sharing stores only the published task allowlist for seven days after each publication, or until you revoke it. It does not store the calendar feed, files, grades or account credentials.
 
-## Author and license
-
 ## Optional task sharing and read-only MCP
 
 Under **Back up and restore**, review the disclosure, check consent, and publish. The allowlist is titles, course labels, due dates, completion states, capture/latest-import times, time zone and duplicate counts. Classes, grades, notes, files, raw announcements, feed URLs and login credentials are excluded. Unconfirmed AI suggestions are excluded. Identical tasks merge; conflicting completion states become `null` for review. Limits: 500 tasks / 128 KiB; no silent truncation.
@@ -367,6 +365,8 @@ Creation has a shared limit of 100 new shares per UTC day per database. Existing
 Copy the MCP URL into an assistant supporting Streamable HTTP (no additional auth; the secret is in the URL). It negotiates 2025-11-25, 2025-06-18 or 2025-03-26 and exposes only `get_tasks`, without mutations. Trusted clients can GET the JSON URL. Copying does not connect the assistant automatically.
 
 **Possession of the read URL grants access** to the entire published snapshot. Share only with trusted assistants. Its random token may appear in hosting access logs; app code does not log it. Responses are no-store and provide no cross-origin script access. Read and write tokens differ; Redis stores only token hashes. Publishing credentials stay in the original browser and are excluded from backups. Clearing site data loses revocation access; the TTL still applies. Titles and course labels can themselves be sensitive: review them before publishing. Redis backups/log retention are separately controlled by the operator and provider.
+
+## Author and license
 
 BetterHuskyCT and HuskyCT Helper are made by **Yinuo** ([@NoGod3524](https://github.com/NoGod3524)). The source is open under the [MIT](./LICENSE) licence, © 2026 Yinuo: use it, change it, share it, and keep that notice with it.
 
