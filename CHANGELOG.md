@@ -14,6 +14,18 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [3.3.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.3.0) — A smaller core
+
+*Minor: a change to the architecture, with nothing new on screen. HuskyCT Helper stays at 2.2.2.*
+
+### Removed
+
+- **The `#sync=` link.** Nothing has made one since the helper began delivering straight to the page, so the banner that offered one and the code that read it are gone. ([#263])
+
+### Changed
+
+- The app's central state is split into the parts it was already made of: the course list, hand edits to the calendar, what is done, and reminders. Nothing changes in use. ([#263])
+
 ## [3.2.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.2.0) — Every setting on one page
 
 *Minor: the extension's settings, the course list and clearing data join the Settings page. HuskyCT Helper stays at 2.2.2.*
@@ -2228,3 +2240,4 @@ saying what to work on next.*
 [#257]: https://github.com/NoGod3524/betterhuskyct/pull/257
 [#259]: https://github.com/NoGod3524/betterhuskyct/pull/259
 [#261]: https://github.com/NoGod3524/betterhuskyct/pull/261
+[#263]: https://github.com/NoGod3524/betterhuskyct/pull/263
