@@ -14,6 +14,14 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [3.3.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.3.1) — Security updates
+
+*Patch: Next.js and zod move past published advisories. HuskyCT Helper stays at 2.2.2.*
+
+### Fixed
+
+- Next.js 16.4.6 and zod 4.6.7, past [GHSA-2464-fhr4-w9xw](https://github.com/advisories/GHSA-2464-fhr4-w9xw), [GHSA-673q-mjm6-r5xr](https://github.com/advisories/GHSA-673q-mjm6-r5xr), [GHSA-p3m5-59mp-jv5r](https://github.com/advisories/GHSA-p3m5-59mp-jv5r) and [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5). None could be reached on this site: it optimises no SVG images, has no `use cache` function and no Server Actions, and its API routes cap what they parse. ([#265])
+
 ## [3.3.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.3.0) — A smaller core
 
 *Minor: a change to the architecture, with nothing new on screen. HuskyCT Helper stays at 2.2.2.*
@@ -2241,3 +2249,4 @@ saying what to work on next.*
 [#259]: https://github.com/NoGod3524/betterhuskyct/pull/259
 [#261]: https://github.com/NoGod3524/betterhuskyct/pull/261
 [#263]: https://github.com/NoGod3524/betterhuskyct/pull/263
+[#265]: https://github.com/NoGod3524/betterhuskyct/pull/265
