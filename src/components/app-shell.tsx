@@ -11,7 +11,6 @@ import { MobileNav } from "@/components/mobile-nav";
 import { NAV_SECTIONS, sectionFor } from "@/components/nav-items";
 import { SearchPalette } from "@/components/search-palette";
 import { SubNav } from "@/components/sub-nav";
-import { SyncBanner } from "@/components/sync-banner";
 import { SyncCenter } from "@/components/sync-center";
 import { useCalendar } from "@/components/calendar-provider";
 import { useChanges } from "@/components/use-changes";
@@ -102,7 +101,6 @@ export function AppShell({
 
           <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col">
             <SubNav pathname={pathname} locale={locale} badges={{ "/changes": newChanges, "/announcements": pathname === "/announcements" ? 0 : newAnnouncements }} />
-            <SyncBanner />
             <AppNotice />
             {/* Keyed by the route, so each page arrives with its own fade. */}
             <div key={pathname} className="page-enter flex-1">

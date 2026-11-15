@@ -5,7 +5,8 @@ import { computeAnnouncementId, type Announcement } from "../src/lib/announcemen
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { formatDate } from "../src/lib/format-date.ts";
 import { t } from "../src/lib/i18n.ts";
-import { buildSyncPayload, encodeSyncPayload } from "../src/lib/sync.ts";
+import { buildSyncPayload } from "../src/lib/sync.ts";
+import { deliverSync } from "./support/deliver.ts";
 import { installDom } from "./support/dom.ts";
 
 /**
@@ -83,13 +84,9 @@ async function mount(page: "announcements" | "todo" = "announcements") {
     },
     /** A sync that brings these announcements, as the helper's link does. */
     sync: async (list: Announcement[]) => {
-      const packed = await encodeSyncPayload(buildSyncPayload({ feeds: [], completedIds: [], courses: EMPTY_COURSE_BOOK, announcements: list }));
-      await act(async () => {
-        window.location.hash = `#sync=${packed}`;
-        window.dispatchEvent(new window.Event("hashchange"));
-      });
+      const incoming = (buildSyncPayload({ feeds: [], completedIds: [], courses: EMPTY_COURSE_BOOK, announcements: list }));
+      await act(async () => void (await deliverSync(window, incoming)));
       await settle(50);
-      await act(async () => latest!.applyPendingSync());
       await settle(50);
     },
     /** Opens every collapsed to-do panel, as the student does with the chevron. */

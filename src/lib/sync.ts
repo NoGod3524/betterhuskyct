@@ -4,7 +4,7 @@ import {
   parseAnnouncementCandidates,
   type Announcement,
 } from "./announcements.ts";
-import { isDeadline, type CalendarTask } from "./calendar-types.ts";
+import type { CalendarTask } from "./calendar-types.ts";
 import { isCalendarTask } from "./calendar-task.ts";
 import { doneMapFrom, type DoneReason } from "./task-status.ts";
 import {
@@ -15,35 +15,16 @@ import {
 import { isRecord } from "./is-record.ts";
 
 /**
- * Moving a set-up dashboard from one device to another without a server.
+ * What one sync carries: the calendar, the ticks, the courses, the announcements.
  *
- * The whole payload — the calendar, the ticks, the courses —
- * fits in about 1,800 characters once gzipped, so it can ride in the *fragment*
- * of a URL. Browsers never send a fragment to the server, which is what keeps
- * this honest: the data goes from one of the user's devices to another and
- * nowhere else. Nothing is stored, nothing is uploaded, and nothing expires —
- * there is no room to expire from.
+ * The helper posts it to the app, and the extension hands over what its background runs read, in
+ * this one shape. It is untrusted input from another origin either way, so the reader below is
+ * strict: a payload that does not match is dropped whole rather than half-applied.
  *
- * The feed URL is deliberately not part of the payload. It is a password, and a
- * link that gets pasted into a chat client is not a place for one. The events
- * come across instead, so the second device needs no import at all.
+ * The feed URL is deliberately not part of the payload. It is a password; the events come across
+ * instead, so no device needs it.
  */
 export const SYNC_VERSION = 1;
-export const SYNC_FRAGMENT = "#sync=";
-
-/** A guard against a hostile link: this should never be anywhere near it. */
-const MAX_PACKED_LENGTH = 32_768;
-
-/**
- * The same guard, after decompression.
- *
- * The packed limit alone does not bound what a link expands to: gzip can reach
- * about 1000:1 on repetitive input, so 32 KB of link could become tens of
- * megabytes of JSON parsed on the main thread of whoever opened it. A real
- * worst case — 400 announcements at their full body length plus a term of
- * deadlines — is well under half a megabyte.
- */
-export const MAX_UNPACKED_BYTES = 2 * 1024 * 1024;
 
 export type SyncFeed = {
   name: string | null;
@@ -205,122 +186,4 @@ export function serialiseSyncPayload(payload: SyncPayload): string {
     reopened: payload.reopened,
     courseColors: payload.courseColors,
   });
-}
-
-function toBase64Url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-// The buffer is spelled out because `Blob` only accepts a view over a plain
-// `ArrayBuffer`, not the `ArrayBufferLike` a bare `new Uint8Array()` widens to.
-function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
-  const binary = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-async function through(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-/**
- * gzip, not deflate-raw: it is the one format every browser implements.
- *
- * `pipeThrough` rather than a hand-written writer, so a stream that errors —
- * which is what a corrupted link looks like — rejects the promise we are already
- * awaiting instead of leaving a rejection nobody handles.
- */
-export async function packSync(text: string): Promise<string> {
-  const stream = new Blob([new TextEncoder().encode(text)])
-    .stream()
-    .pipeThrough(new CompressionStream("gzip"));
-
-  return toBase64Url(await through(stream));
-}
-
-/** Reads a stream to the end, or throws as soon as it passes `limit` bytes. */
-async function throughAtMost(
-  stream: ReadableStream<Uint8Array>,
-  limit: number,
-): Promise<Uint8Array> {
-  const reader = stream.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > limit) {
-      // Stop decompressing now, not after the whole bomb has been expanded.
-      await reader.cancel();
-      throw new Error("The sync link expands past its size limit.");
-    }
-    chunks.push(value);
-  }
-
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return bytes;
-}
-
-export async function unpackSync(
-  packed: string,
-  limit: number = MAX_UNPACKED_BYTES,
-): Promise<string> {
-  const stream = new Blob([fromBase64Url(packed)])
-    .stream()
-    .pipeThrough(new DecompressionStream("gzip"));
-
-  return new TextDecoder().decode(await throughAtMost(stream, limit));
-}
-
-export async function encodeSyncPayload(payload: SyncPayload): Promise<string> {
-  return packSync(serialiseSyncPayload(payload));
-}
-
-export async function decodeSyncPayload(packed: string): Promise<SyncPayload | null> {
-  if (!packed || packed.length > MAX_PACKED_LENGTH) return null;
-  try {
-    return parseSyncPayload(await unpackSync(packed));
-  } catch {
-    // A truncated or corrupted link is a normal thing to be handed, not a crash.
-    return null;
-  }
-}
-
-export function readSyncFragment(hash: string): string | null {
-  if (!hash.startsWith(SYNC_FRAGMENT)) return null;
-  const packed = hash.slice(SYNC_FRAGMENT.length);
-  return packed.length > 0 && packed.length <= MAX_PACKED_LENGTH ? packed : null;
-}
-
-/** A short description of what a payload would bring over, for the prompt. */
-export function describeSync(payload: SyncPayload): {
-  feeds: number;
-  events: number;
-  deadlines: number;
-  completed: number;
-  courses: number;
-  announcements: number;
-} {
-  const events = payload.feeds.flatMap((feed) => feed.events);
-  return {
-    feeds: payload.feeds.length,
-    events: events.length,
-    deadlines: events.filter(isDeadline).length,
-    completed: payload.completedIds.length,
-    courses: payload.courses.courses.length,
-    announcements: payload.announcements.length,
-  };
 }

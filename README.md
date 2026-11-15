@@ -156,7 +156,12 @@ src/
 │  ├─ courses/[slug]/page.tsx                    # /courses/cse-2050  one course, its tab in ?tab=
 │  ├─ globals.css, icon.tsx                      # Styles; the app icon
 ├─ components/
-│  ├─ calendar-provider.tsx                      # Every piece of app state, in the root layout
+│  ├─ calendar-provider.tsx                      # App state in the root layout: feeds, announcements, applying a sync
+│  ├─ use-course-book.ts                         # The courses the student named, and which task is whose
+│  ├─ use-event-edits.ts                         # Hand corrections, own events, and moved-deadline notices
+│  ├─ use-task-status.ts                         # What is done: ticks, HuskyCT's gradebook, reopened tasks
+│  ├─ use-reminders.ts                           # The page's own nudge about work due soon
+│  ├─ use-course-catalogue.ts                    # Fetches the course catalogue when a task needs it
 │  ├─ app-shell.tsx                              # Sidebar, header with Sync and search, section tabs, footer
 │  ├─ sub-nav.tsx                                # The current section's pages, as tabs at its top
 │  ├─ use-theme.ts                               # The theme choice, kept in step with storage
@@ -178,7 +183,6 @@ src/
 │  ├─ background-deliveries.tsx                  # Validates and saves leased extension deliveries before acknowledging
 │  ├─ background-sync-button.tsx               # Compact update check, installation fallback and session status
 │  ├─ sync-status-view.tsx                       # Last-sync status and collapsible per-course reading details
-│  ├─ sync-banner.tsx                            # The banner for an incoming #sync= link
 │  ├─ sync-center.tsx                            # The header's Sync button and panel: the only place to sync
 │  ├─ app-notice.tsx                             # What the last action said, at the top of every page
 │  ├─ connect-section.tsx                        # Connected calendars, course list, how to connect
@@ -217,6 +221,7 @@ src/
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# Due-soon detection; the add form; search; what is new
    ├─ course-key.ts                              # A course's one name across sources, its address and tabs
    ├─ export.ts                                  # CSV export
+   ├─ download.ts                                # Hands the browser a file to save
    ├─ sync-status.ts                             # What each sync read, course by course, and when each part was last read
    ├─ background-sync.ts                         # Bounded extension messages, snapshots and request/reply bridge
    ├─ ics.ts                                     # Open deadlines as an .ics file, with reminders, for a calendar app
@@ -232,7 +237,7 @@ src/
    ├─ syllabus.ts                                # Finding a course's syllabus among the files and reading its text
    ├─ grades.ts, grades-store.ts, grades-export.ts# Grades: the helper's messages, totals, merging; storage; export
    ├─ helper.ts, helper-bridge.ts, helper-sync.ts, tasks-sync.ts# Where to get the helper; its bridge; the Sync button's protocol; deadlines and announcements delivered tab to tab
-   ├─ sync.ts, sync-merge.ts, sync-apply.ts      # The #sync= payload: pack, check, merge what is already here
+   ├─ sync.ts, sync-merge.ts, sync-apply.ts      # The sync payload: check it, merge it with what is here
    ├─ moved-deadlines.ts                         # A deadline the teacher moved: ticks, notes and course choices follow it, and a notice says so
    ├─ academic-calendar.ts                       # UConn's academic calendar from the Registrar's page
    ├─ content-hash.ts, is-record.ts              # A short text fingerprint; "is this a plain object"

@@ -8,8 +8,9 @@ import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { t } from "../src/lib/i18n.ts";
 import { type MaterialsStore } from "../src/lib/materials.ts";
 import type { PlanRequest } from "../src/lib/plan-models.ts";
-import { buildSyncPayload, encodeSyncPayload } from "../src/lib/sync.ts";
+import { buildSyncPayload } from "../src/lib/sync.ts";
 import { UNDATED_TODOS_KEY } from "../src/lib/undated-todos.ts";
+import { deliverSync } from "./support/deliver.ts";
 import { installDom } from "./support/dom.ts";
 import { makePdf } from "./support/pdf.ts";
 import { memoryMaterialsStore } from "./support/memory-stores.ts";
@@ -111,15 +112,11 @@ async function mount(options: { store?: MaterialsStore; answer?: Answer; announc
   await settle();
 
   if (options.announcements) {
-    const packed = await encodeSyncPayload(
-      buildSyncPayload({ feeds: [], completedIds: [], courses: EMPTY_COURSE_BOOK, announcements: options.announcements }),
+    const incoming = (
+      buildSyncPayload({ feeds: [], completedIds: [], courses: EMPTY_COURSE_BOOK, announcements: options.announcements })
     );
-    await act(async () => {
-      window.location.hash = `#sync=${packed}`;
-      window.dispatchEvent(new window.Event("hashchange"));
-    });
+    await act(async () => void (await deliverSync(window, incoming)));
     await settle(50);
-    await act(async () => latest!.applyPendingSync());
     await settle(50);
   }
 
@@ -257,13 +254,9 @@ test("an announcement whose text is edited, with the same id, is read again and 
 
   // The same announcement, nothing changed: not sent again.
   const sync = async (body: string) => {
-    const packed = await encodeSyncPayload(buildSyncPayload({ feeds: [], completedIds: [], courses: EMPTY_COURSE_BOOK, announcements: [announcement(body)] }));
-    await act(async () => {
-      window.location.hash = `#sync=${packed}`;
-      window.dispatchEvent(new window.Event("hashchange"));
-    });
+    const incoming = (buildSyncPayload({ feeds: [], completedIds: [], courses: EMPTY_COURSE_BOOK, announcements: [announcement(body)] }));
+    await act(async () => void (await deliverSync(window, incoming)));
     await settle(50);
-    await act(async () => view.calendar.applyPendingSync());
     // The provider lets announcements settle for a second before it reads.
     await settle(250);
   };

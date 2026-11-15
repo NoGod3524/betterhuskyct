@@ -150,7 +150,12 @@ src/
 │  ├─ courses/[slug]/page.tsx                    # /courses/cse-2050  单门课，标签在 ?tab=
 │  ├─ globals.css, icon.tsx                      # 样式；应用图标
 ├─ components/
-│  ├─ calendar-provider.tsx                      # 整个应用的状态，放在根布局里
+│  ├─ calendar-provider.tsx                      # 根布局里的应用状态：订阅、公告、应用一次同步
+│  ├─ use-course-book.ts                         # 学生命名的课程，以及每个任务属于哪门课
+│  ├─ use-event-edits.ts                         # 手动修正、自己添加的事项、截止日期改动提示
+│  ├─ use-task-status.ts                         # 哪些已完成：勾选、HuskyCT 成绩册、重新打开的任务
+│  ├─ use-reminders.ts                           # 网页自己的截止提醒
+│  ├─ use-course-catalogue.ts                    # 有任务需要时才下载课程目录
 │  ├─ app-shell.tsx                              # 侧栏、带同步和搜索的顶栏、分区标签、页脚
 │  ├─ sub-nav.tsx                                # 当前分区的各页，作为顶部标签
 │  ├─ use-theme.ts                               # 主题选择，与存储保持同步
@@ -172,7 +177,6 @@ src/
 │  ├─ background-deliveries.tsx                  # 校验并保存扩展租用交付，成功后确认
 │  ├─ background-sync-button.tsx               # 紧凑的更新检查、安装入口和登录状态
 │  ├─ sync-status-view.tsx                       # 同步状态与可折叠的各课程读取详情
-│  ├─ sync-banner.tsx                            # 收到 #sync= 链接时的提示条
 │  ├─ sync-center.tsx                            # 顶栏的同步按钮和面板：唯一的同步入口
 │  ├─ app-notice.tsx                             # 上一个操作的结果，显示在每个页面顶部
 │  ├─ connect-section.tsx                        # 已连接的日历、课程列表、怎么连接
@@ -211,6 +215,7 @@ src/
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# 快到期检测；添加表单；搜索；「新」标记
    ├─ course-key.ts                              # 课程在各数据源里的统一名字、网址和标签
    ├─ export.ts                                  # CSV 导出
+   ├─ download.ts                                # 让浏览器保存一个文件
    ├─ sync-status.ts                             # 每次同步每门课读到了什么，以及各部分最后一次读到的时间
    ├─ background-sync.ts                         # 有大小限制的扩展消息、快照和请求回复桥接
    ├─ ics.ts                                     # 把未完成的截止项导出成带提醒的 .ics 日历文件
@@ -226,7 +231,7 @@ src/
    ├─ syllabus.ts                                # 在文件里找课程大纲并读出文字
    ├─ grades.ts, grades-store.ts, grades-export.ts# 成绩：助手的消息、合计、合并；存储；导出
    ├─ helper.ts, helper-bridge.ts, helper-sync.ts, tasks-sync.ts# 去哪儿拿助手；助手的桥；同步按钮的协议；标签页之间送达的 deadline 和公告
-   ├─ sync.ts, sync-merge.ts, sync-apply.ts      # #sync= 载荷：打包、校验、与已有的合并
+   ├─ sync.ts, sync-merge.ts, sync-apply.ts      # 同步载荷：校验、与已有的合并
    ├─ moved-deadlines.ts                         # 老师改期的截止项：勾选、备注和课程选择跟着走，并给出提示
    ├─ academic-calendar.ts                       # 来自教务处页面的 UConn 校历
    ├─ content-hash.ts, is-record.ts              # 文字短指纹；「是不是普通对象」

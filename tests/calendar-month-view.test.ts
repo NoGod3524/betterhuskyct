@@ -3,7 +3,8 @@ import { after, afterEach, beforeEach, test } from "node:test";
 
 import { t } from "../src/lib/i18n.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
-import { buildSyncPayload, encodeSyncPayload } from "../src/lib/sync.ts";
+import { buildSyncPayload } from "../src/lib/sync.ts";
+import { deliverSync } from "./support/deliver.ts";
 import { installDom } from "./support/dom.ts";
 
 /**
@@ -53,7 +54,6 @@ const refuse = async (): Promise<Response> => {
 
 async function render(fetchAcademic: (input: string) => Promise<Response> = refuse) {
   window.localStorage.clear();
-  window.location.hash = "";
   // happy-dom has no native dialog; "Undo every change" asks before it acts,
   // and a test confirming it is a test that means yes.
   (window as unknown as { confirm: () => boolean }).confirm = () => true;
@@ -127,8 +127,8 @@ async function render(fetchAcademic: (input: string) => Promise<Response> = refu
   };
 }
 
-async function importOneTask(view: Awaited<ReturnType<typeof render>>) {
-  const packed = await encodeSyncPayload(
+async function importOneTask() {
+  const incoming = (
     buildSyncPayload({
       feeds: [
         {
@@ -152,16 +152,12 @@ async function importOneTask(view: Awaited<ReturnType<typeof render>>) {
       ],
       completedIds: [],
       courses: EMPTY_COURSE_BOOK,
-    }),
+    })
   );
-  await act(async () => {
-    window.location.hash = `#sync=${packed}`;
-    window.dispatchEvent(new window.Event("hashchange"));
-  });
+  await act(async () => void (await deliverSync(window, incoming)));
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 60));
   });
-  await act(async () => view.calendar.applyPendingSync());
 }
 
 test("the grid shows the month the provider opened on, with a cell per weekday", async () => {
@@ -248,7 +244,7 @@ test("editing a custom event's title changes the pill, and deleting removes it",
 
 test("editing an imported event corrects it, and restoring brings back HuskyCT's own wording", async () => {
   const view = await render();
-  await importOneTask(view);
+  await importOneTask();
   assert.ok(view.text().includes("Section 4.1 Homework"));
 
   await view.clickPill("Section 4.1 Homework");
@@ -267,7 +263,7 @@ test("editing an imported event corrects it, and restoring brings back HuskyCT's
 for (const action of ["calendar.delete", "calendar.restoreOriginal", "calendar.restoreAll"] as const) {
   test(`${action} keeps the event unchanged and shows a failed-save error`, async () => {
     const view = await render();
-    await importOneTask(view);
+    await importOneTask();
     await view.clickPill("Section 4.1 Homework");
     await view.setValue(view.field(t("en", "calendar.fieldTitle"))!, "My correction");
     await view.clickButton(t("en", "calendar.save"));
@@ -303,7 +299,7 @@ test("editing an all-day imported event shows its own day and keeps it, in any z
     for (const zone of ["America/New_York", "Pacific/Auckland", "UTC"]) {
       process.env.TZ = zone;
       const view = await render();
-      const packed = await encodeSyncPayload(
+      const incoming = (
         buildSyncPayload({
           feeds: [
             {
@@ -315,16 +311,12 @@ test("editing an all-day imported event shows its own day and keeps it, in any z
           ],
           completedIds: [],
           courses: EMPTY_COURSE_BOOK,
-        }),
+        })
       );
-      await act(async () => {
-        window.location.hash = `#sync=${packed}`;
-        window.dispatchEvent(new window.Event("hashchange"));
-      });
+      await act(async () => void (await deliverSync(window, incoming)));
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 60));
       });
-      await act(async () => view.calendar.applyPendingSync());
 
       await view.clickPill("Reading week");
       assert.equal(view.field(t("en", "calendar.fieldDate"))!.value, "2026-09-18", zone + ": the editor shows another day");
@@ -350,7 +342,7 @@ test("editing an all-day imported event shows its own day and keeps it, in any z
 
 test("deleting an imported event hides it without touching HuskyCT's copy, and Undo brings it back", async () => {
   const view = await render();
-  await importOneTask(view);
+  await importOneTask();
 
   await view.clickPill("Section 4.1 Homework");
   await view.clickButton(t("en", "calendar.delete"));

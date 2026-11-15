@@ -10,7 +10,7 @@ import { VERSIONS_KEY } from "../src/lib/announcement-versions.ts";
 import { MAX_CUSTOM_EVENTS, buildCustomEvent, saveCustomEvents } from "../src/lib/custom-events.ts";
 import { EVENT_OVERLAY_STORAGE_KEY, restoreEventOverlay, saveEventOverlay } from "../src/lib/event-overlay.ts";
 import { SUBSCRIPTIONS_STORAGE_KEY, type Subscription } from "../src/lib/subscriptions.ts";
-import { buildSyncPayload, encodeSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
+import { buildSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
 import { TASKS_PROTOCOL } from "../src/lib/tasks-sync.ts";
 import { t } from "../src/lib/i18n.ts";
 import {
@@ -19,6 +19,7 @@ import {
   COMPLETION_STORAGE_KEY_IMPORTED,
 } from "../src/lib/completion-storage.ts";
 import { REOPENED_STORAGE_KEY, SYNCED_DONE_STORAGE_KEY } from "../src/lib/task-status.ts";
+import { deliverSync } from "./support/deliver.ts";
 import { installDom } from "./support/dom.ts";
 
 /**
@@ -49,7 +50,6 @@ after(() => dom.uninstall());
 
 beforeEach(() => {
   window.localStorage.clear();
-  window.location.hash = "";
   globalThis.Date = RealDate;
   globalThis.fetch = realFetch;
   window.setInterval = realSetInterval;
@@ -141,7 +141,7 @@ test("the demo names its own courses, so the 62 KB course catalogue is never fet
 
 test("an imported class meeting with no course gets its code once the catalogue arrives", async () => {
   const start = new RealDate(RealDate.now() + 2 * 86_400_000).toISOString();
-  const packed = await encodeSyncPayload(
+  const incoming = (
     buildSyncPayload({
       feeds: [
         {
@@ -165,15 +165,11 @@ test("an imported class meeting with no course gets its code once the catalogue 
       ],
       completedIds: [],
       courses: EMPTY_COURSE_BOOK,
-    }),
+    })
   );
   const app = await mount();
-  await act(async () => {
-    window.location.hash = `#sync=${packed}`;
-    window.dispatchEvent(new window.Event("hashchange"));
-  });
+  await act(async () => void (await deliverSync(window, incoming)));
   await settle(50);
-  await act(async () => app.calendar.applyPendingSync());
   await settle(200);
 
   assert.equal(app.calendar.isImported, true);
@@ -224,7 +220,7 @@ test("unmounting stops the clock", async () => {
 
 test("accepting a sync link while the demo is showing saves no demo tick", async () => {
   const start = new RealDate(RealDate.now() + 2 * 86_400_000).toISOString();
-  const packed = await encodeSyncPayload(
+  const incoming = (
     buildSyncPayload({
       feeds: [
         {
@@ -248,21 +244,16 @@ test("accepting a sync link while the demo is showing saves no demo tick", async
       ],
       completedIds: [],
       courses: EMPTY_COURSE_BOOK,
-    }),
+    })
   );
 
   const app = await mount();
   assert.equal(app.calendar.isImported, false, "a fresh device should be showing the demo");
   await act(async () => app.calendar.toggleTaskCompletion("demo-cse-problem-set"));
 
-  await act(async () => {
-    window.location.hash = `#sync=${packed}`;
-    window.dispatchEvent(new window.Event("hashchange"));
-  });
+  await act(async () => void (await deliverSync(window, incoming)));
   await settle(50);
-  assert.ok(app.calendar.pendingSync, "the link was not offered");
 
-  await act(async () => app.calendar.applyPendingSync());
 
   const saved = JSON.parse(window.localStorage.getItem("huskypilot.completedTasks.imported.v1") ?? "{}");
   assert.deepEqual(saved.completedIds, [], "a demo tick was saved as a real one");
@@ -272,8 +263,8 @@ test("accepting a sync link while the demo is showing saves no demo tick", async
 
 // --- the calendar page's own corrections and additions ----------------------------
 
-async function importOneTask(app: Awaited<ReturnType<typeof mount>>) {
-  const packed = await encodeSyncPayload(
+async function importOneTask() {
+  const incoming = (
     buildSyncPayload({
       feeds: [
         {
@@ -297,20 +288,16 @@ async function importOneTask(app: Awaited<ReturnType<typeof mount>>) {
       ],
       completedIds: [],
       courses: EMPTY_COURSE_BOOK,
-    }),
+    })
   );
-  await act(async () => {
-    window.location.hash = `#sync=${packed}`;
-    window.dispatchEvent(new window.Event("hashchange"));
-  });
+  await act(async () => void (await deliverSync(window, incoming)));
   await settle(50);
-  await act(async () => app.calendar.applyPendingSync());
   return "a:2026-09-18T23:59:00.000Z";
 }
 
 test("a correction to an imported event shows up in tasks, and only there", async () => {
   const app = await mount();
-  const id = await importOneTask(app);
+  const id = await importOneTask();
 
   await act(async () => app.calendar.editEvent(id, { title: "Renamed by hand" }));
 
@@ -322,7 +309,7 @@ test("a correction to an imported event shows up in tasks, and only there", asyn
 
 test("deleting an imported event hides it; restoring brings back the original, edit included", async () => {
   const app = await mount();
-  const id = await importOneTask(app);
+  const id = await importOneTask();
   await act(async () => app.calendar.editEvent(id, { title: "Renamed by hand" }));
 
   await act(async () => app.calendar.deleteEvent(id));
@@ -337,7 +324,7 @@ test("deleting an imported event hides it; restoring brings back the original, e
 
 test("restoring all events clears every correction and deletion at once", async () => {
   const app = await mount();
-  const id = await importOneTask(app);
+  const id = await importOneTask();
   await act(async () => {
     app.calendar.editEvent(id, { title: "Renamed by hand" });
   });
@@ -351,7 +338,7 @@ test("restoring all events clears every correction and deletion at once", async 
 
 test("a note on an imported event survives a page reload, by itself", async () => {
   const app = await mount();
-  const id = await importOneTask(app);
+  const id = await importOneTask();
   await act(async () => app.calendar.editEvent(id, { note: "bring a calculator" }));
 
   assert.equal(app.calendar.eventNoteFor(id), "bring a calculator");
@@ -389,7 +376,7 @@ test("editing, hiding and restoring in a stale tab preserve other saved correcti
 test("another tab's corrections, hiding and clearing appear without reloading", async () => {
   const app = await mount();
   try {
-    const id = await importOneTask(app);
+    const id = await importOneTask();
     const key = EVENT_OVERLAY_STORAGE_KEY;
     saveEventOverlay(window.localStorage, { edits: { [id]: { title: "Corrected elsewhere", note: "Bring notes" } }, deletedIds: [] });
     await storageChanged(key);
@@ -477,7 +464,6 @@ test("a sync payload the helper posts is applied straight away, with no banner t
   });
 
   assert.deepEqual(replies, [{ protocol: TASKS_PROTOCOL, kind: "stored", ok: true }]);
-  assert.equal(app.calendar.pendingSync, null, "a direct delivery should never wait on a banner");
   assert.equal(app.calendar.isImported, true);
   assert.equal(app.calendar.tasks[0]?.title, "Section 4.1 Homework");
   assert.ok(app.calendar.notice?.includes("Delivered from the helper"));
@@ -595,7 +581,7 @@ const addOwn = async (app: Awaited<ReturnType<typeof mount>>) => {
 
 test("a task the student added and ticked is still ticked after a reload, with a calendar imported", async () => {
   const app = await mount();
-  await importOneTask(app);
+  await importOneTask();
   const own = await addOwn(app);
   await act(async () => app.calendar.toggleTaskCompletion(own));
   assert.equal(app.calendar.doneIds.has(own), true);
@@ -614,7 +600,7 @@ test("a tick on the student's own task survives the first import, and unticking 
   await act(async () => app.calendar.toggleTaskCompletion(own));
   assert.equal(app.calendar.doneIds.has(own), true);
 
-  await importOneTask(app);
+  await importOneTask();
   assert.equal(app.calendar.doneIds.has(own), true, "the import took the tick away");
   await app.unmount();
 
@@ -631,7 +617,7 @@ test("a tick on the student's own task survives the first import, and unticking 
 
 test("a tick on an imported task and one on the student's own task are kept apart, and each stays", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
   const own = await addOwn(app);
   await act(async () => app.calendar.toggleTaskCompletion(imported));
   await act(async () => app.calendar.toggleTaskCompletion(own));
@@ -679,7 +665,7 @@ test("ticking in a stale tab preserves the tick another tab moved to a new deadl
 
 test("ticks changed in another tab appear here, including unticks and custom events", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
   const own = await addOwn(app);
 
   storeTicks(COMPLETION_STORAGE_KEY_IMPORTED, [imported]);
@@ -704,7 +690,7 @@ test("ticks changed in another tab appear here, including unticks and custom eve
 
 test("ticking before another tab's storage event arrives preserves its ticks and source separation", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
   const own = await addOwn(app);
   const demo = "demo-cse-problem-set";
   storeTicks(COMPLETION_STORAGE_KEY_DEMO, [demo]);
@@ -722,7 +708,7 @@ test("ticking before another tab's storage event arrives preserves its ticks and
 
 test("another tab's HuskyCT status and reopenings are reflected and toggled from the latest saved choice", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
 
   window.localStorage.setItem(SYNCED_DONE_STORAGE_KEY, JSON.stringify({ [imported]: "graded" }));
   await storageChanged(SYNCED_DONE_STORAGE_KEY);
@@ -746,7 +732,7 @@ test("another tab's HuskyCT status and reopenings are reflected and toggled from
 
 test("a helper sync preserves another tab's latest completion choices and keeps custom ticks separate", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
   const own = await addOwn(app);
   await act(async () => app.calendar.toggleTaskCompletion(own));
 
@@ -795,7 +781,7 @@ function refuseStorageWrite(key: string) {
 
 test("failed event saves leave the visible calendar unchanged and report the failure", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
   for (const key of ["huskypilot.customEvents.v1", "huskypilot.eventOverlay.v1"]) {
     const restore = refuseStorageWrite(key);
     try {
@@ -890,41 +876,6 @@ test("a failed helper sync rolls every changed key back and never publishes a pa
       assert.equal(app.calendar.doneIds.size, 0, key);
       assert.ok(app.calendar.error?.includes("could not be saved"), key);
     } finally { restore(); await app.unmount(); }
-  }
-});
-
-test("an older sync decode cannot reopen an offer after a newer link was cleared", async () => {
-  const app = await mount();
-  const packed = await encodeSyncPayload(buildSyncPayload({ feeds: [savedFeed()], completedIds: [], courses: EMPTY_COURSE_BOOK }));
-  const NativeDecompressionStream = globalThis.DecompressionStream;
-  const gates: Array<() => void> = [];
-  globalThis.DecompressionStream = class {
-    readable: ReadableStream<Uint8Array>;
-    writable: WritableStream<BufferSource>;
-    constructor(format: CompressionFormat) {
-      let release!: () => void;
-      const gate = new Promise<void>((resolve) => { release = resolve; });
-      gates.push(release);
-      const delayed = new TransformStream<BufferSource, BufferSource>({ async transform(chunk, controller) { await gate; controller.enqueue(chunk); } });
-      this.writable = delayed.writable;
-      this.readable = delayed.readable.pipeThrough(new NativeDecompressionStream(format));
-    }
-  } as typeof DecompressionStream;
-  try {
-    await act(async () => {
-      window.location.hash = `#sync=${packed}`;
-      window.dispatchEvent(new window.Event("hashchange"));
-    });
-    assert.ok(gates.length > 0);
-    await act(async () => app.calendar.clearSavedData());
-    await act(async () => { gates.forEach((release) => release()); });
-    await settle(50);
-    assert.equal(app.calendar.pendingSync, null);
-    assert.equal(window.location.hash, "");
-  } finally {
-    gates.forEach((release) => release());
-    globalThis.DecompressionStream = NativeDecompressionStream;
-    await app.unmount();
   }
 });
 
