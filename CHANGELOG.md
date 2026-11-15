@@ -14,6 +14,21 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [3.0.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.0.0) — Four sections: Today, To-do, Courses, Settings
+
+*Major: the app is reorganised around four places, and its first page becomes Today. HuskyCT Helper stays at 2.2.2.*
+
+### Changed
+
+- **Four sections instead of seven pages.** The sidebar and the phone's bottom bar hold Today, To-do, Courses and Settings; the pages inside each are tabs at its top (To-do: list and calendar; Courses: announcements, materials and grades; Settings: settings, backup, privacy and about). The phone's More sheet is gone. ([#257])
+- **Today replaces the dashboard.** New changes since you last looked, then what is due from overdue to the end of the week, in one column. Before the first sync it gives three steps to get started and labels the example deadlines. The greeting, the "due in 24 hours" banner and the three-column board, which repeated the same counts, are gone. ([#257])
+- **A Settings page** holds language, theme, due reminders and a way into sync; the header keeps only Sync and search. ([#257])
+- **To-do** gets the Add, Export CSV and Add to calendar app buttons; its "at a glance" counts fold away by default. ([#257])
+
+### Fixed
+
+- One new announcement no longer raises two badges: it is counted on the Announcements tab only. ([#257])
+
 ## [2.2.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v2.2.0) — One Sync button on every page
 
 *Minor: one place to sync, and the iCal-era leftovers cleared away. HuskyCT Helper stays at 2.2.2.*
@@ -2183,3 +2198,4 @@ saying what to work on next.*
 [#246]: https://github.com/NoGod3524/betterhuskyct/pull/246
 [#248]: https://github.com/NoGod3524/betterhuskyct/pull/248
 [#255]: https://github.com/NoGod3524/betterhuskyct/pull/255
+[#257]: https://github.com/NoGod3524/betterhuskyct/pull/257
