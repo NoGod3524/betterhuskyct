@@ -135,7 +135,7 @@ src/
 │  ├─ api/plan/extract/route.ts                  # POST 大纲或公告 -> JSON 形式的日期和待办
 │  ├─ layout.tsx                                 # 元数据、主题设置、提供者、常驻外壳
 │  ├─ manifest.ts                                # Web App manifest（可安装的 PWA）
-│  ├─ page.tsx                                   # /              未读变化与滚动任务清单
+│  ├─ page.tsx                                   # /              今天：新变化，然后是本周要交的
 │  ├─ tasks/page.tsx                             # /tasks         待办列表
 │  ├─ calendar/page.tsx                          # /calendar      月视图和已连接的日历
 │  ├─ announcements/page.tsx                     # /announcements 课程公告
@@ -145,15 +145,19 @@ src/
 │  ├─ backup/page.tsx                            # /backup        把全部数据存成一个文件，再读回来
 │  ├─ about/page.tsx                             # /about         项目承诺什么、不承诺什么，以及去哪里核对
 │  ├─ changes/page.tsx                           # /changes       各门课程最近的变化
+│  ├─ settings/page.tsx                          # /settings      语言、外观、提醒、同步
 │  ├─ globals.css, icon.tsx                      # 样式；应用图标
 ├─ components/
 │  ├─ calendar-provider.tsx                      # 整个应用的状态，放在根布局里
-│  ├─ app-shell.tsx                              # 侧栏、顶栏、页脚、主题和语言切换
+│  ├─ app-shell.tsx                              # 侧栏、带同步和搜索的顶栏、分区标签、页脚
+│  ├─ sub-nav.tsx                                # 当前分区的各页，作为顶部标签
+│  ├─ use-theme.ts                               # 主题选择，与存储保持同步
+│  ├─ settings-section.tsx                       # 设置：语言、外观、截止提醒、同步
 │  ├─ app-footer.tsx                             # 版本页脚
-│  ├─ nav-items.ts                               # 所有页面，以及手机底栏显示哪些
-│  ├─ mobile-nav.tsx                             # 手机底栏和「更多」面板
+│  ├─ nav-items.ts                               # 四个分区和各自的页面
+│  ├─ mobile-nav.tsx                             # 手机底栏的四个分区
 │  ├─ search-palette.tsx                         # Ctrl+K，搜索任务、公告、文件和成绩
-│  ├─ hero-section.tsx                           # 总览顶部、状态行、大号同步按钮
+│  ├─ today-section.tsx                          # 今天：首次使用步骤、新变化、要交的
 │  ├─ helper-sync-button.tsx                     # 同步按钮：打开 HuskyCT 并跟随助手的进度
 │  ├─ privacy-section.tsx                         # 助手的隐私政策，商店页面会链接到它
 │  ├─ backup-section.tsx                         # 下载备份；读入备份，合并或替换
@@ -167,7 +171,6 @@ src/
 │  ├─ sync-center.tsx                            # 顶栏的同步按钮和面板：唯一的同步入口
 │  ├─ app-notice.tsx                             # 上一个操作的结果，显示在每个页面顶部
 │  ├─ connect-section.tsx                        # 已连接的日历、课程列表、怎么连接
-│  ├─ tasks-section.tsx                          # 总览的 今天 / 明天 / 本周 看板
 │  ├─ todo-section.tsx                           # 待办列表：未完成的按时间，已完成的另放
 │  ├─ task-card.tsx                              # 一条任务：徽标、时间、教室、课程选择
 │  ├─ course-picker.tsx                          # 单条任务的课程覆盖

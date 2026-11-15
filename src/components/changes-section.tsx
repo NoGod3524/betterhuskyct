@@ -66,29 +66,37 @@ export function ChangesSection({ preview = false }: { preview?: boolean }) {
   }
 
   return (
-    <section className="mt-10" aria-labelledby="changes-heading">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="eyebrow">{t(locale, "changes.eyebrow")}</p>
-          <Heading id="changes-heading" className="font-display mt-1 text-2xl font-semibold">{t(locale, preview ? "changes.previewTitle" : "changes.title")}</Heading>
-          <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">{t(locale, "changes.description")}</p>
-          {!preview ? <p className="mt-1 text-xs text-[var(--muted)]">{t(locale, "changes.retention", { count: MAX_CHANGES, days: CHANGES_RETENTION_DAYS })}</p> : null}
-        </div>
+    <section className="mt-8" aria-labelledby="changes-heading">
+      <div className={`flex flex-wrap justify-between gap-4 ${preview ? "items-baseline" : "items-end"}`}>
+        {preview ? (
+          <Heading id="changes-heading" className="text-base font-semibold">
+            {t(locale, "changes.previewTitle")}
+            {ready && unread > 0 ? <span className="ml-2 rounded-md bg-[var(--subtle)] px-1.5 py-0.5 text-xs font-medium tabular-nums text-[var(--muted)]">{unread}</span> : null}
+          </Heading>
+        ) : (
+          <div>
+            <Heading id="changes-heading" className="font-display text-2xl font-semibold">{t(locale, "changes.title")}</Heading>
+            <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">{t(locale, "changes.description")}</p>
+            <p className="mt-1 text-xs text-[var(--muted)]">{t(locale, "changes.retention", { count: MAX_CHANGES, days: CHANGES_RETENTION_DAYS })}</p>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
-          {preview ? <Link href="/changes" className="tap-link text-sm font-semibold text-[var(--link)] hover:underline">{t(locale, "changes.viewAll")}{ready && unread > 0 ? ` (${unread})` : ""}</Link> : null}
+          {preview ? <Link href="/changes" className="tap-link text-sm font-semibold text-[var(--link)] hover:underline">{t(locale, "changes.viewAll")}</Link> : null}
           {ready && unread > 0 ? <button type="button" onClick={() => markRead()} className="btn btn-quiet">{t(locale, "changes.markAllRead")}</button> : null}
         </div>
       </div>
 
       {unavailable || saveFailed ? <p role="alert" className="mt-4 text-sm text-[var(--danger)]">{t(locale, unavailable ? "changes.unavailable" : "errors.saveFailed")}</p> : null}
 
-      {!ready ? <ListSkeleton label={t(locale, "common.loading")} /> : (preview ? unread === 0 : store.entries.length === 0) && !unavailable ? (
+      {!ready ? <ListSkeleton label={t(locale, "common.loading")} /> : preview && unread === 0 && !unavailable ? (
+        <p className="mt-2 text-sm text-[var(--muted)]">{t(locale, store.entries.length > 0 ? "changes.allRead" : "changes.previewEmpty")}</p>
+      ) : store.entries.length === 0 && !unavailable ? (
         <div className="mt-4 rounded-xl border border-dashed border-[var(--line-strong)] p-6">
-          <p className="text-sm font-semibold">{t(locale, preview && store.entries.length > 0 ? "changes.allRead" : "changes.emptyTitle")}</p>
-          <p className="mt-1 text-sm text-[var(--muted)]">{t(locale, preview && store.entries.length > 0 ? "changes.allReadBody" : "changes.emptyBody")}</p>
+          <p className="text-sm font-semibold">{t(locale, "changes.emptyTitle")}</p>
+          <p className="mt-1 text-sm text-[var(--muted)]">{t(locale, "changes.emptyBody")}</p>
         </div>
       ) : (
-        <div className="mt-6 space-y-6">
+        <div className={preview ? "mt-3 space-y-4" : "mt-6 space-y-6"}>
           {groups.map((entries) => (
             <section key={new Date(entries[0].at).toDateString()}>
               <DayHeading className="mb-2 text-sm font-semibold">{dayFormat.format(new Date(entries[0].at))}</DayHeading>

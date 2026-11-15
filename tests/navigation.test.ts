@@ -8,16 +8,16 @@ import { t } from "../src/lib/i18n.ts";
 import { installDom } from "./support/dom.ts";
 
 /**
- * Below 1024 px the sidebar is hidden, and it was the only navigation there was:
- * on a phone the site had no way to reach any page but the one opened. The
- * bottom bar is the way, so these keep it true — every page can be reached from
- * it — and check the bar itself as it is used.
+ * The app has four sections — Today, To-do, Courses, Settings — shown in the sidebar on a wide
+ * screen and in a bar along the bottom of a phone. Every page belongs to exactly one section and
+ * is a tab at the top of it, so every page can be reached from either navigation.
  */
 const dom = installDom();
 const { createElement, act } = await import("react");
 const { createRoot } = await import("react-dom/client");
 const { MobileNav } = await import("../src/components/mobile-nav.tsx");
-const { MORE_NAV, NAV_ITEMS, PRIMARY_NAV } = await import("../src/components/nav-items.ts");
+const { NAV_SECTIONS, sectionFor } = await import("../src/components/nav-items.ts");
+const { SubNav } = await import("../src/components/sub-nav.tsx");
 
 const { window } = dom;
 after(() => dom.uninstall());
@@ -34,172 +34,96 @@ function pageRoutes(): string[] {
   return routes;
 }
 
-/** Informational and data-management pages stay available in the shared footer. */
-const LINKED_FROM = { "/privacy": "components/app-footer.tsx", "/backup": "components/app-footer.tsx", "/about": "components/app-footer.tsx" } as const;
+const ALL_PAGES = NAV_SECTIONS.flatMap((section) => section.pages.map((page) => page.href));
 
 test("the retired helper page redirects to the dashboard and is absent from navigation", async () => {
   const { default: config } = await import("../next.config.ts");
   assert.deepEqual(await config.redirects?.(), [{ source: "/helper", destination: "/", permanent: true }]);
-  assert.ok(!NAV_ITEMS.some(item => item.href === "/helper"));
+  assert.ok(!ALL_PAGES.includes("/helper"));
   assert.ok(!existsSync(join(APP, "helper/page.tsx")));
 });
 
-test("every page can be reached from the navigation, and nothing in it goes nowhere", () => {
+test("every page belongs to exactly one section, and nothing in the navigation goes nowhere", () => {
   const routes = pageRoutes();
-  assert.ok(routes.length >= 7, "found too few pages: " + routes.join(", "));
-  const listed = NAV_ITEMS.map((item) => item.href);
-  for (const route of routes) {
-    const from = LINKED_FROM[route as keyof typeof LINKED_FROM];
-    if (from) {
-      assert.match(readFileSync(new URL(`../src/${from}`, import.meta.url), "utf8"), new RegExp(`href="${route}"`), `${route} is not linked from ${from}`);
-    } else {
-      assert.ok(listed.includes(route), `${route} is a page no navigation links to`);
-    }
-  }
-  for (const href of listed) assert.ok(routes.includes(href), `${href} is in the navigation but is not a page`);
-  assert.equal(new Set(listed).size, listed.length, "a page is listed twice");
+  assert.ok(routes.length >= 11, "found too few pages: " + routes.join(", "));
+  for (const route of routes) assert.ok(ALL_PAGES.includes(route), `${route} is a page no section holds`);
+  for (const href of ALL_PAGES) assert.ok(routes.includes(href), `${href} is in the navigation but is not a page`);
+  assert.equal(new Set(ALL_PAGES).size, ALL_PAGES.length, "a page is in two sections");
+  assert.equal(NAV_SECTIONS.length, 4);
+  for (const section of NAV_SECTIONS) assert.equal(section.pages[0].href, section.href, `${section.href} does not open on its first tab`);
 });
 
-test("the bottom bar and its More sheet between them hold every page exactly once", () => {
-  const all = [...PRIMARY_NAV, ...MORE_NAV].map((item) => item.href);
-  assert.deepEqual(all, NAV_ITEMS.map((item) => item.href));
-  // Four slots and More make five equal columns.
-  assert.equal(PRIMARY_NAV.length, 4);
-  assert.ok(MORE_NAV.length > 0);
+test("a route finds its section; an unknown one finds none", () => {
+  assert.equal(sectionFor("/calendar")?.href, "/tasks");
+  assert.equal(sectionFor("/grades")?.href, "/announcements");
+  assert.equal(sectionFor("/backup")?.href, "/settings");
+  assert.equal(sectionFor("/changes")?.href, "/");
+  assert.equal(sectionFor("/nowhere"), null);
 });
 
 test("the sidebar is not the phone's only navigation: the bar is mounted by the shell and shown below it", () => {
   const shell = readFileSync(new URL("../src/components/app-shell.tsx", import.meta.url), "utf8");
   assert.match(shell, /<MobileNav\b/, "the shell does not mount the bottom bar");
+  assert.match(shell, /<SubNav\b/, "the shell does not mount the section tabs");
   assert.match(shell, /<aside className="[^"]*\bhidden\b[^"]*lg:flex/, "the sidebar changed; check the bar still covers what it hides");
   const bar = readFileSync(new URL("../src/components/mobile-nav.tsx", import.meta.url), "utf8");
   assert.match(bar, /fixed inset-x-0 bottom-0[^"]*lg:hidden/, "the bar is not hidden on wide screens, where the sidebar is");
 });
 
-// --- the bar, as it is used ---------------------------------------------------------------
-
-async function mountBar(pathname: string) {
+async function mount(element: (path: string, locale: "en" | "zh-CN", count: number) => unknown, pathname: string) {
   const container = window.document.createElement("div");
   window.document.body.appendChild(container);
   const root = createRoot(container as unknown as Element);
-  const show = (path: string, locale: "en" | "zh-CN" = "en", unreadChanges = 0) =>
-    act(async () => root.render(createElement(MobileNav, { pathname: path, locale, unreadChanges })));
+  const show = (path: string, locale: "en" | "zh-CN" = "en", count = 0) =>
+    act(async () => root.render(element(path, locale, count) as never));
   await show(pathname);
-  const q = (selector: string) => container.querySelector(selector) as unknown as HTMLElement | null;
   return {
     show,
-    container,
-    q,
+    q: (selector: string) => container.querySelector(selector) as unknown as HTMLElement | null,
     text: () => container.textContent ?? "",
     links: () => [...container.querySelectorAll("a")].map((a) => a.getAttribute("href")),
-    more: () => [...container.querySelectorAll("button")].find((b) => (b.textContent ?? "").includes(t("en", "nav.more"))) as unknown as HTMLButtonElement,
-    click: (el: unknown) => act(async () => (el as HTMLElement).click()),
-    key: (key: string, options: Record<string, unknown> = {}) =>
-      act(async () => {
-        window.document.dispatchEvent(new window.KeyboardEvent("keydown", { key, bubbles: true, ...options }));
-      }),
     unmount: () => act(async () => root.unmount()),
   };
 }
 
-test("the bar shows the four main pages and a More, with the current page marked", async () => {
-  const bar = await mountBar("/tasks");
+const bar = (pathname: string) =>
+  mount((path, locale, unreadChanges) => createElement(MobileNav, { pathname: path, locale, unreadChanges }), pathname);
+const tabs = (pathname: string) =>
+  mount((path, locale, count) => createElement(SubNav, { pathname: path, locale, badges: { "/changes": count } }), pathname);
 
-  assert.deepEqual(bar.links(), ["/", "/changes", "/tasks", "/calendar"]);
-  assert.ok(bar.more(), "no More button");
-  assert.equal(bar.q('a[href="/tasks"]')!.getAttribute("aria-current"), "page");
-  assert.equal(bar.q('a[href="/calendar"]')!.getAttribute("aria-current"), null);
-  assert.equal(bar.q("nav")!.getAttribute("aria-label"), t("en", "nav.main"));
-  assert.equal(bar.q("[role=dialog]"), null, "the sheet was open from the start");
-  await bar.unmount();
+test("the bar shows the four sections, with the current one marked on any of its pages", async () => {
+  const view = await bar("/calendar");
+  assert.deepEqual(view.links(), ["/", "/tasks", "/announcements", "/settings"]);
+  assert.equal(view.q('a[href="/tasks"]')!.getAttribute("aria-current"), "true");
+  assert.equal(view.q('a[href="/"]')!.getAttribute("aria-current"), null);
+  await view.show("/tasks");
+  assert.equal(view.q('a[href="/tasks"]')!.getAttribute("aria-current"), "page");
+  await view.show("/grades");
+  assert.ok(view.q('a[href="/announcements"]')!.className.includes("mobile-tab-active"));
+  assert.equal(view.q("nav")!.getAttribute("aria-label"), t("en", "nav.main"));
+  await view.unmount();
 });
 
-test("More opens a sheet of the other pages, and picking one closes it by changing the route", async () => {
-  const bar = await mountBar("/");
-
-  await bar.click(bar.more());
-  const dialog = bar.q("[role=dialog]");
-  assert.ok(dialog, "More did not open the sheet");
-  assert.equal(dialog.getAttribute("aria-modal"), "true");
-  assert.equal(bar.more().getAttribute("aria-expanded"), "true");
-  const inSheet = [...dialog.querySelectorAll("a")].map((a) => a.getAttribute("href"));
-  assert.deepEqual(inSheet, MORE_NAV.map((item) => item.href));
-  assert.ok(bar.text().includes(t("en", "nav.grades")));
-
-  // Following a link changes the route; the sheet was open on the old one.
-  await bar.show("/grades");
-  assert.equal(bar.q("[role=dialog]"), null, "the sheet stayed open after the route changed");
-  assert.equal(bar.more().getAttribute("aria-expanded"), "false");
-  await bar.unmount();
+test("unread changes show on Today, in both languages", async () => {
+  const view = await bar("/");
+  assert.equal(view.q('[aria-label="3 unread changes"]'), null);
+  await view.show("/", "en", 3);
+  assert.ok(view.q('a[href="/"] [aria-label="3 unread changes"]'));
+  await view.show("/", "zh-CN", 0);
+  assert.ok(view.text().includes(t("zh-CN", "nav.today")));
+  assert.ok(view.text().includes(t("zh-CN", "nav.courses")));
+  await view.unmount();
 });
 
-test("on a page behind More, the More button is the one marked current", async () => {
-  const bar = await mountBar("/materials");
-
-  assert.ok(bar.more().className.includes("mobile-tab-active"));
-  await bar.click(bar.more());
-  assert.equal(bar.q('[role=dialog] a[href="/materials"]')!.getAttribute("aria-current"), "page");
-  await bar.unmount();
-});
-
-test("Escape closes the sheet and puts focus back on More", async () => {
-  const bar = await mountBar("/");
-  await bar.click(bar.more());
-  assert.ok(bar.q("[role=dialog]"));
-  assert.ok(window.document.body.style.overflow === "hidden", "the page behind still scrolls");
-
-  await bar.key("Escape");
-
-  assert.equal(bar.q("[role=dialog]"), null);
-  assert.equal(window.document.body.style.overflow, "", "the page stayed locked after the sheet closed");
-  assert.equal(window.document.activeElement, bar.more());
-  await bar.unmount();
-});
-
-test("the backdrop closes the sheet", async () => {
-  const bar = await mountBar("/");
-  await bar.click(bar.more());
-
-  await bar.click(bar.q(`button[aria-label="${t("en", "nav.close")}"]`));
-
-  assert.equal(bar.q("[role=dialog]"), null);
-  await bar.unmount();
-});
-
-test("Tab stays inside the open sheet", async () => {
-  const bar = await mountBar("/");
-  await bar.click(bar.more());
-  const links = [...bar.container.querySelectorAll("[role=dialog] a")] as unknown as HTMLElement[];
-  assert.equal(window.document.activeElement, links[0], "focus did not move into the sheet");
-
-  links[links.length - 1].focus();
-  await bar.key("Tab");
-  assert.equal(window.document.activeElement, links[0], "Tab left the sheet from its last link");
-
-  await bar.key("Tab", { shiftKey: true });
-  assert.equal(window.document.activeElement, links[links.length - 1], "Shift+Tab left the sheet from its first link");
-  await bar.unmount();
-});
-
-test("the bar is in Chinese when the page is", async () => {
-  const bar = await mountBar("/");
-  await bar.show("/", "zh-CN");
-
-  assert.ok(bar.text().includes(t("zh-CN", "nav.dashboard")));
-  assert.ok(bar.text().includes(t("zh-CN", "nav.more")));
-  await bar.unmount();
-});
-
-test("Changes stays in the bottom bar, announcements move to More, and unread counts follow", async () => {
-  const bar = await mountBar("/changes");
-  assert.equal(bar.q('a[href="/changes"]')!.getAttribute("aria-current"), "page");
-  assert.equal(bar.q('[aria-label="3 unread changes"]'), null);
-  await bar.show("/changes", "en", 3);
-  assert.ok(bar.q('a[href="/changes"] [aria-label="3 unread changes"]'));
-  await bar.click(bar.more());
-  assert.ok(bar.q('[role=dialog] a[href="/announcements"]'));
-  await bar.show("/changes", "zh-CN", 0);
-  assert.equal(bar.q('a[href="/changes"] [aria-label="3 unread changes"]'), null);
-  assert.ok(bar.text().includes(t("zh-CN", "nav.changes")));
-  await bar.unmount();
+test("a section's pages are tabs at its top; a page outside any section has none", async () => {
+  const view = await tabs("/materials");
+  assert.deepEqual(view.links(), ["/announcements", "/materials", "/grades"]);
+  assert.equal(view.q('a[href="/materials"]')!.getAttribute("aria-current"), "page");
+  await view.show("/settings");
+  assert.deepEqual(view.links(), ["/settings", "/backup", "/privacy", "/about"]);
+  await view.show("/", "en", 4);
+  assert.ok(view.q('a[href="/changes"]')!.textContent!.includes("4"));
+  await view.show("/nowhere");
+  assert.deepEqual(view.links(), []);
+  await view.unmount();
 });

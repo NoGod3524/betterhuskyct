@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { Check } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 
 import { useAiPlan } from "@/components/ai-plan-provider";
 import { useCalendar } from "@/components/calendar-provider";
@@ -73,11 +73,14 @@ export function TaskOverview({ renderTask }: { renderTask: (task: CalendarTask, 
   );
 
   return (
-    <section className="card mt-6 px-5 py-4" aria-labelledby="overview-heading">
-      <h3 id="overview-heading" className="font-display text-base font-semibold">
-        {t(locale, "overview.heading")}
-      </h3>
-      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{t(locale, "overview.scope")}</p>
+    <details className="card group mt-6 px-5 py-4" aria-labelledby="overview-heading">
+      <summary className="flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+        <ChevronRight size={15} className="shrink-0 text-[var(--muted)] transition group-open:rotate-90" aria-hidden />
+        <h3 id="overview-heading" className="font-display text-base font-semibold">
+          {t(locale, "overview.heading")}
+        </h3>
+        <span className="text-xs text-[var(--muted)]">{t(locale, "overview.items", { count: total })}</span>
+      </summary>
 
       {total === 0 ? (
         <p className="mt-3 text-sm text-[var(--muted)]">{t(locale, "overview.empty")}</p>
@@ -113,7 +116,6 @@ export function TaskOverview({ renderTask }: { renderTask: (task: CalendarTask, 
                 );
               })}
             </div>
-            {overview.byDay.some((entry) => entry.entries.length > 1) ? <p className="mt-1.5 text-xs text-[var(--muted)]">{t(locale, "overview.sameDay")}</p> : null}
           </div>
 
           {overview.byCourse.length > 0 ? (
@@ -165,6 +167,6 @@ export function TaskOverview({ renderTask }: { renderTask: (task: CalendarTask, 
           ) : null}
         </>
       )}
-    </section>
+    </details>
   );
 }

@@ -1,36 +1,65 @@
 import {
-  Award,
-  Bell,
-  CalendarDays,
-  Check,
-  FolderOpen,
-  LayoutDashboard,
-  Megaphone,
+  BookOpen,
+  CheckSquare,
+  House,
+  Settings,
   type LucideIcon,
 } from "lucide-react";
 
 import type { TranslationKey } from "@/lib/i18n";
 
-export type NavItem = { href: string; key: TranslationKey; Icon: LucideIcon };
+/** A page inside a section, shown as a tab along the top of that section. */
+export type SubPage = { href: string; key: TranslationKey };
 
 /**
- * Every page, in the order the sidebar lists them. The sidebar shows them all
- * on a wide screen; on a phone the bottom bar shows the first few and puts the
- * rest behind "More". A page that is in neither list is a page nobody on a
- * phone can reach, so a test checks that every route has an entry here.
+ * One of the four places the app has. The sidebar on a wide screen and the bar along the bottom
+ * of a phone show the same four; the pages inside a section are tabs at the top of its pages.
  */
-export const NAV_ITEMS: readonly NavItem[] = [
-  { href: "/", key: "nav.dashboard", Icon: LayoutDashboard },
-  { href: "/changes", key: "nav.changes", Icon: Bell },
-  { href: "/tasks", key: "nav.tasks", Icon: Check },
-  { href: "/calendar", key: "nav.calendar", Icon: CalendarDays },
-  { href: "/announcements", key: "nav.announcements", Icon: Megaphone },
-  { href: "/materials", key: "nav.materials", Icon: FolderOpen },
-  { href: "/grades", key: "nav.grades", Icon: Award },
+export type NavSection = { href: string; key: TranslationKey; Icon: LucideIcon; pages: readonly SubPage[] };
+
+export const NAV_SECTIONS: readonly NavSection[] = [
+  {
+    href: "/",
+    key: "nav.today",
+    Icon: House,
+    pages: [
+      { href: "/", key: "nav.today" },
+      { href: "/changes", key: "nav.changes" },
+    ],
+  },
+  {
+    href: "/tasks",
+    key: "nav.tasks",
+    Icon: CheckSquare,
+    pages: [
+      { href: "/tasks", key: "nav.taskList" },
+      { href: "/calendar", key: "nav.calendar" },
+    ],
+  },
+  {
+    href: "/announcements",
+    key: "nav.courses",
+    Icon: BookOpen,
+    pages: [
+      { href: "/announcements", key: "nav.announcements" },
+      { href: "/materials", key: "nav.materials" },
+      { href: "/grades", key: "nav.grades" },
+    ],
+  },
+  {
+    href: "/settings",
+    key: "nav.settings",
+    Icon: Settings,
+    pages: [
+      { href: "/settings", key: "nav.settings" },
+      { href: "/backup", key: "nav.backup" },
+      { href: "/privacy", key: "nav.privacy" },
+      { href: "/about", key: "nav.about" },
+    ],
+  },
 ];
 
-/** The bar's own slots: what a student opens most, one press away. */
-export const PRIMARY_NAV: readonly NavItem[] = NAV_ITEMS.slice(0, 4);
-
-/** Everything else, behind the bar's "More". */
-export const MORE_NAV: readonly NavItem[] = NAV_ITEMS.slice(4);
+/** The section a route belongs to; an unknown route belongs to none. */
+export function sectionFor(pathname: string): NavSection | null {
+  return NAV_SECTIONS.find((section) => section.pages.some((page) => page.href === pathname)) ?? null;
+}
