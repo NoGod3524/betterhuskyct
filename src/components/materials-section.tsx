@@ -2,25 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ChevronRight,
   Download,
   ExternalLink,
-  File,
-  FileArchive,
-  FileImage,
-  FileSpreadsheet,
-  FileText,
   Archive,
   FolderDown,
-  Folder,
   PlayCircle,
-  Presentation,
   Trash2,
   Wrench,
 } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
+import { useMaterialsExport } from "@/components/use-materials-export";
 import { DemoNote } from "@/components/demo-note";
+import { Chip, FileIcon, FolderView, LinkGroup, PartButton, SmallButton, Toggle } from "@/components/materials-parts";
 import { openSyncCenter } from "@/components/sync-center";
 import { courseKey } from "@/lib/course-key";
 import { DELIVERY_EVENT, type DeliveryDetail } from "@/components/helper-deliveries";
@@ -34,8 +28,6 @@ import {
   foldersIn,
   formatBytes,
   huskyctCourseUrl,
-  type FolderNode,
-  type MaterialFileRef,
   type MaterialsIndex,
   type MaterialsStore,
   type ReceiveState,
@@ -44,19 +36,6 @@ import {
 import { openMaterialsStore } from "@/lib/materials-store";
 import { createDemoMaterials } from "@/lib/demo-content";
 import { markFilesSeen, parseSeenFiles, unseenFiles } from "@/lib/seen";
-import {
-  LINKS_PAGE_NAMES,
-  ZipTooBigError,
-  buildZip,
-  linksPageHtml,
-  planPart,
-  planExport,
-  saveToDirectory,
-  zipFileName,
-  type WritableDirectory,
-} from "@/lib/materials-export";
-
-type WritePicker = (options?: { id?: string; mode?: "read" | "readwrite" }) => Promise<WritableDirectory>;
 
 /**
  * Which courses and folders the reader left open, kept between visits. A
@@ -205,9 +184,8 @@ export function MaterialsSection({
   const shown = course
     ? courses.filter((entry) => courseKey(entry.code) === course)
     : courseFilter ? courses.filter((entry) => entry.id === courseFilter) : courses;
-  const writePicker =
-    typeof window !== "undefined" ? (window as unknown as { showDirectoryPicker?: WritePicker }).showDirectoryPicker : undefined;
-  const [exporting, setExporting] = useState(false);
+
+  const { writePicker, exporting, exportToFolder, exportZip, exportPart } = useMaterialsExport(index, files, setNotice);
 
   /** Every course and group on the page, for "Expand all". */
   const everyKey = useMemo(() => {
@@ -247,91 +225,6 @@ export function MaterialsSection({
       window.open(url, "_blank", "noopener");
     }
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  }
-
-  /** Everything that has arrived, or null (with a word to the reader) if nothing has. */
-  function exportPlan() {
-    const plan = index ? planExport(index, files) : null;
-    if (!index || !plan || plan.entries.length === 0) {
-      setNotice(t(locale, "materials.exportNothing"));
-      return null;
-    }
-    return { index, plan, linksPage: { name: LINKS_PAGE_NAMES[locale], html: linksPageHtml(index, locale) } };
-  }
-
-  async function exportToFolder() {
-    if (!writePicker || exporting) return;
-    const ready = exportPlan();
-    if (!ready) return;
-    // Said before the picker opens, because the browser's own refusal of the
-    // Desktop does not say what to do instead.
-    setNotice(t(locale, "materials.exportPick"));
-    let root: WritableDirectory;
-    try {
-      root = await writePicker({ id: "bhc-materials-export", mode: "readwrite" });
-    } catch {
-      return; // closed without picking; the hint stays up
-    }
-    setExporting(true);
-    try {
-      const result = await saveToDirectory(root, ready.plan, {
-        linksPage: ready.linksPage,
-        onProgress: (done, total) => setNotice(t(locale, "materials.exporting", { done, total })),
-      });
-      setNotice(
-        t(locale, "materials.exported", { saved: result.saved, skipped: result.skipped, failed: result.failed, folder: result.folder }) +
-          (ready.plan.missing ? t(locale, "materials.exportMissing", { count: ready.plan.missing }) : ""),
-      );
-    } catch {
-      setNotice(t(locale, "materials.exportFailed"));
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  async function exportZip() {
-    if (exporting) return;
-    const ready = exportPlan();
-    if (!ready) return;
-    await downloadZip(ready.plan, ready.linksPage);
-  }
-
-  /** One course's files, or one of its folders', as a ZIP of its own. No links page: it holds the whole term's. */
-  async function exportPart(courseId: string, path: string[]) {
-    if (exporting || !index) return;
-    const plan = planPart(index, files, courseId, path);
-    if (plan.entries.length === 0) {
-      setNotice(t(locale, "materials.exportNothing"));
-      return;
-    }
-    await downloadZip(plan, undefined);
-  }
-
-  async function downloadZip(plan: ReturnType<typeof planExport>, linksPage: { name: string; html: string } | undefined) {
-    const ready = { plan, linksPage };
-    setExporting(true);
-    try {
-      const blob = await buildZip(ready.plan, {
-        linksPage: ready.linksPage,
-        onProgress: (done, total) => setNotice(t(locale, "materials.zipping", { done, total })),
-      });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = zipFileName(ready.plan);
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      setNotice(
-        t(locale, "materials.zipped", { name: zipFileName(ready.plan), count: ready.plan.entries.length }) +
-          (ready.plan.missing ? t(locale, "materials.exportMissing", { count: ready.plan.missing }) : ""),
-      );
-    } catch (error) {
-      setNotice(t(locale, error instanceof ZipTooBigError ? "materials.zipTooBig" : "materials.exportFailed"));
-    } finally {
-      setExporting(false);
-    }
   }
 
   async function clearAll() {
@@ -389,7 +282,6 @@ export function MaterialsSection({
           ) : null}
         </div>
       </div>}
-
 
       {receive.phase === "connected" || receive.phase === "receiving" ? (
         <p className="mt-4 rounded-lg bg-[var(--accent-soft)] px-3.5 py-2.5 text-sm font-medium text-[var(--accent-ink)]" role="status">
@@ -559,199 +451,5 @@ export function MaterialsSection({
         </>
       )}
     </section>
-  );
-}
-
-function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition ${
-        active ? "bg-[var(--ink)] text-[var(--surface)]" : "border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] hover:bg-[var(--subtle)]"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-/** The small download beside a course or a folder: its files as a ZIP of their own. */
-function PartButton({ label, disabled, onClick }: { label: string; disabled: boolean; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      title={label}
-      className="tap-icon grid size-7 shrink-0 place-items-center rounded-md text-[var(--muted)] transition hover:bg-[var(--subtle)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-50"
-    >
-      <Archive size={15} aria-hidden />
-    </button>
-  );
-}
-
-/** A file's icon by its kind, so a PDF, a slide deck and a spreadsheet are told apart at a glance. */
-function FileIcon({ name }: { name: string }) {
-  const ext = /\.([a-z0-9]+)$/i.exec(name)?.[1]?.toLowerCase() ?? "";
-  const [Icon, tone] =
-    ext === "pdf"
-      ? [FileText, "text-[var(--danger)]"]
-      : ["ppt", "pptx", "key"].includes(ext)
-        ? [Presentation, "text-[var(--warning)]"]
-        : ["xls", "xlsx", "csv", "numbers"].includes(ext)
-          ? [FileSpreadsheet, "text-[var(--success)]"]
-          : ["doc", "docx", "txt", "rtf", "pages", "md"].includes(ext)
-            ? [FileText, "text-[var(--blue)]"]
-            : ["png", "jpg", "jpeg", "gif", "webp", "svg", "heic"].includes(ext)
-              ? [FileImage, "text-[var(--accent-ink)]"]
-              : ["zip", "rar", "7z", "gz"].includes(ext)
-                ? [FileArchive, "text-[var(--muted)]"]
-                : [File, "text-[var(--muted)]"];
-  return <Icon size={16} className={`shrink-0 ${tone}`} aria-hidden />;
-}
-
-function SmallButton({ onClick, label, children }: { onClick: () => void; label?: string; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="btn btn-quiet h-7 px-2 text-xs"
-    >
-      {children}
-    </button>
-  );
-}
-
-/**
- * One folder's files, then its folders, each closed until opened. At the top
- * of a course the files are shown directly: the course is already the folder.
- */
-function FolderView({
-  node,
-  isOpen,
-  onToggle,
-  onDownload,
-  downloadLabel,
-  downloadDisabled,
-  renderFile,
-}: {
-  node: FolderNode<MaterialFileRef>;
-  isOpen: (folder: FolderNode<MaterialFileRef>) => boolean;
-  onToggle: (folder: FolderNode<MaterialFileRef>) => void;
-  onDownload: (folder: FolderNode<MaterialFileRef>) => void;
-  downloadLabel: (folder: FolderNode<MaterialFileRef>) => string;
-  downloadDisabled: boolean;
-  renderFile: (file: MaterialFileRef) => React.ReactNode;
-}) {
-  return (
-    <>
-      {node.items.length ? <ul className="mt-2 space-y-0.5">{node.items.map(renderFile)}</ul> : null}
-      {node.children.map((child) => {
-        const childOpen = isOpen(child);
-        return (
-          <div key={child.name} className="mt-2">
-            <div className="flex items-center gap-1">
-              <Toggle
-                open={childOpen}
-                onToggle={() => onToggle(child)}
-                className="flex-1"
-                icon={<Folder size={15} className="shrink-0 fill-[var(--warning-soft)] text-[var(--warning)]" aria-hidden />}
-                title={<span className="text-sm font-medium">{child.name}</span>}
-                detail={String(child.total)}
-              />
-              <PartButton label={downloadLabel(child)} disabled={downloadDisabled} onClick={() => onDownload(child)} />
-            </div>
-            {childOpen ? (
-              <div className="rise-in ml-2 border-l border-[var(--line)] pl-4">
-                <FolderView node={child} isOpen={isOpen} onToggle={onToggle} onDownload={onDownload} downloadLabel={downloadLabel} downloadDisabled={downloadDisabled} renderFile={renderFile} />
-              </div>
-            ) : null}
-          </div>
-        );
-      })}
-    </>
-  );
-}
-
-/** A header that opens and closes what is under it. */
-function Toggle({
-  open,
-  onToggle,
-  title,
-  detail,
-  icon,
-  className = "",
-}: {
-  open: boolean;
-  onToggle: () => void;
-  title: React.ReactNode;
-  detail?: string;
-  icon?: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-expanded={open}
-      className={`flex min-w-0 items-center gap-2 text-left transition hover:opacity-80 ${className}`}
-    >
-      <ChevronRight
-        size={16}
-        className={`shrink-0 text-[var(--muted)] transition-transform ${open ? "rotate-90" : ""}`}
-        aria-hidden
-      />
-      {icon}
-      <span className="min-w-0 truncate">{title}</span>
-      {detail ? <span className="shrink-0 text-xs tabular-nums text-[var(--muted)]">{detail}</span> : null}
-    </button>
-  );
-}
-
-function LinkGroup({
-  heading,
-  items,
-  open,
-  onToggle,
-  icon,
-}: {
-  heading: string;
-  items: Array<{ path: string[]; title: string; url: string | null }>;
-  open: boolean;
-  onToggle: () => void;
-  icon: React.ReactNode;
-}) {
-  if (items.length === 0) return null;
-  return (
-    <div className="mt-3">
-      <Toggle
-        open={open}
-        onToggle={onToggle}
-        title={<span className="text-sm font-medium">{heading}</span>}
-        detail={String(items.length)}
-      />
-      {open ? (
-        <ul className="rise-in ml-6 mt-1.5 space-y-1.5">
-          {items.map((item, i) => (
-            <li key={i} className="flex min-w-0 items-center gap-2.5 text-sm">
-              {icon}
-              {item.url ? (
-                <a href={item.url} target="_blank" rel="noreferrer" className="truncate text-[var(--link)] hover:underline">
-                  {item.title}
-                </a>
-              ) : (
-                <span className="truncate">{item.title}</span>
-              )}
-              {item.path.length ? <span className="shrink-0 text-xs text-[var(--muted)]">{item.path.join(" / ")}</span> : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
   );
 }

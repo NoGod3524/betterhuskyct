@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import test from "node:test";
 import { parseStoredSubscriptions } from "../src/lib/subscriptions.ts";
-import { EMPTY_PLAN_STATE, PLAN_DATA_KEY, PLAN_STORAGE_KEY, restorePlanState, saveSwitchedOn } from "../src/lib/ai-plan.ts";
+import {
+  EMPTY_PLAN_STATE,
+  PLAN_DATA_KEY,
+  PLAN_STORAGE_KEY,
+  restorePlanState,
+  saveSwitchedOn,
+} from "../src/lib/ai-plan.ts";
 import { CHANGES_KEY, parseChanges, type ChangeEntry } from "../src/lib/changes.ts";
 
 import {

@@ -1,13 +1,7 @@
-import { SummaryError, type SummaryProblem } from "./announcement-summary.ts";
 import type { Announcement } from "./announcements.ts";
-import { isDeadline, type CalendarTask } from "./calendar-types.ts";
-import type { CustomEventInput } from "./custom-events.ts";
-import { localDay, taskDate } from "./date-utils.ts";
 import { contentHash } from "./content-hash.ts";
-import { cleanSummary, isNotAToDo, MAX_PLAN_TEXT, parsePlanResult, PLAN_ITEM_KINDS, type PlanAnnouncement, type PlanItem, type PlanRequest } from "./plan-models.ts";
-import type { SummaryChoice } from "./summary-choice.ts";
+import { cleanSummary, isNotAToDo, PLAN_ITEM_KINDS, type PlanAnnouncement, type PlanItem } from "./plan-models.ts";
 import type { ProviderId, SummaryLocale } from "./summary-models.ts";
-import type { UndatedTodo } from "./undated-todos.ts";
 import { isRecord } from "./is-record.ts";
 import { writeStorageBatch } from "./storage-batch.ts";
 
@@ -503,38 +497,6 @@ export function announcementBatches(announcements: Announcement[], state: PlanSt
   return batches;
 }
 
-/** One file's text under its name, so the model knows where one ends; cut to fit. */
-export function joinSyllabusTexts(texts: Array<{ name: string; text: string }>): string {
-  return texts
-    .map(({ name, text }) => `=== ${name} ===\n${text}`)
-    .join("\n\n")
-    .slice(0, MAX_PLAN_TEXT);
-}
-
-const WEEKDAYS: Array<[RegExp, number]> = [
-  [/\bsun(day)?\b/i, 0],
-  [/\bmon(day)?\b/i, 1],
-  [/\btue(s|sday)?\b/i, 2],
-  [/\bwed(nesday)?\b/i, 3],
-  [/\bthu(r|rs|rsday)?\b/i, 4],
-  [/\bfri(day)?\b/i, 5],
-  [/\bsat(urday)?\b/i, 6],
-];
-
-/**
- * Whether the source names a weekday that the date does not fall on. A
- * syllabus copied from last year keeps "Tuesday, October 14" when the 14th is
- * now a Wednesday, and this is how that shows. Only checked when exactly one
- * weekday is named, since a line like "Mon/Wed" says nothing about the date.
- */
-export function weekdayMismatch(item: Pick<PlanItem, "date" | "evidence">): boolean {
-  if (!item.date) return false;
-  const named = WEEKDAYS.filter(([pattern]) => pattern.test(item.evidence));
-  if (named.length !== 1) return false;
-  const [year, month, day] = item.date.split("-").map(Number);
-  return new Date(year, month - 1, day).getDay() !== named[0][1];
-}
-
 function words(title: string): Set<string> {
   return new Set(title.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((word) => word.length > 1));
 }
@@ -549,116 +511,4 @@ export function similarTitles(left: string, right: string): boolean {
   const wordsB = words(right);
   const shared = [...wordsA].filter((word) => wordsB.has(word)).length;
   return shared / Math.max(1, Math.min(wordsA.size, wordsB.size)) >= 0.6;
-}
-
-export type SuggestionFlags = {
-  /** Something on that day with a title like it is already in the calendar. */
-  inCalendar: boolean;
-  weekday: boolean;
-  past: boolean;
-};
-
-export function suggestionFlags(suggestion: Suggestion, tasks: CalendarTask[], today: string): SuggestionFlags {
-  const date = suggestion.date;
-  const inCalendar =
-    !!date &&
-    tasks.some((task) => isDeadline(task) && localDay(taskDate(task)) === date && similarTitles(task.title, suggestion.title));
-  return { inCalendar, weekday: weekdayMismatch(suggestion), past: !!date && date < today };
-}
-
-/** Ticked to be added unless it is already there or already over. */
-export function selectedByDefault(flags: SuggestionFlags): boolean {
-  return !flags.inCalendar && !flags.past;
-}
-
-/** `YYYY-MM-DD` and `HH:MM` as that moment here. */
-export function localInstant(day: string, time: string | null): string {
-  const [year, month, date] = day.split("-").map(Number);
-  const [hour, minute] = (time ?? "00:00").split(":").map(Number);
-  return new Date(year, month - 1, date, hour, minute).toISOString();
-}
-
-function noteFor(suggestion: Suggestion): string {
-  const where = suggestion.fromLabel ? `${suggestion.fromLabel}` : suggestion.from;
-  return suggestion.evidence ? `AI · ${where}: "${suggestion.evidence}"` : `AI · ${where}`;
-}
-
-/** A dated suggestion as a calendar event; the day may have been changed on the list. */
-export function suggestionToEvent(suggestion: Suggestion, day: string): CustomEventInput {
-  const time = day === suggestion.date ? suggestion.time : null;
-  return {
-    id: `custom-${suggestion.id}`,
-    title: suggestion.title,
-    course: suggestion.course,
-    start: localInstant(day, time),
-    end: null,
-    allDay: time === null,
-    location: null,
-    note: noteFor(suggestion),
-  };
-}
-
-export function suggestionToUndated(suggestion: Suggestion, addedAt: string): UndatedTodo {
-  return {
-    id: suggestion.id,
-    title: suggestion.title,
-    course: suggestion.course,
-    note: noteFor(suggestion),
-    done: false,
-    addedAt,
-  };
-}
-
-type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
-
-const KNOWN_PROBLEMS: Record<string, SummaryProblem> = {
-  busy: "busy",
-  "rate-limited": "rate-limited",
-  refused: "refused",
-  "not-configured": "unavailable",
-  region: "region",
-  "choice-unavailable": "choice-unavailable",
-};
-
-const PROVIDERS: readonly ProviderId[] = ["glm", "gemini", "groq"];
-
-/**
- * Asks the app's endpoint to read one source. Failures are `SummaryError`s with
- * the same problems as a summary's, since it is the same models behind it.
- */
-export async function requestPlan(
-  request: PlanRequest,
-  fetchImpl: FetchLike = fetch,
-  choice: SummaryChoice = "auto",
-  signal?: AbortSignal,
-): Promise<{ items: PlanItem[]; summary: string | null; provider: ProviderId | null }> {
-  const sources = request.announcements.length;
-  let response: Response;
-  let body: { items?: unknown; summary?: unknown; problem?: unknown; provider?: unknown };
-  try {
-    response = await fetchImpl(PLAN_ENDPOINT, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(choice === "auto" ? request : { ...request, provider: choice }),
-      signal,
-    });
-    body = await response.json();
-  } catch {
-    throw new SummaryError("unavailable");
-  }
-  // Checked again here: what the page keeps should not depend on the server having checked it.
-  const locale = request.kind === "syllabus" ? (request.locale ?? "en") : null;
-  const result =
-    response.ok && Array.isArray(body.items)
-      ? parsePlanResult(JSON.stringify({ items: body.items, summary: body.summary }), sources, locale)
-      : null;
-  if (result) {
-    return {
-      items: result.items,
-      summary: request.kind === "syllabus" ? result.summary : null,
-      provider: PROVIDERS.find((id) => id === body.provider) ?? null,
-    };
-  }
-  const problem = typeof body.problem === "string" ? KNOWN_PROBLEMS[body.problem] : undefined;
-  throw new SummaryError(problem ?? "failed");
 }

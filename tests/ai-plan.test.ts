@@ -13,20 +13,22 @@ import {
   MAX_FAILURES,
   needsReading,
   parsePlanState,
-  requestPlan,
-  selectedByDefault,
   setSummary,
   similarTitles,
-  suggestionFlags,
   suggestionId,
-  suggestionToEvent,
-  suggestionToUndated,
   supersede,
   syllabusSignature,
-  weekdayMismatch,
   type PlanState,
   type Suggestion,
 } from "../src/lib/ai-plan.ts";
+import {
+  selectedByDefault,
+  suggestionFlags,
+  suggestionToEvent,
+  suggestionToUndated,
+  weekdayMismatch,
+} from "../src/lib/ai-plan-match.ts";
+import { requestPlan } from "../src/lib/ai-plan-request.ts";
 import type { Announcement } from "../src/lib/announcements.ts";
 import { SummaryError } from "../src/lib/announcement-summary.ts";
 import type { CalendarTask } from "../src/lib/calendar-types.ts";
