@@ -40,11 +40,7 @@ import { historyForSource } from "@/lib/background-sync";
 import { eventUid } from "@/lib/sync-merge";
 import { recordSyncChanges } from "@/lib/change-producers";
 import { parseVersions, recordVersions, VERSIONS_CHANGED, VERSIONS_KEY } from "@/lib/announcement-versions";
-import {
-  decodeSyncPayload,
-  readSyncFragment,
-  type SyncPayload,
-} from "@/lib/sync";
+import type { SyncPayload } from "@/lib/sync";
 import { planSyncApply } from "@/lib/sync-apply";
 import { createTasksReceiver } from "@/lib/tasks-sync";
 import { applyReadReport, readSyncStatus, recordReadReport, SYNC_STATUS_CHANGED, SYNC_STATUS_KEY, type ReadReport } from "@/lib/sync-status";
@@ -205,13 +201,6 @@ type CalendarContextValue = {
   remindersEnabled: boolean;
   toggleReminders: () => Promise<void>;
 
-
-  /** A link from another device, waiting for the user to accept it. */
-  pendingSync: SyncPayload | null;
-  applyPendingSync: () => void;
-  dismissPendingSync: () => void;
-  /** The generated link, once the user has asked for one. */
-
   /** Course announcements, newest first. Empty until a helper sends some. */
   announcements: Announcement[];
   clearAnnouncements: () => void;
@@ -319,9 +308,6 @@ export function CalendarProvider({
   const [moveLog, setMoveLog] = useState<MoveLog>({});
   const [customEvents, setCustomEvents] = useState<CustomCalendarEvent[]>([]);
   const [courseColors, setCourseColors] = useState<CourseColors>({});
-  // A link from another device is offered, never applied on its own.
-  const [pendingSync, setPendingSync] = useState<SyncPayload | null>(null);
-  const syncReadGeneration = useRef(0);
 
   const hasSubscriptions = subscriptions.length > 0;
   const isImported = hasSubscriptions && !demoMode;
@@ -515,42 +501,6 @@ export function CalendarProvider({
     return () => window.clearTimeout(timer);
     // Restore-on-mount must run exactly once; listing the functions it calls would re-run the
     // whole restore on each render instead.
-  }, []);
-
-  /**
-   * Offers whatever a sync link in the address bar is carrying.
-   *
-   * Watches `hashchange` as well as running once on mount, because pasting a
-   * link into a browser that already has the app open is a fragment navigation:
-   * the page does not reload, so a mount-only read would silently do nothing —
-   * which is exactly the flow someone follows on their phone.
-   *
-   * The payload rides in the fragment, so it is never sent to a server. It is
-   * only ever offered; nothing is written until the user accepts it.
-   */
-  useEffect(() => {
-    let alive = true;
-    function offerSyncLink() {
-      const generation = ++syncReadGeneration.current;
-      const hash = window.location.hash;
-      const packed = readSyncFragment(hash);
-      setPendingSync(null);
-      if (!packed) return;
-
-      const activeLocale = restoreLocale(window.localStorage);
-      void decodeSyncPayload(packed).then((payload) => {
-        if (!alive || generation !== syncReadGeneration.current || window.location.hash !== hash) return;
-        if (payload) setPendingSync(payload);
-        else setError(t(activeLocale, "sync.unreadable"));
-      });
-    }
-
-    offerSyncLink();
-    window.addEventListener("hashchange", offerSyncLink);
-    return () => {
-      alive = false;
-      window.removeEventListener("hashchange", offerSyncLink);
-    };
   }, []);
 
   // Keeps `now` moving while the app is open; see `watchClock` for why. The
@@ -795,18 +745,9 @@ export function CalendarProvider({
     }
   }
 
-  /** Drops the `#sync=…` fragment without reloading or navigating. */
-  function clearSyncFragment() {
-    syncReadGeneration.current++;
-    setPendingSync(null);
-    const { pathname, search } = window.location;
-    window.history.replaceState(null, "", `${pathname}${search}`);
-  }
-
   // Which ticks go into the merge and what the screen shows afterwards are
   // decided by `planSyncApply`; this only writes the result. Shared by the
-  // `#sync=` link, which asks first, and the helper's direct `postMessage`,
-  // which does not.
+  // helper's direct `postMessage` and the extension's background runs.
   function applyPayload(payload: SyncPayload, report?: ReadReport, backgroundHistory?: ChangesStore) {
     const now = new Date();
     const before = {
@@ -895,26 +836,6 @@ export function CalendarProvider({
     return merged;
   }
 
-  async function applyPendingSync() {
-    if (!pendingSync) return;
-    const payload = pendingSync;
-    let merged;
-    try { merged = await withChangesLock(() => applyPayload(payload)); }
-    catch { setError(t(locale, "errors.saveFailed")); return; }
-    setPendingSync(null);
-    clearSyncFragment();
-    setError(null);
-    setNotice(
-      t(locale, "sync.applied", {
-        calendars: merged.addedFeeds,
-        added: merged.addedEvents,
-        updated: merged.updatedEvents,
-        tasks: merged.completedIds.size,
-        announcements: merged.announcements.length,
-      }),
-    );
-  }
-
   async function applyBackgroundPayload(payload: SyncPayload, history: ChangesStore, report: ReadReport): Promise<void> {
     await withChangesLock(() => {
       applyPayload(payload, report, history);
@@ -972,11 +893,6 @@ export function CalendarProvider({
     window.addEventListener("message", listener);
     return () => window.removeEventListener("message", listener);
   }, []);
-
-  function dismissPendingSync() {
-    setPendingSync(null);
-    clearSyncFragment();
-  }
 
   // Nudge at most once per set of due tasks, and only while the app is open:
   // without a push server a web page cannot wake itself up in the background.
@@ -1040,7 +956,6 @@ export function CalendarProvider({
             baselines: changes.baselines.filter((scope) => !scope.startsWith("announcements:") && !scope.startsWith("deadlines:")),
           });
         }))) return;
-        clearSyncFragment();
         subscriptionsRef.current = [];
         announcementsRef.current = [];
         setSubscriptions([]);
@@ -1144,9 +1059,6 @@ export function CalendarProvider({
     dismissMoveNotice,
     remindersEnabled,
     toggleReminders,
-    pendingSync,
-    applyPendingSync,
-    dismissPendingSync,
     announcements,
     clearAnnouncements: dropAnnouncements,
     applyBackgroundPayload,

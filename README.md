@@ -178,7 +178,6 @@ src/
 │  ├─ background-deliveries.tsx                  # Validates and saves leased extension deliveries before acknowledging
 │  ├─ background-sync-button.tsx               # Compact update check, installation fallback and session status
 │  ├─ sync-status-view.tsx                       # Last-sync status and collapsible per-course reading details
-│  ├─ sync-banner.tsx                            # The banner for an incoming #sync= link
 │  ├─ sync-center.tsx                            # The header's Sync button and panel: the only place to sync
 │  ├─ app-notice.tsx                             # What the last action said, at the top of every page
 │  ├─ connect-section.tsx                        # Connected calendars, course list, how to connect
@@ -232,7 +231,7 @@ src/
    ├─ syllabus.ts                                # Finding a course's syllabus among the files and reading its text
    ├─ grades.ts, grades-store.ts, grades-export.ts# Grades: the helper's messages, totals, merging; storage; export
    ├─ helper.ts, helper-bridge.ts, helper-sync.ts, tasks-sync.ts# Where to get the helper; its bridge; the Sync button's protocol; deadlines and announcements delivered tab to tab
-   ├─ sync.ts, sync-merge.ts, sync-apply.ts      # The #sync= payload: pack, check, merge what is already here
+   ├─ sync.ts, sync-merge.ts, sync-apply.ts      # The sync payload: check it, merge it with what is here
    ├─ moved-deadlines.ts                         # A deadline the teacher moved: ticks, notes and course choices follow it, and a notice says so
    ├─ academic-calendar.ts                       # UConn's academic calendar from the Registrar's page
    ├─ content-hash.ts, is-record.ts              # A short text fingerprint; "is this a plain object"

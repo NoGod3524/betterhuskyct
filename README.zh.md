@@ -172,7 +172,6 @@ src/
 │  ├─ background-deliveries.tsx                  # 校验并保存扩展租用交付，成功后确认
 │  ├─ background-sync-button.tsx               # 紧凑的更新检查、安装入口和登录状态
 │  ├─ sync-status-view.tsx                       # 同步状态与可折叠的各课程读取详情
-│  ├─ sync-banner.tsx                            # 收到 #sync= 链接时的提示条
 │  ├─ sync-center.tsx                            # 顶栏的同步按钮和面板：唯一的同步入口
 │  ├─ app-notice.tsx                             # 上一个操作的结果，显示在每个页面顶部
 │  ├─ connect-section.tsx                        # 已连接的日历、课程列表、怎么连接
@@ -226,7 +225,7 @@ src/
    ├─ syllabus.ts                                # 在文件里找课程大纲并读出文字
    ├─ grades.ts, grades-store.ts, grades-export.ts# 成绩：助手的消息、合计、合并；存储；导出
    ├─ helper.ts, helper-bridge.ts, helper-sync.ts, tasks-sync.ts# 去哪儿拿助手；助手的桥；同步按钮的协议；标签页之间送达的 deadline 和公告
-   ├─ sync.ts, sync-merge.ts, sync-apply.ts      # #sync= 载荷：打包、校验、与已有的合并
+   ├─ sync.ts, sync-merge.ts, sync-apply.ts      # 同步载荷：校验、与已有的合并
    ├─ moved-deadlines.ts                         # 老师改期的截止项：勾选、备注和课程选择跟着走，并给出提示
    ├─ academic-calendar.ts                       # 来自教务处页面的 UConn 校历
    ├─ content-hash.ts, is-record.ts              # 文字短指纹；「是不是普通对象」

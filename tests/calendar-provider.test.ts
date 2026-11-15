@@ -10,7 +10,7 @@ import { VERSIONS_KEY } from "../src/lib/announcement-versions.ts";
 import { MAX_CUSTOM_EVENTS, buildCustomEvent, saveCustomEvents } from "../src/lib/custom-events.ts";
 import { EVENT_OVERLAY_STORAGE_KEY, restoreEventOverlay, saveEventOverlay } from "../src/lib/event-overlay.ts";
 import { SUBSCRIPTIONS_STORAGE_KEY, type Subscription } from "../src/lib/subscriptions.ts";
-import { buildSyncPayload, encodeSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
+import { buildSyncPayload, serialiseSyncPayload } from "../src/lib/sync.ts";
 import { TASKS_PROTOCOL } from "../src/lib/tasks-sync.ts";
 import { t } from "../src/lib/i18n.ts";
 import {
@@ -19,6 +19,7 @@ import {
   COMPLETION_STORAGE_KEY_IMPORTED,
 } from "../src/lib/completion-storage.ts";
 import { REOPENED_STORAGE_KEY, SYNCED_DONE_STORAGE_KEY } from "../src/lib/task-status.ts";
+import { deliverSync } from "./support/deliver.ts";
 import { installDom } from "./support/dom.ts";
 
 /**
@@ -49,7 +50,6 @@ after(() => dom.uninstall());
 
 beforeEach(() => {
   window.localStorage.clear();
-  window.location.hash = "";
   globalThis.Date = RealDate;
   globalThis.fetch = realFetch;
   window.setInterval = realSetInterval;
@@ -141,7 +141,7 @@ test("the demo names its own courses, so the 62 KB course catalogue is never fet
 
 test("an imported class meeting with no course gets its code once the catalogue arrives", async () => {
   const start = new RealDate(RealDate.now() + 2 * 86_400_000).toISOString();
-  const packed = await encodeSyncPayload(
+  const incoming = (
     buildSyncPayload({
       feeds: [
         {
@@ -165,15 +165,11 @@ test("an imported class meeting with no course gets its code once the catalogue 
       ],
       completedIds: [],
       courses: EMPTY_COURSE_BOOK,
-    }),
+    })
   );
   const app = await mount();
-  await act(async () => {
-    window.location.hash = `#sync=${packed}`;
-    window.dispatchEvent(new window.Event("hashchange"));
-  });
+  await act(async () => void (await deliverSync(window, incoming)));
   await settle(50);
-  await act(async () => app.calendar.applyPendingSync());
   await settle(200);
 
   assert.equal(app.calendar.isImported, true);
@@ -224,7 +220,7 @@ test("unmounting stops the clock", async () => {
 
 test("accepting a sync link while the demo is showing saves no demo tick", async () => {
   const start = new RealDate(RealDate.now() + 2 * 86_400_000).toISOString();
-  const packed = await encodeSyncPayload(
+  const incoming = (
     buildSyncPayload({
       feeds: [
         {
@@ -248,21 +244,16 @@ test("accepting a sync link while the demo is showing saves no demo tick", async
       ],
       completedIds: [],
       courses: EMPTY_COURSE_BOOK,
-    }),
+    })
   );
 
   const app = await mount();
   assert.equal(app.calendar.isImported, false, "a fresh device should be showing the demo");
   await act(async () => app.calendar.toggleTaskCompletion("demo-cse-problem-set"));
 
-  await act(async () => {
-    window.location.hash = `#sync=${packed}`;
-    window.dispatchEvent(new window.Event("hashchange"));
-  });
+  await act(async () => void (await deliverSync(window, incoming)));
   await settle(50);
-  assert.ok(app.calendar.pendingSync, "the link was not offered");
 
-  await act(async () => app.calendar.applyPendingSync());
 
   const saved = JSON.parse(window.localStorage.getItem("huskypilot.completedTasks.imported.v1") ?? "{}");
   assert.deepEqual(saved.completedIds, [], "a demo tick was saved as a real one");
@@ -273,7 +264,7 @@ test("accepting a sync link while the demo is showing saves no demo tick", async
 // --- the calendar page's own corrections and additions ----------------------------
 
 async function importOneTask(app: Awaited<ReturnType<typeof mount>>) {
-  const packed = await encodeSyncPayload(
+  const incoming = (
     buildSyncPayload({
       feeds: [
         {
@@ -297,14 +288,10 @@ async function importOneTask(app: Awaited<ReturnType<typeof mount>>) {
       ],
       completedIds: [],
       courses: EMPTY_COURSE_BOOK,
-    }),
+    })
   );
-  await act(async () => {
-    window.location.hash = `#sync=${packed}`;
-    window.dispatchEvent(new window.Event("hashchange"));
-  });
+  await act(async () => void (await deliverSync(window, incoming)));
   await settle(50);
-  await act(async () => app.calendar.applyPendingSync());
   return "a:2026-09-18T23:59:00.000Z";
 }
 
@@ -477,7 +464,6 @@ test("a sync payload the helper posts is applied straight away, with no banner t
   });
 
   assert.deepEqual(replies, [{ protocol: TASKS_PROTOCOL, kind: "stored", ok: true }]);
-  assert.equal(app.calendar.pendingSync, null, "a direct delivery should never wait on a banner");
   assert.equal(app.calendar.isImported, true);
   assert.equal(app.calendar.tasks[0]?.title, "Section 4.1 Homework");
   assert.ok(app.calendar.notice?.includes("Delivered from the helper"));
@@ -890,41 +876,6 @@ test("a failed helper sync rolls every changed key back and never publishes a pa
       assert.equal(app.calendar.doneIds.size, 0, key);
       assert.ok(app.calendar.error?.includes("could not be saved"), key);
     } finally { restore(); await app.unmount(); }
-  }
-});
-
-test("an older sync decode cannot reopen an offer after a newer link was cleared", async () => {
-  const app = await mount();
-  const packed = await encodeSyncPayload(buildSyncPayload({ feeds: [savedFeed()], completedIds: [], courses: EMPTY_COURSE_BOOK }));
-  const NativeDecompressionStream = globalThis.DecompressionStream;
-  const gates: Array<() => void> = [];
-  globalThis.DecompressionStream = class {
-    readable: ReadableStream<Uint8Array>;
-    writable: WritableStream<BufferSource>;
-    constructor(format: CompressionFormat) {
-      let release!: () => void;
-      const gate = new Promise<void>((resolve) => { release = resolve; });
-      gates.push(release);
-      const delayed = new TransformStream<BufferSource, BufferSource>({ async transform(chunk, controller) { await gate; controller.enqueue(chunk); } });
-      this.writable = delayed.writable;
-      this.readable = delayed.readable.pipeThrough(new NativeDecompressionStream(format));
-    }
-  } as typeof DecompressionStream;
-  try {
-    await act(async () => {
-      window.location.hash = `#sync=${packed}`;
-      window.dispatchEvent(new window.Event("hashchange"));
-    });
-    assert.ok(gates.length > 0);
-    await act(async () => app.calendar.clearSavedData());
-    await act(async () => { gates.forEach((release) => release()); });
-    await settle(50);
-    assert.equal(app.calendar.pendingSync, null);
-    assert.equal(window.location.hash, "");
-  } finally {
-    gates.forEach((release) => release());
-    globalThis.DecompressionStream = NativeDecompressionStream;
-    await app.unmount();
   }
 });
 

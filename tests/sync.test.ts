@@ -9,17 +9,9 @@ import {
 import { EMPTY_COURSE_BOOK, addCourse, type CourseBook } from "../src/lib/courses.ts";
 import type { Subscription } from "../src/lib/subscriptions.ts";
 import {
-  MAX_UNPACKED_BYTES,
-  SYNC_FRAGMENT,
   buildSyncPayload,
-  decodeSyncPayload,
-  describeSync,
-  encodeSyncPayload,
-  packSync,
   parseSyncPayload,
-  readSyncFragment,
   serialiseSyncPayload,
-  unpackSync,
 } from "../src/lib/sync.ts";
 import { mergeSyncPayload } from "../src/lib/sync-merge.ts";
 
@@ -76,45 +68,12 @@ function payloadOf(overrides: Partial<Parameters<typeof buildSyncPayload>[0]> = 
   });
 }
 
-test("pack and unpack survive a round trip", async () => {
-  const text = JSON.stringify({ hello: "world", repeated: "x".repeat(500) });
-
-  const packed = await packSync(text);
-
-  assert.ok(packed.length > 0);
-  assert.ok(!/[+/=]/.test(packed), "packed data must be URL-safe");
-  assert.equal(await unpackSync(packed), text);
-});
-
-test("a whole dashboard encodes and decodes", async () => {
+test("a whole dashboard is written out and read back the same", () => {
   const payload = payloadOf();
 
-  const packed = await encodeSyncPayload(payload);
-  const back = await decodeSyncPayload(packed);
+  const back = parseSyncPayload(serialiseSyncPayload(payload));
 
   assert.deepEqual(back, payload);
-});
-
-test("a full dashboard stays small enough to send", async () => {
-  const events = Array.from({ length: 60 }, (_, index) =>
-    task(`_blackboard.platform.gradebook2.GradableItem-_${index}_1`),
-  );
-  const payload = payloadOf({
-    feeds: [
-      {
-        name: "NRE 1000E",
-        courseId: null,
-        importedAt: "2026-09-16T11:00:00.000Z",
-        events,
-      },
-    ],
-    completedIds: events.slice(0, 20).map((event) => event.id),
-  });
-
-  const packed = await encodeSyncPayload(payload);
-
-  // The whole point of the design: it fits in a URL with room to spare.
-  assert.ok(packed.length < 8000, `packed payload was ${packed.length} characters`);
 });
 
 test("a payload from a different version is refused", () => {
@@ -159,82 +118,6 @@ test("an older link's effort marks are let go, and the link is still read", () =
   assert.ok(parsed, "an older link was refused for carrying effort marks");
   assert.equal("efforts" in parsed, false);
   assert.ok(parseSyncPayload(JSON.stringify({ ...raw, efforts: null })), "a link was refused over a field nothing reads");
-});
-
-test("a corrupt link decodes to null instead of throwing", async () => {
-  assert.equal(await decodeSyncPayload("not-base64-at-all!!"), null);
-  // Valid base64url, but not gzip.
-  assert.equal(await decodeSyncPayload("aGVsbG8"), null);
-  assert.equal(await decodeSyncPayload(""), null);
-  assert.equal(await decodeSyncPayload("x".repeat(40_000)), null);
-});
-
-test("a link that expands into a bomb is refused, not parsed", async () => {
-  // 20 MB of one repeated character gzips to about 20 KB — inside the packed
-  // limit, so only a limit on the unpacked size stops it.
-  const bomb = await packSync(" ".repeat(20 * 1024 * 1024));
-  assert.ok(bomb.length < 32_768, `the bomb packed to ${bomb.length} characters`);
-
-  assert.equal(await decodeSyncPayload(bomb), null);
-  await assert.rejects(unpackSync(bomb), /size limit/);
-});
-
-test("a real full-size payload is well inside the unpacked limit", async () => {
-  // The worst case the caps allow for announcements, beside a term of deadlines.
-  const announcements = Array.from({ length: 400 }, (_, index) => ({
-    courseCode: `MATH ${1000 + (index % 8)}`,
-    title: `Announcement ${index}`,
-    body: "x".repeat(1_200),
-    posted: "Posted on 9/1/26",
-    announced: NOW.toISOString(),
-  }));
-  const payload = payloadOf({
-    feeds: [
-      {
-        name: "HuskyCT to-do",
-        courseId: null,
-        importedAt: NOW.toISOString(),
-        events: Array.from({ length: 120 }, (_, index) => task(`t${index}`)),
-      },
-    ],
-    announcements: parseAnnouncementCandidates(announcements, NOW),
-  });
-
-  const text = serialiseSyncPayload(payload);
-  assert.ok(text.length < MAX_UNPACKED_BYTES / 2, `a full payload is ${text.length} bytes`);
-  assert.deepEqual(await decodeSyncPayload(await encodeSyncPayload(payload)), payload);
-});
-
-test("the fragment helpers only accept our own fragment", () => {
-  assert.equal(readSyncFragment("#something-else"), null);
-  assert.equal(readSyncFragment(""), null);
-  assert.equal(readSyncFragment(SYNC_FRAGMENT), null);
-  assert.equal(readSyncFragment(`${SYNC_FRAGMENT}abc`), "abc");
-});
-
-test("describeSync counts what the user is being offered", () => {
-  const summary = describeSync(
-    payloadOf({
-      feeds: [
-        {
-          name: "one",
-          courseId: null,
-          importedAt: "2026-09-16T11:00:00.000Z",
-          events: [task("a"), task("lecture", { kind: "class" })],
-        },
-      ],
-      completedIds: ["a", "b", "c"],
-    }),
-  );
-
-  assert.deepEqual(summary, {
-    feeds: 1,
-    events: 2,
-    deadlines: 1,
-    completed: 3,
-    courses: 1,
-    announcements: 0,
-  });
 });
 
 test("merging adds ticks and never removes one", () => {
@@ -435,10 +318,9 @@ test("a link from a helper written before announcements still reads", () => {
   assert.equal(parsed.feeds.length, 1);
 });
 
-test("announcements survive a round trip through a link", async () => {
+test("announcements survive being written out and read back", () => {
   const payload = payloadOf({ announcements: parseAnnouncementCandidates([announced("Midterm moved")]) });
-  const packed = await encodeSyncPayload(payload);
-  const decoded = await decodeSyncPayload(packed);
+  const decoded = parseSyncPayload(serialiseSyncPayload(payload));
 
   assert.equal(decoded?.announcements.length, 1);
   assert.equal(decoded?.announcements[0].title, "Midterm moved");
@@ -570,69 +452,6 @@ test("an announcement for a course this device has never heard of is still shown
   assert.equal(merged.announcements.length, 1);
   assert.equal(merged.announcements[0].courseId, null);
   assert.equal(merged.announcements[0].courseCode, "SOCI 1501");
-});
-
-test("the outgoing summary counts announcements", () => {
-  const summary = describeSync(
-    payloadOf({ announcements: parseAnnouncementCandidates([announced("One"), announced("Two")]) }),
-  );
-
-  assert.equal(summary.announcements, 2);
-});
-
-/**
- * The caps exist for this, and nothing else asserted them at the boundary.
- *
- * 400 announcements of 1,200 characters is the most this can ever be asked to
- * carry. Measured, that packs to 8,968 characters against a 32,768 guard, so
- * there is room — but the guard is the thing that keeps a link openable, and a
- * future cap change should have to fail here rather than in someone's browser.
- */
-test("the caps keep a worst-case link inside the fragment guard", async () => {
-  const at = new Date("2026-09-23T12:00:00Z");
-  const full = parseAnnouncementCandidates(
-    Array.from({ length: 400 }, (_, index) => ({
-      courseCode: "MATH 1070Q",
-      title: "Announcement " + index,
-      body: "A paragraph of course news. ".repeat(60),
-      posted: "9/17/26, 4:47 PM",
-      announced: at.toISOString(),
-    })),
-    at,
-  );
-
-  assert.equal(full.length, 400);
-  assert.equal(full[0].body.length, 1_200, "the body cap did not apply");
-
-  const payload = buildSyncPayload({
-    feeds: [
-      {
-        name: "HuskyCT to-do",
-        courseId: null,
-        importedAt: at.toISOString(),
-        events: Array.from({ length: 120 }, (_, index) =>
-          task("deadline-" + index, {
-            start: new Date(Date.UTC(2026, 8, 20 + (index % 30), 3, 59)).toISOString(),
-          }),
-        ),
-      },
-    ],
-    completedIds: [],
-    courses: bookWith("MATH 1070Q", "STAT 1000Q", "SOCI 1501", "NRE 1000E", "ECON 1201"),
-    announcements: full,
-    now: at,
-  });
-
-  const packed = await encodeSyncPayload(payload);
-
-  assert.ok(
-    packed.length < 32_768,
-    "worst case is over the dashboard's guard: " + packed.length,
-  );
-  // And it still reads back, which is the point of staying under the guard.
-  const decoded = await decodeSyncPayload(packed);
-  assert.equal(decoded?.announcements.length, 400);
-  assert.equal(decoded?.feeds.flatMap((feed) => feed.events).length, 120);
 });
 
 test("a course code matches regardless of case or odd spacing", () => {

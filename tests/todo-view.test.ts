@@ -5,8 +5,9 @@ import type { GradesSnapshot } from "../src/lib/grades.ts";
 import { openGradesStore } from "../src/lib/grades-store.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { t } from "../src/lib/i18n.ts";
-import { buildSyncPayload, encodeSyncPayload } from "../src/lib/sync.ts";
+import { buildSyncPayload } from "../src/lib/sync.ts";
 import { REOPENED_STORAGE_KEY } from "../src/lib/task-status.ts";
+import { deliverSync } from "./support/deliver.ts";
 import { installDom } from "./support/dom.ts";
 
 /**
@@ -24,7 +25,6 @@ const { window } = dom;
 after(() => dom.uninstall());
 beforeEach(() => {
   window.localStorage.clear();
-  window.location.hash = "";
 });
 
 const DAY = 86_400_000;
@@ -75,13 +75,13 @@ const GRADES: GradesSnapshot = {
 async function mountTodo(options: { grades?: GradesSnapshot | null; extra?: Event[]; colors?: Record<string, string> } = {}) {
   if (options.grades) await (await openGradesStore()).put(options.grades);
 
-  const packed = await encodeSyncPayload(
+  const incoming = (
     buildSyncPayload({
       feeds: [{ name: "HuskyCT to-do", courseId: null, importedAt: new Date().toISOString(), events: [...EVENTS, ...(options.extra ?? [])].map(event) }],
       completedIds: [],
       courses: EMPTY_COURSE_BOOK,
       courseColors: options.colors,
-    }),
+    })
   );
 
   const container = window.document.createElement("div");
@@ -101,12 +101,8 @@ async function mountTodo(options: { grades?: GradesSnapshot | null; extra?: Even
     );
   });
   await settle();
-  await act(async () => {
-    window.location.hash = `#sync=${packed}`;
-    window.dispatchEvent(new window.Event("hashchange"));
-  });
+  await act(async () => void (await deliverSync(window, incoming)));
   await settle(50);
-  await act(async () => latest!.applyPendingSync());
   await settle(80);
 
   return {
