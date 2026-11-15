@@ -127,7 +127,7 @@ async function render(fetchAcademic: (input: string) => Promise<Response> = refu
   };
 }
 
-async function importOneTask(view: Awaited<ReturnType<typeof render>>) {
+async function importOneTask() {
   const incoming = (
     buildSyncPayload({
       feeds: [
@@ -244,7 +244,7 @@ test("editing a custom event's title changes the pill, and deleting removes it",
 
 test("editing an imported event corrects it, and restoring brings back HuskyCT's own wording", async () => {
   const view = await render();
-  await importOneTask(view);
+  await importOneTask();
   assert.ok(view.text().includes("Section 4.1 Homework"));
 
   await view.clickPill("Section 4.1 Homework");
@@ -263,7 +263,7 @@ test("editing an imported event corrects it, and restoring brings back HuskyCT's
 for (const action of ["calendar.delete", "calendar.restoreOriginal", "calendar.restoreAll"] as const) {
   test(`${action} keeps the event unchanged and shows a failed-save error`, async () => {
     const view = await render();
-    await importOneTask(view);
+    await importOneTask();
     await view.clickPill("Section 4.1 Homework");
     await view.setValue(view.field(t("en", "calendar.fieldTitle"))!, "My correction");
     await view.clickButton(t("en", "calendar.save"));
@@ -342,7 +342,7 @@ test("editing an all-day imported event shows its own day and keeps it, in any z
 
 test("deleting an imported event hides it without touching HuskyCT's copy, and Undo brings it back", async () => {
   const view = await render();
-  await importOneTask(view);
+  await importOneTask();
 
   await view.clickPill("Section 4.1 Homework");
   await view.clickButton(t("en", "calendar.delete"));

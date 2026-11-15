@@ -263,7 +263,7 @@ test("accepting a sync link while the demo is showing saves no demo tick", async
 
 // --- the calendar page's own corrections and additions ----------------------------
 
-async function importOneTask(app: Awaited<ReturnType<typeof mount>>) {
+async function importOneTask() {
   const incoming = (
     buildSyncPayload({
       feeds: [
@@ -297,7 +297,7 @@ async function importOneTask(app: Awaited<ReturnType<typeof mount>>) {
 
 test("a correction to an imported event shows up in tasks, and only there", async () => {
   const app = await mount();
-  const id = await importOneTask(app);
+  const id = await importOneTask();
 
   await act(async () => app.calendar.editEvent(id, { title: "Renamed by hand" }));
 
@@ -309,7 +309,7 @@ test("a correction to an imported event shows up in tasks, and only there", asyn
 
 test("deleting an imported event hides it; restoring brings back the original, edit included", async () => {
   const app = await mount();
-  const id = await importOneTask(app);
+  const id = await importOneTask();
   await act(async () => app.calendar.editEvent(id, { title: "Renamed by hand" }));
 
   await act(async () => app.calendar.deleteEvent(id));
@@ -324,7 +324,7 @@ test("deleting an imported event hides it; restoring brings back the original, e
 
 test("restoring all events clears every correction and deletion at once", async () => {
   const app = await mount();
-  const id = await importOneTask(app);
+  const id = await importOneTask();
   await act(async () => {
     app.calendar.editEvent(id, { title: "Renamed by hand" });
   });
@@ -338,7 +338,7 @@ test("restoring all events clears every correction and deletion at once", async 
 
 test("a note on an imported event survives a page reload, by itself", async () => {
   const app = await mount();
-  const id = await importOneTask(app);
+  const id = await importOneTask();
   await act(async () => app.calendar.editEvent(id, { note: "bring a calculator" }));
 
   assert.equal(app.calendar.eventNoteFor(id), "bring a calculator");
@@ -376,7 +376,7 @@ test("editing, hiding and restoring in a stale tab preserve other saved correcti
 test("another tab's corrections, hiding and clearing appear without reloading", async () => {
   const app = await mount();
   try {
-    const id = await importOneTask(app);
+    const id = await importOneTask();
     const key = EVENT_OVERLAY_STORAGE_KEY;
     saveEventOverlay(window.localStorage, { edits: { [id]: { title: "Corrected elsewhere", note: "Bring notes" } }, deletedIds: [] });
     await storageChanged(key);
@@ -581,7 +581,7 @@ const addOwn = async (app: Awaited<ReturnType<typeof mount>>) => {
 
 test("a task the student added and ticked is still ticked after a reload, with a calendar imported", async () => {
   const app = await mount();
-  await importOneTask(app);
+  await importOneTask();
   const own = await addOwn(app);
   await act(async () => app.calendar.toggleTaskCompletion(own));
   assert.equal(app.calendar.doneIds.has(own), true);
@@ -600,7 +600,7 @@ test("a tick on the student's own task survives the first import, and unticking 
   await act(async () => app.calendar.toggleTaskCompletion(own));
   assert.equal(app.calendar.doneIds.has(own), true);
 
-  await importOneTask(app);
+  await importOneTask();
   assert.equal(app.calendar.doneIds.has(own), true, "the import took the tick away");
   await app.unmount();
 
@@ -617,7 +617,7 @@ test("a tick on the student's own task survives the first import, and unticking 
 
 test("a tick on an imported task and one on the student's own task are kept apart, and each stays", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
   const own = await addOwn(app);
   await act(async () => app.calendar.toggleTaskCompletion(imported));
   await act(async () => app.calendar.toggleTaskCompletion(own));
@@ -665,7 +665,7 @@ test("ticking in a stale tab preserves the tick another tab moved to a new deadl
 
 test("ticks changed in another tab appear here, including unticks and custom events", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
   const own = await addOwn(app);
 
   storeTicks(COMPLETION_STORAGE_KEY_IMPORTED, [imported]);
@@ -690,7 +690,7 @@ test("ticks changed in another tab appear here, including unticks and custom eve
 
 test("ticking before another tab's storage event arrives preserves its ticks and source separation", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
   const own = await addOwn(app);
   const demo = "demo-cse-problem-set";
   storeTicks(COMPLETION_STORAGE_KEY_DEMO, [demo]);
@@ -708,7 +708,7 @@ test("ticking before another tab's storage event arrives preserves its ticks and
 
 test("another tab's HuskyCT status and reopenings are reflected and toggled from the latest saved choice", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
 
   window.localStorage.setItem(SYNCED_DONE_STORAGE_KEY, JSON.stringify({ [imported]: "graded" }));
   await storageChanged(SYNCED_DONE_STORAGE_KEY);
@@ -732,7 +732,7 @@ test("another tab's HuskyCT status and reopenings are reflected and toggled from
 
 test("a helper sync preserves another tab's latest completion choices and keeps custom ticks separate", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
   const own = await addOwn(app);
   await act(async () => app.calendar.toggleTaskCompletion(own));
 
@@ -781,7 +781,7 @@ function refuseStorageWrite(key: string) {
 
 test("failed event saves leave the visible calendar unchanged and report the failure", async () => {
   const app = await mount();
-  const imported = await importOneTask(app);
+  const imported = await importOneTask();
   for (const key of ["huskypilot.customEvents.v1", "huskypilot.eventOverlay.v1"]) {
     const restore = refuseStorageWrite(key);
     try {

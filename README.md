@@ -156,7 +156,12 @@ src/
 │  ├─ courses/[slug]/page.tsx                    # /courses/cse-2050  one course, its tab in ?tab=
 │  ├─ globals.css, icon.tsx                      # Styles; the app icon
 ├─ components/
-│  ├─ calendar-provider.tsx                      # Every piece of app state, in the root layout
+│  ├─ calendar-provider.tsx                      # App state in the root layout: feeds, announcements, applying a sync
+│  ├─ use-course-book.ts                         # The courses the student named, and which task is whose
+│  ├─ use-event-edits.ts                         # Hand corrections, own events, and moved-deadline notices
+│  ├─ use-task-status.ts                         # What is done: ticks, HuskyCT's gradebook, reopened tasks
+│  ├─ use-reminders.ts                           # The page's own nudge about work due soon
+│  ├─ use-course-catalogue.ts                    # Fetches the course catalogue when a task needs it
 │  ├─ app-shell.tsx                              # Sidebar, header with Sync and search, section tabs, footer
 │  ├─ sub-nav.tsx                                # The current section's pages, as tabs at its top
 │  ├─ use-theme.ts                               # The theme choice, kept in step with storage
@@ -216,6 +221,7 @@ src/
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# Due-soon detection; the add form; search; what is new
    ├─ course-key.ts                              # A course's one name across sources, its address and tabs
    ├─ export.ts                                  # CSV export
+   ├─ download.ts                                # Hands the browser a file to save
    ├─ sync-status.ts                             # What each sync read, course by course, and when each part was last read
    ├─ background-sync.ts                         # Bounded extension messages, snapshots and request/reply bridge
    ├─ ics.ts                                     # Open deadlines as an .ics file, with reminders, for a calendar app

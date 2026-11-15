@@ -11,6 +11,11 @@ import {
   type ReactNode,
 } from "react";
 
+import { useCourseBook } from "@/components/use-course-book";
+import { useCourseCatalogue } from "@/components/use-course-catalogue";
+import { useEventEdits } from "@/components/use-event-edits";
+import { useReminders } from "@/components/use-reminders";
+import { restoreCustomTicks, restoreTicks, useTaskStatus, type CompletionSource } from "@/components/use-task-status";
 import { isDeadline } from "@/lib/calendar-types";
 import { formatDate } from "@/lib/format-date";
 import type { CalendarTask, TaskGroup } from "@/lib/calendar-types";
@@ -29,24 +34,22 @@ import {
   restoreSubscriptions,
   saveSubscriptions,
   taskOwnerIndex,
-  ticksForTasks,
   updateSubscription,
   type Subscription,
 } from "@/lib/subscriptions";
 import { watchClock } from "@/lib/clock";
+import { downloadFile } from "@/lib/download";
 import { writeStorageBatch, type StorageWriter } from "@/lib/storage-batch";
 import { CHANGES_CHANGED, CHANGES_KEY, mergeChangeStores, parseChanges, saveChanges, withChangesLock, type ChangesStore } from "@/lib/changes";
 import { historyForSource } from "@/lib/background-sync";
-import { eventUid } from "@/lib/sync-merge";
 import { recordSyncChanges } from "@/lib/change-producers";
 import { parseVersions, recordVersions, VERSIONS_CHANGED, VERSIONS_KEY } from "@/lib/announcement-versions";
 import type { SyncPayload } from "@/lib/sync";
-import { planSyncApply } from "@/lib/sync-apply";
+import { planSyncApply, withoutStaleRows } from "@/lib/sync-apply";
 import { createTasksReceiver } from "@/lib/tasks-sync";
 import { applyReadReport, readSyncStatus, recordReadReport, SYNC_STATUS_CHANGED, SYNC_STATUS_KEY, type ReadReport } from "@/lib/sync-status";
 import {
   activeNotices,
-  dismissNotice,
   moveMap,
   moveOverlay,
   moveSet,
@@ -57,78 +60,37 @@ import {
 } from "@/lib/moved-deadlines";
 import {
   applyOverlay,
-  deleteEvent as deleteOverlayEvent,
-  EMPTY_OVERLAY,
-  EVENT_OVERLAY_STORAGE_KEY,
-  noteFor as overlayNoteFor,
-  restoreEvent as restoreOverlayEvent,
   restoreEventOverlay,
   saveEventOverlay,
-  setEventEdit,
   type EventEdit,
-  type EventOverlay,
 } from "@/lib/event-overlay";
+import { isCustomEventId, type CustomEventInput } from "@/lib/custom-events";
 import {
-  buildCustomEvent,
-  MAX_CUSTOM_EVENTS,
-  editCustomEvent as applyCustomEventEdit,
-  isCustomEventId,
-  removeCustomEvent as dropCustomEvent,
-  restoreCustomEvents,
-  saveCustomEvents,
-  type CustomEvent as CustomCalendarEvent,
-  type CustomEventInput,
-} from "@/lib/custom-events";
-import {
-  COMPLETION_STORAGE_KEY_CUSTOM,
-  COMPLETION_STORAGE_KEY_DEMO,
   COMPLETION_STORAGE_KEY_IMPORTED,
   restoreCompletedTaskIds,
   saveCompletedTaskIds,
 } from "@/lib/completion-storage";
 import { createDemoTasks, groupTasks } from "@/lib/calendar-view";
-import { isCourseCatalogueLoaded, loadCourseCatalogue } from "@/lib/course-catalogue";
-import type { GradesSnapshot } from "@/lib/grades";
-import { GRADES_CHANGED, openGradesStore } from "@/lib/grades-store";
 import {
-  REOPENED_STORAGE_KEY,
-  SYNCED_DONE_STORAGE_KEY,
-  autoDoneTasks,
-  doneLabels,
   mergeDone,
   restoreReopened,
   restoreSyncedDone,
   saveReopened,
   saveSyncedDone,
   type DoneLabel,
-  type DoneReason,
 } from "@/lib/task-status";
 import {
   EMPTY_COURSE_BOOK,
-  addCourse as addCourseToBook,
-  assignTaskCourse,
   COURSES_STORAGE_KEY,
-  clearTaskCourse,
   courseIdForTask,
   labelForTask,
-  removeCourse as removeCourseFromBook,
   restoreCourseBook,
   saveCourseBook,
-  setDefaultCourse as setDefaultInBook,
-  updateCourse as updateCourseInBook,
   type Course,
-  type CourseBook,
   type CourseComponent,
   type CourseLabel,
 } from "@/lib/courses";
-import {
-  dueSoonTasks,
-  reminderSignature,
-  restoreReminderState,
-  saveReminderState,
-  shouldNotify,
-  type ReminderState,
-} from "@/lib/reminders";
+import { dueSoonTasks } from "@/lib/reminders";
 import { CSV_BOM, exportFileName, tasksToCsv } from "@/lib/export";
 import { deadlinesToRemind, icsFileName, tasksToIcs } from "@/lib/ics";
 import { courseColor, mergeCourseColors, restoreCourseColors, saveCourseColors, type CourseColors } from "@/lib/course-colors";
@@ -240,26 +202,12 @@ export function useCalendar(): CalendarContextValue {
  * a repeated auto-refresh request.
  *
  * HuskyCT issues one feed per course, so the app holds a *list* of them and
- * renders the union. The cache in each subscription is what the pages read; the
- * URL is only kept when the user opted in, which is what makes a refresh
- * possible on the next visit.
+ * renders the union. The cache in each subscription is what the pages read.
+ *
+ * The parts with a life of their own are hooks beside this file: the course book, the hand edits
+ * to the calendar, what is done, the reminders, the course catalogue. What stays here is what
+ * joins them: the feeds, the announcements, and a sync, which changes all of them at once.
  */
-/**
- * The ticks to show for a source: its own that still match a task, and those on the student's own
- * events, which show in the demo and in an import alike and so are kept apart from both.
- */
-function restoreTicks(source: "demo" | "imported", subscriptions: Subscription[] | null): Set<string> {
-  const own = restoreCompletedTaskIds(window.localStorage, source);
-  const real = subscriptions ? ticksForTasks(own, subscriptions) : own;
-  return new Set([...real, ...restoreCustomTicks()]);
-}
-
-/** The ticks on events the student added, for the events that are still there. */
-function restoreCustomTicks(): string[] {
-  const mine = new Set(restoreCustomEvents(window.localStorage).map((event) => event.id));
-  return [...restoreCompletedTaskIds(window.localStorage, "custom")].filter((id) => mine.has(id));
-}
-
 export function CalendarProvider({
   initialNow,
   children,
@@ -274,40 +222,15 @@ export function CalendarProvider({
   // Course announcements. They arrive by sync only — the app never fetches
   // HuskyCT itself — so this is empty on a device that has never been sent any.
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  // True while the demo data is what the pages show, either because nothing has
-  // been imported yet or because the user asked for the demo back.
+  // True while the demo data is what the pages show, because nothing has been imported yet.
   const [demoMode, setDemoMode] = useState(true);
   const [restoredFromStorage, setRestoredFromStorage] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [completedIds, setCompletedIds] = useState<Set<string>>(() => new Set());
-  // Task id -> how much work the user says it is. Defaults to "medium".
-  // Every course the user has named, plus the per-task overrides. A Blackboard
-  // feed never labels a graded item with its course, and one feed can hold
-  // several courses, so this cannot be a single label.
-  const [courseBook, setCourseBook] = useState<CourseBook>(EMPTY_COURSE_BOOK);
-  const [remindersEnabled, setRemindersEnabled] = useState(false);
-  // The "what did we already notify about" log is bookkeeping for an external
-  // system (localStorage), not rendered state, so it lives in a ref.
-  const reminderLog = useRef<{
-    lastSignature: string | null;
-    lastNotifiedAt: string | null;
-  }>({ lastSignature: null, lastNotifiedAt: null });
-  const [notificationPermission, setNotificationPermission] = useState<
-    NotificationPermission | "unsupported"
-  >("default");
-  // Opt-in only: when false, a feed URL is never written to storage.
+  const [courseColors, setCourseColors] = useState<CourseColors>({});
   // Mirrors `subscriptions` for async work, which would otherwise close over a
   // stale value between awaits.
   const subscriptionsRef = useRef<Subscription[]>([]);
-  // The same, for the announcement list when a sync link is packed.
-  const announcementsRef = useRef<Announcement[]>([]);
-  // Corrections to imported events, and events the student added themselves;
-  // see `event-overlay.ts` and `custom-events.ts` for why they are kept apart.
-  const [eventOverlay, setEventOverlay] = useState<EventOverlay>(EMPTY_OVERLAY);
-  const [moveLog, setMoveLog] = useState<MoveLog>({});
-  const [customEvents, setCustomEvents] = useState<CustomCalendarEvent[]>([]);
-  const [courseColors, setCourseColors] = useState<CourseColors>({});
 
   const hasSubscriptions = subscriptions.length > 0;
   const isImported = hasSubscriptions && !demoMode;
@@ -339,120 +262,52 @@ export function CalendarProvider({
     return true;
   }
 
-  /**
-   * Throws the collected announcements away.
-   *
-   * There has to be a way out. Sync only ever adds, so without this a term of
-   * announcements collected by mistake — or a course the user has finished —
-   * would sit on the page until storage was cleared wholesale.
-   */
-  async function dropAnnouncements() {
-    try {
-      await withChangesLock(() => {
-        const changes = parseChanges(window.localStorage.getItem(CHANGES_KEY));
-        if (!saveChange(() => writeStorageBatch(window.localStorage, (staged) => {
-          staged.removeItem(ANNOUNCEMENTS_STORAGE_KEY);
-          staged.removeItem(VERSIONS_KEY);
-          saveChanges(staged, { ...changes,
-            entries: changes.entries.filter((entry) => entry.kind !== "announcement-new" && entry.kind !== "announcement-edited"),
-            baselines: changes.baselines.filter((scope) => !scope.startsWith("announcements:")),
-          });
-        }))) return;
-        announcementsRef.current = [];
-        setAnnouncements([]);
-        window.dispatchEvent(new window.Event(CHANGES_CHANGED));
-        window.dispatchEvent(new window.Event(VERSIONS_CHANGED));
-        setNotice(t(locale, "announcements.cleared"));
-        setError(null);
-      });
-    } catch { setError(t(locale, "errors.saveFailed")); }
-  }
+  const book = useCourseBook(saveChange);
+  const { courseBook, setCourseBook } = book;
+  const edits = useEventEdits(locale, saveChange, setError);
+  const { eventOverlay, setEventOverlay, customEvents, setMoveLog } = edits;
 
-  function commitEventOverlay(next: EventOverlay) {
-    if (!saveChange(() => saveEventOverlay(window.localStorage, next))) throw new Error(t(locale, "errors.saveFailed"));
-    setEventOverlay(next);
-  }
+  // The server does not know the reader's day or zone. Keep the first frame
+  // neutral until this browser has restored its clock and saved calendar.
+  const demoTasks = useMemo(() => calendarReady ? createDemoTasks(now) : [], [calendarReady, now]);
+  // Corrections and deletions apply only to what was actually imported — the
+  // demo is not something anyone is correcting. Events the student added
+  // themselves are not a correction of anything, so they are always shown,
+  // demo or not: adding one is how an import-less visitor tries the calendar.
+  const tasks = useMemo(
+    () => [...(isImported ? applyOverlay(mergeTasks(subscriptions), eventOverlay) : demoTasks), ...customEvents],
+    [isImported, subscriptions, demoTasks, eventOverlay, customEvents],
+  );
 
-  function commitCustomEvents(next: CustomCalendarEvent[], saveRelated?: (staged: StorageWriter) => void) {
-    if (next.length > MAX_CUSTOM_EVENTS) {
-      const message = t(locale, "events.full", { max: MAX_CUSTOM_EVENTS });
-      setError(message);
-      throw new Error(message);
-    }
-    if (!saveChange(() => writeStorageBatch(window.localStorage, (staged) => {
-      saveCustomEvents(staged, next);
-      saveRelated?.(staged);
-    }))) throw new Error(t(locale, "errors.saveFailed"));
-    setCustomEvents(next);
-  }
+  const taskOwners = useMemo(() => taskOwnerIndex(subscriptions), [subscriptions]);
+  const catalogueReady = useCourseCatalogue(tasks);
 
-  /**
-   * One form for both kinds of event on the calendar page: a custom one is
-   * edited in place, since the student owns the whole record; a correction to
-   * an imported one goes into the overlay instead, so the next collection
-   * still finds it. `taskId` decides which by its own namespace.
-   */
-  function editEvent(taskId: string, edit: EventEdit) {
-    if (isCustomEventId(taskId)) {
-      commitCustomEvents(applyCustomEventEdit(restoreCustomEvents(window.localStorage), taskId, edit));
-    } else {
-      commitEventOverlay(setEventEdit(restoreEventOverlay(window.localStorage), taskId, edit));
-    }
-  }
+  // The course a task shows, as a function so what is done can be worked out from it.
+  const labelFor = useCallback(
+    (task: CalendarTask) => {
+      const ownerId = taskOwners.get(task.id);
+      const feedCourseId = ownerId
+        ? (subscriptions.find((entry) => entry.id === ownerId)?.courseId ?? null)
+        : null;
+      return labelForTask(courseBook, task, feedCourseId);
+    },
+    [courseBook, taskOwners, subscriptions],
+  );
+  const courseCodeFor = useCallback((task: CalendarTask) => labelFor(task)?.code ?? null, [labelFor]);
 
-  function deleteEvent(taskId: string) {
-    if (isCustomEventId(taskId)) commitCustomEvents(dropCustomEvent(restoreCustomEvents(window.localStorage), taskId));
-    else commitEventOverlay(deleteOverlayEvent(restoreEventOverlay(window.localStorage), taskId));
-  }
+  const completionSource: CompletionSource = isImported ? "imported" : "demo";
+  const status = useTaskStatus({ tasks, courseCodeFor, catalogueReady, source: completionSource, subscriptionsRef, locale, setError });
+  const { setCompletedIds, setReopened, setSyncedDone, doneIds } = status;
 
-  /** Back to exactly what HuskyCT sent. Meaningless for a custom event — there is no "original" to go back to. */
-  function restoreEvent(taskId: string) {
-    if (!isCustomEventId(taskId)) commitEventOverlay(restoreOverlayEvent(restoreEventOverlay(window.localStorage), taskId));
-  }
+  // Work already handed in is not due soon.
+  const dueSoon = useMemo(() => dueSoonTasks(tasks.filter((task) => !doneIds.has(task.id)), now), [tasks, doneIds, now]);
+  const reminders = useReminders(locale, dueSoon, { setError, setNotice });
 
-  function restoreAllEvents() {
-    commitEventOverlay(EMPTY_OVERLAY);
-  }
-
-  useEffect(() => {
-    function readOverlay(event: StorageEvent) {
-      if (event.storageArea && event.storageArea !== window.localStorage) return;
-      if (event.key !== null && event.key !== EVENT_OVERLAY_STORAGE_KEY) return;
-      setEventOverlay(restoreEventOverlay(window.localStorage));
-    }
-    window.addEventListener("storage", readOverlay);
-    return () => window.removeEventListener("storage", readOverlay);
-  }, []);
-
-  function eventNoteFor(taskId: string): string | null {
-    if (isCustomEventId(taskId)) return customEvents.find((event) => event.id === taskId)?.note ?? null;
-    return overlayNoteFor(eventOverlay, taskId);
-  }
-
-  function isEventEdited(taskId: string): boolean {
-    return Boolean(eventOverlay.edits[taskId]) || eventOverlay.deletedIds.includes(taskId);
-  }
-
-  function addCustomEvent(input: CustomEventInput): string {
-    const event = buildCustomEvent(input);
-    addCustomEvents([{ ...input, id: event.id }]);
-    return event.id;
-  }
-
-  function addCustomEvents(inputs: CustomEventInput[], saveRelated?: (staged: StorageWriter) => void) {
-    if (inputs.length === 0 && !saveRelated) return;
-    const events = new Map(restoreCustomEvents(window.localStorage).map((event) => [event.id, event]));
-    for (const input of inputs) {
-      const event = buildCustomEvent(input);
-      if (!events.has(event.id)) events.set(event.id, event);
-    }
-    commitCustomEvents([...events.values()], saveRelated);
-  }
-
+  // Declared after the hooks above, whose own restores therefore run first: by the time this
+  // marks the calendar ready, everything this browser remembers is on screen.
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const currentTime = new Date();
-      setNow(currentTime);
+      setNow(new Date());
       let restoredLocale = DEFAULT_LOCALE;
       try {
         restoredLocale = restoreLocale(window.localStorage);
@@ -472,24 +327,7 @@ export function CalendarProvider({
           setCompletedIds(restoreTicks("demo", null));
         }
 
-        const restoredReminders = restoreReminderState(window.localStorage);
-        setRemindersEnabled(restoredReminders.enabled);
-        reminderLog.current = {
-          lastSignature: restoredReminders.lastSignature,
-          lastNotifiedAt: restoredReminders.lastNotifiedAt,
-        };
-        setNotificationPermission(
-          "Notification" in window ? Notification.permission : "unsupported",
-        );
-        setCourseBook(restoreCourseBook(window.localStorage));
-
-        const restoredAnnouncements = restoreAnnouncements(window.localStorage);
-        announcementsRef.current = restoredAnnouncements.announcements;
-        setAnnouncements(restoredAnnouncements.announcements);
-
-        setEventOverlay(restoreEventOverlay(window.localStorage));
-        setMoveLog(restoreMoveLog(window.localStorage));
-        setCustomEvents(restoreCustomEvents(window.localStorage));
+        setAnnouncements(restoreAnnouncements(window.localStorage).announcements);
         setCourseColors(restoreCourseColors(window.localStorage));
       } catch {
         setError(t(restoredLocale, "errors.restoreFailed"));
@@ -499,245 +337,51 @@ export function CalendarProvider({
     }, 0);
 
     return () => window.clearTimeout(timer);
-    // Restore-on-mount must run exactly once; listing the functions it calls would re-run the
-    // whole restore on each render instead.
+    // Restore-on-mount must run exactly once; the setter it is handed is a state setter, which
+    // never changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Keeps `now` moving while the app is open; see `watchClock` for why. The
   // returned cleanup is the effect's, so an unmounted provider stops ticking.
   useEffect(() => watchClock(() => setNow(new Date()), window), []);
 
-  // The server does not know the reader's day or zone. Keep the first frame
-  // neutral until this browser has restored its clock and saved calendar.
-  const demoTasks = useMemo(() => calendarReady ? createDemoTasks(now) : [], [calendarReady, now]);
-  // Corrections and deletions apply only to what was actually imported — the
-  // demo is not something anyone is correcting. Events the student added
-  // themselves are not a correction of anything, so they are always shown,
-  // demo or not: adding one is how an import-less visitor tries the calendar.
-  const tasks = useMemo(
-    () => [...(isImported ? applyOverlay(mergeTasks(subscriptions), eventOverlay) : demoTasks), ...customEvents],
-    [isImported, subscriptions, demoTasks, eventOverlay, customEvents],
-  );
-
-  const taskOwners = useMemo(() => taskOwnerIndex(subscriptions), [subscriptions]);
-
-  // The course catalogue is a 62 KB download that only a task with no course of
-  // its own (a Blackboard class meeting) can use, so it is fetched when the
-  // tasks on screen include one — never for the demo, which names its courses.
-  // Labels are read during render, so its arrival is a state change.
-  const [catalogueReady, setCatalogueReady] = useState(isCourseCatalogueLoaded);
-  const needsCatalogue = useMemo(() => tasks.some((task) => !(task.course ?? "").trim()), [tasks]);
-  useEffect(() => {
-    if (!needsCatalogue || catalogueReady) return;
-    let cancelled = false;
-    loadCourseCatalogue().then(
-      () => {
-        if (!cancelled) setCatalogueReady(true);
-      },
-      () => undefined, // Offline: labels fall back to the feed's course, as they did before it arrived.
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [needsCatalogue, catalogueReady]);
-
-  // The course a task shows, as a function so what is done can be worked out from it.
-  const labelFor = useCallback(
-    (task: CalendarTask) => {
-      const ownerId = taskOwners.get(task.id);
-      const feedCourseId = ownerId
-        ? (subscriptions.find((entry) => entry.id === ownerId)?.courseId ?? null)
-        : null;
-      return labelForTask(courseBook, task, feedCourseId);
-    },
-    [courseBook, taskOwners, subscriptions],
-  );
-
-  // What HuskyCT's gradebook says is handed in or graded. Read from the grades the
-  // helper sent, and again whenever they change (here or in another tab).
-  const [grades, setGrades] = useState<GradesSnapshot | null>(null);
-  // Read once, where there is a browser. Which tasks are done only shows once the grades
-  // have loaded, after the first render, so the server's markup never depends on it.
-  const [reopened, setReopened] = useState<Set<string>>(() =>
-    typeof window === "undefined" ? new Set() : restoreReopened(window.localStorage),
-  );
-  const [syncedDone, setSyncedDone] = useState<Map<string, DoneReason>>(() =>
-    typeof window === "undefined" ? new Map() : restoreSyncedDone(window.localStorage),
-  );
-  useEffect(() => {
-    let alive = true;
-    const read = () => {
-      openGradesStore()
-        .then((store) => store.get())
-        .then(
-          (next) => {
-            if (alive) setGrades(next);
-          },
-          () => undefined, // blocked storage: nothing is known to be done
-        );
-    };
-    read();
-    window.addEventListener(GRADES_CHANGED, read);
-    window.addEventListener("storage", read);
-    return () => {
-      alive = false;
-      window.removeEventListener(GRADES_CHANGED, read);
-      window.removeEventListener("storage", read);
-    };
-  }, []);
-
-  // What HuskyCT said on another device (a phone has no gradebook of its own), added
-  // to what this device reads from its own. Only ever adds: see `mergeDone`.
-  const doneFromGrades = useMemo(
-    () => autoDoneTasks(tasks, grades, (task) => labelFor(task)?.code ?? null),
-    // The catalogue arriving can change which course a task shows, though `labelFor` does not
-    // change with it, so it is a dependency here on its own account.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, grades, labelFor, catalogueReady],
-  );
-  const autoDone = useMemo(() => mergeDone(doneFromGrades, syncedDone), [doneFromGrades, syncedDone]);
-  const doneLabelMap = useMemo(() => doneLabels(completedIds, autoDone, reopened), [completedIds, autoDone, reopened]);
-  const doneIds = useMemo(() => new Set(doneLabelMap.keys()), [doneLabelMap]);
-
-  const completionSource = isImported ? "imported" : "demo";
-
-  useEffect(() => {
-    function readCompletion(event: StorageEvent) {
-      if (event.storageArea && event.storageArea !== window.localStorage) return;
-      const key = event.key;
-      if (key === null || [COMPLETION_STORAGE_KEY_DEMO, COMPLETION_STORAGE_KEY_IMPORTED, COMPLETION_STORAGE_KEY_CUSTOM].includes(key)) {
-        setCompletedIds(restoreTicks(completionSource, completionSource === "imported" ? subscriptionsRef.current : null));
-      }
-      if (key === null || key === REOPENED_STORAGE_KEY) setReopened(restoreReopened(window.localStorage));
-      if (key === null || key === SYNCED_DONE_STORAGE_KEY) setSyncedDone(restoreSyncedDone(window.localStorage));
-    }
-    window.addEventListener("storage", readCompletion);
-    return () => window.removeEventListener("storage", readCompletion);
-  }, [completionSource]);
-
-  /** The ticks on screen are saved in two places: the source's own, and the student's own events'. */
-  function toggleTaskCompletion(taskId: string) {
-    try {
-      // Another tab may have saved a choice before its storage event reaches this one.
-      // Save every persisted decision. This tab's calendar can predate a move in another tab;
-      // filtering by its visible tasks would erase the tick already moved to the new id.
-      const ticks = restoreTicks(completionSource, null);
-      const latestReopened = restoreReopened(window.localStorage);
-      const latestSynced = restoreSyncedDone(window.localStorage);
-      const fromHuskyct = doneFromGrades.has(taskId) || latestSynced.has(taskId);
-      if (fromHuskyct) {
-        if (latestReopened.has(taskId)) latestReopened.delete(taskId);
-        else {
-          latestReopened.add(taskId);
-          ticks.delete(taskId);
-        }
-      } else if (ticks.has(taskId)) ticks.delete(taskId);
-      else ticks.add(taskId);
-      writeStorageBatch(window.localStorage, (staged) => {
-        saveCompletedTaskIds(staged, completionSource, new Set([...ticks].filter((id) => !isCustomEventId(id))));
-        saveCompletedTaskIds(staged, "custom", new Set([...ticks].filter(isCustomEventId)));
-        if (fromHuskyct && !saveReopened(staged, latestReopened)) throw new Error("Could not save task status.");
-      });
-      setSyncedDone(latestSynced);
-      setReopened(latestReopened);
-      setCompletedIds(restoreTicks(completionSource, isImported ? subscriptionsRef.current : null));
-      setError(null);
-    } catch {
-      setError(t(locale, "errors.saveFailed"));
-    }
-  }
-
-  function dismissMoveNotice(taskId: string) {
-    const next = dismissNotice(restoreMoveLog(window.localStorage), taskId);
-    if (!saveChange(() => saveMoveLog(window.localStorage, next))) return;
-    setMoveLog(next);
-  }
-
-  function setReminderEnabled(enabled: boolean) {
-    setRemindersEnabled(enabled);
-    saveReminderState(window.localStorage, { enabled, ...reminderLog.current });
-  }
-
-  async function toggleReminders() {
-    if (remindersEnabled) {
-      setReminderEnabled(false);
-      return;
-    }
-
-    if (!("Notification" in window)) {
-      setError(t(locale, "reminders.unsupported"));
-      return;
-    }
-
-    let permission = Notification.permission;
-    if (permission === "default") {
-      permission = await Notification.requestPermission();
-    }
-    setNotificationPermission(permission);
-
-    if (permission !== "granted") {
-      setError(t(locale, "reminders.denied"));
-      return;
-    }
-
-    setReminderEnabled(true);
-    setError(null);
-    setNotice(t(locale, "reminders.enabledNotice"));
-  }
-
-  // Work already handed in is not due soon.
-  const dueSoon = useMemo(() => dueSoonTasks(tasks.filter((task) => !doneIds.has(task.id)), now), [tasks, doneIds, now]);
-
   /**
-   * Course edits are saved on every keystroke, so the code is stored exactly as
-   * typed — trimming here would swallow the space in "NRE 1000E".
+   * Throws the collected announcements away.
+   *
+   * There has to be a way out. Sync only ever adds, so without this a term of
+   * announcements collected by mistake — or a course the user has finished —
+   * would sit on the page until storage was cleared wholesale.
    */
-  function commitCourseBook(next: CourseBook) {
-    if (!saveChange(() => saveCourseBook(window.localStorage, next))) return;
-    setCourseBook(next);
-  }
-
-  function addCourse(code: string, component: CourseComponent | null) {
-    commitCourseBook(addCourseToBook(courseBook, code, component));
-  }
-
-  function editCourse(
-    courseId: string,
-    patch: { code?: string; component?: CourseComponent | null },
-  ) {
-    commitCourseBook(updateCourseInBook(courseBook, courseId, patch));
-  }
-
-  function dropCourse(courseId: string) {
-    commitCourseBook(removeCourseFromBook(courseBook, courseId));
-  }
-
-  function setDefaultCourse(courseId: string | null) {
-    commitCourseBook(setDefaultInBook(courseBook, courseId));
-  }
-
-  function setTaskCourse(taskId: string, courseId: string | null) {
-    commitCourseBook(assignTaskCourse(courseBook, taskId, courseId));
-  }
-
-  function followDefaultCourse(taskId: string) {
-    commitCourseBook(clearTaskCourse(courseBook, taskId));
+  async function dropAnnouncements() {
+    try {
+      await withChangesLock(() => {
+        const changes = parseChanges(window.localStorage.getItem(CHANGES_KEY));
+        if (!saveChange(() => writeStorageBatch(window.localStorage, (staged) => {
+          staged.removeItem(ANNOUNCEMENTS_STORAGE_KEY);
+          staged.removeItem(VERSIONS_KEY);
+          saveChanges(staged, { ...changes,
+            entries: changes.entries.filter((entry) => entry.kind !== "announcement-new" && entry.kind !== "announcement-edited"),
+            baselines: changes.baselines.filter((scope) => !scope.startsWith("announcements:")),
+          });
+        }))) return;
+        setAnnouncements([]);
+        window.dispatchEvent(new window.Event(CHANGES_CHANGED));
+        window.dispatchEvent(new window.Event(VERSIONS_CHANGED));
+        setNotice(t(locale, "announcements.cleared"));
+        setError(null);
+      });
+    } catch { setError(t(locale, "errors.saveFailed")); }
   }
 
   /** Files a feed under a course, so its rows carry the right label. */
   function addFeedCourse(subscriptionId: string, courseId: string | null) {
-    commitSubscriptions(
-      updateSubscription(subscriptionsRef.current, subscriptionId, { courseId }),
-    );
+    commitSubscriptions(updateSubscription(subscriptionsRef.current, subscriptionId, { courseId }));
   }
 
   function dropSubscription(subscriptionId: string) {
-    const next = removeSubscriptionFrom(
-      subscriptionsRef.current,
-      subscriptionId,
-    );
+    const next = removeSubscriptionFrom(subscriptionsRef.current, subscriptionId);
     if (!commitSubscriptions(next)) return;
-
     if (next.length === 0) {
       setDemoMode(true);
       setRestoredFromStorage(false);
@@ -756,24 +400,7 @@ export function CalendarProvider({
       announcements: restoreAnnouncements(window.localStorage).announcements,
       doneByHuskyct: restoreSyncedDone(window.localStorage),
     };
-    if (backgroundHistory) {
-      // A cached run can arrive after a newer manual sync, or after an older lease expires.
-      const latest = new Map(before.subscriptions.flatMap(subscription => subscription.events.map(task => [eventUid(task), { task, at: subscription.importedAt }] as const)));
-      const staleIds = new Set<string>();
-      payload = { ...payload, feeds: payload.feeds.map(feed => ({ ...feed, events: feed.events.filter(task => {
-        const saved = latest.get(eventUid(task));
-        // A successful source may still send retained rows. Only a task's own reading time
-        // can establish freshness; older helpers without it may add tasks but not replace them.
-        const stale = saved && (!task.observedAt || (report && !report.dueDates && !report.todo)
-          || Date.parse(saved.task.observedAt ?? saved.at) > Date.parse(task.observedAt));
-        if (stale) staleIds.add(task.id);
-        return !stale;
-      }) })).filter(feed => feed.events.length > 0), announcements: payload.announcements.filter(item => {
-        const saved = before.announcements.find(entry => entry.id === item.id);
-        const read = !report || report.courses.some(course => course.announcements && (item.sourceCourseId ? course.id === item.sourceCourseId : course.code === item.courseCode));
-        return !saved || (read && Date.parse(saved.announced) <= Date.parse(item.announced));
-      }), doneByHuskyct: Object.fromEntries(Object.entries(payload.doneByHuskyct).filter(([id]) => !staleIds.has(id))) };
-    }
+    if (backgroundHistory) payload = withoutStaleRows(payload, before, report);
     const savedTicks = new Set([...restoreCompletedTaskIds(window.localStorage, "imported")].filter((id) => !isCustomEventId(id)));
     const plan = planSyncApply(
       {
@@ -822,7 +449,6 @@ export function CalendarProvider({
     if (nextOverlay) setEventOverlay(nextOverlay);
     if (nextMoveLog) setMoveLog(nextMoveLog);
     subscriptionsRef.current = merged.subscriptions;
-    announcementsRef.current = ordered;
     setSubscriptions(merged.subscriptions);
     setCourseBook(merged.courses);
     setAnnouncements(ordered);
@@ -894,42 +520,6 @@ export function CalendarProvider({
     return () => window.removeEventListener("message", listener);
   }, []);
 
-  // Nudge at most once per set of due tasks, and only while the app is open:
-  // without a push server a web page cannot wake itself up in the background.
-  useEffect(() => {
-    if (!remindersEnabled || notificationPermission !== "granted") return;
-    if (dueSoon.length === 0) return;
-
-    const signature = reminderSignature(dueSoon);
-    const current: ReminderState = { enabled: true, ...reminderLog.current };
-    if (!shouldNotify(current, signature, new Date())) return;
-
-    const title = t(locale, "reminders.notificationTitle");
-    const options = {
-      body: t(locale, "reminders.notificationBody", { count: dueSoon.length }),
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      tag: "huskypilot-due",
-    };
-
-    if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.ready
-        .then((registration) => registration.showNotification(title, options))
-        .catch(() => undefined);
-    } else {
-      new Notification(title, options);
-    }
-
-    reminderLog.current = {
-      lastSignature: signature,
-      lastNotifiedAt: new Date().toISOString(),
-    };
-    saveReminderState(window.localStorage, {
-      enabled: true,
-      ...reminderLog.current,
-    });
-  }, [remindersEnabled, notificationPermission, dueSoon, locale]);
-
   const groups = useMemo(() => calendarReady ? groupTasks(tasks, now, locale) : [], [calendarReady, tasks, now, locale]);
   // The groups keep class meetings — seeing your day is useful — but the
   // headline says "due", so it counts only the things actually due.
@@ -957,7 +547,6 @@ export function CalendarProvider({
           });
         }))) return;
         subscriptionsRef.current = [];
-        announcementsRef.current = [];
         setSubscriptions([]);
         setAnnouncements([]);
         setCourseBook(EMPTY_COURSE_BOOK);
@@ -974,37 +563,18 @@ export function CalendarProvider({
 
   /** Download exactly what is on screen, as a spreadsheet-friendly CSV. */
   function exportTasks() {
-    const csv = CSV_BOM + tasksToCsv(tasks, doneIds);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = exportFileName(now);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadFile(new Blob([CSV_BOM + tasksToCsv(tasks, doneIds)], { type: "text/csv;charset=utf-8" }), exportFileName(now));
   }
 
   /** The open deadlines as an .ics file, so the phone's own calendar reminds with this app closed. */
   function exportCalendar() {
     const due = deadlinesToRemind(tasks, doneIds, now);
+    setError(null);
     if (due.length === 0) {
-      setError(null);
       setNotice(t(locale, "notices.icsNothing"));
       return;
     }
-    const blob = new Blob([tasksToIcs(due, now)], { type: "text/calendar;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = icsFileName(now);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    setError(null);
+    downloadFile(new Blob([tasksToIcs(due, now)], { type: "text/calendar;charset=utf-8" }), icsFileName(now));
     setNotice(t(locale, "notices.icsExported", { count: due.length }));
   }
 
@@ -1013,35 +583,32 @@ export function CalendarProvider({
     setError(null);
   }
 
-  const calendarName =
-    subscriptions.length === 1 ? subscriptions[0].name : null;
-
   const value: CalendarContextValue = {
     now,
     calendarReady,
     locale,
     changeLocale,
     tasks,
-    completedIds,
+    completedIds: status.completedIds,
     doneIds,
-    doneLabelFor: (taskId: string) => doneLabelMap.get(taskId) ?? null,
-    hasGrades: grades !== null,
-    toggleTaskCompletion,
+    doneLabelFor: status.doneLabelFor,
+    hasGrades: status.hasGrades,
+    toggleTaskCompletion: status.toggleTaskCompletion,
     groups,
     visibleCount,
     dueSoon,
     courses: courseBook.courses,
-    addCourse,
-    editCourse,
-    dropCourse,
-    setDefaultCourse,
-    setTaskCourse,
-    followDefaultCourse,
+    addCourse: book.addCourse,
+    editCourse: book.editCourse,
+    dropCourse: book.dropCourse,
+    setDefaultCourse: book.setDefaultCourse,
+    setTaskCourse: book.setTaskCourse,
+    followDefaultCourse: book.followDefaultCourse,
     courseIdForTask: (taskId: string) => courseIdForTask(courseBook, taskId),
     courseLabelFor: labelFor,
     courseColorFor: (code) => courseColor(courseColors, code),
     formattedToday,
-    calendarName,
+    calendarName: subscriptions.length === 1 ? subscriptions[0].name : null,
     formattedImportedAt,
     isImported,
     hasSavedImport: hasSubscriptions,
@@ -1055,21 +622,21 @@ export function CalendarProvider({
     clearSavedData,
     exportTasks,
     exportCalendar,
-    moveNotices: activeNotices(moveLog, now),
-    dismissMoveNotice,
-    remindersEnabled,
-    toggleReminders,
+    moveNotices: activeNotices(edits.moveLog, now),
+    dismissMoveNotice: edits.dismissMoveNotice,
+    remindersEnabled: reminders.remindersEnabled,
+    toggleReminders: reminders.toggleReminders,
     announcements,
     clearAnnouncements: dropAnnouncements,
     applyBackgroundPayload,
-    editEvent,
-    deleteEvent,
-    restoreEvent,
-    restoreAllEvents,
-    eventNoteFor,
-    isEventEdited,
-    addCustomEvent,
-    addCustomEvents,
+    editEvent: edits.editEvent,
+    deleteEvent: edits.deleteEvent,
+    restoreEvent: edits.restoreEvent,
+    restoreAllEvents: edits.restoreAllEvents,
+    eventNoteFor: edits.eventNoteFor,
+    isEventEdited: edits.isEventEdited,
+    addCustomEvent: edits.addCustomEvent,
+    addCustomEvents: edits.addCustomEvents,
   };
 
   return <CalendarContext.Provider value={value}>{children}</CalendarContext.Provider>;
