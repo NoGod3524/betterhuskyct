@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
 import { CalendarMonthView } from "@/components/calendar-month-view";
-import { ConnectSection } from "@/components/connect-section";
 
 export const metadata: Metadata = {
   title: "Calendar · BetterHuskyCT",
@@ -12,7 +11,6 @@ export default function CalendarPage() {
   return (
     <>
       <CalendarMonthView />
-      <ConnectSection />
     </>
   );
 }

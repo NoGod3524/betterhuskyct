@@ -24,7 +24,9 @@ export type ChangeEntry = {
 };
 export type ChangesStore = { version: 1; entries: ChangeEntry[]; baselines: string[] };
 
-const KINDS = new Set<unknown>(["grade", "announcement-new", "announcement-edited", "deadline-moved", "deadline-added", "file-new", "done-by-huskyct"]);
+/** Every kind of change, in the order a list of them is shown. */
+export const CHANGE_KINDS: readonly ChangeKind[] = ["grade", "announcement-new", "announcement-edited", "deadline-moved", "deadline-added", "file-new", "done-by-huskyct"];
+const KINDS = new Set<unknown>(CHANGE_KINDS);
 const PAGES = new Set<unknown>(["/grades", "/announcements", "/tasks", "/materials", "/calendar"]);
 const MAX_BASELINES = 1000;
 const MAX_RAW = 8 * 1024 * 1024;

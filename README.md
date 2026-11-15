@@ -61,7 +61,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 - **Announcements** — the browser helper brings your courses' announcements in on the same press as the deadlines, newest first and grouped by course
 - **Recent changes** — one page for new or edited announcements, new or moved deadlines, grade changes, newly listed course files, and work HuskyCT marks done. The first reading establishes a baseline; later changes have unread dots and can be marked read. History stays in this browser and its backup, for up to 30 days and 500 entries. Course-file entries mean a file appeared in the directory; its download may still be pending
 - **A course inbox at home** — the five newest unread changes appear above Today / Tomorrow / This week, with read controls and a link to the full history
-- **Background checks** — the Chrome / Edge extension reads course metadata about every six hours while the browser is running, without opening a HuskyCT tab. New installations start enabled, with a first check after about one minute; an existing saved off setting is preserved. Use the **Sync** button at the top right of every page for an immediate check, and the toolbar popup to turn automatic checks off. It uses your existing session, pauses when sign-in expires, and saves updates locally until the app acknowledges them. File contents come with the full sync in the same panel. Optional system notifications start off, with a separate permission and per-kind controls; previews may show course names and item titles
+- **Background checks** — the Chrome / Edge extension reads course metadata about every six hours while the browser is running, without opening a HuskyCT tab. New installations start enabled, with a first check after about one minute; an existing saved off setting is preserved. Use the **Sync** button at the top right of every page for an immediate check, and **Settings** (or the toolbar popup) to turn automatic checks off. It uses your existing session, pauses when sign-in expires, and saves updates locally until the app acknowledges them. File contents come with the full sync in the same panel. Optional system notifications start off, with a separate permission and per-kind controls; previews may show course names and item titles
 - **Course materials** — every course's files, lecture videos, links and tools, sent over by the browser helper and kept in this browser: browse by course and folder, open PDFs in place, download the rest. Nothing is uploaded; a folder the helper saved can be imported too. **Save to a folder** (Chrome, Edge) or **Download as ZIP** puts everything on your computer, by course and folder, so it can be opened in other programs and survives clearing the browser's data
 - **Grades** — each course's gradebook, read by the browser helper and kept in this browser: what every item scored, and the points so far for the graded work. Scores that are new or different since you last looked are badged ("Newly graded", "Was 80 / 100") until you mark them seen. It says plainly that the total is not your course grade, since HuskyCT shows no weights or dropped scores. Nothing is uploaded
 - **Dark mode** — follows the device, or pick light or dark from the top bar; the choice is kept in this browser and applied before the page is drawn
@@ -77,7 +77,7 @@ BetterHuskyCT was built at UConn against HuskyCT (Blackboard), which is the awkw
 
 ## Getting your deadlines in
 
-Press **Sync** at the top right of any page. It shows when the last sync was; its panel holds the background check, the full sync and what the last sync read, course by course. If the desktop extension is missing, the panel links to its installation. Sign in to HuskyCT yourself; the extension uses that existing session and starts background checks on new installations. The toolbar popup can turn checks off or enable the separately optional notifications. There is no separate Helper page; old `/helper` links redirect home. Userscripts and phones use the panel's full sync, which is also how course-file contents are downloaded (or the helper's panel in HuskyCT). No password is given to BetterHuskyCT.
+Press **Sync** at the top right of any page. It shows when the last sync was; its panel holds the background check, the full sync and what the last sync read, course by course. If the desktop extension is missing, the panel links to its installation. Sign in to HuskyCT yourself; the extension uses that existing session and starts background checks on new installations. **Settings** (or the toolbar popup) can turn checks off, switch the optional notifications and pick which kinds of change they cover; the first time notifications are turned on, the browser's permission is asked in the extension's own panel. There is no separate Helper page; old `/helper` links redirect home. Userscripts and phones use the panel's full sync, which is also how course-file contents are downloaded (or the helper's panel in HuskyCT). No password is given to BetterHuskyCT.
 
 ## How well does the date finding work?
 
@@ -143,7 +143,7 @@ src/
 │  ├─ manifest.ts                                # Web app manifest (installable PWA)
 │  ├─ page.tsx                                   # /              Today: new changes, then what is due this week
 │  ├─ tasks/page.tsx                             # /tasks         the to-do list
-│  ├─ calendar/page.tsx                          # /calendar      the month, and the connected calendars
+│  ├─ calendar/page.tsx                          # /calendar      the month
 │  ├─ announcements/page.tsx                     # /announcements course announcements
 │  ├─ materials/page.tsx                         # /materials     course files, videos and links
 │  ├─ grades/page.tsx                            # /grades        gradebook rows and the points so far
@@ -160,7 +160,7 @@ src/
 │  ├─ app-shell.tsx                              # Sidebar, header with Sync and search, section tabs, footer
 │  ├─ sub-nav.tsx                                # The current section's pages, as tabs at its top
 │  ├─ use-theme.ts                               # The theme choice, kept in step with storage
-│  ├─ settings-section.tsx                       # Settings: language, theme, due reminders, sync
+│  ├─ settings-section.tsx                       # Settings: language, theme, extension checks and notifications, reminders, courses, data
 │  ├─ app-footer.tsx                             # Version footer
 │  ├─ nav-items.ts                               # The four sections and the pages in each
 │  ├─ mobile-nav.tsx                             # The phone's bottom bar of the four sections
