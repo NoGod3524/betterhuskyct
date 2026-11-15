@@ -14,6 +14,15 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [3.3.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.3.2) — Security updates for the test tools
+
+*Patch: the tools that test and lint the code move past published advisories; nothing on the site changes. HuskyCT Helper stays at 2.2.2.*
+
+### Fixed
+
+- happy-dom 21.0.4, the browser the tests run in, past [GHSA-834v-8h66-3h79](https://github.com/advisories/GHSA-834v-8h66-3h79), [GHSA-c8p4-j97h-3vg8](https://github.com/advisories/GHSA-c8p4-j97h-3vg8) and [GHSA-5fpq-26gf-qwcr](https://github.com/advisories/GHSA-5fpq-26gf-qwcr). ([#267])
+- minimatch 11 under typescript-eslint, past [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249), through an override until typescript-eslint asks for it itself. `npm audit` now finds nothing. ([#267])
+
 ## [3.3.1](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.3.1) — Security updates
 
 *Patch: Next.js and zod move past published advisories. HuskyCT Helper stays at 2.2.2.*
@@ -2250,3 +2259,4 @@ saying what to work on next.*
 [#261]: https://github.com/NoGod3524/betterhuskyct/pull/261
 [#263]: https://github.com/NoGod3524/betterhuskyct/pull/263
 [#265]: https://github.com/NoGod3524/betterhuskyct/pull/265
+[#267]: https://github.com/NoGod3524/betterhuskyct/pull/267
