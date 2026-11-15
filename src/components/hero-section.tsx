@@ -3,7 +3,6 @@
 import { Clock3 } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
-import { BackgroundSyncButton } from "@/components/background-sync-button";
 import { formatTaskTime, summarizeDays } from "@/lib/calendar-view";
 import { t } from "@/lib/i18n";
 import { useInBrowser } from "@/lib/use-in-browser";
@@ -41,7 +40,6 @@ export function HeroSection() {
           </p>
         )}
       </div>
-      <BackgroundSyncButton />
     </div>
   );
 }

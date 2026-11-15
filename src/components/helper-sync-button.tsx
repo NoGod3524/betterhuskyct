@@ -89,6 +89,11 @@ export function HelperSyncProvider({ children, deps }: { children: ReactNode; de
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 
+/** The one sync in progress, for anything outside the button that shows whether it is running. */
+export function useHelperSync(): Value {
+  return useContext(Context);
+}
+
 /** What the button says about how the sync is going, in the reader's language. */
 export function syncStatusText(locale: Locale, state: HelperSyncState): string {
   switch (state.phase) {
@@ -136,7 +141,7 @@ export function syncStatusText(locale: Locale, state: HelperSyncState): string {
  * in the background, and the result comes back here. This full sync also transfers file contents;
  * the overview's background check only updates the course file index.
  */
-export function HelperSyncButton({ variant }: { variant: "big" | "compact" }) {
+export function HelperSyncButton({ variant, quiet = false }: { variant: "big" | "compact"; quiet?: boolean }) {
   const { locale } = useCalendar();
   const { state, start } = useContext(Context);
   const working = state.phase === "waiting" || state.phase === "syncing";
@@ -161,18 +166,18 @@ export function HelperSyncButton({ variant }: { variant: "big" | "compact" }) {
   }
 
   return (
-    <div className="w-full shrink-0 sm:w-auto sm:max-w-xs sm:text-right">
+    <div className="w-full">
       <button
         type="button"
         onClick={start}
         disabled={working}
-        className="btn btn-primary h-9 w-full px-4 text-sm sm:w-auto"
+        className={`btn ${quiet ? "" : "btn-primary "}h-9 w-full px-4 text-sm sm:w-auto`}
       >
         {icon}
         {t(locale, working ? "helpersync.working" : "helpersync.button")}
       </button>
-      <p role="status" className={`mt-2 text-xs leading-5 ${failed ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}>
-        {text || t(locale, "helpersync.hint")}
+      <p role="status" className={`${text ? "mt-2 " : ""}text-xs leading-5 ${failed ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}>
+        {text}
         {state.phase === "failed" && (state.reason === "signin" || state.reason === "signedout") ? (
           <>
             {" "}

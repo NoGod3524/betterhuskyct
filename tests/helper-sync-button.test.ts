@@ -67,7 +67,7 @@ test("at rest the button says what it does and asks nothing", async () => {
   const view = await render({ open: () => fakeTab().tab, schedule: noTimers });
 
   assert.ok(view.text().includes(t("en", "helpersync.button")));
-  assert.ok(view.text().includes(t("en", "helpersync.hint")));
+  assert.ok(!view.text().includes(t("en", "helpersync.hint")), "the panel above the button already says what it does");
   assert.equal(view.buttons()[0].disabled, false);
   await view.unmount();
 });

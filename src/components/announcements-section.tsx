@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import Link from "next/link";
 
 import { CandidateList } from "@/components/announcement-actions-panel";
+import { openSyncCenter } from "@/components/sync-center";
 import { ChangePanel } from "@/components/announcement-changes-panel";
 import { AnnouncementSummary, type SummaryCourse } from "@/components/announcement-summary";
 import { useCalendar } from "@/components/calendar-provider";
@@ -218,12 +218,9 @@ export function AnnouncementsSection({
           <p className="mt-1 text-sm text-[var(--muted)]">
             {t(locale, "announcements.emptyBody")}
           </p>
-          <Link
-            href="/#check-updates"
-            className="tap-link mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline"
-          >
+          <button type="button" onClick={openSyncCenter} className="tap-link mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline">
             {t(locale, "announcements.emptyCta")}
-          </Link>
+          </button>
         </div>
       ) : (
         <div className="mt-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start lg:gap-6">

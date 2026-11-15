@@ -194,8 +194,7 @@ type CalendarContextValue = {
 
   notice: string | null;
   error: string | null;
-  restoreDemo: () => void;
-  restoreSavedImport: () => void;
+  clearNotice: () => void;
   clearSavedData: () => void;
   exportTasks: () => void;
   exportCalendar: () => void;
@@ -479,7 +478,6 @@ export function CalendarProvider({
 
         if (restored.subscriptions.length > 0) {
           setRestoredFromStorage(true);
-          setNotice(t(restoredLocale, "notices.restoredImported"));
           setCompletedIds(restoreTicks("imported", restored.subscriptions));
         } else {
           if (restored.recoveredFromCorruptData) {
@@ -1031,18 +1029,6 @@ export function CalendarProvider({
     return formatDate(new Date(latest), locale, { time: true });
   }, [subscriptions, locale]);
 
-  function restoreDemo() {
-    setDemoMode(true);
-    setRestoredFromStorage(false);
-    setCompletedIds(restoreTicks("demo", null));
-    setNotice(
-      hasSubscriptions
-        ? t(locale, "notices.demoRestoredWithSaved")
-        : t(locale, "notices.demoRestored"),
-    );
-    setError(null);
-  }
-
   async function clearSavedData() {
     try {
       await withChangesLock(() => {
@@ -1107,17 +1093,8 @@ export function CalendarProvider({
     setNotice(t(locale, "notices.icsExported", { count: due.length }));
   }
 
-  function restoreSavedImport() {
-    if (!hasSubscriptions) {
-      setNotice(null);
-      setError(t(locale, "errors.noSavedImport"));
-      return;
-    }
-
-    setDemoMode(false);
-    setRestoredFromStorage(true);
-    setCompletedIds(restoreTicks("imported", subscriptionsRef.current));
-    setNotice(t(locale, "notices.savedImportRestored"));
+  function clearNotice() {
+    setNotice(null);
     setError(null);
   }
 
@@ -1159,8 +1136,7 @@ export function CalendarProvider({
     dropSubscription,
     notice,
     error,
-    restoreDemo,
-    restoreSavedImport,
+    clearNotice,
     clearSavedData,
     exportTasks,
     exportCalendar,

@@ -25,7 +25,7 @@ type Step =
 
 /** Save everything this browser holds as one file, and load such a file back. Nothing is sent anywhere. */
 export function BackupSection({ version }: { version: string }) {
-  const { locale } = useCalendar();
+  const { locale, hasSavedImport, clearSavedData } = useCalendar();
   const [step, setStep] = useState<Step>({ phase: "idle" });
   const [mode, setMode] = useState<RestoreMode>("merge");
   const [message, setMessage] = useState<{ text: string; bad: boolean } | null>(null);
@@ -223,6 +223,22 @@ export function BackupSection({ version }: { version: string }) {
           {t(locale, "nav.materials")}
         </Link>
       </p>
+
+      {hasSavedImport ? (
+        <div className="mt-8 border-t border-[var(--line)] pt-6">
+          <h3 className="text-sm font-semibold">{t(locale, "actions.clearSavedData")}</h3>
+          <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{t(locale, "backup.clearBody")}</p>
+          <button
+            type="button"
+            className="btn btn-quiet mt-3"
+            onClick={() => {
+              if (window.confirm(t(locale, "backup.clearConfirm"))) void clearSavedData();
+            }}
+          >
+            {t(locale, "actions.clearSavedData")}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

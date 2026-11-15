@@ -117,7 +117,7 @@ test("a missing extension offers the real Edge listing without claiming automati
   try {
     assert.equal(view.container.querySelector("a")?.getAttribute("href"), EDGE_ADDONS_URL);
     assert.ok(view.container.querySelector(`a[href="${EXTENSION_INSTALL_URL}"]`));
-    assert.ok(view.container.querySelector('a[href="/materials#manual-sync"]'));
+    assert.equal(view.container.querySelector('a[href="/materials#manual-sync"]'), null, "sync lives in the header panel, not on Materials");
     assert.ok(!view.text().includes(t("en", "background.on")));
     assert.equal(view.opened(), 0);
   } finally { await view.unmount(); }
@@ -145,11 +145,11 @@ test("a 2.2.1 page helper is distinguished from the background extension and can
   } finally { await view.unmount(); }
 });
 
-test("phones keep a working manual sync entry instead of a desktop ZIP", async () => {
+test("phones get no extension button and point to the full sync beside it, not a desktop ZIP", async () => {
   const view = await render(null, { browser: "mobile", locale: "zh-CN" });
   try {
-    assert.equal(view.container.querySelector("a")?.getAttribute("href"), "/materials#manual-sync");
-    assert.ok(view.text().includes(t("zh-CN", "background.manual")));
+    assert.equal(view.container.querySelector("button"), null);
+    assert.equal(view.container.querySelector('a[href="/materials#manual-sync"]'), null);
     assert.equal(view.container.querySelector('a[href="/betterhuskyct-extension.zip"]'), null);
     assert.ok(view.text().includes(t("zh-CN", "background.manualOnly")));
     assert.ok(!view.text().includes(t("zh-CN", "background.unavailable")));

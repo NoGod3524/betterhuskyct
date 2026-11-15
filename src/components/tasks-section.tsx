@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CalendarPlus, Check, Download, RefreshCw } from "lucide-react";
+import { Bell, CalendarPlus, Check, Download } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import { QuickAdd } from "@/components/quick-add";
@@ -20,11 +20,7 @@ export function TasksSection() {
     dueSoon,
     exportTasks,
     exportCalendar,
-    isImported,
-    restoreDemo,
     hasSavedImport,
-    restoreSavedImport,
-    clearSavedData,
   } = useCalendar();
 
   return (
@@ -64,33 +60,6 @@ export function TasksSection() {
               className="btn btn-quiet h-7 px-2.5 text-xs"
             >
               <CalendarPlus size={13} />{t(locale, "actions.exportIcs")}
-            </button>
-          )}
-          {isImported && (
-            <button
-              type="button"
-              onClick={restoreDemo}
-              className="btn btn-quiet h-7 px-2.5 text-xs"
-            >
-              <RefreshCw size={13} />{t(locale, "actions.useDemo")}
-            </button>
-          )}
-          {hasSavedImport && !isImported && (
-            <button
-              type="button"
-              onClick={restoreSavedImport}
-              className="btn btn-quiet h-7 px-2.5 text-xs"
-            >
-              {t(locale, "actions.restoreSavedImport")}
-            </button>
-          )}
-          {hasSavedImport && (
-            <button
-              type="button"
-              onClick={clearSavedData}
-              className="btn btn-quiet h-7 px-2.5 text-xs"
-            >
-              {t(locale, "actions.clearSavedData")}
             </button>
           )}
           {!hasSavedImport && (

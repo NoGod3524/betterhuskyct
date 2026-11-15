@@ -33,7 +33,7 @@ function snapshot(): string | null {
 }
 
 /** The stored status, kept current; null on the server and before any sync. */
-function useSyncStatus(): SyncStatus | null {
+export function useSyncStatus(): SyncStatus | null {
   const raw = useSyncExternalStore(subscribe, snapshot, () => null);
   return useMemo(() => {
     try {
@@ -44,7 +44,7 @@ function useSyncStatus(): SyncStatus | null {
   }, [raw]);
 }
 
-function ago(locale: Locale, then: string, now: Date): string {
+export function ago(locale: Locale, then: string, now: Date): string {
   const { unit, count } = agoUnit(then, now);
   return t(locale, `syncstatus.ago.${unit}` as TranslationKey, { count });
 }
