@@ -215,16 +215,15 @@ test("home preview shows the five newest unread changes and the full unread coun
   const view = await mount(true);
   assert.deepEqual([...view.container.querySelectorAll("h4")].map((node) => node.textContent), ["Homework 6", "Homework 5", "Homework 4", "Homework 3", "Homework 2"]);
   assert.equal(view.unread(), 5);
-  assert.equal(view.container.querySelector('a[href="/changes"]')?.textContent, `${t("en", "changes.viewAll")} (7)`);
+  assert.equal(view.container.querySelector('a[href="/changes"]')?.textContent, t("en", "changes.viewAll"));
   assert.equal(view.container.querySelector("h1"), null);
-  assert.equal(view.container.querySelector("h2")?.textContent, t("en", "changes.previewTitle"));
+  assert.equal(view.container.querySelector("h2")?.textContent, `${t("en", "changes.previewTitle")}7`, "the heading carries the full unread count");
   await view.click(t("en", "changes.markReadLabel", { title: "Homework 6" }));
   assert.ok(view.text().includes("Homework 1"));
   assert.ok(!view.text().includes("Homework 6"));
   await view.click(t("en", "changes.markAllRead"));
   assert.ok(parseChanges(window.localStorage.getItem(CHANGES_KEY)).entries.every((row) => row.read));
   assert.ok(view.text().includes(t("en", "changes.allRead")));
-  assert.ok(view.text().includes(t("en", "changes.allReadBody")));
   assert.equal(view.container.querySelector('a[href="/changes"]')?.textContent, t("en", "changes.viewAll"));
   await view.unmount();
 });
@@ -233,7 +232,7 @@ test("home preview distinguishes first sync from all read, including Chinese", a
   window.localStorage.setItem(LOCALE_STORAGE_KEY, "zh-CN");
   const view = await mount(true);
   assert.ok(view.text().includes(t("zh-CN", "changes.previewTitle")));
-  assert.ok(view.text().includes(t("zh-CN", "changes.emptyTitle")));
+  assert.ok(view.text().includes(t("zh-CN", "changes.previewEmpty")));
   assert.ok(!view.text().includes(t("zh-CN", "changes.allRead")));
   seed([entry("read", { read: true })]);
   await view.changed();

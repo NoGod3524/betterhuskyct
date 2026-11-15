@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, ChevronRight } from "lucide-react";
+import { CalendarPlus, Check, ChevronRight, Download } from "lucide-react";
 
 import { AiPlanPanel } from "@/components/ai-plan-panel";
 import { openSyncCenter } from "@/components/sync-center";
@@ -10,6 +10,7 @@ import { useAiPlan } from "@/components/ai-plan-provider";
 import { useCalendar } from "@/components/calendar-provider";
 import { ExamList } from "@/components/exam-list";
 import { TaskOverview } from "@/components/task-overview";
+import { QuickAdd } from "@/components/quick-add";
 import { useDecisions, useVersionStore } from "@/components/use-announcement-state";
 import { TaskCard } from "@/components/task-card";
 import { UndatedTodoList } from "@/components/undated-todo-list";
@@ -29,7 +30,7 @@ const SECTIONS: ReadonlyArray<{ key: TodoSectionKey; title: TranslationKey; acce
 ];
 
 /** "Fri, Oct 9, 11:59 PM", or without the time for a task that is due some time that day. */
-function dueLabel(task: CalendarTask, locale: Locale): string {
+export function dueLabel(task: CalendarTask, locale: Locale): string {
   const due = dueTimestamp(task);
   if (due === null) return "";
   return formatDate(new Date(due), locale, { weekday: "short", time: !task.allDay });
@@ -45,7 +46,7 @@ function dueLabel(task: CalendarTask, locale: Locale): string {
  * still there for the rest, and for reopening one the gradebook got wrong.
  */
 export function TodoSection() {
-  const { now, locale, tasks, doneIds, doneLabelFor, toggleTaskCompletion, courseLabelFor, courseColorFor, hasGrades, announcements } = useCalendar();
+  const { now, locale, tasks, doneIds, doneLabelFor, toggleTaskCompletion, courseLabelFor, courseColorFor, hasGrades, announcements, exportTasks, exportCalendar } = useCalendar();
   const plan = useAiPlan();
   const versions = useVersionStore();
   const decisions = useDecisions();
@@ -101,7 +102,7 @@ export function TodoSection() {
   );
 
   return (
-    <section className="mt-10" aria-labelledby="todo-heading">
+    <section className="mt-6" aria-labelledby="todo-heading">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">{t(locale, "todo.eyebrow")}</p>
@@ -111,6 +112,19 @@ export function TodoSection() {
           <p className="mt-2 text-sm font-semibold text-[var(--ink)]">
             {t(locale, "todo.summary", { open: todo.openCount, done: todo.done.length })}
           </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <QuickAdd />
+          {tasks.length > 0 ? (
+            <>
+              <button type="button" onClick={exportTasks} className="btn btn-quiet h-7 px-2.5 text-xs">
+                <Download size={13} aria-hidden />{t(locale, "actions.exportCsv")}
+              </button>
+              <button type="button" onClick={exportCalendar} className="btn btn-quiet h-7 px-2.5 text-xs">
+                <CalendarPlus size={13} aria-hidden />{t(locale, "actions.exportIcs")}
+              </button>
+            </>
+          ) : null}
         </div>
       </div>
 

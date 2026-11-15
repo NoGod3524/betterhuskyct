@@ -141,7 +141,7 @@ src/
 │  ├─ api/plan/extract/route.ts                  # POST a syllabus or announcements -> dates and to-dos as JSON
 │  ├─ layout.tsx                                 # Metadata, theme setup, provider, persistent shell
 │  ├─ manifest.ts                                # Web app manifest (installable PWA)
-│  ├─ page.tsx                                   # /              unread changes, then the rolling task board
+│  ├─ page.tsx                                   # /              Today: new changes, then what is due this week
 │  ├─ tasks/page.tsx                             # /tasks         the to-do list
 │  ├─ calendar/page.tsx                          # /calendar      the month, and the connected calendars
 │  ├─ announcements/page.tsx                     # /announcements course announcements
@@ -151,15 +151,19 @@ src/
 │  ├─ backup/page.tsx                            # /backup        save everything as one file, and load it back
 │  ├─ about/page.tsx                             # /about         what the project promises and does not, and where to check
 │  ├─ changes/page.tsx                           # /changes       recent changes across courses
+│  ├─ settings/page.tsx                          # /settings      language, theme, reminders, sync
 │  ├─ globals.css, icon.tsx                      # Styles; the app icon
 ├─ components/
 │  ├─ calendar-provider.tsx                      # Every piece of app state, in the root layout
-│  ├─ app-shell.tsx                              # Sidebar, header, footer, theme and language toggles
+│  ├─ app-shell.tsx                              # Sidebar, header with Sync and search, section tabs, footer
+│  ├─ sub-nav.tsx                                # The current section's pages, as tabs at its top
+│  ├─ use-theme.ts                               # The theme choice, kept in step with storage
+│  ├─ settings-section.tsx                       # Settings: language, theme, due reminders, sync
 │  ├─ app-footer.tsx                             # Version footer
-│  ├─ nav-items.ts                               # Every page, and which the phone's bar shows
-│  ├─ mobile-nav.tsx                             # The phone's bottom bar and its More sheet
+│  ├─ nav-items.ts                               # The four sections and the pages in each
+│  ├─ mobile-nav.tsx                             # The phone's bottom bar of the four sections
 │  ├─ search-palette.tsx                         # Ctrl+K search over tasks, announcements, files and grades
-│  ├─ hero-section.tsx                           # Overview header, status line, the big Sync button
+│  ├─ today-section.tsx                          # Today: first-run steps, new changes, what is due
 │  ├─ helper-sync-button.tsx                     # The Sync button: opens HuskyCT and follows the helper's progress
 │  ├─ privacy-section.tsx                         # The helper's privacy policy, which the stores link to
 │  ├─ backup-section.tsx                         # Download a backup; load one, merged or replacing
@@ -173,7 +177,6 @@ src/
 │  ├─ sync-center.tsx                            # The header's Sync button and panel: the only place to sync
 │  ├─ app-notice.tsx                             # What the last action said, at the top of every page
 │  ├─ connect-section.tsx                        # Connected calendars, course list, how to connect
-│  ├─ tasks-section.tsx                          # The overview's Today / Tomorrow / This week board
 │  ├─ todo-section.tsx                           # The to-do list: open work by when, done work apart
 │  ├─ task-card.tsx                              # One task: badges, time, room, course picker
 │  ├─ course-picker.tsx                          # Per-task course override

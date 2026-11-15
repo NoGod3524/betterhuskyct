@@ -1,15 +1,5 @@
-import { AiPlanBanner } from "@/components/ai-plan-panel";
-import { HeroSection } from "@/components/hero-section";
-import { TasksSection } from "@/components/tasks-section";
-import { ChangesSection } from "@/components/changes-section";
+import { TodaySection } from "@/components/today-section";
 
-export default function OverviewPage() {
-  return (
-    <>
-      <HeroSection />
-      <ChangesSection preview />
-      <AiPlanBanner />
-      <TasksSection />
-    </>
-  );
+export default function TodayPage() {
+  return <TodaySection />;
 }

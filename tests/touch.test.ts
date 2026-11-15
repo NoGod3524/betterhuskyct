@@ -73,18 +73,18 @@ test("the components carry the classes the touch rules hang on", () => {
 
   const shell = read("components/app-shell.tsx");
   assert.match(shell, /const iconButton =\s*"tap-icon /, "the header's icon buttons are not finger-sized");
-  assert.equal((shell.match(/\{iconButton\}|\$\{iconButton\}/g) ?? []).length, 3, "the search, theme and reminder buttons do not all use it");
+  assert.equal((shell.match(/\{iconButton\}|\$\{iconButton\}/g) ?? []).length, 1, "the search button does not use it");
 
   for (const file of ["materials-section", "grades-section", "announcements-section", "background-sync-button"]) {
     assert.match(read(`components/${file}.tsx`), /tap-link/, `${file} has a text link a finger could miss`);
   }
 });
 
-test("the header fits a phone: one language button below the pill's breakpoint, and no wrapping", () => {
+test("the header fits a phone: only Sync and search, and the name gives way to them", () => {
   const shell = read("components/app-shell.tsx");
-  // The pill of two is for wider screens only; a phone gets one button.
-  assert.match(shell, /className="ml-1 hidden items-center[^"]*sm:flex"/);
-  assert.match(shell, /whitespace-nowrap[^"]*sm:hidden/);
+  // Language, theme and reminders live on the Settings page, not in the header.
+  assert.doesNotMatch(shell, /changeLocale|chooseTheme|toggleReminders/);
+  assert.match(read("components/sync-center.tsx"), /whitespace-nowrap sm:hidden/, "a phone does not get the short Sync label");
   // The name gives way to the controls.
   assert.match(shell, /hidden text-sm font-semibold sm:inline/);
 });

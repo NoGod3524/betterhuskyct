@@ -56,7 +56,7 @@ export function PrivacySection() {
       </p>
       <p className="mt-6 text-xs">
         <Link href="/" className="tap-link font-semibold text-[var(--accent-ink)] underline underline-offset-2">
-          {t(locale, "nav.dashboard")}
+          {t(locale, "nav.today")}
         </Link>
       </p>
     </section>

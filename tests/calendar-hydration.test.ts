@@ -13,8 +13,7 @@ const { hydrateRoot } = await import("react-dom/client");
 const { renderToString } = await import("react-dom/server");
 const { CalendarProvider, useCalendar } = await import("../src/components/calendar-provider.tsx");
 const { CalendarMonthView } = await import("../src/components/calendar-month-view.tsx");
-const { HeroSection } = await import("../src/components/hero-section.tsx");
-const { TasksSection } = await import("../src/components/tasks-section.tsx");
+const { TodaySection } = await import("../src/components/today-section.tsx");
 const { window } = dom;
 const RealDate = Date;
 const refuseAcademic = async () => { throw new Error("offline"); };
@@ -41,8 +40,7 @@ function Snapshot() {
 function page(initialNow: string) {
   return createElement(CalendarProvider, { initialNow, children: [
     createElement(Snapshot, { key: "snapshot" }),
-    createElement(HeroSection, { key: "hero" }),
-    createElement(TasksSection, { key: "tasks" }),
+    createElement(TodaySection, { key: "today" }),
     createElement(CalendarMonthView, { key: "calendar", fetchAcademic: refuseAcademic }),
   ] });
 }
