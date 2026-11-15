@@ -10,7 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --import ./tests/support/register-tsx.mjs --test tests/*.test.ts",
+    "test": "node --experimental-strip-types --import ./tests/support/register-tsx.mjs --import ./tests/support/locales.ts --test tests/*.test.ts",
     "course-map": "node scripts/build-course-map.mjs"
   },
   "dependencies": {
