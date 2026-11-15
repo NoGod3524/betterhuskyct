@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 
 import { computeAnnouncementId, type Announcement } from "../src/lib/announcements.ts";
+import { parseVersions, recordVersions, VERSIONS_CHANGED, VERSIONS_KEY } from "../src/lib/announcement-versions.ts";
 import { EMPTY_COURSE_BOOK } from "../src/lib/courses.ts";
 import { formatDate } from "../src/lib/format-date.ts";
 import { t } from "../src/lib/i18n.ts";
@@ -22,10 +23,15 @@ const { CalendarProvider, useCalendar } = await import("../src/components/calend
 const { AiPlanProvider, useAiPlan } = await import("../src/components/ai-plan-provider.tsx");
 const { AnnouncementsSection } = await import("../src/components/announcements-section.tsx");
 const { TodoSection } = await import("../src/components/todo-section.tsx");
-const { recordAnnouncementVersions } = await import("../src/components/use-announcement-state.ts");
 
 type Calendar = ReturnType<typeof useCalendar>;
 const { window } = dom;
+
+/** What an earlier reading of the announcements saved, as their first versions. */
+function recordAnnouncementVersions(announcements: readonly Announcement[]) {
+  window.localStorage.setItem(VERSIONS_KEY, JSON.stringify(recordVersions(parseVersions(window.localStorage.getItem(VERSIONS_KEY)), announcements, new Date())));
+  window.dispatchEvent(new window.Event(VERSIONS_CHANGED));
+}
 after(() => dom.uninstall());
 beforeEach(() => window.localStorage.clear());
 

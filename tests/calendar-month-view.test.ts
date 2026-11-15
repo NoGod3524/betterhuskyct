@@ -343,6 +343,7 @@ test("editing an all-day imported event shows its own day and keeps it, in any z
 test("deleting an imported event hides it without touching HuskyCT's copy, and Undo brings it back", async () => {
   const view = await render();
   await importOneTask();
+  assert.ok(!view.text().includes(t("en", "calendar.restoreAll")), "Undo is offered with nothing to undo");
 
   await view.clickPill("Section 4.1 Homework");
   await view.clickButton(t("en", "calendar.delete"));

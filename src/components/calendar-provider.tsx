@@ -177,6 +177,8 @@ type CalendarContextValue = {
   eventNoteFor: (taskId: string) => string | null;
   /** Whether this imported event has been corrected or deleted on this device. */
   isEventEdited: (taskId: string) => boolean;
+  /** Whether any imported event has been corrected or deleted, so there is something to undo. */
+  hasEventEdits: boolean;
   /** Returns the new event's id, so what made it can be remembered. */
   addCustomEvent: (input: CustomEventInput) => string;
   /** Several at once, as one save: the AI list adds what was ticked in one press. */
@@ -635,6 +637,7 @@ export function CalendarProvider({
     restoreAllEvents: edits.restoreAllEvents,
     eventNoteFor: edits.eventNoteFor,
     isEventEdited: edits.isEventEdited,
+    hasEventEdits: edits.hasEventEdits,
     addCustomEvent: edits.addCustomEvent,
     addCustomEvents: edits.addCustomEvents,
   };

@@ -26,7 +26,6 @@ export type MoveLog = Record<string, MoveNotice>;
 
 export const MOVES_STORAGE_KEY = "huskypilot.moves.v1";
 /** Fired on the window when the log is written, so the open page reads it again. */
-export const MOVES_CHANGED = "huskypilot:moves-changed";
 /** A notice is shown this long. */
 export const MOVE_NOTICE_DAYS = 7;
 const MAX_NOTICES = 200;

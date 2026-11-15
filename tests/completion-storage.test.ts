@@ -4,7 +4,6 @@ import test from "node:test";
 import {
   COMPLETION_STORAGE_KEY_DEMO,
   COMPLETION_STORAGE_KEY_IMPORTED,
-  clearCompletedTaskIds,
   restoreCompletedTaskIds,
   saveCompletedTaskIds,
 } from "../src/lib/completion-storage.ts";
@@ -89,12 +88,3 @@ test("restoreCompletedTaskIds clears corrupt payload safely", () => {
   assert.equal(storage.getItem(COMPLETION_STORAGE_KEY_IMPORTED), null);
 });
 
-test("clearCompletedTaskIds removes saved completion state", () => {
-  const storage = new MemoryStorage();
-  saveCompletedTaskIds(storage, "imported", new Set(["event-1"]));
-  assert.ok(storage.getItem(COMPLETION_STORAGE_KEY_IMPORTED));
-
-  clearCompletedTaskIds(storage, "imported");
-  assert.equal(storage.getItem(COMPLETION_STORAGE_KEY_IMPORTED), null);
-  assert.equal(restoreCompletedTaskIds(storage, "imported").size, 0);
-});

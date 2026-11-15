@@ -23,15 +23,15 @@ export function AppFooter({ version }: { version: string }) {
         {" · "}
         {t(locale, "footer.disclaimer")}
         {" · "}
-        <Link href="/backup" className="underline-offset-2 hover:underline">
+        <Link href="/backup" className="tap-link underline-offset-2 hover:underline">
           {t(locale, "footer.backup")}
         </Link>
         {" · "}
-        <Link href="/about" className="underline-offset-2 hover:underline">
+        <Link href="/about" className="tap-link underline-offset-2 hover:underline">
           {t(locale, "footer.about")}
         </Link>
         {" · "}
-        <Link href="/privacy" className="underline-offset-2 hover:underline">
+        <Link href="/privacy" className="tap-link underline-offset-2 hover:underline">
           {t(locale, "privacy.link")}
         </Link>
       </span>
@@ -41,7 +41,7 @@ export function AppFooter({ version }: { version: string }) {
           href="https://github.com/NoGod3524/betterhuskyct"
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-[var(--ink)] underline-offset-2 hover:underline"
+          className="tap-link font-medium text-[var(--ink)] underline-offset-2 hover:underline"
         >
           Yinuo
         </a>

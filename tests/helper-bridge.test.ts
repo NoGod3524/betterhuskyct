@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 import { Window } from "happy-dom";
 
-import { BRIDGE_IN, bridgeTab, helperMessage, isBridgeHello, openThroughBridge, pingBridge } from "../src/lib/helper-bridge.ts";
+import { BRIDGE_CONTROL, BRIDGE_IN, bridgeTab, helperMessage, isBridgeHello } from "../src/lib/helper-bridge.ts";
 import { BACKGROUND_GIVE_UP_MS, createHelperSync, GIVE_UP_AFTER_MS, type HelperSyncState } from "../src/lib/helper-sync.ts";
 import { onlyAtHuskyct } from "./support/huskyct-fetch.ts";
 
@@ -21,6 +21,31 @@ const windows: Window[] = [];
 after(async () => {
   for (const window of windows) await window.happyDOM.close();
 });
+
+type Win = Parameters<typeof bridgeTab>[0];
+
+/** What a page does to find the helper's bridge: ping it, and wait a moment for its hello. */
+function pingBridge(win: Win, timeoutMs: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const listen = (event: Event) => {
+      if (isBridgeHello(event as MessageEvent, win)) finish(true);
+    };
+    const finish = (found: boolean) => {
+      win.removeEventListener("message", listen);
+      clearTimeout(timer);
+      resolve(found);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    win.addEventListener("message", listen);
+    win.postMessage({ protocol: BRIDGE_CONTROL, kind: "ping" }, win.location.origin);
+  });
+}
+
+/** What a page does to have the bridge open HuskyCT behind it, and the tab it then posts to. */
+function openThroughBridge(win: Win) {
+  win.postMessage({ protocol: BRIDGE_CONTROL, kind: "open" }, win.location.origin);
+  return bridgeTab(win);
+}
 
 function userscriptManager() {
   const values = new Map<string, unknown>();

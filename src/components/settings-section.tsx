@@ -7,7 +7,7 @@ import { useCalendar } from "@/components/calendar-provider";
 import { ConnectSection } from "@/components/connect-section";
 import { openSyncCenter } from "@/components/sync-center";
 import { useTheme } from "@/components/use-theme";
-import { BACKGROUND_CHANGED, parseBackgroundStatus, requestBackground, type BackgroundStatus } from "@/lib/background-sync";
+import { BACKGROUND_CHANGED, NO_ANSWER_MS, parseBackgroundStatus, requestBackground, type BackgroundStatus } from "@/lib/background-sync";
 import { CHANGE_KINDS } from "@/lib/changes";
 import { EXTENSION_INSTALL_URL } from "@/lib/helper";
 import { t, type Locale, type TranslationKey } from "@/lib/i18n";
@@ -94,10 +94,13 @@ function useExtension() {
         });
     };
     refresh();
+    // Say "not connected" early; a late answer still replaces it.
+    const patience = window.setTimeout(() => { if (alive) setLoading(false); }, NO_ANSWER_MS);
     window.addEventListener("focus", refresh);
     window.addEventListener(BACKGROUND_CHANGED, refresh);
     return () => {
       alive = false;
+      window.clearTimeout(patience);
       window.removeEventListener("focus", refresh);
       window.removeEventListener(BACKGROUND_CHANGED, refresh);
     };

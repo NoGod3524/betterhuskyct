@@ -129,10 +129,6 @@ export function parseChanges(raw: string | null, now: Date = new Date()): Change
   } catch { return empty(); }
 }
 
-export function restoreChanges(storage: Pick<Storage, "getItem">): ChangesStore {
-  try { return parseChanges(storage.getItem(CHANGES_KEY)); } catch { return empty(); }
-}
-
 /** Let write failures reach callers: a source must not acknowledge a change that was not saved. */
 export function saveChanges(storage: Pick<Storage, "setItem">, store: ChangesStore): void {
   storage.setItem(CHANGES_KEY, JSON.stringify(combine(store.entries, store.baselines)));

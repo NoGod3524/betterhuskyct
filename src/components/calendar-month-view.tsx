@@ -137,6 +137,7 @@ function CalendarMonthContents({ fetchAcademic }: CalendarMonthProps) {
     deleteEvent,
     restoreEvent,
     restoreAllEvents,
+    hasEventEdits,
     eventNoteFor,
     isEventEdited,
     addCustomEvent,
@@ -276,22 +277,25 @@ function CalendarMonthContents({ fetchAcademic }: CalendarMonthProps) {
             <ChevronRight size={16} />
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (!window.confirm(t(locale, "calendar.restoreAllConfirm"))) return;
-            try {
-              restoreAllEvents();
-              setFormError(null);
-            } catch (error) {
-              setFormError(error instanceof Error ? error.message : t(locale, "errors.saveFailed"));
-            }
-          }}
-          className="btn btn-quiet text-xs text-[var(--muted)]"
-        >
-          <RotateCcw size={13} />
-          {t(locale, "calendar.restoreAll")}
-        </button>
+        {/* Only when there is something to undo. */}
+        {hasEventEdits ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (!window.confirm(t(locale, "calendar.restoreAllConfirm"))) return;
+              try {
+                restoreAllEvents();
+                setFormError(null);
+              } catch (error) {
+                setFormError(error instanceof Error ? error.message : t(locale, "errors.saveFailed"));
+              }
+            }}
+            className="btn btn-quiet text-xs text-[var(--muted)]"
+          >
+            <RotateCcw size={13} />
+            {t(locale, "calendar.restoreAll")}
+          </button>
+        ) : null}
       </div>
 
       {formError && !draftFor ? <p role="alert" className="px-4 py-2 text-sm text-[var(--warning)]">{formError}</p> : null}

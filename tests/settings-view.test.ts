@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import { BACKGROUND_PROTOCOL, type BackgroundStatus } from "../src/lib/background-sync.ts";
+import { BACKGROUND_PROTOCOL, NO_ANSWER_MS, type BackgroundStatus } from "../src/lib/background-sync.ts";
 import { LOCALE_STORAGE_KEY, t } from "../src/lib/i18n.ts";
 import { installDom } from "./support/dom.ts";
 
@@ -22,7 +22,7 @@ const status = (fields: Partial<BackgroundStatus["settings"]> = {}): BackgroundS
   lastAttempt: null, lastSuccess: null, needsLogin: false, lastError: null, running: false, pending: 0, cachedAt: null,
 });
 
-async function render(initial: BackgroundStatus | null, { permission = true } = {}) {
+async function render(initial: BackgroundStatus | null, { permission = true, delay = 0 } = {}) {
   window.localStorage.clear();
   window.localStorage.setItem(LOCALE_STORAGE_KEY, "en");
   const originalPost = window.postMessage;
@@ -43,8 +43,10 @@ async function render(initial: BackgroundStatus | null, { permission = true } = 
     }
     if (message.kind === "open-settings") response = { ok: true };
     if (!current) return; // no extension: nobody answers
-    window.dispatchEvent(new window.MessageEvent("message", { origin: window.location.origin, source: window as never,
+    const answer = () => window.dispatchEvent(new window.MessageEvent("message", { origin: window.location.origin, source: window as never,
       data: { protocol: BACKGROUND_PROTOCOL, target: "app", kind: "response", requestId: message.requestId, response } }));
+    if (delay > 0) setTimeout(answer, delay);
+    else answer();
   }) as typeof window.postMessage;
   const container = window.document.createElement("div");
   window.document.body.appendChild(container);
@@ -107,9 +109,21 @@ test("choosing a language also tells the extension, so its notifications match",
 test("with no extension answering, Settings says so and offers the installation steps", async () => {
   const view = await render(null);
   try {
-    await view.wait(5200);
-    assert.ok(view.text().includes(t("en", "settings.noExtension")));
+    await view.wait(NO_ANSWER_MS + 100);
+    assert.ok(view.text().includes(t("en", "settings.noExtension")), "it waited for the full timeout to say so");
     assert.equal(view.switchFor(t("en", "settings.autoCheck")), null);
     assert.ok(view.switchFor(t("en", "settings.reminders")), "the page's own reminders stay available");
+    await view.wait(5000 - NO_ANSWER_MS); // the request it gave up on, ending inside the test
+  } finally { await view.unmount(); }
+});
+
+test("a helper that wakes slowly replaces the early \"not connected\" as soon as it answers", async () => {
+  const view = await render(status(), { delay: NO_ANSWER_MS + 500 });
+  try {
+    await view.wait(NO_ANSWER_MS + 100);
+    assert.ok(view.text().includes(t("en", "settings.noExtension")));
+    await view.wait(600);
+    assert.ok(!view.text().includes(t("en", "settings.noExtension")));
+    assert.equal(view.switchFor(t("en", "settings.autoCheck"))!.getAttribute("aria-checked"), "true");
   } finally { await view.unmount(); }
 });

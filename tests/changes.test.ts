@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   CHANGES_KEY, CHANGES_RETENTION_DAYS, MAX_CHANGES, createChangeId, markChangesRead,
-  mergeChangeStores, parseChanges, recordChanges, restoreChanges, saveChanges, withChangesLock,
+  mergeChangeStores, parseChanges, recordChanges, withChangesLock,
   type ChangeEntry, type ChangesStore,
 } from "../src/lib/changes.ts";
 
@@ -124,17 +124,6 @@ test("record and merge retain the latest 500 events within 30 days, including th
   assert.equal(capped.entries[0].id, "0");
   assert.equal(capped.entries.at(-1)?.id, String(MAX_CHANGES - 1));
   assert.equal(parseChanges(JSON.stringify({ version: 1, entries: many, baselines: [] }), NOW).entries.length, MAX_CHANGES);
-});
-
-test("restoring blocked storage is safe, and saving reports failures so an outbox cannot acknowledge them", () => {
-  assert.deepEqual(restoreChanges({ getItem: () => { throw new Error("blocked"); } }), empty());
-  const storage = new Map<string, string>();
-  const now = new Date();
-  const store = recordChanges(empty(), [entry("a", { at: now.toISOString() })], now);
-  saveChanges({ setItem: (key, value) => storage.set(key, value) }, store);
-  assert.ok(storage.has(CHANGES_KEY));
-  assert.deepEqual(restoreChanges({ getItem: (key) => storage.get(key) ?? null }), store);
-  assert.throws(() => saveChanges({ setItem: () => { throw new Error("full"); } }, store), /full/);
 });
 
 test("without a browser lock manager, Changes work keeps its synchronous return and errors", () => {

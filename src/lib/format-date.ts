@@ -12,11 +12,6 @@ export function ymd(date: Date): string {
   return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())}`;
 }
 
-/** `2026/10/09`, for a day given as its parts. */
-export function ymdParts({ year, month, day }: { year: number; month: number; day: number }): string {
-  return `${year}/${pad(month)}/${pad(day)}`;
-}
-
 type Options = {
   /** `short` (Fri) or `long` (Friday); none leaves the weekday out. */
   weekday?: "short" | "long";

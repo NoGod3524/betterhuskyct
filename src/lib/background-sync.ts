@@ -84,6 +84,13 @@ export function parseBackgroundStatus(value: unknown): BackgroundStatus | null {
   return value as BackgroundStatus;
 }
 
+/**
+ * How long a page waits before it says the helper is not there. An answer can take longer than
+ * this, since the extension's background may have to wake first, so a page keeps listening for the
+ * full timeout below and shows the helper as soon as it answers.
+ */
+export const NO_ANSWER_MS = 1500;
+
 /** The app never reaches chrome.* or requests notification permission itself. */
 export function requestBackground(kind: "status" | "settings" | "run-now" | "open-settings", settings?: Record<string, unknown>, timeoutMs = 5000): Promise<unknown> {
   return new Promise((resolve, reject) => {
