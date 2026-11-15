@@ -3,7 +3,6 @@ import test from "node:test";
 
 import {
   EDGE_ADDONS_URL,
-  HELPER_SCRIPT_URL,
   HELPER_SOURCE_URL,
   MANAGER_FALLBACK,
   managerFor,
@@ -53,19 +52,14 @@ test("every listing is an https link", () => {
 });
 
 /**
- * These two addresses are what the page hands out, so a typo here is an install
- * that 404s. They are asserted rather than inlined for that reason.
+ * This address is what the page hands out, so a typo here is an install
+ * that 404s. It is asserted rather than inlined for that reason.
  */
-test("the script and source links point at main", () => {
-  assert.equal(
-    HELPER_SCRIPT_URL,
-    "https://raw.githubusercontent.com/NoGod3524/betterhuskyct/main/tools/huskyct-helper/huskyct-helper.user.js",
-  );
+test("the source link points at main", () => {
   assert.equal(
     HELPER_SOURCE_URL,
     "https://github.com/NoGod3524/betterhuskyct/tree/main/tools/huskyct-helper",
   );
-  assert.ok(HELPER_SCRIPT_URL.endsWith(".user.js"), "a manager only intercepts .user.js");
 });
 
 test("the Edge listing is the extension's own page in Edge Add-ons", () => {

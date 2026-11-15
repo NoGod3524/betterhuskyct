@@ -17,9 +17,6 @@ export const BRIDGE_CONTROL = "betterhuskyct/bridge@1";
 export const BRIDGE_OUT = "betterhuskyct/bridge-out@1";
 export const BRIDGE_IN = "betterhuskyct/bridge-in@1";
 
-/** How long the helper on this page has to answer a ping before the bridge is taken to be absent. */
-export const PING_TIMEOUT_MS = 1500;
-
 type BridgeWindow = Pick<Window, "postMessage" | "addEventListener" | "removeEventListener"> & { location: { origin: string } };
 
 const tabs = new WeakMap<object, HuskyctTab>();
@@ -71,25 +68,3 @@ export function isBridgeHello(event: { origin: string; data: unknown; source: un
   return isRecord(event.data) && event.data.protocol === BRIDGE_CONTROL && event.data.kind === "pong";
 }
 
-/** Whether the helper on this page can reach HuskyCT behind it. */
-export function pingBridge(win: BridgeWindow, timeoutMs = PING_TIMEOUT_MS): Promise<boolean> {
-  return new Promise((resolve) => {
-    const listen = (event: Event) => {
-      if (isBridgeHello(event as MessageEvent, win)) finish(true);
-    };
-    const finish = (found: boolean) => {
-      win.removeEventListener("message", listen);
-      clearTimeout(timer);
-      resolve(found);
-    };
-    const timer = setTimeout(() => finish(false), timeoutMs);
-    win.addEventListener("message", listen);
-    win.postMessage({ protocol: BRIDGE_CONTROL, kind: "ping" }, win.location.origin);
-  });
-}
-
-/** Asks the helper to make sure a HuskyCT tab is open, behind this one, and returns the tab to post to. */
-export function openThroughBridge(win: BridgeWindow): HuskyctTab {
-  win.postMessage({ protocol: BRIDGE_CONTROL, kind: "open" }, win.location.origin);
-  return bridgeTab(win);
-}

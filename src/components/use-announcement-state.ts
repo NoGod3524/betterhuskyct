@@ -3,8 +3,7 @@
 import { useMemo, useSyncExternalStore } from "react";
 
 import { DECISIONS_CHANGED, DECISIONS_KEY, parseDecisions, type Decisions } from "@/lib/announcement-decisions";
-import { parseVersions, recordVersions, VERSIONS_CHANGED, VERSIONS_KEY, type VersionStore } from "@/lib/announcement-versions";
-import type { Announcement } from "@/lib/announcements";
+import { parseVersions, VERSIONS_CHANGED, VERSIONS_KEY, type VersionStore } from "@/lib/announcement-versions";
 
 function subscribe(onChange: () => void) {
   window.addEventListener(VERSIONS_CHANGED, onChange);
@@ -48,16 +47,3 @@ export function updateDecisions(change: (current: Decisions) => Decisions): void
   }
 }
 
-/** Saves what the announcements say now as new versions where they differ from the last. */
-export function recordAnnouncementVersions(announcements: readonly Announcement[]): void {
-  if (announcements.length === 0) return;
-  try {
-    const current = parseVersions(window.localStorage.getItem(VERSIONS_KEY));
-    const next = recordVersions(current, announcements, new Date());
-    if (next === current) return;
-    window.localStorage.setItem(VERSIONS_KEY, JSON.stringify(next));
-    window.dispatchEvent(new window.Event(VERSIONS_CHANGED));
-  } catch {
-    // As above.
-  }
-}

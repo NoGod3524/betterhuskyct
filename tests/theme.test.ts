@@ -5,7 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
-import { THEME_BOOT_SCRIPT, THEME_STORAGE_KEY, applyTheme, nextTheme, readTheme, saveTheme } from "../src/lib/theme.ts";
+import { THEME_BOOT_SCRIPT, THEME_STORAGE_KEY, applyTheme, readTheme, saveTheme } from "../src/lib/theme.ts";
 
 /**
  * Dark mode is a second set of CSS variables. It only works if every colour a
@@ -147,12 +147,6 @@ function memoryStorage(initial: Record<string, string> = {}) {
     data,
   };
 }
-
-test("the switch goes round system, light, dark", () => {
-  assert.equal(nextTheme("system"), "light");
-  assert.equal(nextTheme("light"), "dark");
-  assert.equal(nextTheme("dark"), "system");
-});
 
 test("a choice is kept, and following the device keeps nothing", () => {
   const storage = memoryStorage();

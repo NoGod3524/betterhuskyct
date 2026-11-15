@@ -138,6 +138,7 @@ export function useEventEdits(
     eventNoteFor: (taskId: string): string | null =>
       isCustomEventId(taskId) ? (customEvents.find((event) => event.id === taskId)?.note ?? null) : overlayNoteFor(eventOverlay, taskId),
     isEventEdited: (taskId: string) => Boolean(eventOverlay.edits[taskId]) || eventOverlay.deletedIds.includes(taskId),
+    hasEventEdits: Object.keys(eventOverlay.edits).length > 0 || eventOverlay.deletedIds.length > 0,
     addCustomEvent,
     addCustomEvents,
     dismissMoveNotice,

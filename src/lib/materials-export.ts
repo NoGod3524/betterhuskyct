@@ -277,10 +277,6 @@ export function crc32Update(crc: number, bytes: Uint8Array): number {
   return c >>> 0;
 }
 
-export function crc32(bytes: Uint8Array): number {
-  return (crc32Update(0xffffffff, bytes) ^ 0xffffffff) >>> 0;
-}
-
 /** A Blob's CRC-32, read in pieces so a big file is never in memory whole. */
 export async function crc32Blob(blob: Blob): Promise<number> {
   const reader = blob.stream().getReader();

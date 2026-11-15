@@ -1,13 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { dateFormatter, formatDate, ymd, ymdParts } from "../src/lib/format-date.ts";
+import { dateFormatter, formatDate, ymd } from "../src/lib/format-date.ts";
 
 const friday = new Date(2026, 9, 9, 23, 59);
 
-test("a day is yyyy/mm/dd with the month and day padded, from a moment or from its parts", () => {
+test("a day is yyyy/mm/dd with the month and day padded", () => {
   assert.equal(ymd(new Date(2026, 0, 5)), "2026/01/05");
-  assert.equal(ymdParts({ year: 2026, month: 10, day: 9 }), "2026/10/09");
 });
 
 test("the weekday and the time follow the day, in the reader's language", () => {

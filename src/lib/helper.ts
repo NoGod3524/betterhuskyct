@@ -12,10 +12,6 @@
  * refuse to install anything.
  */
 
-/** The script. A manager intercepts this URL; a browser without one shows it. */
-export const HELPER_SCRIPT_URL =
-  "https://raw.githubusercontent.com/NoGod3524/betterhuskyct/main/tools/huskyct-helper/huskyct-helper.user.js";
-
 /** The extension's listing in Microsoft Edge Add-ons: one press installs it, and it updates itself. */
 export const EDGE_ADDONS_URL =
   "https://microsoftedge.microsoft.com/addons/detail/betterhuskyct-helper/ffecjgdlpganijnbbnilofjphjhbekmc";

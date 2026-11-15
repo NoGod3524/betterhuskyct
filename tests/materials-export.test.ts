@@ -7,8 +7,8 @@ import {
   LINKS_PAGE_NAMES,
   ZipTooBigError,
   buildZip,
-  crc32,
   crc32Blob,
+  crc32Update,
   linksPageHtml,
   planExport,
   planPart,
@@ -16,6 +16,9 @@ import {
   saveToDirectory,
   type WritableDirectory,
 } from "../src/lib/materials-export.ts";
+
+/** A whole buffer's CRC-32, to check what the ZIP writer recorded. */
+const crc32 = (bytes: Uint8Array) => (crc32Update(0xffffffff, bytes) ^ 0xffffffff) >>> 0;
 
 const key = (n: number) => `https://lms.uconn.edu/bbcswebdav/pid-${n}-dt-content-rid-${n}_1/xid-${n}_1`;
 const file = (n: number, name: string, content: string, savedAt = "2026-09-27T12:30:10.000Z"): StoredFile => ({

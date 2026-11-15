@@ -9,7 +9,6 @@
 export type Theme = "system" | "light" | "dark";
 
 export const THEME_STORAGE_KEY = "huskypilot.theme.v1";
-const THEMES: readonly Theme[] = ["system", "light", "dark"];
 
 export function readTheme(storage: Pick<Storage, "getItem"> | null | undefined): Theme {
   try {
@@ -18,11 +17,6 @@ export function readTheme(storage: Pick<Storage, "getItem"> | null | undefined):
   } catch {
     return "system";
   }
-}
-
-/** The one after this, round the three: system → light → dark → system. */
-export function nextTheme(theme: Theme): Theme {
-  return THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
 }
 
 export function applyTheme(theme: Theme, root: { setAttribute(name: string, value: string): void; removeAttribute(name: string): void }) {

@@ -5,7 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { LoaderCircle, RefreshCw } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
-import { BACKGROUND_CHANGED, parseBackgroundStatus, requestBackground, type BackgroundStatus } from "@/lib/background-sync";
+import { BACKGROUND_CHANGED, NO_ANSWER_MS, parseBackgroundStatus, requestBackground, type BackgroundStatus } from "@/lib/background-sync";
 import { EDGE_ADDONS_URL, EXTENSION_INSTALL_URL, HELPER_SOURCE_URL, managerFor } from "@/lib/helper";
 import { HUSKYCT_URL } from "@/lib/helper-sync";
 import { BRIDGE_CONTROL, isBridgeHello } from "@/lib/helper-bridge";
@@ -37,10 +37,13 @@ export function BackgroundSyncButton() {
       }
     }).catch(() => { if (active) setStatus(null); }).finally(() => { if (active) setLoading(false); }); };
     refresh();
+    // Say "not connected" early; a late answer still replaces it.
+    const patience = window.setTimeout(() => { if (active) setLoading(false); }, NO_ANSWER_MS);
     window.addEventListener("focus", refresh);
     window.addEventListener(BACKGROUND_CHANGED, refresh);
     return () => {
       active = false;
+      window.clearTimeout(patience);
       window.removeEventListener("message", hello);
       window.removeEventListener("focus", refresh);
       window.removeEventListener(BACKGROUND_CHANGED, refresh);

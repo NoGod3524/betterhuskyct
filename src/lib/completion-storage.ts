@@ -74,6 +74,3 @@ export function saveCompletedTaskIds(
   storage.setItem(storageKeyFor(source), JSON.stringify(payload));
 }
 
-export function clearCompletedTaskIds(storage: Storage, source: CompletionSource) {
-  storage.removeItem(storageKeyFor(source));
-}
