@@ -185,6 +185,7 @@ src/
 │  ├─ sync-status-view.tsx                       # Last-sync status and collapsible per-course reading details
 │  ├─ sync-center.tsx                            # The header's Sync button and panel: the only place to sync
 │  ├─ app-notice.tsx                             # What the last action said, at the top of every page
+│  ├─ demo-note.tsx                              # The "Demo preview" line on a Courses page before the first sync
 │  ├─ connect-section.tsx                        # Connected calendars, course list, how to connect
 │  ├─ todo-section.tsx                           # The to-do list: open work by when, done work apart
 │  ├─ task-card.tsx                              # One task: badges, time, room, course picker
@@ -222,6 +223,7 @@ src/
    ├─ course-key.ts                              # A course's one name across sources, its address and tabs
    ├─ export.ts                                  # CSV export
    ├─ download.ts                                # Hands the browser a file to save
+   ├─ demo-content.ts                            # Example announcements, files and grades for the demo's courses
    ├─ sync-status.ts                             # What each sync read, course by course, and when each part was last read
    ├─ background-sync.ts                         # Bounded extension messages, snapshots and request/reply bridge
    ├─ ics.ts                                     # Open deadlines as an .ics file, with reminders, for a calendar app

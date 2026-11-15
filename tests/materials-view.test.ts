@@ -4,6 +4,7 @@ import { after, test } from "node:test";
 import { t } from "../src/lib/i18n.ts";
 import { type MaterialsStore } from "../src/lib/materials.ts";
 import { installDom } from "./support/dom.ts";
+import { markSynced } from "./support/synced.ts";
 import { memoryGradesStore, memoryMaterialsStore } from "./support/memory-stores.ts";
 
 /**
@@ -228,10 +229,25 @@ test("while the saved courses are being read the page shows placeholders, not th
   await view.unmount();
 });
 
-test("with nothing stored, the page says how to get materials here", async () => {
+test("before anything is synced, the page shows example files, marked as such, with nothing to clear", async () => {
+  window.localStorage.clear();
   const view = await render(null);
-  assert.ok(view.text().includes(t("en", "materials.emptyTitle")));
-  await view.unmount();
+  try {
+    assert.ok(view.text().includes(t("en", "demo.sectionNote")));
+    assert.ok(view.text().includes("CSE 2050"));
+    assert.ok(!view.text().includes(t("en", "materials.clear")));
+  } finally { await view.unmount(); }
+});
+
+test("once this browser has synced, with nothing stored, the page says how to get materials here", async () => {
+  markSynced(window);
+  const view = await render(null);
+  try {
+    assert.ok(view.text().includes(t("en", "materials.emptyTitle")));
+  } finally {
+    await view.unmount();
+    window.localStorage.clear();
+  }
 });
 
 // --- getting the files onto the computer ----------------------------------------------------

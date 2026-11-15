@@ -7,6 +7,7 @@ import { openSyncCenter } from "@/components/sync-center";
 import { ChangePanel } from "@/components/announcement-changes-panel";
 import { AnnouncementSummary, type SummaryCourse } from "@/components/announcement-summary";
 import { useCalendar } from "@/components/calendar-provider";
+import { DemoNote } from "@/components/demo-note";
 import { useDecisions, useVersionStore } from "@/components/use-announcement-state";
 import { announceSeenChanged, useAnnouncementsSeenAt } from "@/components/use-seen";
 import { chipStyle } from "@/lib/course-colors";
@@ -18,6 +19,7 @@ import { latestChange } from "@/lib/announcement-versions";
 import { GRADES_STORAGE_KEY } from "@/lib/grades-store";
 import { MAX_ANNOUNCEMENT_BODY, postedTime, type Announcement } from "@/lib/announcements";
 import { normaliseCourseCode } from "@/lib/courses";
+import { createDemoAnnouncements } from "@/lib/demo-content";
 import { t, type Locale, type TranslationKey } from "@/lib/i18n";
 import { markAnnouncementsSeen, unseenAnnouncements } from "@/lib/seen";
 
@@ -80,7 +82,10 @@ export function AnnouncementsSection({
   /** On a course's page: only that course, with no heading or course list of its own. */
   course?: string | null;
 }) {
-  const { locale, announcements, courses, clearAnnouncements, courseColorFor } = useCalendar();
+  const { locale, announcements: saved, courses, clearAnnouncements, courseColorFor, calendarReady, isImported, now: clock } = useCalendar();
+  // Before the first sync, examples show what this page is for; nothing about them is stored.
+  const demo = calendarReady && !isImported && saved.length === 0;
+  const announcements = useMemo(() => (demo ? createDemoAnnouncements(clock) : saved), [demo, saved, clock]);
   const [pickedCourse, setCourseFilter] = useState<string | null>(null);
   const courseFilter = course ?? pickedCourse;
   const [expanded, setExpanded] = useState(false);
@@ -203,7 +208,7 @@ export function AnnouncementsSection({
           </p>
         </div>
 
-        {announcements.length > 0 ? (
+        {announcements.length > 0 && !demo ? (
           <button
             type="button"
             onClick={clearAnnouncements}
@@ -213,6 +218,8 @@ export function AnnouncementsSection({
           </button>
         ) : null}
       </div>}
+
+      {demo ? <DemoNote /> : null}
 
       {byCourse.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed border-[var(--line-strong)] p-6">
@@ -251,7 +258,7 @@ export function AnnouncementsSection({
           </div>}
 
           <div className={course ? "min-w-0" : "mt-4 min-w-0 lg:mt-0"}>
-            {summariesEnabled ? (
+            {summariesEnabled && !demo ? (
               <AnnouncementSummary
                 key={courseFilter ?? "__all"}
                 locale={locale}
@@ -356,9 +363,11 @@ export function AnnouncementsSection({
                     ) : null}
 
                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
-                      <a href={originalUrl(entry.courseCode, courseIds)} target="_blank" rel="noopener noreferrer" className="tap-link font-semibold text-[var(--link)] hover:underline">
-                        {t(locale, "ann.openOriginal")}
-                      </a>
+                      {demo ? null : (
+                        <a href={originalUrl(entry.courseCode, courseIds)} target="_blank" rel="noopener noreferrer" className="tap-link font-semibold text-[var(--link)] hover:underline">
+                          {t(locale, "ann.openOriginal")}
+                        </a>
+                      )}
                       {mentionsAttachment(entry.body) ? <span>{t(locale, "ann.attachment")}</span> : null}
                       {entry.body.length >= MAX_ANNOUNCEMENT_BODY - 5 ? <span>{t(locale, "ann.truncated", { count: MAX_ANNOUNCEMENT_BODY })}</span> : null}
                     </div>
