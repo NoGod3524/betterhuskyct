@@ -97,6 +97,7 @@ import { courseColor, mergeCourseColors, restoreCourseColors, saveCourseColors, 
 import { helperMessage } from "@/lib/helper-bridge";
 import {
   DEFAULT_LOCALE,
+  loadLocale,
   restoreLocale,
   saveLocale,
   t,
@@ -242,8 +243,9 @@ export function CalendarProvider({
   }, [locale]);
 
   function changeLocale(nextLocale: Locale) {
-    setLocale(nextLocale);
     saveLocale(window.localStorage, nextLocale);
+    // Switched once its strings are here, so the page never shows a half-translated frame.
+    void loadLocale(nextLocale).then(() => setLocale(nextLocale));
   }
 
   function saveChange(write: () => void): boolean {
@@ -308,11 +310,23 @@ export function CalendarProvider({
   // Declared after the hooks above, whose own restores therefore run first: by the time this
   // marks the calendar ready, everything this browser remembers is on screen.
   useEffect(() => {
+    let alive = true;
     const timer = window.setTimeout(() => {
-      setNow(new Date());
-      let restoredLocale = DEFAULT_LOCALE;
+      let saved = DEFAULT_LOCALE;
       try {
-        restoredLocale = restoreLocale(window.localStorage);
+        saved = restoreLocale(window.localStorage);
+      } catch {
+        // Blocked storage: the restore below says so.
+      }
+      // The saved language's strings first, so the calendar is never shown in the wrong one.
+      void loadLocale(saved).then(() => {
+        if (alive) restore(saved);
+      });
+    }, 0);
+
+    function restore(restoredLocale: Locale) {
+      setNow(new Date());
+      try {
         setLocale(restoredLocale);
         const restored = restoreSubscriptions(window.localStorage);
         subscriptionsRef.current = restored.subscriptions;
@@ -336,9 +350,12 @@ export function CalendarProvider({
       } finally {
         setCalendarReady(true);
       }
-    }, 0);
+    }
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
     // Restore-on-mount must run exactly once; the setter it is handed is a state setter, which
     // never changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps

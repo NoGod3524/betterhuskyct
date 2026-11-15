@@ -243,7 +243,7 @@ src/
    ├─ moved-deadlines.ts                         # A deadline the teacher moved: ticks, notes and course choices follow it, and a notice says so
    ├─ academic-calendar.ts                       # UConn's academic calendar from the Registrar's page
    ├─ content-hash.ts, is-record.ts              # A short text fingerprint; "is this a plain object"
-   ├─ theme.ts, i18n.ts                          # Light, dark or the device's; English / 简体中文 dictionaries and lookup
+   ├─ theme.ts, i18n.ts, i18n-zh.ts              # Light, dark or the device's; the English strings and lookup; the Chinese, fetched only when chosen
 public/
 ├─ sw.js                             # Offline app-shell service worker
 ├─ og.png, screenshots/              # Social preview and the README screenshots

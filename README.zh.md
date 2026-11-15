@@ -237,7 +237,7 @@ src/
    ├─ moved-deadlines.ts                         # 老师改期的截止项：勾选、备注和课程选择跟着走，并给出提示
    ├─ academic-calendar.ts                       # 来自教务处页面的 UConn 校历
    ├─ content-hash.ts, is-record.ts              # 文字短指纹；「是不是普通对象」
-   ├─ theme.ts, i18n.ts                          # 浅色、深色或跟随设备；中英文字典和查表
+   ├─ theme.ts, i18n.ts, i18n-zh.ts              # 浅色、深色或跟随设备；英文文案和查表；中文文案，选了中文才下载
 public/
 ├─ sw.js                             # 离线应用外壳的 service worker
 ├─ og.png, screenshots/              # 社交预览图和 README 截图
