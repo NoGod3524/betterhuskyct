@@ -14,6 +14,20 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [3.1.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.1.0) — A page for each course
+
+*Minor: each course gets its own page. HuskyCT Helper stays at 2.2.2.*
+
+### Added
+
+- **A list of your courses.** Courses opens on one card per course: what is left to do, what is due next, unread changes, announcements, files and the points so far. A course is any code found in your data, so there is nothing to set up. ([#259])
+- **A page for each course**, at `/courses/<code>`, with tabs for its activity, work, announcements, files and grades. The tab is in the address, so Back works and links open the right one. ([#259])
+
+### Changed
+
+- **Links go to the course.** A change, and a search result for an announcement, a file or a grade, opens that course's page on the matching tab. ([#259])
+- The all-courses pages are now the All announcements, All materials and All grades tabs of Courses. ([#259])
+
 ## [3.0.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.0.0) — Four sections: Today, To-do, Courses, Settings
 
 *Major: the app is reorganised around four places, and its first page becomes Today. HuskyCT Helper stays at 2.2.2.*
@@ -2199,3 +2213,4 @@ saying what to work on next.*
 [#248]: https://github.com/NoGod3524/betterhuskyct/pull/248
 [#255]: https://github.com/NoGod3524/betterhuskyct/pull/255
 [#257]: https://github.com/NoGod3524/betterhuskyct/pull/257
+[#259]: https://github.com/NoGod3524/betterhuskyct/pull/259
