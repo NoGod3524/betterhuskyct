@@ -57,9 +57,9 @@ test("results come grouped in a fixed order, and a title match comes before a ma
 });
 
 test("a course, a folder and a link are searched too, and each result points at its page", () => {
-  assert.deepEqual(searchAll("week 3", sources).map((r) => [r.kind, r.href]), [["material", "/materials"]]);
+  assert.deepEqual(searchAll("week 3", sources).map((r) => [r.kind, r.href]), [["material", "/courses/stat-1000q?tab=materials"]]);
   assert.deepEqual(searchAll("recorded", sources).map((r) => r.title), ["Recorded lecture"]);
-  assert.deepEqual(searchAll("quiz", sources).map((r) => [r.kind, r.href]), [["grade", "/grades#grades-_1_1"]]);
+  assert.deepEqual(searchAll("quiz", sources).map((r) => [r.kind, r.href]), [["grade", "/courses/stat-1000q?tab=grades"]]);
   assert.deepEqual(searchAll("stat 1000q", sources).map((r) => r.kind), ["task", "material", "material", "grade"]);
 });
 

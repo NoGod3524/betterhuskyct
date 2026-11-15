@@ -77,7 +77,7 @@ test("changes are grouped by local day, newest first, with course, detail and re
   assert.ok(view.text().includes(t("en", "changes.kind.grade")));
   assert.ok(view.text().includes("18/20 → 20/20"));
   assert.ok(view.text().includes("Feedback added"));
-  assert.ok(view.container.querySelector('a[href="/grades"]'));
+  assert.ok(view.container.querySelector('a[href="/courses/math-1131q?tab=grades"]'), "a change opens its course's page on the right tab");
   assert.equal(view.container.querySelector("time")?.getAttribute("datetime"), LATER);
   await view.unmount();
 });

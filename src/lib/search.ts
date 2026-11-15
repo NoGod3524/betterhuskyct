@@ -1,6 +1,7 @@
 import type { Announcement } from "./announcements.ts";
 import type { CalendarTask } from "./calendar-types.ts";
 import type { GradesSnapshot } from "./grades.ts";
+import { courseKey, coursePath, type CourseTab } from "./course-key.ts";
 import type { MaterialsIndex } from "./materials.ts";
 
 export type SearchKind = "task" | "announcement" | "material" | "grade";
@@ -33,6 +34,12 @@ const hasAll = (text: string, tokens: string[]) => {
 
 type Candidate = SearchResult & { /** More text to look in than the title shows. */ extra: string };
 
+/** A course's own page, on the tab for this kind, when the item names its course; the all-courses page otherwise. */
+function hrefFor(code: string | null | undefined, tab: CourseTab, fallback: string): string {
+  const key = courseKey(code);
+  return key ? coursePath(key, tab) : fallback;
+}
+
 function candidates(sources: SearchSources): Candidate[] {
   const out: Candidate[] = [];
   for (const task of sources.tasks) {
@@ -44,20 +51,21 @@ function candidates(sources: SearchSources): Candidate[] {
       id: item.id,
       title: item.title,
       detail: item.courseCode,
-      href: "/announcements",
+      href: hrefFor(item.courseCode, "announcements", "/announcements"),
       extra: item.body,
     });
   }
   for (const course of sources.materials?.courses ?? []) {
     const code = course.code;
+    const materialsHref = hrefFor(code, "materials", "/materials");
     for (const file of course.files) {
-      out.push({ kind: "material", id: file.key, title: file.title, detail: [code, ...file.path].filter(Boolean).join(" / ") || null, href: "/materials", extra: "" });
+      out.push({ kind: "material", id: file.key, title: file.title, detail: [code, ...file.path].filter(Boolean).join(" / ") || null, href: materialsHref, extra: "" });
     }
     for (const link of course.links) {
-      out.push({ kind: "material", id: link.url, title: link.title, detail: [code, ...link.path].filter(Boolean).join(" / ") || null, href: "/materials", extra: "" });
+      out.push({ kind: "material", id: link.url, title: link.title, detail: [code, ...link.path].filter(Boolean).join(" / ") || null, href: materialsHref, extra: "" });
     }
     for (const tool of course.tools) {
-      out.push({ kind: "material", id: `${course.id}:${tool.title}`, title: tool.title, detail: [code, ...tool.path].filter(Boolean).join(" / ") || null, href: "/materials", extra: "" });
+      out.push({ kind: "material", id: `${course.id}:${tool.title}`, title: tool.title, detail: [code, ...tool.path].filter(Boolean).join(" / ") || null, href: materialsHref, extra: "" });
     }
   }
   for (const course of sources.grades?.courses ?? []) {
@@ -67,7 +75,7 @@ function candidates(sources: SearchSources): Candidate[] {
         id: `${course.id}:${item.id}`,
         title: item.title,
         detail: course.code,
-        href: `/grades#grades-${course.id}`,
+        href: hrefFor(course.code, "grades", `/grades#grades-${course.id}`),
         extra: "",
       });
     }

@@ -152,6 +152,8 @@ src/
 │  ├─ about/page.tsx                             # /about         what the project promises and does not, and where to check
 │  ├─ changes/page.tsx                           # /changes       recent changes across courses
 │  ├─ settings/page.tsx                          # /settings      language, theme, reminders, sync
+│  ├─ courses/page.tsx                           # /courses       every course
+│  ├─ courses/[slug]/page.tsx                    # /courses/cse-2050  one course, its tab in ?tab=
 │  ├─ globals.css, icon.tsx                      # Styles; the app icon
 ├─ components/
 │  ├─ calendar-provider.tsx                      # Every piece of app state, in the root layout
@@ -164,6 +166,9 @@ src/
 │  ├─ mobile-nav.tsx                             # The phone's bottom bar of the four sections
 │  ├─ search-palette.tsx                         # Ctrl+K search over tasks, announcements, files and grades
 │  ├─ today-section.tsx                          # Today: first-run steps, new changes, what is due
+│  ├─ courses-section.tsx                        # /courses: one card per course, with what is new and next
+│  ├─ course-page.tsx                            # One course's page: activity, work, announcements, files, grades
+│  ├─ use-course-list.ts                         # Every course by code, gathered from all the data
 │  ├─ helper-sync-button.tsx                     # The Sync button: opens HuskyCT and follows the helper's progress
 │  ├─ privacy-section.tsx                         # The helper's privacy policy, which the stores link to
 │  ├─ backup-section.tsx                         # Download a backup; load one, merged or replacing
@@ -210,6 +215,7 @@ src/
    ├─ todo.ts, task-overview.ts, exams.ts, undated-todos.ts# The to-do list's sections; counts; exams ahead; to-dos with no date
    ├─ task-status.ts                             # Which deadlines the gradebook says are done, and why
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# Due-soon detection; the add form; search; what is new
+   ├─ course-key.ts                              # A course's one name across sources, its address and tabs
    ├─ export.ts                                  # CSV export
    ├─ sync-status.ts                             # What each sync read, course by course, and when each part was last read
    ├─ background-sync.ts                         # Bounded extension messages, snapshots and request/reply bridge

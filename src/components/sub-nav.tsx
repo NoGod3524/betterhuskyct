@@ -11,9 +11,10 @@ import { t, type Locale } from "@/lib/i18n";
  */
 export function SubNav({ pathname, locale, badges = {} }: { pathname: string; locale: Locale; badges?: Record<string, number> }) {
   const section = sectionFor(pathname);
-  if (!section || section.pages.length < 2) return null;
+  // A page under a section that is not one of its tabs (a course's own page) has tabs of its own.
+  if (!section || section.pages.length < 2 || !section.pages.some((page) => page.href === pathname)) return null;
   return (
-    <nav aria-label={t(locale, section.key)} className="-mx-1 mt-4 overflow-x-auto px-1">
+    <nav aria-label={t(locale, section.key)} className="-mx-1 mt-4 overflow-x-auto px-1 [scrollbar-width:none]">
       <ul className="flex w-max gap-1 rounded-lg bg-[var(--subtle)] p-0.5 text-sm font-medium">
         {section.pages.map(({ href, key }) => {
           const active = pathname === href;

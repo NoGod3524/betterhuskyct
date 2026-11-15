@@ -73,12 +73,16 @@ function postedLabel(posted: string, locale: Locale): string {
 
 export function AnnouncementsSection({
   summariesEnabled = false,
+  course = null,
 }: {
   /** Whether this server can summarise: it has a model key. Off, the panel is not shown at all. */
   summariesEnabled?: boolean;
+  /** On a course's page: only that course, with no heading or course list of its own. */
+  course?: string | null;
 }) {
   const { locale, announcements, courses, clearAnnouncements, courseColorFor } = useCalendar();
-  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [pickedCourse, setCourseFilter] = useState<string | null>(null);
+  const courseFilter = course ?? pickedCourse;
   const [expanded, setExpanded] = useState(false);
   const [openIds, setOpenIds] = useState<Set<string>>(new Set());
   // The to-do page links here with the changed ones already picked.
@@ -184,8 +188,8 @@ export function AnnouncementsSection({
   }
 
   return (
-    <section className="mt-10" aria-labelledby="announcements-heading">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <section className={course ? "mt-4" : "mt-10"} aria-labelledby={course ? undefined : "announcements-heading"}>
+      {course ? null : <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">{t(locale, "announcements.eyebrow")}</p>
           <h2
@@ -208,9 +212,9 @@ export function AnnouncementsSection({
             {t(locale, "announcements.clear")}
           </button>
         ) : null}
-      </div>
+      </div>}
 
-      {announcements.length === 0 ? (
+      {byCourse.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed border-[var(--line-strong)] p-6">
           <p className="text-sm font-semibold">
             {t(locale, "announcements.emptyTitle")}
@@ -223,9 +227,9 @@ export function AnnouncementsSection({
           </button>
         </div>
       ) : (
-        <div className="mt-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start lg:gap-6">
+        <div className={course ? "" : "mt-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:items-start lg:gap-6"}>
           {/* The courses: a row of chips on a phone, a list beside the announcements on a wide screen. */}
-          <div
+          {course ? null : <div
             role="group"
             aria-label={t(locale, "announcements.allCourses")}
             className="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 lg:sticky lg:top-20 lg:flex-col lg:gap-0.5 lg:overflow-visible"
@@ -244,9 +248,9 @@ export function AnnouncementsSection({
                 {key === NO_COURSE ? t(locale, "announcements.uncoursed") : key}
               </CourseButton>
             ))}
-          </div>
+          </div>}
 
-          <div className="mt-4 min-w-0 lg:mt-0">
+          <div className={course ? "min-w-0" : "mt-4 min-w-0 lg:mt-0"}>
             {summariesEnabled ? (
               <AnnouncementSummary
                 key={courseFilter ?? "__all"}

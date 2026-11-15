@@ -55,7 +55,8 @@ test("every page belongs to exactly one section, and nothing in the navigation g
 
 test("a route finds its section; an unknown one finds none", () => {
   assert.equal(sectionFor("/calendar")?.href, "/tasks");
-  assert.equal(sectionFor("/grades")?.href, "/announcements");
+  assert.equal(sectionFor("/grades")?.href, "/courses");
+  assert.equal(sectionFor("/courses/cse-2050")?.href, "/courses", "a course's own page is in Courses");
   assert.equal(sectionFor("/backup")?.href, "/settings");
   assert.equal(sectionFor("/changes")?.href, "/");
   assert.equal(sectionFor("/nowhere"), null);
@@ -93,13 +94,15 @@ const tabs = (pathname: string) =>
 
 test("the bar shows the four sections, with the current one marked on any of its pages", async () => {
   const view = await bar("/calendar");
-  assert.deepEqual(view.links(), ["/", "/tasks", "/announcements", "/settings"]);
+  assert.deepEqual(view.links(), ["/", "/tasks", "/courses", "/settings"]);
   assert.equal(view.q('a[href="/tasks"]')!.getAttribute("aria-current"), "true");
   assert.equal(view.q('a[href="/"]')!.getAttribute("aria-current"), null);
   await view.show("/tasks");
   assert.equal(view.q('a[href="/tasks"]')!.getAttribute("aria-current"), "page");
   await view.show("/grades");
-  assert.ok(view.q('a[href="/announcements"]')!.className.includes("mobile-tab-active"));
+  assert.ok(view.q('a[href="/courses"]')!.className.includes("mobile-tab-active"));
+  await view.show("/courses/cse-2050");
+  assert.ok(view.q('a[href="/courses"]')!.className.includes("mobile-tab-active"));
   assert.equal(view.q("nav")!.getAttribute("aria-label"), t("en", "nav.main"));
   await view.unmount();
 });
@@ -117,7 +120,7 @@ test("unread changes show on Today, in both languages", async () => {
 
 test("a section's pages are tabs at its top; a page outside any section has none", async () => {
   const view = await tabs("/materials");
-  assert.deepEqual(view.links(), ["/announcements", "/materials", "/grades"]);
+  assert.deepEqual(view.links(), ["/courses", "/announcements", "/materials", "/grades"]);
   assert.equal(view.q('a[href="/materials"]')!.getAttribute("aria-current"), "page");
   await view.show("/settings");
   assert.deepEqual(view.links(), ["/settings", "/backup", "/privacy", "/about"]);

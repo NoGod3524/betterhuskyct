@@ -146,6 +146,8 @@ src/
 │  ├─ about/page.tsx                             # /about         项目承诺什么、不承诺什么，以及去哪里核对
 │  ├─ changes/page.tsx                           # /changes       各门课程最近的变化
 │  ├─ settings/page.tsx                          # /settings      语言、外观、提醒、同步
+│  ├─ courses/page.tsx                           # /courses       所有课程
+│  ├─ courses/[slug]/page.tsx                    # /courses/cse-2050  单门课，标签在 ?tab=
 │  ├─ globals.css, icon.tsx                      # 样式；应用图标
 ├─ components/
 │  ├─ calendar-provider.tsx                      # 整个应用的状态，放在根布局里
@@ -158,6 +160,9 @@ src/
 │  ├─ mobile-nav.tsx                             # 手机底栏的四个分区
 │  ├─ search-palette.tsx                         # Ctrl+K，搜索任务、公告、文件和成绩
 │  ├─ today-section.tsx                          # 今天：首次使用步骤、新变化、要交的
+│  ├─ courses-section.tsx                        # /courses：每门课一张卡片，显示新变化和下一个截止
+│  ├─ course-page.tsx                            # 单门课的页面：动态、作业、公告、课件、成绩
+│  ├─ use-course-list.ts                         # 从所有数据里按课程代码汇总出的课程列表
 │  ├─ helper-sync-button.tsx                     # 同步按钮：打开 HuskyCT 并跟随助手的进度
 │  ├─ privacy-section.tsx                         # 助手的隐私政策，商店页面会链接到它
 │  ├─ backup-section.tsx                         # 下载备份；读入备份，合并或替换
@@ -204,6 +209,7 @@ src/
    ├─ todo.ts, task-overview.ts, exams.ts, undated-todos.ts# 待办的分组；计数；将到的考试；无日期待办
    ├─ task-status.ts                             # 成绩册说哪些 deadline 已经完成，以及原因
    ├─ reminders.ts, quick-add.ts, search.ts, seen.ts# 快到期检测；添加表单；搜索；「新」标记
+   ├─ course-key.ts                              # 课程在各数据源里的统一名字、网址和标签
    ├─ export.ts                                  # CSV 导出
    ├─ sync-status.ts                             # 每次同步每门课读到了什么，以及各部分最后一次读到的时间
    ├─ background-sync.ts                         # 有大小限制的扩展消息、快照和请求回复桥接
