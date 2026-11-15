@@ -14,6 +14,25 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [2.2.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v2.2.0) — One Sync button on every page
+
+*Minor: one place to sync, and the iCal-era leftovers cleared away. HuskyCT Helper stays at 2.2.2.*
+
+### Changed
+
+- **One Sync button, top right, on every page.** It says when the last sync was and turns amber when part of a course was not read. Its panel holds the background check, the full sync with file contents and the per-course reading details, which were split between the homepage and the Materials page. ([#255])
+- **Empty pages lead to the same panel.** Announcements, Grades, Materials and the to-do hint open it instead of linking to the dashboard or to Materials. ([#255])
+- **Notices show on every page.** What the last action said appears at the top of the page you are on, with a close button, instead of only inside the connect card. The notice about restored events on every load is gone. ([#255])
+- **Clear synced data moves to the Backup page**, behind a confirmation. ([#255])
+
+### Fixed
+
+- **The Calendar page no longer points to a button it does not have.** Its course and calendar card moves below the month and only shows when there is something in it. ([#255])
+
+### Removed
+
+- The sidebar's "Demo calendar" card and the *Use demo* and *Restore saved import* buttons. ([#255])
+
 ## [2.1.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v2.1.2) — Restore complete manual sync
 
 *Patch: direct window requests and file delivery. HuskyCT Helper goes from 2.2.1 to 2.2.2.*
@@ -2163,3 +2182,4 @@ saying what to work on next.*
 [#244]: https://github.com/NoGod3524/betterhuskyct/pull/244
 [#246]: https://github.com/NoGod3524/betterhuskyct/pull/246
 [#248]: https://github.com/NoGod3524/betterhuskyct/pull/248
+[#255]: https://github.com/NoGod3524/betterhuskyct/pull/255
