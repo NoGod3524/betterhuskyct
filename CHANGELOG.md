@@ -14,6 +14,19 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [3.4.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.4.0) — Examples before the first sync
+
+*Minor: the Courses pages show examples before the first sync. HuskyCT Helper stays at 2.2.2.*
+
+### Added
+
+- **Examples on the Courses pages before the first sync.** Announcements, Materials and Grades, and each course's tabs, showed empty boxes until a sync. They now show examples for the demo's four courses, marked *Demo preview*, which the first real data replaces. Nothing about the examples is stored or sent: AI summaries, export, clear and the links to HuskyCT are not offered for them. ([#271])
+
+### Changed
+
+- The Chinese strings are fetched only for a reader who chose Chinese, so the script every page loads is about a quarter smaller (56 KB to 42 KB gzipped). ([#272])
+- The three largest files are split along the seams they already had: the calendar's event form, the Materials page's parts and export, and the AI plan's matching and request. Nothing changes in use. ([#273])
+
 ## [3.3.3](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.3.3) — One name for the helper
 
 *Patch: wording, a quicker answer when the helper is missing, and small fixes. HuskyCT Helper stays at 2.2.2.*
@@ -2280,3 +2293,6 @@ saying what to work on next.*
 [#265]: https://github.com/NoGod3524/betterhuskyct/pull/265
 [#267]: https://github.com/NoGod3524/betterhuskyct/pull/267
 [#269]: https://github.com/NoGod3524/betterhuskyct/pull/269
+[#271]: https://github.com/NoGod3524/betterhuskyct/pull/271
+[#272]: https://github.com/NoGod3524/betterhuskyct/pull/272
+[#273]: https://github.com/NoGod3524/betterhuskyct/pull/273
