@@ -179,6 +179,7 @@ src/
 │  ├─ sync-status-view.tsx                       # 同步状态与可折叠的各课程读取详情
 │  ├─ sync-center.tsx                            # 顶栏的同步按钮和面板：唯一的同步入口
 │  ├─ app-notice.tsx                             # 上一个操作的结果，显示在每个页面顶部
+│  ├─ demo-note.tsx                              # 首次同步前课程区各页的「演示预览」提示
 │  ├─ connect-section.tsx                        # 已连接的日历、课程列表、怎么连接
 │  ├─ todo-section.tsx                           # 待办列表：未完成的按时间，已完成的另放
 │  ├─ task-card.tsx                              # 一条任务：徽标、时间、教室、课程选择
@@ -216,6 +217,7 @@ src/
    ├─ course-key.ts                              # 课程在各数据源里的统一名字、网址和标签
    ├─ export.ts                                  # CSV 导出
    ├─ download.ts                                # 让浏览器保存一个文件
+   ├─ demo-content.ts                            # 演示课程的示例公告、课件和成绩
    ├─ sync-status.ts                             # 每次同步每门课读到了什么，以及各部分最后一次读到的时间
    ├─ background-sync.ts                         # 有大小限制的扩展消息、快照和请求回复桥接
    ├─ ics.ts                                     # 把未完成的截止项导出成带提醒的 .ics 日历文件

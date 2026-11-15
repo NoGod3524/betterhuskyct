@@ -7,6 +7,7 @@ import { CHANGES_KEY, parseChanges } from "../src/lib/changes.ts";
 import { t } from "../src/lib/i18n.ts";
 import { installDom } from "./support/dom.ts";
 import { memoryGradesStore, memoryMaterialsStore } from "./support/memory-stores.ts";
+import { markSynced } from "./support/synced.ts";
 
 /**
  * The Grades page, rendered with the real provider around it and a store in
@@ -148,10 +149,26 @@ test("while the saved grades are being read the page shows placeholders, not the
   await view.unmount();
 });
 
-test("with nothing stored, the page says how to get grades here", async () => {
+test("before anything is synced, the page shows example grades, marked as such, with nothing to export or clear", async () => {
+  window.localStorage.clear();
   const view = await render(null);
-  assert.ok(view.text().includes(t("en", "grades.emptyTitle")));
-  await view.unmount();
+  try {
+    assert.ok(view.text().includes(t("en", "demo.sectionNote")));
+    assert.ok(view.text().includes("CSE 2050") && view.text().includes("Exam 1"));
+    assert.ok(!view.text().includes(t("en", "grades.clear")) && !view.text().includes(t("en", "grades.export")));
+  } finally { await view.unmount(); }
+});
+
+test("once this browser has synced, with nothing stored, the page says how to get grades here", async () => {
+  markSynced(window);
+  const view = await render(null);
+  try {
+    assert.ok(view.text().includes(t("en", "grades.emptyTitle")));
+    assert.ok(!view.text().includes(t("en", "demo.sectionNote")));
+  } finally {
+    await view.unmount();
+    window.localStorage.clear();
+  }
 });
 
 test("a reading from HuskyCT arrives on the open page and is kept", async () => {
@@ -226,6 +243,7 @@ test("marking them seen removes the banner and badges, and keeps the grades", as
 });
 
 test("marking changes seen after another tab clears grades keeps the store and page empty", async () => {
+  markSynced(window);
   const store = await seededWithChanges([CHANGED]);
   const view = await render(store);
   try {
@@ -237,6 +255,7 @@ test("marking changes seen after another tab clears grades keeps the store and p
     assert.ok(!view.text().includes("Section 4.2 Homework"));
   } finally {
     await view.unmount();
+    window.localStorage.clear();
   }
 });
 
@@ -322,6 +341,7 @@ test("the changes survive a reload, because the browser's store keeps them", asy
 });
 
 test("clearing asks first, then empties the page", async () => {
+  markSynced(window);
   const store = await seeded();
   const view = await render(store);
   const browser = window as unknown as { confirm: () => boolean };
@@ -338,6 +358,7 @@ test("clearing asks first, then empties the page", async () => {
   assert.equal(await store.get(), null);
   assert.ok(view.text().includes(t("en", "grades.emptyTitle")));
   await view.unmount();
+  window.localStorage.clear();
 });
 
 test("grade data and its history save together, marking seen does not add history, and clearing removes scores from both", async () => {

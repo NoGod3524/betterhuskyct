@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
+import { DemoNote } from "@/components/demo-note";
 import { openSyncCenter } from "@/components/sync-center";
 import { courseKey } from "@/lib/course-key";
 import { DELIVERY_EVENT, type DeliveryDetail } from "@/components/helper-deliveries";
@@ -41,6 +42,7 @@ import {
   type StoredFile,
 } from "@/lib/materials";
 import { openMaterialsStore } from "@/lib/materials-store";
+import { createDemoMaterials } from "@/lib/demo-content";
 import { markFilesSeen, parseSeenFiles, unseenFiles } from "@/lib/seen";
 import {
   LINKS_PAGE_NAMES,
@@ -100,7 +102,7 @@ export function MaterialsSection({
   /** On a course's page: only that course, open, with no heading, chips or all-course buttons. */
   course?: string | null;
 }) {
-  const { locale, courseColorFor } = useCalendar();
+  const { locale, courseColorFor, calendarReady, isImported, now: clock } = useCalendar();
   const [store, setStore] = useState<MaterialsStore | null>(null);
   const [index, setIndex] = useState<MaterialsIndex | null>(null);
   const [files, setFiles] = useState<Map<string, StoredFile>>(new Map());
@@ -179,7 +181,9 @@ export function MaterialsSection({
     };
   }, [store, reload]);
 
-  const courses = useMemo(() => index?.courses ?? [], [index]);
+  // Before the first sync, examples show what this page is for; nothing about them is stored.
+  const demo = ready && calendarReady && !isImported && (index?.courses.length ?? 0) === 0;
+  const courses = useMemo(() => (demo ? createDemoMaterials(clock).courses : (index?.courses ?? [])), [demo, index, clock]);
 
   // A file not seen on this page before is marked new while the student is on it, and counted as
   // seen when they leave.
@@ -188,8 +192,8 @@ export function MaterialsSection({
   const unseen = useMemo(() => unseenFiles(allKeys, parseSeenFiles(seenRaw)), [allKeys, seenRaw]);
   const keysNow = useRef<string[]>([]);
   useEffect(() => {
-    keysNow.current = allKeys;
-  }, [allKeys]);
+    keysNow.current = demo ? [] : allKeys;
+  }, [allKeys, demo]);
   useEffect(
     () => () => {
       if (keysNow.current.length === 0) return;
@@ -373,7 +377,7 @@ export function MaterialsSection({
               </button>
             </>
           ) : null}
-          {courses.length > 0 ? (
+          {courses.length > 0 && !demo ? (
             <button
               type="button"
               onClick={clearAll}
@@ -403,6 +407,8 @@ export function MaterialsSection({
         </p>
       ) : null}
       {unavailable ? <p className="mt-4 text-sm text-[var(--danger)]">{t(locale, "materials.unavailable")}</p> : null}
+
+      {demo ? <DemoNote /> : null}
 
       {!ready ? (
         <ListSkeleton label={t(locale, "common.loading")} />
