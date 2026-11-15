@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 export default function CalendarPage() {
   return (
     <>
-      <ConnectSection />
       <CalendarMonthView />
+      <ConnectSection />
     </>
   );
 }

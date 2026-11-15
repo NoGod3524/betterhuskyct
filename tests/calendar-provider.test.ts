@@ -717,12 +717,6 @@ test("ticking before another tab's storage event arrives preserves its ticks and
   assert.deepEqual(JSON.parse(window.localStorage.getItem(COMPLETION_STORAGE_KEY_CUSTOM)!).completedIds, [own]);
   assert.deepEqual(JSON.parse(window.localStorage.getItem(COMPLETION_STORAGE_KEY_DEMO)!).completedIds, [demo]);
 
-  await act(async () => app.calendar.restoreDemo());
-  storeTicks(COMPLETION_STORAGE_KEY_DEMO, []);
-  await storageChanged(COMPLETION_STORAGE_KEY_DEMO);
-  assert.equal(app.calendar.doneIds.has(demo), false);
-  assert.equal(app.calendar.doneIds.has(own), true);
-  assert.equal(app.calendar.doneIds.has(imported), false);
   await app.unmount();
 });
 

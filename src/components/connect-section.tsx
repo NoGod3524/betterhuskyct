@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Check, ChevronRight, ChevronUp, Plug, Plus, TriangleAlert, X } from "lucide-react";
+import { ChevronRight, ChevronUp, Plug, Plus, X } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
 import {
@@ -11,53 +11,14 @@ import {
 } from "@/lib/courses";
 import { t } from "@/lib/i18n";
 
-/** The error and success rows, shared by both states of the card. */
-function StatusRows({
-  error,
-  notice,
-}: {
-  error: string | null;
-  notice: string | null;
-}) {
-  return (
-    <>
-      {error && (
-        <div
-          className="flex items-start gap-2 border-t border-[var(--line)] bg-[var(--danger-soft)] px-4 py-2.5 text-sm text-[var(--danger)] sm:px-5"
-          role="alert"
-          aria-live="polite"
-        >
-          <TriangleAlert size={16} className="mt-0.5 shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {notice && (
-        <div
-          className="flex items-start gap-2 border-t border-[var(--line)] px-4 py-2.5 text-xs text-[var(--muted)] sm:px-5"
-          role="status"
-          aria-live="polite"
-        >
-          <Check size={14} className="mt-px shrink-0 text-[var(--success)]" />
-          <span>{notice}</span>
-        </div>
-      )}
-    </>
-  );
-}
-
 /**
- * The card for what is connected: the calendars a sync brought, which course each belongs to, and
- * the student's own list of courses. With nothing connected it says how to: the Sync button at
- * the top of the page, and the helper it needs the first time.
- *
- * Once something is in, the card gets out of the way: it shrinks to one line.
+ * The calendars a sync brought, which course each belongs to, and the student's own list of
+ * courses. Syncing itself is the header's job; with nothing synced and no course of their own
+ * there is nothing to manage, and the card is not shown.
  */
 export function ConnectSection() {
   const {
     locale,
-    error,
-    notice,
     courses,
     addCourse,
     editCourse,
@@ -82,6 +43,7 @@ export function ConnectSection() {
   }, [subscriptions.length]);
 
   const showPanel = !hasCalendars || isExpanded;
+  if (!hasCalendars && courses.length === 0) return null;
 
   function handleAddCourse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -124,7 +86,6 @@ export function ConnectSection() {
             <ChevronRight size={14} />
           </button>
         </div>
-        <StatusRows error={error} notice={notice} />
       </section>
     );
   }
@@ -354,7 +315,6 @@ export function ConnectSection() {
         )}
       </details>
 
-      <StatusRows error={error} notice={notice} />
     </section>
   );
 }

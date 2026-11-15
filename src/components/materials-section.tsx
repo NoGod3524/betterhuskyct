@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import {
   ChevronRight,
   Download,
@@ -21,8 +20,8 @@ import {
 } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
+import { openSyncCenter } from "@/components/sync-center";
 import { DELIVERY_EVENT, type DeliveryDetail } from "@/components/helper-deliveries";
-import { HelperSyncButton } from "@/components/helper-sync-button";
 import { ListSkeleton } from "@/components/list-skeleton";
 import { SyllabusSummaryCard, SyllabusSummaryHint } from "@/components/syllabus-summary";
 import { announceSeenChanged, useSeenFilesRaw } from "@/components/use-seen";
@@ -377,10 +376,6 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
         </div>
       </div>
 
-      <div id="manual-sync" className="mt-5 flex flex-wrap items-start justify-between gap-3 rounded-xl border border-[var(--line)] p-4">
-        <p className="max-w-xl text-sm text-[var(--muted)]">{t(locale, "materials.manualSync")}</p>
-        <HelperSyncButton variant="big" />
-      </div>
 
       {receive.phase === "connected" || receive.phase === "receiving" ? (
         <p className="mt-4 rounded-lg bg-[var(--accent-soft)] px-3.5 py-2.5 text-sm font-medium text-[var(--accent-ink)]" role="status">
@@ -405,9 +400,9 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
         <div className="mt-4 rounded-xl border border-dashed border-[var(--line-strong)] p-6">
           <p className="text-sm font-semibold">{t(locale, "materials.emptyTitle")}</p>
           <p className="mt-1 text-sm text-[var(--muted)]">{t(locale, "materials.emptyBody")}</p>
-          <Link href="/#check-updates" className="tap-link mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline">
+          <button type="button" onClick={openSyncCenter} className="tap-link mt-3 inline-flex text-sm font-semibold text-[var(--link)] hover:underline">
             {t(locale, "materials.emptyCta")}
-          </Link>
+          </button>
         </div>
       ) : (
         <>

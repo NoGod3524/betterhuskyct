@@ -20,6 +20,8 @@ import { announceSeenChanged, useAnnouncementsSeenAt } from "@/components/use-se
 import { ensureAnnouncementsBaseline, unseenAnnouncements } from "@/lib/seen";
 import { SearchPalette } from "@/components/search-palette";
 import { SyncBanner } from "@/components/sync-banner";
+import { SyncCenter } from "@/components/sync-center";
+import { AppNotice } from "@/components/app-notice";
 import { useCalendar } from "@/components/calendar-provider";
 import { t } from "@/lib/i18n";
 import { applyTheme, nextTheme, readTheme, saveTheme, THEME_STORAGE_KEY, type Theme } from "@/lib/theme";
@@ -80,10 +82,6 @@ export function AppShell({
     changeLocale,
     remindersEnabled,
     toggleReminders,
-    hasSavedImport,
-    calendarName,
-    formattedImportedAt,
-    subscriptions,
     announcements,
   } = useCalendar();
 
@@ -146,31 +144,6 @@ export function AppShell({
             })}
           </nav>
 
-          <div className="card mt-auto p-3">
-            <p className="flex items-center gap-2 text-[13px] font-medium">
-              <span className={`size-1.5 shrink-0 rounded-full ${hasSavedImport ? "bg-[var(--success)]" : "bg-[var(--line-strong)]"}`} />
-              <span className="truncate">
-                {hasSavedImport
-                  ? calendarName ??
-                    (subscriptions.length === 1
-                      ? t(locale, "sidebar.calendarConnected")
-                      : t(locale, "sidebar.calendarCount", {
-                          count: subscriptions.length,
-                        }))
-                  : t(locale, "sidebar.demoCalendar")}
-              </span>
-            </p>
-            <p className="mt-1 text-xs leading-5 text-[var(--muted)]">
-              {hasSavedImport
-                ? t(locale, "sidebar.importedDescription")
-                : t(locale, "sidebar.connectDescription")}
-            </p>
-            {formattedImportedAt && (
-              <p className="mt-1 text-[11px] text-[var(--muted)]">
-                {t(locale, "sidebar.lastImported", { value: formattedImportedAt })}
-              </p>
-            )}
-          </div>
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-7 lg:px-10 lg:pb-8">
@@ -182,6 +155,7 @@ export function AppShell({
               <span className="hidden text-sm font-semibold sm:inline">{t(locale, "app.name")}</span>
             </Link>
             <div className="ml-auto flex items-center gap-1.5">
+              <SyncCenter />
               <SearchPalette iconButton={iconButton} />
               <div
                 role="group"
@@ -213,7 +187,7 @@ export function AppShell({
                 aria-label={t(locale, locale === "en" ? "language.switchToChinese" : "language.switchToEnglish")}
                 className="whitespace-nowrap rounded-lg px-2.5 text-xs font-medium text-[var(--muted)] hover:bg-[var(--subtle)] hover:text-[var(--ink)] sm:hidden"
               >
-                {t(locale, locale === "en" ? "language.chinese" : "language.english")}
+                {t(locale, locale === "en" ? "language.chineseShort" : "language.englishShort")}
               </button>
               <button
                 type="button"
@@ -249,6 +223,7 @@ export function AppShell({
 
           <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col">
             <SyncBanner />
+            <AppNotice />
             {/* Keyed by the route, so each page arrives with its own fade. */}
             <div key={pathname} className="page-enter flex-1">
               {children}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import Link from "next/link";
+
 import { LoaderCircle, RefreshCw } from "lucide-react";
 
 import { useCalendar } from "@/components/calendar-provider";
@@ -75,15 +75,13 @@ export function BackgroundSyncButton() {
   const working = busy || status?.running;
   const installHref = browser === "edge" ? EDGE_ADDONS_URL : browser === "chrome" ? "/betterhuskyct-extension.zip" : EXTENSION_INSTALL_URL;
   return (
-    <div className="sm:max-w-sm sm:text-right" id="check-updates">
+    <div>
       {loading || status || busy || failed ? (
         <button type="button" onClick={() => { void check(); }} disabled={loading || working} className="btn btn-primary h-9 w-full px-4 text-sm sm:w-auto">
           {working ? <LoaderCircle size={15} className="animate-spin" aria-hidden /> : <RefreshCw size={15} aria-hidden />}
           {t(locale, working ? "background.running" : "background.runNow")}
         </button>
-      ) : browser === "mobile" ? (
-        <Link href="/materials#manual-sync" className="tap-link btn btn-primary h-9 w-full px-4 text-sm sm:w-auto">{t(locale, "background.manual")}</Link>
-      ) : (
+      ) : browser === "mobile" ? null : (
         <a href={installHref} download={browser === "chrome" || undefined} className="tap-link btn btn-primary h-9 w-full px-4 text-sm sm:w-auto">
           {t(locale, "background.install")}
         </a>
@@ -95,7 +93,6 @@ export function BackgroundSyncButton() {
             {browser !== "mobile" ? <button type="button" onClick={() => { setLoading(true); setRetry(value => value + 1); }} className="tap-link font-semibold text-[var(--link)] hover:underline">{t(locale, "background.reconnect")}</button> : null}
             {browser !== "mobile" ? " · " : null}
             <a href={browser === "mobile" ? HELPER_SOURCE_URL : EXTENSION_INSTALL_URL} className="tap-link font-semibold text-[var(--link)] hover:underline">{t(locale, "background.installHelp")}</a>
-            {browser !== "mobile" ? <>{" · "}<Link href="/materials#manual-sync" className="tap-link font-semibold text-[var(--link)] hover:underline">{t(locale, "background.manual")}</Link></> : null}
           </>
         ) : (
           <>
