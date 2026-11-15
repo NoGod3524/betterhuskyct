@@ -189,11 +189,13 @@ src/
 │  ├─ quick-add.tsx                              # 在总览里加一条待办
 │  ├─ undated-todo-list.tsx                      # 没有日期的待办，单独成组
 │  ├─ calendar-month-view.tsx                    # 月视图，可就地编辑
+│  ├─ calendar-event-form.tsx                    # 添加或修正一个事项的表单
 │  ├─ announcements-section.tsx                  # 课程公告：分组、可筛选，带规则找出的待办
 │  ├─ announcement-actions-panel.tsx             # 一条公告里可能的待办，由你确认
 │  ├─ announcement-changes-panel.tsx             # 一条公告自首次保存以来改了什么
 │  ├─ announcement-summary.tsx                   # 按课程的总结，可选模型
 │  ├─ materials-section.tsx                      # 按课程和文件夹浏览资料；保存到文件夹或 ZIP
+│  ├─ materials-parts.tsx, use-materials-export.ts# 它的筛选、文件夹和链接组；把文件存到文件夹或 ZIP
 │  ├─ syllabus-summary.tsx                       # 资料页上的大纲总结
 │  ├─ grades-section.tsx                         # 按课程的成绩
 │  ├─ ai-plan-provider.tsx                       # AI 找日期的状态：读了什么、提议了什么、定了什么
@@ -227,7 +229,7 @@ src/
    ├─ announcement-actions.ts, announcement-dates.ts, announcement-sentences.ts# 规则：切句子、找日期、给出待办建议
    ├─ announcement-decisions.ts, announcement-versions.ts, announcement-todo.ts, announcement-text.ts, announcement-filters.ts# 学生的决定；公告每次保存时的内容；添加表单；文本展示；筛选
    ├─ announcement-summary.ts, summary-models.ts, summary-cache.ts, summary-choice.ts# 总结：页面一侧、托管模型（回退链）、缓存、模型选择
-   ├─ ai-plan.ts, plan-models.ts                 # 用模型找日期：状态和提议；请求和校验过的答案
+   ├─ ai-plan.ts, ai-plan-match.ts, ai-plan-request.ts, plan-models.ts # 用模型找日期：状态；与日历对照；请求；校验过的答案
    ├─ rate-limit.ts, request-body.ts             # 接口限流与有大小、时间上限的请求体读取
    ├─ materials.ts, materials-store.ts, materials-export.ts# 资料：助手的消息（校验、合并）；IndexedDB；导出到文件夹或 ZIP
    ├─ syllabus.ts                                # 在文件里找课程大纲并读出文字

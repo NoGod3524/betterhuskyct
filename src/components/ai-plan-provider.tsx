@@ -11,7 +11,6 @@ import {
   announcementSignature,
   decide,
   EMPTY_PLAN_STATE,
-  joinSyllabusTexts,
   markFailed,
   markRead,
   parsePlanState,
@@ -19,20 +18,19 @@ import {
   PLAN_STORAGE_KEY,
   supersede,
   needsReading,
-  requestPlan,
   restorePlanState,
   savePlanState,
   saveSwitchedOff,
   saveSwitchedOn,
   setSummary,
-  suggestionToEvent,
-  suggestionToUndated,
   syllabusKey,
   syllabusSignature,
   type PlanState,
   type Suggestion,
   type SyllabusSummary,
 } from "@/lib/ai-plan";
+import { suggestionToEvent, suggestionToUndated } from "@/lib/ai-plan-match";
+import { joinSyllabusTexts, requestPlan } from "@/lib/ai-plan-request";
 import { localDay } from "@/lib/date-utils";
 import { SummaryError, type SummaryProblem } from "@/lib/announcement-summary";
 import type { MaterialsStore, StoredFile } from "@/lib/materials";

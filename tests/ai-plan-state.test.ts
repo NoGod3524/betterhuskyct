@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import { after, beforeEach, test } from "node:test";
 
-import { addFound, EMPTY_PLAN_STATE, PLAN_DATA_KEY, PLAN_STORAGE_KEY, restorePlanState, savePlanState, saveSwitchedOff, saveSwitchedOn, syllabusKey, syllabusSignature } from "../src/lib/ai-plan.ts";
+import {
+  addFound,
+  EMPTY_PLAN_STATE,
+  PLAN_DATA_KEY,
+  PLAN_STORAGE_KEY,
+  restorePlanState,
+  savePlanState,
+  saveSwitchedOff,
+  saveSwitchedOn,
+  syllabusKey,
+  syllabusSignature,
+} from "../src/lib/ai-plan.ts";
 import { saveCustomEvents } from "../src/lib/custom-events.ts";
 import { saveAnnouncements, type Announcement } from "../src/lib/announcements.ts";
 import { DECISIONS_KEY } from "../src/lib/announcement-decisions.ts";

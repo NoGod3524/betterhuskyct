@@ -195,11 +195,13 @@ src/
 │  ├─ quick-add.tsx                              # Add a to-do from the overview
 │  ├─ undated-todo-list.tsx                      # To-dos with no date, as their own group
 │  ├─ calendar-month-view.tsx                    # The month grid, editable in place
+│  ├─ calendar-event-form.tsx                    # The form for adding or correcting one event
 │  ├─ announcements-section.tsx                  # Course announcements, grouped, filterable, with the rules' to-dos
 │  ├─ announcement-actions-panel.tsx             # Possible to-dos in one announcement, to confirm
 │  ├─ announcement-changes-panel.tsx             # What changed in an announcement since it was first saved
 │  ├─ announcement-summary.tsx                   # Per-course summary, with the model choice
 │  ├─ materials-section.tsx                      # Course materials by course and folder; save to a folder or ZIP
+│  ├─ materials-parts.tsx, use-materials-export.ts# Its chips, folders and link groups; saving files to a folder or a ZIP
 │  ├─ syllabus-summary.tsx                       # A syllabus summed up, on the Materials page
 │  ├─ grades-section.tsx                         # Grades by course
 │  ├─ ai-plan-provider.tsx                       # State of the AI date finding: what is read, offered, decided
@@ -233,7 +235,7 @@ src/
    ├─ announcement-actions.ts, announcement-dates.ts, announcement-sentences.ts# The rules: sentences, the dates in them, the to-dos they suggest
    ├─ announcement-decisions.ts, announcement-versions.ts, announcement-todo.ts, announcement-text.ts, announcement-filters.ts# What the student decided; what each announcement said when saved; the add form; showing the text; filters
    ├─ announcement-summary.ts, summary-models.ts, summary-cache.ts, summary-choice.ts# Summaries: the page's side, the hosted models (fallback chain), the cache, the model choice
-   ├─ ai-plan.ts, plan-models.ts                 # Finding dates with a model: state, what is offered; the request and the checked answer
+   ├─ ai-plan.ts, ai-plan-match.ts, ai-plan-request.ts, plan-models.ts # Finding dates with a model: state; held against the calendar; the request; the checked answer
    ├─ rate-limit.ts, request-body.ts             # Route rate limits and bounded request body reads
    ├─ materials.ts, materials-store.ts, materials-export.ts# Materials: the helper's messages, checked and merged; IndexedDB; out to a folder or a ZIP
    ├─ syllabus.ts                                # Finding a course's syllabus among the files and reading its text
