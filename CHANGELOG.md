@@ -14,6 +14,25 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [3.3.3](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.3.3) — One name for the helper
+
+*Patch: wording, a quicker answer when the helper is missing, and small fixes. HuskyCT Helper stays at 2.2.2.*
+
+### Changed
+
+- The app calls the BetterHuskyCT Helper *the helper* everywhere, instead of the helper, the extension or the background extension by turns, and mentions the userscript only where a phone is meant. ([#269])
+- Settings and the Sync panel say the helper is not there after 1.5 seconds instead of 5, and still show it if it answers late. ([#269])
+- A course's tab for its work is *To-do*, as the bottom bar calls it. ([#269])
+
+### Fixed
+
+- *Undo every change on this calendar* shows only when there is something to undo. ([#269])
+- The footer's links are large enough to tap on a phone. ([#269])
+
+### Removed
+
+- Code and strings nothing used. ([#269])
+
 ## [3.3.2](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.3.2) — Security updates for the test tools
 
 *Patch: the tools that test and lint the code move past published advisories; nothing on the site changes. HuskyCT Helper stays at 2.2.2.*
@@ -2260,3 +2279,4 @@ saying what to work on next.*
 [#263]: https://github.com/NoGod3524/betterhuskyct/pull/263
 [#265]: https://github.com/NoGod3524/betterhuskyct/pull/265
 [#267]: https://github.com/NoGod3524/betterhuskyct/pull/267
+[#269]: https://github.com/NoGod3524/betterhuskyct/pull/269
