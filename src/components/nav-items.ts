@@ -37,13 +37,14 @@ export const NAV_SECTIONS: readonly NavSection[] = [
     ],
   },
   {
-    href: "/announcements",
+    href: "/courses",
     key: "nav.courses",
     Icon: BookOpen,
     pages: [
-      { href: "/announcements", key: "nav.announcements" },
-      { href: "/materials", key: "nav.materials" },
-      { href: "/grades", key: "nav.grades" },
+      { href: "/courses", key: "nav.courseList" },
+      { href: "/announcements", key: "nav.allAnnouncements" },
+      { href: "/materials", key: "nav.allMaterials" },
+      { href: "/grades", key: "nav.allGrades" },
     ],
   },
   {
@@ -59,7 +60,14 @@ export const NAV_SECTIONS: readonly NavSection[] = [
   },
 ];
 
-/** The section a route belongs to; an unknown route belongs to none. */
+/**
+ * The section a route belongs to: one of its pages, or a page under its address (a course's own
+ * page, /courses/cse-2050, is in Courses). An unknown route belongs to none.
+ */
 export function sectionFor(pathname: string): NavSection | null {
-  return NAV_SECTIONS.find((section) => section.pages.some((page) => page.href === pathname)) ?? null;
+  return (
+    NAV_SECTIONS.find((section) => section.pages.some((page) => page.href === pathname)) ??
+    NAV_SECTIONS.find((section) => section.href !== "/" && pathname.startsWith(section.href + "/")) ??
+    null
+  );
 }

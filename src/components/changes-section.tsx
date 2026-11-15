@@ -7,6 +7,7 @@ import { useCalendar } from "@/components/calendar-provider";
 import { ListSkeleton } from "@/components/list-skeleton";
 import { markChangesAsRead, useChanges } from "@/components/use-changes";
 import { CHANGES_RETENTION_DAYS, MAX_CHANGES, type ChangeEntry } from "@/lib/changes";
+import { courseKey, coursePath, tabForPage } from "@/lib/course-key";
 import { intlLocale, t, type Locale, type TranslationKey } from "@/lib/i18n";
 
 const KIND_LABELS: Record<ChangeEntry["kind"], TranslationKey> = {
@@ -38,9 +39,23 @@ function detailValue(value: string, kind: ChangeEntry["kind"], locale: Locale): 
   return value;
 }
 
-export function ChangesSection({ preview = false }: { preview?: boolean }) {
+/**
+ * Where a change's link goes: a page of the course it is about when it has one, so a new grade
+ * opens that course's grades; otherwise the all-courses page it was recorded for.
+ */
+export function changeHref(entry: ChangeEntry): string | null {
+  if (!entry.ref) return null;
+  const key = courseKey(entry.courseCode);
+  return key ? coursePath(key, tabForPage(entry.ref.page)) : entry.ref.page;
+}
+
+export function ChangesSection({ preview = false, course = null }: { preview?: boolean; /** On a course's page: only that course's changes, under no heading. */ course?: string | null }) {
   const { locale, courseColorFor } = useCalendar();
-  const { store, ready, unavailable } = useChanges();
+  const { store: allChanges, ready, unavailable } = useChanges();
+  const store = useMemo(
+    () => (course ? { ...allChanges, entries: allChanges.entries.filter((entry) => courseKey(entry.courseCode) === course) } : allChanges),
+    [allChanges, course],
+  );
   const [saveFailed, setSaveFailed] = useState(false);
   const unread = store.entries.filter((entry) => !entry.read).length;
   const Heading = preview ? "h2" : "h1";
@@ -62,13 +77,15 @@ export function ChangesSection({ preview = false }: { preview?: boolean }) {
   const timeFormat = new Intl.DateTimeFormat(intlLocale(locale), { timeStyle: "short" });
 
   async function markRead(ids?: readonly string[]) {
-    setSaveFailed(!(await markChangesAsRead(ids)));
+    // On a course's page "all" means all of this course's, not every course's.
+    const which = ids ?? (course ? store.entries.filter((entry) => !entry.read).map((entry) => entry.id) : undefined);
+    setSaveFailed(!(await markChangesAsRead(which)));
   }
 
   return (
-    <section className="mt-8" aria-labelledby="changes-heading">
-      <div className={`flex flex-wrap justify-between gap-4 ${preview ? "items-baseline" : "items-end"}`}>
-        {preview ? (
+    <section className={course ? "mt-4" : "mt-8"} aria-labelledby={course ? undefined : "changes-heading"}>
+      <div className={`flex flex-wrap justify-between gap-4 ${preview || course ? "items-baseline" : "items-end"}`}>
+        {course ? <span /> : preview ? (
           <Heading id="changes-heading" className="text-base font-semibold">
             {t(locale, "changes.previewTitle")}
             {ready && unread > 0 ? <span className="ml-2 rounded-md bg-[var(--subtle)] px-1.5 py-0.5 text-xs font-medium tabular-nums text-[var(--muted)]">{unread}</span> : null}
@@ -90,6 +107,8 @@ export function ChangesSection({ preview = false }: { preview?: boolean }) {
 
       {!ready ? <ListSkeleton label={t(locale, "common.loading")} /> : preview && unread === 0 && !unavailable ? (
         <p className="mt-2 text-sm text-[var(--muted)]">{t(locale, store.entries.length > 0 ? "changes.allRead" : "changes.previewEmpty")}</p>
+      ) : course && store.entries.length === 0 && !unavailable ? (
+        <p className="mt-2 text-sm text-[var(--muted)]">{t(locale, "changes.courseEmpty")}</p>
       ) : store.entries.length === 0 && !unavailable ? (
         <div className="mt-4 rounded-xl border border-dashed border-[var(--line-strong)] p-6">
           <p className="text-sm font-semibold">{t(locale, "changes.emptyTitle")}</p>
@@ -108,7 +127,7 @@ export function ChangesSection({ preview = false }: { preview?: boolean }) {
                       <span className={`mt-1.5 size-2 shrink-0 rounded-full ${entry.read ? "bg-transparent" : "bg-[var(--blue)]"}`} role={entry.read ? undefined : "img"} aria-label={entry.read ? undefined : t(locale, "changes.unread")} />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
-                          {entry.courseCode ? (
+                          {entry.courseCode && !course ? (
                             <span className="inline-flex items-center gap-1.5 rounded bg-[var(--subtle)] px-1.5 py-0.5 font-semibold text-[var(--ink)]">
                               {color ? <span className="size-1.5 rounded-full" style={{ backgroundColor: color }} aria-hidden /> : null}
                               {entry.courseCode}
@@ -127,7 +146,7 @@ export function ChangesSection({ preview = false }: { preview?: boolean }) {
                         ) : null}
                         {entry.detail?.text ? <p className="mt-1 whitespace-pre-line break-words text-sm text-[var(--muted)]">{entry.detail.text}</p> : null}
                         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-[var(--link)]">
-                          {entry.ref ? <Link href={entry.ref.page} className="tap-link hover:underline">{t(locale, "changes.openPage", { page: t(locale, PAGE_LABELS[entry.ref.page]) })}</Link> : null}
+                          {entry.ref ? <Link href={changeHref(entry)!} className="tap-link hover:underline">{t(locale, "changes.openPage", { page: t(locale, PAGE_LABELS[entry.ref.page]) })}</Link> : null}
                           {!entry.read ? <button type="button" onClick={() => markRead([entry.id])} aria-label={t(locale, "changes.markReadLabel", { title: entry.title })} className="tap-link hover:underline">{t(locale, "changes.markRead")}</button> : null}
                         </div>
                       </div>

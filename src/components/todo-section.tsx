@@ -11,6 +11,7 @@ import { useCalendar } from "@/components/calendar-provider";
 import { ExamList } from "@/components/exam-list";
 import { TaskOverview } from "@/components/task-overview";
 import { QuickAdd } from "@/components/quick-add";
+import { courseKey } from "@/lib/course-key";
 import { useDecisions, useVersionStore } from "@/components/use-announcement-state";
 import { TaskCard } from "@/components/task-card";
 import { UndatedTodoList } from "@/components/undated-todo-list";
@@ -45,7 +46,7 @@ export function dueLabel(task: CalendarTask, locale: Locale): string {
  * list is a list of what is left rather than a chore of ticking boxes. A tick is
  * still there for the rest, and for reopening one the gradebook got wrong.
  */
-export function TodoSection() {
+export function TodoSection({ course: fixedCourse = null }: { /** On a course's page: only its work, with nothing else around it. */ course?: string | null } = {}) {
   const { now, locale, tasks, doneIds, doneLabelFor, toggleTaskCompletion, courseLabelFor, courseColorFor, hasGrades, announcements, exportTasks, exportCalendar } = useCalendar();
   const plan = useAiPlan();
   const versions = useVersionStore();
@@ -70,11 +71,14 @@ export function TodoSection() {
     return [...found].sort();
   }, [tasks, courseLabelFor]);
   // A course that has gone from the data is no longer a filter.
-  const course = pickedCourse && codes.includes(pickedCourse) ? pickedCourse : null;
+  const course = fixedCourse ? null : pickedCourse && codes.includes(pickedCourse) ? pickedCourse : null;
 
   const shown = useMemo(
-    () => (course ? tasks.filter((task) => courseLabelFor(task)?.code === course) : tasks),
-    [tasks, course, courseLabelFor],
+    () =>
+      fixedCourse
+        ? tasks.filter((task) => courseKey(courseLabelFor(task)?.code) === fixedCourse)
+        : course ? tasks.filter((task) => courseLabelFor(task)?.code === course) : tasks,
+    [tasks, course, fixedCourse, courseLabelFor],
   );
   const todo = useMemo(() => buildTodo(shown, doneIds, now), [shown, doneIds, now]);
   const empty = todo.openCount === 0 && todo.done.length === 0;
@@ -102,7 +106,9 @@ export function TodoSection() {
   );
 
   return (
-    <section className="mt-6" aria-labelledby="todo-heading">
+    <section className={fixedCourse ? "mt-4" : "mt-6"} aria-labelledby={fixedCourse ? undefined : "todo-heading"}>
+      {fixedCourse ? null : (
+        <>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">{t(locale, "todo.eyebrow")}</p>
@@ -192,6 +198,9 @@ export function TodoSection() {
         </div>
       ) : null}
 
+        </>
+      )}
+
       {empty ? (
         <div className="mt-4 rounded-xl border border-dashed border-[var(--line-strong)] p-6">
           <p className="text-sm font-semibold text-[var(--ink)]">{t(locale, course ? "todo.nothingInCourse" : "todo.emptyTitle")}</p>
@@ -245,7 +254,7 @@ export function TodoSection() {
       )}
 
       <div className="mt-6 empty:hidden">
-        <UndatedTodoList locale={locale} course={course} />
+        <UndatedTodoList locale={locale} course={fixedCourse ? null : course} />
       </div>
     </section>
   );

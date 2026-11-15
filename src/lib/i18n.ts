@@ -4,6 +4,21 @@ export const DEFAULT_LOCALE: Locale = "en";
 export const LOCALE_STORAGE_KEY = "huskypilot.locale.v1";
 
 const en = {
+  "changes.courseEmpty": "Nothing has changed in this course lately.",
+  "course.notFound": "This course is not in your data. It may have ended, or the link is from another browser.",
+  "course.tab.tasks": "Work",
+  "course.tab.activity": "Activity",
+  "courses.emptyBody": "Sync once and every course you are in shows up here.",
+  "courses.emptyTitle": "No courses yet",
+  "courses.next": "Next:",
+  "courses.files": "{count} file(s)",
+  "courses.announcements": "{count} announcement(s)",
+  "courses.open": "{count} to do",
+  "courses.intro": "Each course on its own page: what changed, the work, announcements, files and grades.",
+  "nav.allGrades": "All grades",
+  "nav.allMaterials": "All materials",
+  "nav.allAnnouncements": "All announcements",
+  "nav.courseList": "Courses",
   "settings.syncOpen": "Open sync",
   "settings.syncBody": "Automatic checks and system notifications are switched in the extension's toolbar popup.",
   "settings.sync": "Sync",
@@ -619,6 +634,21 @@ const en = {
 } as const;
 
 const zhCN: Record<TranslationKey, string> = {
+  "changes.courseEmpty": "这门课最近没有变化。",
+  "course.notFound": "你的数据里没有这门课。可能已经结课，或者链接来自另一个浏览器。",
+  "course.tab.tasks": "作业",
+  "course.tab.activity": "动态",
+  "courses.emptyBody": "同步一次，你上的每门课都会出现在这里。",
+  "courses.emptyTitle": "还没有课程",
+  "courses.next": "下一个：",
+  "courses.files": "{count} 个课件",
+  "courses.announcements": "{count} 条公告",
+  "courses.open": "{count} 项待交",
+  "courses.intro": "每门课一页：变化、作业、公告、课件和成绩都在里面。",
+  "nav.allGrades": "全部成绩",
+  "nav.allMaterials": "全部课件",
+  "nav.allAnnouncements": "全部公告",
+  "nav.courseList": "课程",
   "settings.syncOpen": "打开同步",
   "settings.syncBody": "自动检查和系统通知的开关在浏览器扩展的工具栏弹窗里。",
   "settings.sync": "同步",

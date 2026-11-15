@@ -21,6 +21,7 @@ import {
 
 import { useCalendar } from "@/components/calendar-provider";
 import { openSyncCenter } from "@/components/sync-center";
+import { courseKey } from "@/lib/course-key";
 import { DELIVERY_EVENT, type DeliveryDetail } from "@/components/helper-deliveries";
 import { ListSkeleton } from "@/components/list-skeleton";
 import { SyllabusSummaryCard, SyllabusSummaryHint } from "@/components/syllabus-summary";
@@ -91,7 +92,14 @@ const groupKeyOf = (courseId: string, name: string) => `g:${courseId}:${name}`;
  * listens for the helper's messages (from HuskyCT's origin only) and stores
  * each file as it arrives.
  */
-export function MaterialsSection({ openStore = openMaterialsStore }: { openStore?: () => Promise<MaterialsStore> }) {
+export function MaterialsSection({
+  openStore = openMaterialsStore,
+  course = null,
+}: {
+  openStore?: () => Promise<MaterialsStore>;
+  /** On a course's page: only that course, open, with no heading, chips or all-course buttons. */
+  course?: string | null;
+}) {
   const { locale, courseColorFor } = useCalendar();
   const [store, setStore] = useState<MaterialsStore | null>(null);
   const [index, setIndex] = useState<MaterialsIndex | null>(null);
@@ -190,7 +198,9 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
     },
     [],
   );
-  const shown = courseFilter ? courses.filter((course) => course.id === courseFilter) : courses;
+  const shown = course
+    ? courses.filter((entry) => courseKey(entry.code) === course)
+    : courseFilter ? courses.filter((entry) => entry.id === courseFilter) : courses;
   const writePicker =
     typeof window !== "undefined" ? (window as unknown as { showDirectoryPicker?: WritePicker }).showDirectoryPicker : undefined;
   const [exporting, setExporting] = useState(false);
@@ -329,8 +339,8 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
   }
 
   return (
-    <section className="mt-10" aria-labelledby="materials-heading">
-      <div className="flex flex-wrap items-end justify-between gap-4">
+    <section className={course ? "mt-4" : "mt-10"} aria-labelledby={course ? undefined : "materials-heading"}>
+      {course ? null : <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">{t(locale, "materials.eyebrow")}</p>
           <h2 id="materials-heading" className="font-display mt-1 text-2xl font-semibold">
@@ -374,7 +384,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
             </button>
           ) : null}
         </div>
-      </div>
+      </div>}
 
 
       {receive.phase === "connected" || receive.phase === "receiving" ? (
@@ -396,7 +406,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
 
       {!ready ? (
         <ListSkeleton label={t(locale, "common.loading")} />
-      ) : courses.length === 0 ? (
+      ) : shown.length === 0 ? (
         <div className="mt-4 rounded-xl border border-dashed border-[var(--line-strong)] p-6">
           <p className="text-sm font-semibold">{t(locale, "materials.emptyTitle")}</p>
           <p className="mt-1 text-sm text-[var(--muted)]">{t(locale, "materials.emptyBody")}</p>
@@ -407,7 +417,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
       ) : (
         <>
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Chip active={courseFilter === null} onClick={() => setCourseFilter(null)}>
+            {course ? null : <><Chip active={courseFilter === null} onClick={() => setCourseFilter(null)}>
               {t(locale, "materials.allCourses")}
             </Chip>
             {courses.map((course) => (
@@ -418,7 +428,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
                 {course.code ?? course.id}
                 <span className="opacity-70">{course.files.length}</span>
               </Chip>
-            ))}
+            ))}</>}
             <span className="text-xs text-[var(--muted)]">
               {t(locale, "materials.summary", { received: counts.received, files: counts.fileCount })}
               {usage !== null ? " · " + t(locale, "materials.usage", { used: formatBytes(usage) }) : ""}
@@ -442,7 +452,7 @@ export function MaterialsSection({ openStore = openMaterialsStore }: { openStore
               const links = course.links.filter((link) => link.kind === "link");
               const courseKey = courseKeyOf(course.id);
               // Picking a course with its chip is asking to see it.
-              const courseOpen = open.has(courseKey) || courseFilter === course.id;
+              const courseOpen = open.has(courseKey) || courseFilter === course.id || shown.length === 1;
               const missing = course.files.filter((file) => !files.has(file.key)).length;
               const fresh = course.files.filter((file) => unseen.has(file.key)).length;
               const group = (name: string) => groupKeyOf(course.id, name);
