@@ -14,6 +14,19 @@ HuskyCT Helper, the userscript in `tools/huskyct-helper`, keeps its own version
 by the same rules, from its 1.0.0 in BetterHuskyCT 1.9.0. Its entries here say
 which helper version they ship.
 
+## [3.2.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.2.0) — Every setting on one page
+
+*Minor: the extension's settings, the course list and clearing data join the Settings page. HuskyCT Helper stays at 2.2.2.*
+
+### Added
+
+- **The extension's settings on the Settings page.** Automatic checks, system notifications and which kinds of change they cover can be switched there, as in the toolbar popup. The first time notifications are turned on, the browser's permission is asked in the extension's own panel, and Settings opens it. ([#261])
+- Choosing a language also sets the extension's, so its notifications match. ([#261])
+
+### Changed
+
+- The course and calendar list moves from the Calendar page to Settings, and *Clear synced data* from the Backup page. ([#261])
+
 ## [3.1.0](https://github.com/NoGod3524/betterhuskyct/releases/tag/v3.1.0) — A page for each course
 
 *Minor: each course gets its own page. HuskyCT Helper stays at 2.2.2.*
@@ -2214,3 +2227,4 @@ saying what to work on next.*
 [#255]: https://github.com/NoGod3524/betterhuskyct/pull/255
 [#257]: https://github.com/NoGod3524/betterhuskyct/pull/257
 [#259]: https://github.com/NoGod3524/betterhuskyct/pull/259
+[#261]: https://github.com/NoGod3524/betterhuskyct/pull/261
